@@ -1,0 +1,286 @@
+name: Build
+
+# Reusable build + test + package pipeline shared by ci.yml (PRs),
+# nightly.yml (main) and release.yml (tags). Every caller builds the same
+# packages, so a packaging break shows up on the PR, not after the tag.
+#
+# Packages are produced from `cmake --install`, which lays out the app,
+# parts library and translations exactly where the app looks for them
+# (see "Install layout" in the top-level CMakeLists.txt), then bundles
+# the runtime: windeployqt + MSVC runtime on Windows, macdeployqt on
+# macOS, linuxdeploy on Linux.
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Version to stamp (X.Y.Z). Empty keeps the CMake default.
+        type: string
+        default: ''
+      artifact-suffix:
+        description: Inserted after the product name in artifact file names.
+        type: string
+        default: ''
+      sign:
+        description: Code-sign / notarize when the signing secrets exist.
+        type: boolean
+        default: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+  QT_VERSION: '6.7.*'
+  # Headless test runs; never pop a message box from QCommandLineParser.
+  QT_QPA_PLATFORM: offscreen
+  QT_COMMAND_LINE_PARSER_NO_GUI_MESSAGE_BOXES: '1'
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Oldest supported Ubuntu: the AppImage only runs on distros with a
+          # glibc at least as new as the build host's.
+          - os: ubuntu-22.04
+            name: linux-x86_64
+          - os: windows-2022
+            name: windows-x86_64
+          # One universal (arm64 + x86_64) bundle; Qt's macOS binaries are
+          # universal already.
+          - os: macos-14
+            name: macos-universal
+            cmake_extra: '"-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0'
+
+    name: Build (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    env:
+      ARTIFACT: brick-layout-designer${{ inputs.artifact-suffix }}-${{ matrix.name }}
+      # A step's `if:` can't read that step's own `env:`, so the "are the
+      # signing secrets configured?" checks are resolved here, at job level.
+      HAS_MACOS_CERT:  ${{ inputs.sign && secrets.MACOS_CERTIFICATE != '' }}
+      HAS_APPLE_ID:    ${{ inputs.sign && secrets.APPLE_ID != '' }}
+      HAS_WINDOWS_PFX: ${{ inputs.sign && secrets.WINDOWS_PFX_BASE64 != '' }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          cache: true
+
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1-mesa-dev libxkbcommon-dev libxkbcommon-x11-0 \
+            libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
+            libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-sync1 \
+            libxcb-xfixes0 libxcb-xinerama0 libxcb-xkb1 \
+            libcups2-dev xvfb
+
+      - name: Configure
+        shell: bash
+        run: |
+          VERSION_ARG=()
+          if [ -n "${{ inputs.version }}" ]; then VERSION_ARG=(-DBLD_VERSION="${{ inputs.version }}"); fi
+          cmake -B build -DCMAKE_BUILD_TYPE=Release "${VERSION_ARG[@]}" ${{ matrix.cmake_extra }}
+          # Resolved version (input or CMake default) for package names / MSI.
+          echo "BLD_VERSION=$(cmake -N -L build | sed -n 's/^BLD_VERSION:STRING=//p')" >> "$GITHUB_ENV"
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Test
+        run: ctest --test-dir build --build-config Release --output-on-failure --timeout 300
+
+      # ---------------------------------------------------------------- Linux
+      - name: Package (Linux AppImage + tar.gz)
+        if: runner.os == 'Linux'
+        run: |
+          APPDIR="$PWD/AppDir"
+          cmake --install build --prefix "$APPDIR/usr"
+          # linuxdeploy-plugin-qt links our .qm files into usr/translations
+          # and fails if it doesn't exist yet.
+          mkdir -p "$APPDIR/usr/translations"
+
+          curl -sSfL -o linuxdeploy \
+            https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          curl -sSfL -o linuxdeploy-plugin-qt \
+            https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          chmod +x linuxdeploy linuxdeploy-plugin-qt
+          # Runners have no FUSE; run the tool AppImages extracted.
+          export APPIMAGE_EXTRACT_AND_RUN=1
+          export QMAKE="$QT_ROOT_DIR/bin/qmake"
+          export OUTPUT="$ARTIFACT.AppImage"
+          export LINUXDEPLOY_OUTPUT_VERSION="$BLD_VERSION"
+          ./linuxdeploy --appdir "$APPDIR" --plugin qt --output appimage
+
+          # The tarball is the same bundled AppDir (Qt libs + plugins
+          # included), with a top-level launcher.
+          mkdir -p dist
+          cp -a "$APPDIR" dist/brick-layout-designer
+          ln -s usr/bin/brick-layout-designer dist/brick-layout-designer/brick-layout-designer
+          tar -czf "$ARTIFACT.tar.gz" -C dist brick-layout-designer
+
+      - name: Smoke test packages (Linux)
+        if: runner.os == 'Linux'
+        env:
+          QT_QPA_PLATFORM: xcb
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+        run: |
+          # xcb is the only platform plugin bundled, so this also proves the
+          # bundle is self-contained.
+          xvfb-run -a "./$ARTIFACT.AppImage" --version | grep -F "$BLD_VERSION"
+          xvfb-run -a ./dist/brick-layout-designer/brick-layout-designer --version | grep -F "$BLD_VERSION"
+          test -d dist/brick-layout-designer/usr/share/brick-layout-designer/parts/BlueBrickParts/parts
+
+      # ---------------------------------------------------------------- macOS
+      - name: Install (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          cmake --install build --config Release --prefix dist
+          APP=dist/brick-layout-designer.app
+          # Parts/translations land in Resources after macdeployqt ran, which
+          # invalidates its ad-hoc signature; re-seal. Replaced by the real
+          # identity below when signing secrets are configured.
+          codesign --force --deep --sign - "$APP"
+          lipo -archs "$APP/Contents/MacOS/brick-layout-designer"
+          lipo "$APP/Contents/MacOS/brick-layout-designer" -verify_arch arm64 x86_64
+
+      - name: Codesign (macOS)
+        # No-op unless the Apple Developer secrets are configured; see
+        # docs/SIGNING.md. Unsigned builds open via right-click -> Open.
+        if: runner.os == 'macOS' && env.HAS_MACOS_CERT == 'true'
+        env:
+          MACOS_CERTIFICATE:      ${{ secrets.MACOS_CERTIFICATE }}       # base64-encoded .p12
+          MACOS_CERTIFICATE_PWD:  ${{ secrets.MACOS_CERTIFICATE_PWD }}   # passphrase for the .p12
+          MACOS_CERTIFICATE_NAME: ${{ secrets.MACOS_CERTIFICATE_NAME }}  # "Developer ID Application: Name (TEAMID)"
+          MACOS_KEYCHAIN_PWD:     ${{ secrets.MACOS_KEYCHAIN_PWD }}      # any short random string
+        run: |
+          # Per-job keychain so nothing leaks across runs.
+          KEYCHAIN=build.keychain
+          security create-keychain -p "${MACOS_KEYCHAIN_PWD}" "${KEYCHAIN}"
+          security set-keychain-settings -lut 21600 "${KEYCHAIN}"
+          security unlock-keychain -p "${MACOS_KEYCHAIN_PWD}" "${KEYCHAIN}"
+          echo "${MACOS_CERTIFICATE}" | base64 --decode > cert.p12
+          security import cert.p12 -k "${KEYCHAIN}" -P "${MACOS_CERTIFICATE_PWD}" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "${MACOS_KEYCHAIN_PWD}" "${KEYCHAIN}"
+          security list-keychains -d user -s "${KEYCHAIN}" login.keychain
+          # Hardened runtime so notarization accepts it.
+          codesign --force --deep --options runtime --timestamp \
+            --sign "${MACOS_CERTIFICATE_NAME}" dist/brick-layout-designer.app
+          rm -f cert.p12
+
+      - name: Notarize (macOS)
+        if: runner.os == 'macOS' && env.HAS_APPLE_ID == 'true'
+        env:
+          APPLE_ID:           ${{ secrets.APPLE_ID }}            # Apple Developer account email
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}  # app-specific password
+          APPLE_TEAM_ID:      ${{ secrets.APPLE_TEAM_ID }}       # 10-char team ID
+        run: |
+          ditto -c -k --keepParent dist/brick-layout-designer.app notarize.zip
+          xcrun notarytool submit notarize.zip \
+            --apple-id "${APPLE_ID}" --password "${APPLE_APP_PASSWORD}" \
+            --team-id "${APPLE_TEAM_ID}" --wait
+          xcrun stapler staple dist/brick-layout-designer.app
+          rm -f notarize.zip
+
+      - name: Package (macOS .zip + .dmg)
+        if: runner.os == 'macOS'
+        run: |
+          APP=dist/brick-layout-designer.app
+          "$APP/Contents/MacOS/brick-layout-designer" --version | grep -F "$BLD_VERSION"
+          test -d "$APP/Contents/Resources/BlueBrickParts/parts"
+          # ditto keeps the extended attributes / signature intact.
+          ditto -c -k --keepParent "$APP" "$ARTIFACT.zip"
+          # Drag-to-Applications disk image.
+          mkdir -p dmg
+          cp -R "$APP" "dmg/Brick Layout Designer.app"
+          ln -s /Applications dmg/Applications
+          # hdiutil intermittently fails with "Resource busy" on hosted runners.
+          for attempt in 1 2 3; do
+            hdiutil create -volname "Brick Layout Designer" -srcfolder dmg -ov -format UDZO "$ARTIFACT.dmg" && break
+            [ "$attempt" = 3 ] && exit 1
+            sleep 10
+          done
+
+      # -------------------------------------------------------------- Windows
+      - name: Install (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          cmake --install build --config Release --prefix dist/brick-layout-designer
+          ./dist/brick-layout-designer/brick-layout-designer.exe --version > version.txt
+          cat version.txt
+          grep -F "$BLD_VERSION" version.txt
+          test -f dist/brick-layout-designer/vcruntime140.dll
+          test -d dist/brick-layout-designer/parts/BlueBrickParts/parts
+
+      - name: Codesign exe (Windows)
+        # Signs the binaries before they are zipped / wrapped in the MSI.
+        # No-op unless WINDOWS_PFX_BASE64 is configured (see docs/SIGNING.md).
+        if: runner.os == 'Windows' && env.HAS_WINDOWS_PFX == 'true'
+        shell: pwsh
+        env:
+          WINDOWS_PFX_BASE64: ${{ secrets.WINDOWS_PFX_BASE64 }}  # base64-encoded .pfx
+          WINDOWS_PFX_PWD:    ${{ secrets.WINDOWS_PFX_PWD }}     # passphrase for the .pfx
+        run: |
+          [IO.File]::WriteAllBytes("cert.pfx", [Convert]::FromBase64String($env:WINDOWS_PFX_BASE64))
+          $SDKSign = (Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" |
+                      Sort-Object FullName -Descending | Select-Object -First 1).FullName
+          if (-not $SDKSign) { $SDKSign = "signtool.exe" }
+          Get-ChildItem -Path dist -Recurse -Include *.exe,*.dll | ForEach-Object {
+            & $SDKSign sign /f cert.pfx /p $env:WINDOWS_PFX_PWD `
+              /fd SHA256 /tr http://timestamp.sectigo.com /td SHA256 $_.FullName
+          }
+          Remove-Item cert.pfx
+
+      - name: Package (Windows .zip + MSI)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          (cd dist && 7z a "../$ARTIFACT.zip" brick-layout-designer)
+
+          dotnet tool install --global wix --version 4.* || true
+          export PATH="$HOME/.dotnet/tools:$PATH"
+          rm -rf packaging/windows/staging
+          cp -r dist/brick-layout-designer packaging/windows/staging
+          cd packaging/windows
+          wix extension add WixToolset.UI.wixext WixToolset.Util.wixext || true
+          # Mirror staging/ (Qt plugins in their subdirs, parts library,
+          # translations) into Harvested.wxs.
+          python ../../scripts/harvest-wix.py \
+            --staging staging \
+            --out Harvested.wxs \
+            --exclude-top brick-layout-designer.exe
+          wix build brick-layout-designer.wxs Harvested.wxs \
+            -d Version="$BLD_VERSION" \
+            -arch x64 \
+            -out "../../$ARTIFACT.msi"
+
+      - name: Codesign MSI (Windows)
+        if: runner.os == 'Windows' && env.HAS_WINDOWS_PFX == 'true'
+        shell: pwsh
+        env:
+          WINDOWS_PFX_BASE64: ${{ secrets.WINDOWS_PFX_BASE64 }}
+          WINDOWS_PFX_PWD:    ${{ secrets.WINDOWS_PFX_PWD }}
+        run: |
+          [IO.File]::WriteAllBytes("cert.pfx", [Convert]::FromBase64String($env:WINDOWS_PFX_BASE64))
+          $SDKSign = (Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" |
+                      Sort-Object FullName -Descending | Select-Object -First 1).FullName
+          if (-not $SDKSign) { $SDKSign = "signtool.exe" }
+          & $SDKSign sign /f cert.pfx /p $env:WINDOWS_PFX_PWD `
+            /fd SHA256 /tr http://timestamp.sectigo.com /td SHA256 "$env:ARTIFACT.msi"
+          Remove-Item cert.pfx
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT }}
+          path: |
+            ${{ env.ARTIFACT }}.*
+          if-no-files-found: error
