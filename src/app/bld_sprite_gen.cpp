@@ -141,7 +141,7 @@ int main(int argc, char** argv) {
 
     // Primary render path: composite via SceneBuilder if there are
     // part references and any of them resolve in the library.
-    auto modelMap = bld::import::toBlueBrickMap(read);
+    auto modelMap = bld::import::toBlueBrickMap(read, &parts);
     const bool hasRefs = modelMap && !modelMap->layers().empty();
     QImage sprite;
     if (hasRefs) {

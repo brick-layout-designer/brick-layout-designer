@@ -8,11 +8,14 @@ namespace bld::parts { class PartsLibrary; }
 
 namespace bld::import {
 
-// Write a single BlueBrick part (GIF + XML pair) that represents an
-// imported LDraw / Studio / LDD model as a flat top-down sprite.
-// The sprite is rendered from whichever parts of the model resolve
-// against `lib` (unknown LDraw references contribute nothing). Saves
-// into `destLibraryDir` as `<partName>.gif` and `<partName>.xml`.
+// Write a single BlueBrick part that represents an imported LDraw /
+// Studio / LDD model as a flat top-down sprite, into `destLibraryDir`:
+//   <key>.xml  part description (+ <PixelsPerStud> for hi-res sprites)
+//   <key>.png  the sprite as given, when it isn't 8 px/stud
+//   <key>.gif  8 px/stud sprite; the only file vanilla BlueBrick reads
+// `widthStuds` x `heightStuds` is the footprint; the sprite's pixel size
+// divided by it gives the resolution. The key is `sourceFilePath`'s stem,
+// suffixed -2, -3, ... to avoid overwriting an existing part.
 //
 // Returns the new part key (the filename stem without the extension),
 // or an empty string on failure; the error is written to *error

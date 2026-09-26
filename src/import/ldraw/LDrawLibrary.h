@@ -56,6 +56,15 @@ public:
     // primitive set.
     QString resolve(const QString& filename) const;
 
+    // Earlier numbers of a renumbered part, newest first, lower-case and
+    // without ".dat" (e.g. "74746" -> {"2865"}). LDraw keeps a stub
+    // "0 ~Moved to <new>" file under the old number, so this is how a
+    // model using current numbers finds a library that still uses the
+    // old ones (BlueBrickParts' 9V track is 2865/2867). Chains are
+    // followed. The index is built on first call by reading the header
+    // line of every parts/*.dat.
+    QStringList formerNames(const QString& partName) const;
+
 private:
     // Lower-cased filename → absolute path index, built lazily per
     // search directory. The index is mutable because resolve() is
@@ -69,6 +78,10 @@ private:
     // Resolved-result cache so e.g. "stud.dat" referenced 50 000 times
     // only walks the search dirs once.
     mutable QHash<QString, QString> resolveCache_;
+
+    // new part name -> names that were moved to it (lower-case, no .dat).
+    mutable QHash<QString, QStringList> movedFrom_;
+    mutable bool movedFromBuilt_ = false;
 };
 
 }  // namespace bld::import

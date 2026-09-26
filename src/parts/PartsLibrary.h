@@ -87,6 +87,12 @@ struct PartMetadata {
     // <PixelsPerStud> element in the part XML; defaults to 8 when
     // absent so existing libraries keep working unchanged.
     int      pxPerStud = 8;
+
+    // <LDraw> remap block: how the LDraw part's origin/orientation map
+    // onto this part's image centre, as BlueBrick's LDraw loader applies
+    // it. Angle in degrees; translation in LDU.
+    double   ldrawAngle = 0.0;
+    QPointF  ldrawTranslation;
 };
 
 class PartsLibrary {

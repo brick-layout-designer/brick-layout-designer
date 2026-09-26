@@ -19,6 +19,7 @@
 #include "../core/LayerBrick.h"
 #include "../core/Map.h"
 #include "../edit/Connectivity.h"
+#include "../import/ImportConnections.h"
 #include "../import/ImportToPart.h"
 #include "../import/ldd/LDDLDrawMapping.h"
 #include "../import/ldd/LDDMaterials.h"
@@ -87,20 +88,13 @@ void MainWindow::setupToolsMenu() {
                 tr("Parse failed: %1").arg(read.error));
             return;
         }
-        auto modelMap = import::toBlueBrickMap(read);
+        auto modelMap = import::toBlueBrickMap(read, &parts_);
         const bool hasRefs = modelMap && !modelMap->layers().empty();
         if (!hasRefs && read.primitives.empty()) {
             QMessageBox::warning(this, kindLabel,
                 tr("No usable parts or primitives in %1").arg(source));
             return;
         }
-
-        // Rebuild the imported map's connectivity so two bricks that
-        // touch at matching connection points get their linkedToId
-        // populated — we use those to discriminate "external" (free)
-        // ends from internal joints when emitting the composite
-        // part's ConnexionList below.
-        if (hasRefs) edit::rebuildConnectivity(*modelMap, parts_);
 
         // Render the imported map into a QImage. Use a dedicated
         // scene + SceneBuilder so we don't disturb the user's current
@@ -145,45 +139,15 @@ void MainWindow::setupToolsMenu() {
         const int wStud = std::max(1, static_cast<int>(std::round(wPx / kPxPerStud)));
         const int hStud = std::max(1, static_cast<int>(std::round(hPx / kPxPerStud)));
 
-        // Gather every free (linkedToId empty) connection from every
-        // brick in the imported model, converted to sprite-local
-        // studs (origin = sprite centre). These become the
-        // <ConnexionList> of the composite part so it snaps like a
-        // real track tile.
-        QVector<import::ImportedConnection> externalConns;
-        {
-            const auto rotate = [](QPointF p, double deg) {
-                const double r = deg * M_PI / 180.0;
-                const double c = std::cos(r), s = std::sin(r);
-                return QPointF(p.x() * c - p.y() * s, p.x() * s + p.y() * c);
-            };
-            const QPointF spriteCentreStuds(
-                (bounds.left() + bounds.right()) * 0.5 / kPxPerStud,
-                (bounds.top()  + bounds.bottom()) * 0.5 / kPxPerStud);
-            for (const auto& layerPtr : modelMap->layers()) {
-                if (!layerPtr || layerPtr->kind() != core::LayerKind::Brick) continue;
-                const auto& BL = static_cast<const core::LayerBrick&>(*layerPtr);
-                for (const auto& brick : BL.bricks) {
-                    auto meta = parts_.metadata(brick.partNumber);
-                    if (!meta) continue;
-                    const QPointF brickCentre = brick.displayArea.center();
-                    for (int ci = 0; ci < meta->connections.size(); ++ci) {
-                        const auto& c = meta->connections[ci];
-                        if (c.type.isEmpty()) continue;
-                        if (ci < static_cast<int>(brick.connections.size()) &&
-                            !brick.connections[ci].linkedToId.isEmpty()) continue;
-                        const QPointF wStuds = brickCentre
-                            + rotate(c.position, brick.orientation);
-                        import::ImportedConnection ic;
-                        ic.type = c.type;
-                        ic.xStuds   = wStuds.x() - spriteCentreStuds.x();
-                        ic.yStuds   = wStuds.y() - spriteCentreStuds.y();
-                        ic.angleDeg = c.angleDegrees + brick.orientation;
-                        externalConns.append(ic);
-                    }
-                }
-            }
-        }
+        // Free connection ends of the model become the composite part's
+        // <ConnexionList>, relative to the sprite centre, so it snaps like
+        // a real track tile.
+        const QPointF spriteCentreStuds(
+            (bounds.left() + bounds.right()) * 0.5 / kPxPerStud,
+            (bounds.top()  + bounds.bottom()) * 0.5 / kPxPerStud);
+        const QVector<import::ImportedConnection> externalConns = hasRefs
+            ? import::externalConnections(*modelMap, parts_, spriteCentreStuds)
+            : QVector<import::ImportedConnection>{};
 
         // Preview before commit. The legacy path doesn't track granular
         // resolved/unresolved counts the way the LDraw-library and LDD
@@ -192,7 +156,7 @@ void MainWindow::setupToolsMenu() {
         ImportPreviewDialog::Stats st;
         st.ldrawResolved = static_cast<int>(read.parts.size());
         ImportPreviewDialog dlg(source, kindLabel, sprite,
-                                wStud, hStud, st, {}, this);
+                                wStud, hStud, st, {}, externalConns, this);
         if (dlg.exec() != QDialog::Accepted) {
             statusBar()->showMessage(tr("Import cancelled."), 3000);
             return;
@@ -299,9 +263,17 @@ void MainWindow::setupToolsMenu() {
         }
 
         const int wStud = std::max(1, static_cast<int>(
-            std::round(rast.meshBoundsXZ.width())));
+            std::round(rast.spriteStuds.width())));
         const int hStud = std::max(1, static_cast<int>(
-            std::round(rast.meshBoundsXZ.height())));
+            std::round(rast.spriteStuds.height())));
+
+        // Snap points: place the same refs the way BlueBrick would (the
+        // mesh frame and BlueBrick's LDraw frame agree: y = -LDraw z) and
+        // keep the free connection ends of parts BlueBrickParts knows —
+        // track, road, monorail — relative to the sprite centre.
+        auto placed = import::toBlueBrickMap(read, &parts_, &lib, &loader);
+        const QVector<import::ImportedConnection> conns = import::externalConnections(
+            *placed, parts_, rast.spriteStuds.center());
 
         // Show the preview dialog so the user sees what they're
         // about to add to the library. Cancelling here just returns
@@ -310,17 +282,13 @@ void MainWindow::setupToolsMenu() {
         st.ldrawResolved = baked.resolvedRefs;
         st.unmapped      = baked.unresolvedRefs;
         ImportPreviewDialog dlg(source, kindLabel, rast.image,
-                                wStud, hStud, st, baked.errors, this);
+                                wStud, hStud, st, baked.errors, conns, this);
         if (dlg.exec() != QDialog::Accepted) {
             statusBar()->showMessage(tr("Import cancelled."), 3000);
             return true;
         }
 
-        // Emit as a new BlueBrick library part with no ConnexionList
-        // for now — full connection-list bake from real LDraw geometry
-        // requires picking up the studs from p/stud.dat refs and
-        // is a follow-up. The part is still placeable; users can
-        // manually edit connections via Properties.
+        // Emit as a new library part: hi-res sprite + snap points.
         QString modulesRoot = QSettings().value(
             QStringLiteral("modules/libraryPath")).toString();
         if (modulesRoot.isEmpty()) {
@@ -334,7 +302,7 @@ void MainWindow::setupToolsMenu() {
                                    ? mapView_->currentMap()->author : QString();
         const QString fileKey = import::writeImportedModelAsLibraryPart(
             dlg.partName(), rast.image, wStud, hStud, modulesRoot, author,
-            {}, &err);
+            conns, &err);
         if (fileKey.isEmpty()) {
             QMessageBox::warning(this, kindLabel,
                 tr("Could not write library part: %1").arg(err));
@@ -492,18 +460,18 @@ void MainWindow::setupToolsMenu() {
         st.unmapped      = 0;
         st.skipped       = lddBaked.skipped;
         ImportPreviewDialog dlg(source, kindLabel, rast.image,
-                                static_cast<int>(std::round(rast.meshBoundsXZ.width())),
-                                static_cast<int>(std::round(rast.meshBoundsXZ.height())),
-                                st, allErrors, this);
+                                static_cast<int>(std::round(rast.spriteStuds.width())),
+                                static_cast<int>(std::round(rast.spriteStuds.height())),
+                                st, allErrors, {}, this);
         if (dlg.exec() != QDialog::Accepted) {
             statusBar()->showMessage(tr("Import cancelled."), 3000);
             return true;
         }
 
         const int wStud = std::max(1, static_cast<int>(
-            std::round(rast.meshBoundsXZ.width())));
+            std::round(rast.spriteStuds.width())));
         const int hStud = std::max(1, static_cast<int>(
-            std::round(rast.meshBoundsXZ.height())));
+            std::round(rast.spriteStuds.height())));
         QString modulesRoot = QSettings().value(
             QStringLiteral("modules/libraryPath")).toString();
         if (modulesRoot.isEmpty()) {

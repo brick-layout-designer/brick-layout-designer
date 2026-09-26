@@ -4,6 +4,9 @@
 #include <QImage>
 #include <QString>
 #include <QStringList>
+#include <QVector>
+
+#include "../import/ImportToPart.h"
 
 class QCheckBox;
 class QLabel;
@@ -41,6 +44,7 @@ public:
                         int heightStuds,
                         const Stats& stats,
                         const QStringList& errors,
+                        const QVector<import::ImportedConnection>& connections,
                         QWidget* parent = nullptr);
 
     // Final values after exec() returns Accepted.

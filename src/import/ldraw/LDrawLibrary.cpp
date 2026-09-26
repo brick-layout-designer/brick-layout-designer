@@ -1,7 +1,9 @@
 #include "LDrawLibrary.h"
 
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
+#include <QRegularExpression>
 
 namespace bld::import {
 
@@ -13,6 +15,8 @@ void LDrawLibrary::setRoot(QString root) {
     // wipe both caches so resolve() rebuilds against the new tree.
     indexBySubdir_.clear();
     resolveCache_.clear();
+    movedFrom_.clear();
+    movedFromBuilt_ = false;
 }
 
 bool LDrawLibrary::looksValid() const {
@@ -114,6 +118,44 @@ QString LDrawLibrary::resolve(const QString& filename) const {
         if (it != idx.constEnd()) return saveAndReturn(it.value());
     }
     return saveAndReturn(QString());
+}
+
+namespace {
+
+QString stemLower(QString name) {
+    name = name.trimmed().toLower();
+    name.replace(QLatin1Char('\\'), QLatin1Char('/'));
+    name = name.mid(name.lastIndexOf(QLatin1Char('/')) + 1);
+    if (name.endsWith(QStringLiteral(".dat"))) name.chop(4);
+    return name;
+}
+
+}  // namespace
+
+QStringList LDrawLibrary::formerNames(const QString& partName) const {
+    if (!movedFromBuilt_) {
+        movedFromBuilt_ = true;
+        static const QRegularExpression moved(
+            QStringLiteral("^0\\s+~Moved\\s+to\\s+(\\S+)"),
+            QRegularExpression::CaseInsensitiveOption);
+        for (auto it = indexForSubdir(QStringLiteral("parts")).cbegin(),
+                  end = indexForSubdir(QStringLiteral("parts")).cend(); it != end; ++it) {
+            QFile f(it.value());
+            if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) continue;
+            const auto m = moved.match(QString::fromUtf8(f.readLine(256)));
+            if (m.hasMatch()) movedFrom_[stemLower(m.captured(1))].append(stemLower(it.key()));
+        }
+    }
+    QStringList out;
+    QStringList pending{ stemLower(partName) };
+    while (!pending.isEmpty()) {
+        for (const QString& old : movedFrom_.value(pending.takeFirst())) {
+            if (out.contains(old)) continue;
+            out.append(old);
+            pending.append(old);
+        }
+    }
+    return out;
 }
 
 }  // namespace bld::import

@@ -1,5 +1,8 @@
 #include "ImportPreviewDialog.h"
 
+#include <QtMath>
+#include <cmath>
+
 #include <QDialogButtonBox>
 #include <QFileInfo>
 #include <QFormLayout>
@@ -84,6 +87,7 @@ ImportPreviewDialog::ImportPreviewDialog(const QString& sourceFile,
                                           int heightStuds,
                                           const Stats& stats,
                                           const QStringList& errors,
+                                          const QVector<import::ImportedConnection>& connections,
                                           QWidget* parent)
     : QDialog(parent) {
     setWindowTitle(tr("Preview: %1").arg(kindLabel));
@@ -108,6 +112,22 @@ ImportPreviewDialog::ImportPreviewDialog(const QString& sourceFile,
     if (!sprite.isNull()) {
         pmItem = scene->addPixmap(QPixmap::fromImage(sprite));
         scene->setSceneRect(pmItem->boundingRect());
+
+        // Mark each connection the part will snap by: a ring at the
+        // point plus a tick in the direction it faces.
+        const double pxPerStudX = widthStuds  > 0 ? sprite.width()  / double(widthStuds)  : 8.0;
+        const double pxPerStudY = heightStuds > 0 ? sprite.height() / double(heightStuds) : 8.0;
+        QPen pen(QColor(220, 30, 30));
+        pen.setCosmetic(true);
+        pen.setWidthF(2.0);
+        for (const auto& c : connections) {
+            const QPointF at((c.xStuds + widthStuds / 2.0) * pxPerStudX,
+                             (c.yStuds + heightStuds / 2.0) * pxPerStudY);
+            const double r = 0.6 * pxPerStudX;
+            scene->addEllipse(QRectF(at.x() - r, at.y() - r, 2 * r, 2 * r), pen);
+            const double a = qDegreesToRadians(c.angleDeg);
+            scene->addLine(QLineF(at, at + QPointF(std::cos(a), std::sin(a)) * 2.0 * pxPerStudX), pen);
+        }
     }
     auto* view = new PreviewView(scene, this);
     view->setMinimumHeight(320);
@@ -191,6 +211,9 @@ ImportPreviewDialog::ImportPreviewDialog(const QString& sourceFile,
             form->addRow(tr("Unmapped refs:"),  new QLabel(QString::number(stats.unmapped), this));
         if (stats.skipped > 0)
             form->addRow(tr("Skipped (no .g):"), new QLabel(QString::number(stats.skipped), this));
+        form->addRow(tr("Connection points:"), new QLabel(connections.isEmpty()
+            ? tr("none (the part won't snap to track)")
+            : QString::number(connections.size()), this));
         root->addLayout(form);
     }
 

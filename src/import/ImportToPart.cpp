@@ -1,5 +1,7 @@
 #include "ImportToPart.h"
 
+#include "GifWriter.h"
+
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -7,6 +9,8 @@
 #include <QRegularExpression>
 #include <QSaveFile>
 #include <QXmlStreamWriter>
+
+#include <algorithm>
 
 namespace bld::import {
 
@@ -68,30 +72,35 @@ QString writeImportedModelAsLibraryPart(
     QString key = baseKey;
     int     n = 1;
     while (QFile::exists(dir.filePath(key + QStringLiteral(".gif"))) ||
+           QFile::exists(dir.filePath(key + QStringLiteral(".png"))) ||
            QFile::exists(dir.filePath(key + QStringLiteral(".xml")))) {
         ++n;
         key = baseKey + QStringLiteral("-") + QString::number(n);
     }
 
-    // Image sibling. Try GIF first to match BlueBrickParts naming; if
-    // the local Qt build wasn't compiled with GIF write support
-    // (common on minimal images), drop to PNG with a clean `.png`
-    // extension. The parts-library scanner accepts either via its
-    // candidate-extension search, so the resulting library entry
-    // works the same way regardless of which one we actually wrote.
+    // Sprites. A hi-res sprite goes to <key>.png (what this app draws,
+    // scaled via <PixelsPerStud>) plus an 8 px/stud <key>.gif, the only
+    // sprite vanilla BlueBrick loads, so the same part folder works in
+    // both. An 8 px/stud sprite is written as the .gif alone.
     const QString xmlPath = dir.filePath(key + QStringLiteral(".xml"));
-    QString imagePath = dir.filePath(key + QStringLiteral(".gif"));
-    if (!renderedSprite.save(imagePath, "GIF")) {
-        imagePath = dir.filePath(key + QStringLiteral(".png"));
-        if (!renderedSprite.save(imagePath, "PNG")) {
-            if (error) *error = QStringLiteral("Could not write sprite to %1").arg(imagePath);
+    const int pxPerStud = std::max(1, qRound(static_cast<double>(renderedSprite.width()) / widthStuds));
+    const QString gifPath = dir.filePath(key + QStringLiteral(".gif"));
+    if (pxPerStud != 8) {
+        const QString pngPath = dir.filePath(key + QStringLiteral(".png"));
+        if (!renderedSprite.save(pngPath, "PNG")) {
+            if (error) *error = QStringLiteral("Could not write sprite to %1").arg(pngPath);
             return {};
         }
+        const QImage vanilla = renderedSprite.scaled(widthStuds * 8, heightStuds * 8,
+                                                     Qt::IgnoreAspectRatio,
+                                                     Qt::SmoothTransformation);
+        if (!writeGif(vanilla, gifPath, error)) return {};
+    } else if (!writeGif(renderedSprite, gifPath, error)) {
+        return {};
     }
 
-    // Minimal <part> XML matching BlueBrickParts conventions: Author +
-    // Description. No ConnexionList (unknown geometry — this is a pure
-    // visual tile) and no SnapMargin (uses the GIF's pixel bounds).
+    // <part> XML matching BlueBrickParts conventions: Author,
+    // Description, and a ConnexionList when the model has free ends.
     QSaveFile xf(xmlPath);
     if (!xf.open(QIODevice::WriteOnly | QIODevice::Text)) {
         if (error) *error = QStringLiteral("Could not open %1 for write").arg(xmlPath);
@@ -112,14 +121,9 @@ QString writeImportedModelAsLibraryPart(
             .arg(widthStuds).arg(heightStuds));
     w.writeEndElement();
 
-    // Pixels per stud: derived from the sprite dimensions vs. its
-    // declared stud footprint. The map's pixmap renderer reads this
-    // back to scale the sprite at placement so high-DPI imports still
-    // occupy the right number of studs. Vanilla (8 px/stud) parts
-    // omit this field entirely; we only emit it when it differs.
-    const int pxPerStud = (widthStuds > 0)
-        ? std::max(1, qRound(static_cast<double>(renderedSprite.width()) / widthStuds))
-        : 8;
+    // Resolution of the .png. The library scanner loads the .png when
+    // this is present and the 8 px/stud .gif otherwise; vanilla ignores
+    // the element. Only emitted for hi-res sprites.
     if (pxPerStud != 8) {
         w.writeTextElement(QStringLiteral("PixelsPerStud"),
                             QString::number(pxPerStud));
