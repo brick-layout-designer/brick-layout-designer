@@ -16,13 +16,19 @@ per file with Directory= pointing at the matching subdir id.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
 import re
 import sys
 
 
 def safe_id(rel: str, prefix: str) -> str:
-    return prefix + "_" + re.sub(r"[^A-Za-z0-9]", "_", rel)
+    # MSI identifiers are capped at 72 chars, and mangling the path alone
+    # collides ("a-b" and "a_b" both become "a_b"). Hash the full relative
+    # path for uniqueness/stability; keep a short readable tail for debugging.
+    digest = hashlib.sha1(rel.encode("utf-8")).hexdigest()[:16]
+    tail = re.sub(r"[^A-Za-z0-9]", "_", rel.rsplit("/", 1)[-1])[:32]
+    return f"{prefix}_{digest}_{tail}"
 
 
 def build_tree(staging: str, exclude_top: set[str]) -> tuple[dict, list[tuple[str, str]]]:

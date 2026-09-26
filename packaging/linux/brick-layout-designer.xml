@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- shared-mime-info definition for the MimeType= in brick-layout-designer.desktop. -->
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-bluebrick-map">
+    <comment>BlueBrick layout map</comment>
+    <sub-class-of type="application/xml"/>
+    <glob pattern="*.bbm"/>
+  </mime-type>
+</mime-info>
