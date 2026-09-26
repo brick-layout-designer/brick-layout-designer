@@ -104,7 +104,10 @@ reads the `.bbm` normally and ignores the sidecar.
 
 ## Status
 
-**Pre-alpha.** Roughly Phase 3.5 of the plan:
+**Beta** — tagged releases ship for Windows, macOS and Linux (see
+[Releases](https://github.com/brick-layout-designer/brick-layout-designer/releases)).
+The `.bbm` round-trip and the editor are in daily use, but read the
+AI-assisted warning above and keep backups. What works today:
 
 - Save / load with byte-exact `.bbm` round-trip across a fixture corpus.
 - Native viewer and editor with most vanilla BlueBrick menus and dialogs.
