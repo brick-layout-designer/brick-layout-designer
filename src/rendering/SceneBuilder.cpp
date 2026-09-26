@@ -145,24 +145,33 @@ void addBrickLayer(const core::LayerBrick& L, LayerSink& sink, parts::PartsLibra
                                  || L.hull.displayHulls;
     const bool displayElev     = settings.value(QStringLiteral("view/brickElevation"), false).toBool();
     const bool displayElectric = settings.value(QStringLiteral("view/electricCircuits"), false).toBool();
+    // Part number -> library key actually used (after the prefix fallback
+    // below). Memoised so a map with many copies of an unresolved part
+    // scans the library once per distinct part number, not once per brick.
+    QHash<QString, QString> resolvedKeys;
     for (const auto& brick : L.bricks) {
         // BlueBrick bakes the color suffix into the PartNumber string itself
         // (e.g. "3811.1" for a blue 32x32 baseplate, or just "TABLE96X190"
         // for an uncolored composite). Lookup is case-insensitive because
         // upstream stores the part number upper-cased in .bbm but the vendored
         // library uses mixed case on disk.
-        std::optional<parts::PartMetadata> meta = lib.metadata(brick.partNumber);
-        if (!meta) {
-            // Fallback: match by prefix so a .bbm referencing "3811" picks up
-            // any color-specific variant.
-            const QString needle = brick.partNumber.toLower() + QLatin1Char('.');
-            for (const QString& key : lib.keys()) {
-                if (key.toLower().startsWith(needle)) {
-                    meta = lib.metadata(key);
-                    break;
+        auto resolved = resolvedKeys.constFind(brick.partNumber);
+        if (resolved == resolvedKeys.constEnd()) {
+            QString key = brick.partNumber;
+            if (!lib.metadata(key)) {
+                // Fallback: match by prefix so a .bbm referencing "3811" picks
+                // up any color-specific variant.
+                key.clear();
+                const QString needle = brick.partNumber.toLower() + QLatin1Char('.');
+                for (const QString& candidate : lib.keys()) {
+                    if (candidate.toLower().startsWith(needle)) { key = candidate; break; }
                 }
             }
+            resolved = resolvedKeys.insert(brick.partNumber, key);
         }
+        const QString& partKey = resolved.value();
+        std::optional<parts::PartMetadata> meta;
+        if (!partKey.isEmpty()) meta = lib.metadata(partKey);
 
         const QRectF areaPx(studToPx(brick.displayArea.x()),
                             studToPx(brick.displayArea.y()),
@@ -172,7 +181,10 @@ void addBrickLayer(const core::LayerBrick& L, LayerSink& sink, parts::PartsLibra
 
         QGraphicsItem* item = nullptr;
         if (meta && !meta->gifFilePath.isEmpty()) {
-            QPixmap pm(meta->gifFilePath);
+            // Shared, decoded-once pixmap from the library cache — loading
+            // meta->gifFilePath here re-read and re-decoded the GIF for
+            // every brick on every scene rebuild.
+            const QPixmap pm = lib.pixmap(partKey);
             if (!pm.isNull()) {
                 auto* p = new SnappingPixmap(pm);
                 p->setFlag(QGraphicsItem::ItemSendsGeometryChanges, true);
