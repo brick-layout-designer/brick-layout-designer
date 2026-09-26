@@ -6,6 +6,7 @@
 
 #include "LibraryPathsDialog.h"
 #include "MapView.h"
+#include "PartUsagePanel.h"
 #include "PartsBrowser.h"
 
 #include "../parts/PartsLibrary.h"
@@ -48,6 +49,8 @@ void MainWindow::rescanLibrary(const QStringList& paths) {
     parts_.clear();
     for (const QString& p : paths) parts_.addSearchPath(p);
     parts_.scan();
+    // Constructor calls this before the docks exist.
+    if (partUsagePanel_) partUsagePanel_->clearIconCache();
 }
 
 QStringList MainWindow::loadUserLibraryPaths() const {

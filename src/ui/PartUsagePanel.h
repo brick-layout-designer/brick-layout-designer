@@ -2,6 +2,7 @@
 
 #include <QDockWidget>
 #include <QHash>
+#include <QIcon>
 #include <QString>
 
 class QTableWidget;
@@ -36,6 +37,9 @@ public:
     // undo-stack changes; callers shouldn't need to call this directly.
     void refresh();
 
+    // Drop cached sprite icons after the parts library was rescanned.
+    void clearIconCache() { iconCache_.clear(); }
+
 private:
     parts::PartsLibrary& lib_;
     MapView*     mapView_ = nullptr;
@@ -43,6 +47,10 @@ private:
     QLineEdit*   filterE_  = nullptr;
     QLabel*      summary_  = nullptr;
     QAction*     selectAllOfPartAct_ = nullptr;
+    // Scaled row icons by part key. refresh() runs on every selection
+    // change, so re-decoding + smooth-scaling each sprite there made
+    // plain clicks on the map lag on layouts with many distinct parts.
+    QHash<QString, QIcon> iconCache_;
 
     void selectAllBricksOfCurrentRow();
     QString filterText() const;

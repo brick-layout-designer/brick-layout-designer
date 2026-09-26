@@ -180,7 +180,7 @@ void PartUsagePanel::refresh() {
 
         // Filter
         if (onlyOver) {
-            if (over <= 0) { table_->setRowHidden(filteredRows, true); continue; }
+            if (over <= 0) continue;
         } else if (!needle.isEmpty()) {
             const QString hay = (key + QLatin1Char(' ') + desc).toLower();
             if (!hay.contains(needle)) continue;
@@ -189,12 +189,14 @@ void PartUsagePanel::refresh() {
         auto* iconItem  = new QTableWidgetItem(key);
         iconItem->setData(kPartKeyRole, key);
         if (meta && !meta->gifFilePath.isEmpty()) {
-            QPixmap pm(meta->gifFilePath);
-            if (!pm.isNull()) {
-                iconItem->setIcon(QIcon(
+            auto icon = iconCache_.constFind(key);
+            if (icon == iconCache_.constEnd()) {
+                const QPixmap pm = lib_.pixmap(key);
+                icon = iconCache_.insert(key, pm.isNull() ? QIcon() : QIcon(
                     pm.scaled(kIconSize, kIconSize,
                               Qt::KeepAspectRatio, Qt::SmoothTransformation)));
             }
+            if (!icon->isNull()) iconItem->setIcon(*icon);
         }
         auto* countItem = new QTableWidgetItem;
         countItem->setData(Qt::DisplayRole, count);
