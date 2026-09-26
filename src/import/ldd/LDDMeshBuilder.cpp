@@ -1,6 +1,6 @@
 #include "LDDMeshBuilder.h"
 
-#include "../lif/LifReader.h"
+#include "LDDAssets.h"
 #include "LDDGeomReader.h"
 
 #include <QDir>
@@ -49,26 +49,7 @@ geom::Vec3 rotateNormal(const geom::Mat4& m, geom::Vec3 n) {
 }  // namespace
 
 QByteArray LDDMeshBuilder::fetchPart(const QString& designId) {
-    const QString relPath = primitivePath(designId);
-
-    // 1) On-disk override: the user has already extracted db.lif (e.g.
-    //    via the python LIF extractor). Reading from disk is faster
-    //    and gives easy modding.
-    if (!diskRoot_.isEmpty()) {
-        const QString abs = QDir(diskRoot_).filePath(
-            QStringLiteral("Assets/db/") + relPath);
-        QFile f(abs);
-        if (f.open(QIODevice::ReadOnly)) return f.readAll();
-    }
-
-    // 2) Virtual: read from the open LIF archive. The TOC inside
-    //    db.lif uses leading-slash absolute paths.
-    if (lif_) {
-        const QString lifPath = QStringLiteral("/db/") + relPath;
-        QByteArray bytes = lif_->read(lifPath);
-        if (!bytes.isEmpty()) return bytes;
-    }
-    return {};
+    return assets_ ? assets_->read(primitivePath(designId)) : QByteArray();
 }
 
 LDDLDrawBakedModel LDDMeshBuilder::bake(const LDrawReadResult& read) {

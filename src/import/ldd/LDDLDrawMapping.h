@@ -2,6 +2,9 @@
 
 #include <QHash>
 #include <QString>
+#include <QStringList>
+
+#include "../ldraw/LDrawReader.h"
 
 namespace bld::import {
 
@@ -38,6 +41,12 @@ public:
         return brickToLdraw_.value(lddDesignId);
     }
 
+    // Every LDraw file ldraw.xml maps this design ID to, oldest first
+    // (partFor() is the last one, which lxf2ldr uses too).
+    QStringList partsFor(const QString& lddDesignId) const {
+        return brickAliases_.value(lddDesignId);
+    }
+
     // Look up an LDD material ID. Returns -1 when no mapping exists.
     int colourFor(int lddMaterialId) const {
         return materialToLdraw_.value(lddMaterialId, -1);
@@ -56,12 +65,20 @@ public:
         return transformations_.value(ldrawDat);
     }
 
+    // Convert a readLDD() result (LDD axes, LDD design/material IDs) into
+    // the equivalent LDraw model: LDraw part files and colours, LDraw
+    // axes, and each part's <Transformation> correction applied, exactly
+    // as the community lxf2ldr converter does. Design IDs without a
+    // mapping keep "<designID>.dat"; unmapped materials keep their ID.
+    LDrawReadResult toLDraw(const LDrawReadResult& ldd) const;
+
     int brickCount() const  { return brickToLdraw_.size(); }
     int materialCount() const { return materialToLdraw_.size(); }
     int transformCount() const { return transformations_.size(); }
 
 private:
     QHash<QString, QString>    brickToLdraw_;        // LDD designID → "X.dat"
+    QHash<QString, QStringList> brickAliases_;       // LDD designID → every "X.dat"
     QHash<int, int>            materialToLdraw_;     // LDD materialID → LDraw code
     QHash<QString, Transformation> transformations_;  // "X.dat" → correction
 };

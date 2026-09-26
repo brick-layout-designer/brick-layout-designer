@@ -513,14 +513,32 @@ QWidget* buildImportTab(QDialog* parent) {
         QStringLiteral("import/lddInstallPath"),
         QObject::tr("LEGO Digital Designer install"));
     lddEdit->setPlaceholderText(
-        QObject::tr("folder containing Assets.lif + ldraw.xml"));
+        QObject::tr("LDD program folder (Assets.lif) or data folder (db.lif)"));
     form->addRow(QObject::tr("LDD install:"), lddWrap);
 
-    QObject::connect(parent, &QDialog::accepted, w, [ldrawEdit, studioEdit, lddEdit]{
+    // LDD ships an old ldraw.xml without e.g. train track; the community
+    // keeps a much larger one up to date.
+    auto* xmlEdit = new QLineEdit(QSettings().value(QStringLiteral("import/lddLdrawXml")).toString(), w);
+    xmlEdit->setPlaceholderText(QObject::tr("optional newer ldraw.xml, e.g. from slswww.free.fr/ldraw.xml"));
+    auto* xmlBtn = new QPushButton(QObject::tr("Browse..."), w);
+    QObject::connect(xmlBtn, &QPushButton::clicked, w, [xmlEdit, w]{
+        const QString p = QFileDialog::getOpenFileName(w, QObject::tr("LDD → LDraw mapping"),
+            xmlEdit->text(), QObject::tr("ldraw.xml (*.xml)"));
+        if (!p.isEmpty()) xmlEdit->setText(p);
+    });
+    auto* xmlRow = new QHBoxLayout();
+    xmlRow->addWidget(xmlEdit, 1);
+    xmlRow->addWidget(xmlBtn);
+    auto* xmlWrap = new QWidget(w);
+    xmlWrap->setLayout(xmlRow);
+    form->addRow(QObject::tr("LDD → LDraw mapping:"), xmlWrap);
+
+    QObject::connect(parent, &QDialog::accepted, w, [ldrawEdit, studioEdit, lddEdit, xmlEdit]{
         QSettings s;
         s.setValue(QStringLiteral("import/ldrawLibraryPath"),  ldrawEdit->text());
         s.setValue(QStringLiteral("import/studioLibraryPath"), studioEdit->text());
         s.setValue(QStringLiteral("import/lddInstallPath"),    lddEdit->text());
+        s.setValue(QStringLiteral("import/lddLdrawXml"),       xmlEdit->text());
     });
     return w;
 }

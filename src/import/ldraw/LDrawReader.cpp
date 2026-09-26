@@ -124,11 +124,19 @@ namespace {
 // Library key for an LDraw reference: exact "<part>.<colour>", then the
 // part in any colour, then the same two for each earlier LDraw number
 // of a renumbered part. Empty when nothing in `lib` matches.
-QString resolvePartKey(const QString& partNumber, int colorCode,
+QString resolvePartKey(const LDrawPartRef& ref, const QString& partNumber, int colorCode,
                        const parts::PartsLibrary& lib, const LDrawLibrary* ldraw) {
     QStringList names{ partNumber };
+    for (const QString& alias : ref.aliases) {
+        const QString pn = partNumberFromFilename(alias);
+        if (!names.contains(pn)) names << pn;
+    }
     if (ldraw) {
-        for (const QString& old : ldraw->formerNames(partNumber)) names << old.toUpper();
+        for (const QString& n : QStringList(names)) {
+            for (const QString& old : ldraw->formerNames(n)) {
+                if (!names.contains(old.toUpper())) names << old.toUpper();
+            }
+        }
     }
     // LDraw suffixes pre-assembled parts with cNN ("2861c01" = the 9V
     // switch with its lever); BlueBrickParts lists the base number.
@@ -207,7 +215,7 @@ std::unique_ptr<core::Map> toBlueBrickMap(const LDrawReadResult& src,
         double x = ref.x;
         double y = src.lddAxes ? ref.z : -ref.z;
         if (lib && !src.lddAxes) {
-            const QString key = resolvePartKey(pn, ref.colorCode, *lib, ldraw);
+            const QString key = resolvePartKey(ref, pn, ref.colorCode, *lib, ldraw);
             if (!key.isEmpty()) {
                 const auto meta = lib->metadata(key);
                 b.partNumber = meta->colorCode.isEmpty()

@@ -95,6 +95,26 @@ inline bool runBackground(QWidget* parent, const QString& busyText,
     return !userCancelled;
 }
 
+// Run `work` on a worker thread while pumping the UI thread's event loop,
+// without a dialog of its own — for callers that already show progress
+// (batch import). `token` is shared with that caller's cancel button.
+// Returns false if the token was cancelled.
+inline bool runOnWorker(CancelToken& token, const std::function<void(CancelToken&)>& work) {
+    class WorkerThread : public QThread {
+    public:
+        std::function<void()> fn;
+        void run() override { fn(); }
+    };
+    WorkerThread thread;
+    thread.fn = [&]{ work(token); };
+    QEventLoop loop;
+    QObject::connect(&thread, &QThread::finished, &loop, &QEventLoop::quit);
+    thread.start();
+    loop.exec();
+    thread.wait();
+    return !token.requested();
+}
+
 // Convenience overload for callers that don't want a cancel token.
 // Same as the above but the work runs ignoring cancellation. Cancel
 // button still appears so the user can dismiss the dialog after the

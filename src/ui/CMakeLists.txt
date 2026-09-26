@@ -2,6 +2,7 @@ add_library(bld_ui STATIC
     MainWindow.cpp
     MainWindow.h
     MainWindowFileIO.cpp
+    MainWindowImport.cpp
     MainWindowLibrary.cpp
     MainWindowMapMenu.cpp
     MainWindowMenus.cpp
@@ -34,6 +35,8 @@ add_library(bld_ui STATIC
     DownloadCenterDialog.h
     EditDialogs.cpp
     EditDialogs.h
+    ImportPipeline.cpp
+    ImportPipeline.h
     ImportPreviewDialog.cpp
     ImportPreviewDialog.h
     PreferencesDialog.cpp

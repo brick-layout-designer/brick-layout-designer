@@ -11,7 +11,7 @@
 
 namespace bld::import {
 
-class LifReader;
+class LDDAssets;
 
 // Bake an LDD model's brick refs into a flat geom::Mesh by loading
 // each part's `.g` geometry directly (bypassing the LDraw library
@@ -23,10 +23,7 @@ class LifReader;
 // path we render LDD's own geometry and paint it with the LDD
 // material colour from Materials.xml.
 //
-// Source of .g bytes is configurable:
-//   * On-disk: <lddInstallPath>/Assets/db/Primitives/LOD0/<id>.g
-//     — present after the user has run an external LIF extractor
-//   * Virtual: a `LifReader` mounted on db.lif
+// .g bytes come from an LDDAssets (db.lif, nested or extracted).
 //
 // LDDLDrawBakedModel reports which design IDs we successfully
 // rendered and which were skipped, so the caller's UI can summarise.
@@ -39,16 +36,9 @@ struct LDDLDrawBakedModel {
 
 class LDDMeshBuilder {
 public:
-    // Configure the part-byte source to use one of:
-    //   * setOnDiskRoot — path to LDD install. We look up
-    //     "Assets/db/Primitives/LOD0/<id>.g" inside it.
-    //   * setLifReader — pre-opened LifReader (must outlive this
-    //     builder). We look up "/Primitives/LOD0/<id>.g" inside the
-    //     archive.
-    // Both can be set; on-disk wins to allow a user-extracted set of
-    // overrides to take precedence.
-    void setOnDiskRoot(QString lddInstallPath) { diskRoot_ = std::move(lddInstallPath); }
-    void setLifReader(const LifReader* lif) { lif_ = lif; }
+    // Where brick geometry comes from ("Primitives/LOD0/<id>.g" in LDD's
+    // database). Must outlive this builder.
+    void setAssets(const LDDAssets* assets) { assets_ = assets; }
 
     void setMaterials(const LDDMaterials* materials) { materials_ = materials; }
     void setMapping(const LDDLDrawMapping* mapping)  { mapping_   = mapping; }
@@ -64,8 +54,7 @@ public:
 private:
     QByteArray fetchPart(const QString& designId);
 
-    QString diskRoot_;
-    const LifReader*       lif_       = nullptr;
+    const LDDAssets*       assets_    = nullptr;
     const LDDMaterials*    materials_ = nullptr;
     const LDDLDrawMapping* mapping_   = nullptr;
 };

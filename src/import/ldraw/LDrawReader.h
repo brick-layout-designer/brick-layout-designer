@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QString>
+#include <QStringList>
 
 #include <memory>
 #include <vector>
@@ -18,6 +19,10 @@ struct LDrawPartRef {
     double  x = 0, y = 0, z = 0;        // LDU
     double  m[9] = { 1, 0, 0, 0, 1, 0, 0, 0, 1 };  // 3x3 rotation/scale matrix
     QString filename;                    // e.g. "3001.dat"
+    // Other files known to be the same part (e.g. from LDD's ldraw.xml,
+    // which lists both "2865.dat" and "74746.dat" for the 9V straight).
+    // Only used to find the part in a parts library.
+    QStringList aliases;
 };
 
 // Inline geometry — line (type 2), triangle (type 3), or quad (type 4).

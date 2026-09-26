@@ -1,8 +1,7 @@
 #include "ImportPreviewDialog.h"
 
-#include <QtMath>
-#include <cmath>
-
+#include <QCheckBox>
+#include <QComboBox>
 #include <QDialogButtonBox>
 #include <QFileInfo>
 #include <QFormLayout>
@@ -12,22 +11,22 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
+#include <QListWidget>
+#include <QPainter>
 #include <QPixmap>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QSplitter>
 #include <QVBoxLayout>
 #include <QWheelEvent>
+#include <QtMath>
+
+#include <cmath>
 
 namespace bld::ui {
 
-namespace {
-
-// QGraphicsView subclass with built-in zoom support — Ctrl+wheel to
-// zoom, plain wheel scrolls. Centered on cursor under the wheel
-// pointer, which is the natural feel users expect from any viewer.
-// Buttons on the toolbar drive scaleBy() too. Replaces the previous
-// QScrollArea + QLabel approach which silently failed to repaint
-// when the label was resized inside the scroll viewport.
+// QGraphicsView with built-in zoom support — Ctrl+wheel to zoom, plain
+// wheel scrolls, zoom anchored under the cursor.
 class PreviewView : public QGraphicsView {
 public:
     PreviewView(QGraphicsScene* scene, QWidget* parent)
@@ -78,180 +77,217 @@ private:
     double currentScale_ = 1.0;
 };
 
+}  // namespace bld::ui
+
+namespace bld::ui {
+
+namespace {
+
+QString connectionTypeName(const QString& type) {
+    // BlueBrickParts' ConnectionTypeList.xml numbering.
+    static const QStringList names{ QString(), ImportPreviewDialog::tr("Rail"),
+        ImportPreviewDialog::tr("Road"), ImportPreviewDialog::tr("Monorail"),
+        ImportPreviewDialog::tr("Monorail (short curve)") };
+    bool ok = false;
+    const int n = type.toInt(&ok);
+    return ok && n > 0 && n < names.size() ? names[n] : ImportPreviewDialog::tr("Type %1").arg(type);
+}
+
 }  // namespace
 
-ImportPreviewDialog::ImportPreviewDialog(const QString& sourceFile,
-                                          const QString& kindLabel,
-                                          const QImage& sprite,
-                                          int widthStuds,
-                                          int heightStuds,
-                                          const Stats& stats,
-                                          const QStringList& errors,
-                                          const QVector<import::ImportedConnection>& connections,
-                                          QWidget* parent)
-    : QDialog(parent) {
-    setWindowTitle(tr("Preview: %1").arg(kindLabel));
-    resize(720, 620);
-
+ImportPreviewDialog::ImportPreviewDialog(PreparedPart part,
+                                         const QStringList& categories,
+                                         const QString& defaultCategory,
+                                         std::function<bool(const QString&, const QString&)> partExists,
+                                         QWidget* parent)
+    : QDialog(parent), part_(std::move(part)), partExists_(std::move(partExists)) {
+    setWindowTitle(tr("Preview: %1").arg(part_.kindLabel));
+    resize(900, 640);
     auto* root = new QVBoxLayout(this);
 
-    // Header.
-    {
-        const QString name = QFileInfo(sourceFile).fileName();
-        auto* hdr = new QLabel(
-            tr("<b>%1</b> — %2 × %3 studs").arg(name).arg(widthStuds).arg(heightStuds), this);
-        hdr->setTextFormat(Qt::RichText);
-        root->addWidget(hdr);
+    header_ = new QLabel(this);
+    header_->setTextFormat(Qt::RichText);
+    root->addWidget(header_);
+
+    auto* split = new QSplitter(this);
+    root->addWidget(split, 1);
+
+    // Left: the sprite with its connection points.
+    auto* left = new QWidget(split);
+    auto* leftCol = new QVBoxLayout(left);
+    leftCol->setContentsMargins(0, 0, 0, 0);
+    scene_ = new QGraphicsScene(this);
+    view_ = new PreviewView(scene_, left);
+    view_->setMinimumSize(360, 300);
+    leftCol->addWidget(view_, 1);
+    auto* tools = new QHBoxLayout();
+    auto* rotL = new QPushButton(tr("Rotate ⟲"), left);
+    auto* rotR = new QPushButton(tr("Rotate ⟳"), left);
+    rotL->setToolTip(tr("Rotate the part 90° counter-clockwise"));
+    rotR->setToolTip(tr("Rotate the part 90° clockwise"));
+    auto* zoomOut = new QPushButton(tr("−"), left);
+    auto* zoomIn  = new QPushButton(tr("+"), left);
+    auto* fitBtn  = new QPushButton(tr("Fit"), left);
+    for (auto* b : { zoomOut, zoomIn }) b->setMaximumWidth(32);
+    tools->addWidget(rotL);
+    tools->addWidget(rotR);
+    tools->addStretch();
+    tools->addWidget(zoomOut);
+    tools->addWidget(zoomIn);
+    tools->addWidget(fitBtn);
+    leftCol->addLayout(tools);
+    connect(rotL, &QPushButton::clicked, this, [this]{ rotate(-1); });
+    connect(rotR, &QPushButton::clicked, this, [this]{ rotate(1); });
+    connect(zoomOut, &QPushButton::clicked, this, [this]{ view_->scaleBy(1.0 / 1.25); });
+    connect(zoomIn,  &QPushButton::clicked, this, [this]{ view_->scaleBy(1.25); });
+    connect(fitBtn,  &QPushButton::clicked, this, [this]{
+        view_->resetTransform();
+        view_->setCurrentScale(1.0);
+        view_->fitInView(scene_->sceneRect(), Qt::KeepAspectRatio);
+        view_->setCurrentScale(view_->transform().m11());
+    });
+
+    // Right: connections, stats, warnings.
+    auto* right = new QWidget(split);
+    auto* rightCol = new QVBoxLayout(right);
+    rightCol->setContentsMargins(0, 0, 0, 0);
+    rightCol->addWidget(new QLabel(tr("Connection points (uncheck to drop):"), right));
+    connList_ = new QListWidget(right);
+    rightCol->addWidget(connList_, 1);
+    for (const auto& c : part_.connections) {
+        auto* item = new QListWidgetItem(connList_);
+        item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
+        item->setCheckState(Qt::Checked);
+        Q_UNUSED(c);
     }
-
-    // Scene + view. Adding a QGraphicsPixmapItem and setting the
-    // scene rect to the pixmap bounds gives us a known canvas the
-    // user can pan around within when zoomed in.
-    auto* scene = new QGraphicsScene(this);
-    QGraphicsPixmapItem* pmItem = nullptr;
-    if (!sprite.isNull()) {
-        pmItem = scene->addPixmap(QPixmap::fromImage(sprite));
-        scene->setSceneRect(pmItem->boundingRect());
-
-        // Mark each connection the part will snap by: a ring at the
-        // point plus a tick in the direction it faces.
-        const double pxPerStudX = widthStuds  > 0 ? sprite.width()  / double(widthStuds)  : 8.0;
-        const double pxPerStudY = heightStuds > 0 ? sprite.height() / double(heightStuds) : 8.0;
-        QPen pen(QColor(220, 30, 30));
-        pen.setCosmetic(true);
-        pen.setWidthF(2.0);
-        for (const auto& c : connections) {
-            const QPointF at((c.xStuds + widthStuds / 2.0) * pxPerStudX,
-                             (c.yStuds + heightStuds / 2.0) * pxPerStudY);
-            const double r = 0.6 * pxPerStudX;
-            scene->addEllipse(QRectF(at.x() - r, at.y() - r, 2 * r, 2 * r), pen);
-            const double a = qDegreesToRadians(c.angleDeg);
-            scene->addLine(QLineF(at, at + QPointF(std::cos(a), std::sin(a)) * 2.0 * pxPerStudX), pen);
-        }
+    if (part_.connections.isEmpty()) {
+        auto* none = new QListWidgetItem(tr("None — the part won't snap to track."), connList_);
+        none->setFlags(Qt::NoItemFlags);
     }
-    auto* view = new PreviewView(scene, this);
-    view->setMinimumHeight(320);
-    root->addWidget(view, 1);
+    connect(connList_, &QListWidget::itemChanged, this, [this]{ refreshSprite(); });
+    connect(connList_, &QListWidget::currentRowChanged, this, [this]{ refreshSprite(); });
 
-    // Zoom toolbar BELOW the view (more discoverable than above; users
-    // expect zoom controls grouped with the dialog buttons).
-    auto* zoomRow = new QHBoxLayout();
-    auto* zoomLabel = new QLabel(QStringLiteral("100%"), this);
-    zoomLabel->setMinimumWidth(56);
-    zoomLabel->setAlignment(Qt::AlignCenter);
-    auto* zoomOut = new QPushButton(tr("Zoom out"), this);
-    auto* zoomIn  = new QPushButton(tr("Zoom in"),  this);
-    auto* fitBtn  = new QPushButton(tr("Fit"),  this);
-    auto* native  = new QPushButton(tr("100%"), this);
-    zoomRow->addWidget(zoomOut);
-    zoomRow->addWidget(zoomIn);
-    zoomRow->addWidget(zoomLabel);
-    zoomRow->addStretch();
-    zoomRow->addWidget(fitBtn);
-    zoomRow->addWidget(native);
-    root->addLayout(zoomRow);
+    auto* stats = new QFormLayout();
+    if (part_.stats.ldrawResolved > 0)
+        stats->addRow(tr("Parts rendered:"), new QLabel(QString::number(part_.stats.ldrawResolved), right));
+    if (part_.stats.lddRendered > 0)
+        stats->addRow(tr("LDD parts rendered:"), new QLabel(QString::number(part_.stats.lddRendered), right));
+    if (part_.stats.unresolved > 0)
+        stats->addRow(tr("Parts missing:"), new QLabel(QString::number(part_.stats.unresolved), right));
+    rightCol->addLayout(stats);
+    if (!part_.warnings.isEmpty()) {
+        rightCol->addWidget(new QLabel(tr("%n warning(s):", nullptr, part_.warnings.size()), right));
+        auto* warn = new QPlainTextEdit(right);
+        warn->setReadOnly(true);
+        warn->setMaximumHeight(110);
+        warn->setPlainText(part_.warnings.join(QLatin1Char('\n')));
+        rightCol->addWidget(warn);
+    }
+    split->setStretchFactor(0, 3);
+    split->setStretchFactor(1, 2);
 
-    auto refreshLabel = [view, zoomLabel]{
-        zoomLabel->setText(QStringLiteral("%1%").arg(int(std::round(view->currentScale() * 100))));
+    // Where it goes.
+    auto* form = new QFormLayout();
+    nameEdit_ = new QLineEdit(QFileInfo(part_.source).completeBaseName(), this);
+    form->addRow(tr("Save as:"), nameEdit_);
+    categoryBox_ = new QComboBox(this);
+    categoryBox_->setEditable(true);
+    categoryBox_->addItems(categories);
+    categoryBox_->setCurrentText(defaultCategory);
+    categoryBox_->setToolTip(tr("Parts panel category (a folder in your imports library)"));
+    form->addRow(tr("Category:"), categoryBox_);
+    replaceBox_ = new QCheckBox(this);
+    form->addRow(QString(), replaceBox_);
+    root->addLayout(form);
+
+    auto* bb = new QDialogButtonBox(this);
+    auto* acceptBtn = bb->addButton(tr("Save as Library Part"), QDialogButtonBox::AcceptRole);
+    bb->addButton(QDialogButtonBox::Cancel);
+    connect(bb, &QDialogButtonBox::accepted, this, &QDialog::accept);
+    connect(bb, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    const auto validate = [this, acceptBtn]{
+        acceptBtn->setEnabled(!partName().isEmpty() && !category().isEmpty());
+        refreshReplace();
     };
-    connect(zoomOut, &QPushButton::clicked, this, [view, refreshLabel]{
-        view->scaleBy(1.0 / 1.25); refreshLabel();
-    });
-    connect(zoomIn, &QPushButton::clicked, this, [view, refreshLabel]{
-        view->scaleBy(1.25); refreshLabel();
-    });
-    connect(fitBtn, &QPushButton::clicked, this, [view, refreshLabel, pmItem]{
-        if (!pmItem) return;
-        view->resetTransform();
-        view->setCurrentScale(1.0);
-        view->fitInView(pmItem, Qt::KeepAspectRatio);
-        // After fitInView, the transform's m11 is the new scale.
-        const double s = view->transform().m11();
-        view->setCurrentScale(s);
-        refreshLabel();
-    });
-    connect(native, &QPushButton::clicked, this, [view, refreshLabel]{
-        view->resetTransform();
-        view->setCurrentScale(1.0);
-        refreshLabel();
-    });
+    connect(nameEdit_, &QLineEdit::textChanged, this, validate);
+    connect(categoryBox_, &QComboBox::currentTextChanged, this, validate);
+    root->addWidget(bb);
 
-    // Initial fit so big sprites don't overwhelm the dialog and tiny
-    // sprites get scaled up enough to see. Done in a single-shot so
-    // the view has its real size by the time fit runs.
-    if (pmItem) {
-        QMetaObject::invokeMethod(this, [view, pmItem, refreshLabel, sprite]{
-            // Tiny sprite (< 64 px each side) → scale to ~256 so the
-            // user can actually see it. Otherwise fit to viewport.
-            if (sprite.width() < 64 && sprite.height() < 64) {
-                view->resetTransform();
-                view->setCurrentScale(1.0);
-                view->scaleBy(4.0);
-            } else {
-                view->resetTransform();
-                view->setCurrentScale(1.0);
-                view->fitInView(pmItem, Qt::KeepAspectRatio);
-                view->setCurrentScale(view->transform().m11());
-            }
-            refreshLabel();
-        }, Qt::QueuedConnection);
-    }
+    refreshConnections();
+    refreshSprite();
+    validate();
+    QMetaObject::invokeMethod(fitBtn, &QPushButton::click, Qt::QueuedConnection);
+}
 
-    // Stats.
-    {
-        auto* form = new QFormLayout();
-        form->setContentsMargins(0, 0, 0, 0);
-        if (stats.ldrawResolved > 0)
-            form->addRow(tr("LDraw-rendered:"), new QLabel(QString::number(stats.ldrawResolved), this));
-        if (stats.lddRendered > 0)
-            form->addRow(tr("LDD-rendered:"),   new QLabel(QString::number(stats.lddRendered), this));
-        if (stats.translated > 0)
-            form->addRow(tr("LDD→LDraw mapped:"), new QLabel(QString::number(stats.translated), this));
-        if (stats.unmapped > 0)
-            form->addRow(tr("Unmapped refs:"),  new QLabel(QString::number(stats.unmapped), this));
-        if (stats.skipped > 0)
-            form->addRow(tr("Skipped (no .g):"), new QLabel(QString::number(stats.skipped), this));
-        form->addRow(tr("Connection points:"), new QLabel(connections.isEmpty()
-            ? tr("none (the part won't snap to track)")
-            : QString::number(connections.size()), this));
-        root->addLayout(form);
-    }
+void ImportPreviewDialog::rotate(int quarterTurns) {
+    rotatePart(part_, quarterTurns);
+    refreshConnections();
+    refreshSprite();
+    view_->fitInView(scene_->sceneRect(), Qt::KeepAspectRatio);
+    view_->setCurrentScale(view_->transform().m11());
+}
 
-    // Errors panel.
-    if (!errors.isEmpty()) {
-        auto* errLabel = new QLabel(tr("%1 warning(s)/error(s) during bake:").arg(errors.size()), this);
-        root->addWidget(errLabel);
-        auto* errEdit = new QPlainTextEdit(this);
-        errEdit->setReadOnly(true);
-        errEdit->setMaximumHeight(120);
-        errEdit->setPlainText(errors.join(QChar('\n')));
-        root->addWidget(errEdit);
+void ImportPreviewDialog::refreshConnections() {
+    const QSignalBlocker block(connList_);
+    for (int i = 0; i < part_.connections.size(); ++i) {
+        const auto& c = part_.connections[i];
+        connList_->item(i)->setText(tr("%1 at (%2, %3), facing %4°")
+            .arg(connectionTypeName(c.type))
+            .arg(c.xStuds, 0, 'f', 2).arg(c.yStuds, 0, 'f', 2)
+            .arg(c.angleDeg, 0, 'f', 1));
     }
+    header_->setText(tr("<b>%1</b> — %2 × %3 studs, %n connection point(s)", nullptr,
+                        part_.connections.size())
+                         .arg(QFileInfo(part_.source).fileName())
+                         .arg(part_.widthStuds).arg(part_.heightStuds));
+}
 
-    // Name field.
-    {
-        auto* row = new QHBoxLayout();
-        row->addWidget(new QLabel(tr("Save as:"), this));
-        nameEdit_ = new QLineEdit(this);
-        nameEdit_->setText(QFileInfo(sourceFile).completeBaseName());
-        row->addWidget(nameEdit_, 1);
-        root->addLayout(row);
-    }
-    {
-        auto* bb = new QDialogButtonBox(this);
-        auto* acceptBtn = bb->addButton(tr("Save as Library Part"), QDialogButtonBox::AcceptRole);
-        bb->addButton(tr("Cancel"), QDialogButtonBox::RejectRole);
-        connect(bb, &QDialogButtonBox::accepted, this, &QDialog::accept);
-        connect(bb, &QDialogButtonBox::rejected, this, &QDialog::reject);
-        connect(nameEdit_, &QLineEdit::textChanged, this,
-                [acceptBtn](const QString& s){ acceptBtn->setEnabled(!s.trimmed().isEmpty()); });
-        acceptBtn->setEnabled(!nameEdit_->text().trimmed().isEmpty());
-        root->addWidget(bb);
+void ImportPreviewDialog::refreshSprite() {
+    scene_->clear();
+    pixmapItem_ = scene_->addPixmap(QPixmap::fromImage(part_.sprite));
+    scene_->setSceneRect(pixmapItem_->boundingRect());
+    const double pxX = part_.widthStuds  > 0 ? part_.sprite.width()  / double(part_.widthStuds)  : 8.0;
+    const double pxY = part_.heightStuds > 0 ? part_.sprite.height() / double(part_.heightStuds) : 8.0;
+    for (int i = 0; i < part_.connections.size(); ++i) {
+        const auto& c = part_.connections[i];
+        const bool on = connList_->item(i)->checkState() == Qt::Checked;
+        const bool current = connList_->currentRow() == i;
+        QPen pen(on ? (current ? QColor(255, 170, 0) : QColor(220, 30, 30)) : QColor(140, 140, 140));
+        pen.setCosmetic(true);
+        pen.setWidthF(current ? 3.0 : 2.0);
+        if (!on) pen.setStyle(Qt::DashLine);
+        const QPointF at((c.xStuds + part_.widthStuds / 2.0) * pxX,
+                         (c.yStuds + part_.heightStuds / 2.0) * pxY);
+        const double r = 0.6 * pxX;
+        scene_->addEllipse(QRectF(at.x() - r, at.y() - r, 2 * r, 2 * r), pen);
+        const double a = qDegreesToRadians(c.angleDeg);
+        scene_->addLine(QLineF(at, at + QPointF(std::cos(a), std::sin(a)) * 2.0 * pxX), pen);
     }
 }
 
-QString ImportPreviewDialog::partName() const {
-    return nameEdit_ ? nameEdit_->text().trimmed() : QString();
+void ImportPreviewDialog::refreshReplace() {
+    const bool exists = partExists_ && !partName().isEmpty()
+                        && partExists_(partName(), category());
+    replaceBox_->setVisible(exists);
+    replaceBox_->setText(tr("Replace the existing part “%1” in %2 (otherwise it is saved as a copy)")
+                             .arg(partName(), category()));
+}
+
+PreparedPart ImportPreviewDialog::result() const {
+    PreparedPart out = part_;
+    out.connections.clear();
+    for (int i = 0; i < part_.connections.size(); ++i) {
+        if (connList_->item(i)->checkState() == Qt::Checked) out.connections.append(part_.connections[i]);
+    }
+    return out;
+}
+
+QString ImportPreviewDialog::partName() const { return nameEdit_->text().trimmed(); }
+
+QString ImportPreviewDialog::category() const { return categoryBox_->currentText().trimmed(); }
+
+bool ImportPreviewDialog::replaceExisting() const {
+    return !replaceBox_->isHidden() && replaceBox_->isChecked();
 }
 
 }  // namespace bld::ui
