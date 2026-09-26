@@ -67,14 +67,21 @@ jobs:
           version: '6.7.*'
           cache: true
 
+      - name: Compiler cache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: sanitizers
+          max-size: 1G
+
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgl1-mesa-dev libxkbcommon-dev libcups2-dev
+          sudo apt-get install -y libgl1-mesa-dev libxkbcommon-dev libcups2-dev ninja-build
 
       - name: Configure
         run: |
-          cmake -B build -DCMAKE_BUILD_TYPE=Debug \
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer" \
             -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
 
