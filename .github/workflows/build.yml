@@ -80,7 +80,7 @@ jobs:
             libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
             libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-sync1 \
             libxcb-xfixes0 libxcb-xinerama0 libxcb-xkb1 \
-            libcups2-dev xvfb
+            libcups2-dev xvfb weston
 
       - name: Configure
         shell: bash
@@ -115,6 +115,16 @@ jobs:
           # Runners have no FUSE; run the tool AppImages extracted.
           export APPIMAGE_EXTRACT_AND_RUN=1
           export QMAKE="$QT_ROOT_DIR/bin/qmake"
+          # Native Wayland on top of xcb. File names vary by Qt version
+          # (libqwayland-egl/-generic up to 6.x, one libqwayland.so later).
+          WAYLAND_PLUGINS=$(cd "$QT_ROOT_DIR/plugins/platforms" && ls libqwayland*.so 2>/dev/null | paste -sd';')
+          if [ -z "$WAYLAND_PLUGINS" ]; then
+            echo "::error::No Wayland platform plugin in $QT_ROOT_DIR/plugins/platforms"
+            ls "$QT_ROOT_DIR/plugins/platforms"
+            exit 1
+          fi
+          export EXTRA_PLATFORM_PLUGINS="$WAYLAND_PLUGINS"
+          export EXTRA_QT_MODULES="waylandcompositor"
           export OUTPUT="$ARTIFACT.AppImage"
           export LINUXDEPLOY_OUTPUT_VERSION="$BLD_VERSION"
           ./linuxdeploy --appdir "$APPDIR" --plugin qt --output appimage
@@ -137,6 +147,13 @@ jobs:
           xvfb-run -a "./$ARTIFACT.AppImage" --version | grep -F "$BLD_VERSION"
           xvfb-run -a ./dist/brick-layout-designer/brick-layout-designer --version | grep -F "$BLD_VERSION"
           test -d dist/brick-layout-designer/usr/share/brick-layout-designer/parts/BlueBrickParts/parts
+          # And natively under a headless Wayland compositor.
+          export XDG_RUNTIME_DIR=$(mktemp -d)
+          weston --backend=headless-backend.so --socket=bld-test &
+          WESTON=$!
+          for _ in $(seq 20); do [ -S "$XDG_RUNTIME_DIR/bld-test" ] && break; sleep 0.5; done
+          WAYLAND_DISPLAY=bld-test QT_QPA_PLATFORM=wayland "./$ARTIFACT.AppImage" --version | grep -F "$BLD_VERSION"
+          kill "$WESTON"
 
       # ---------------------------------------------------------------- macOS
       - name: Install (macOS)
