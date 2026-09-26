@@ -195,7 +195,7 @@ jobs:
         run: |
           APP=dist/brick-layout-designer.app
           "$APP/Contents/MacOS/brick-layout-designer" --version | grep -F "$BLD_VERSION"
-          test -d "$APP/Contents/Resources/BlueBrickParts/parts"
+          test -d "$APP/Contents/Resources/parts/BlueBrickParts/parts"
           # ditto keeps the extended attributes / signature intact.
           ditto -c -k --keepParent "$APP" "$ARTIFACT.zip"
           # Drag-to-Applications disk image.

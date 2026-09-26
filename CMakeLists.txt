@@ -45,7 +45,7 @@ include(GNUInstallDirs)
 # as-is. The runtime probes in src/app/main.cpp (translations) and
 # MainWindow::defaultVendoredPartsRoot (parts library) mirror these paths.
 #   Windows: <prefix>/brick-layout-designer.exe, <prefix>/{parts,translations}
-#   macOS:   <prefix>/brick-layout-designer.app, data under Contents/Resources
+#   macOS:   <prefix>/brick-layout-designer.app, Contents/Resources/{parts,translations}
 #   Linux:   <prefix>/bin, <prefix>/share/brick-layout-designer/{parts,translations}
 if(WIN32)
     set(BLD_INSTALL_BINDIR  ".")
