@@ -322,4 +322,5 @@ jobs:
           name: ${{ env.ARTIFACT }}
           path: |
             ${{ env.ARTIFACT }}.*
+            !${{ env.ARTIFACT }}.wixpdb
           if-no-files-found: error
