@@ -122,14 +122,16 @@ reads the `.bbm` normally and ignores the sidecar.
 - **External format import → composite library part**: LDraw
   (`.ldr` / `.dat` / `.mpd`), Studio (`.io`), and LDD (`.lxf` / `.lxfml`)
   all render to a top-down sprite + XML saved as a new part in the
-  user library. With an LDraw library configured, the sprite is real
-  LDraw geometry at 32 px/stud (`.png`), plus an 8 px/stud `.gif` so
-  the same part folder also loads in vanilla BlueBrick. LDraw and Studio
-  imports snap like track: pieces that BlueBrickParts knows (matched by
-  part number, including LDraw's renumbered parts) are placed with
-  BlueBrick's own LDraw mapping, and their free ends become the part's
-  connection points, shown in the import preview. LDD imports don't get
-  connection points yet.
+  user library, one at a time or with **Batch Import**. With an LDraw
+  library (or LDD's brick database for LDD files) the sprite is real
+  geometry at 32 px/stud (`.png`), plus an 8 px/stud `.gif` so the same
+  part folder also loads in vanilla BlueBrick. Imports snap like track:
+  pieces that BlueBrickParts knows (matched by part number, including
+  LDraw's renumbered parts and LDD parts via LDD's `ldraw.xml`) are
+  placed with BlueBrick's own LDraw mapping, and their free ends become
+  the part's connection points. The preview shows them and lets you
+  rotate the part, drop connection points, pick a category and replace
+  an earlier import.
 - Autosave on every edit (5 s throttled) + crash-recovery prompt.
 - Cross-platform CI/CD: every PR builds, tests and packages Linux x86_64,
   Windows x64 and a universal (arm64 + x86_64) macOS bundle, smoke-launches
