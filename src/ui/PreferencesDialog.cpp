@@ -1,5 +1,6 @@
 #include "PreferencesDialog.h"
 #include "LibraryPathsDialog.h"
+#include "../import/ArchivePath.h"
 
 #include <QApplication>
 #include <QCheckBox>
@@ -435,21 +436,26 @@ QWidget* buildImportTab(QDialog* parent) {
         QObject::connect(&dlg, &QProgressDialog::canceled, &dlg,
             [&cancelled]{ cancelled = true; });
 
-        int extracted = 0;
+        int failed = 0;
         for (int i = 0; i < entries.size(); ++i) {
             if (cancelled) break;
             const auto& info = entries[i];
-            const QString abs = dst.absoluteFilePath(info.filePath);
-            if (info.isDir) {
+            // Drops "../" / absolute entries (zip-slip) and never recreates
+            // symlink entries, which could redirect later writes.
+            const QString abs = import::resolveArchiveEntryPath(dst.absolutePath(), info.filePath);
+            if (abs.isEmpty() || info.isSymLink) {
+                ++failed;
+            } else if (info.isDir) {
                 QDir().mkpath(abs);
             } else if (info.isFile) {
                 QDir().mkpath(QFileInfo(abs).absolutePath());
                 QFile out(abs);
-                if (out.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-                    out.write(z.fileData(info.filePath));
+                if (out.open(QIODevice::WriteOnly | QIODevice::Truncate)
+                    && out.write(z.fileData(info.filePath)) >= 0) {
                     out.close();
                     out.setPermissions(info.permissions);
-                    ++extracted;
+                } else {
+                    ++failed;
                 }
             }
             // Update + pump every ~64 files so the dialog stays
@@ -486,8 +492,13 @@ QWidget* buildImportTab(QDialog* parent) {
             // ldraw/ wrapper), use destRoot directly.
             ldrawEdit->setText(destRoot);
         }
-        QMessageBox::information(w, QObject::tr("LDraw library installed"),
-            QObject::tr("LDraw library installed at:\n%1").arg(ldrawEdit->text()));
+        QString msg = QObject::tr("LDraw library installed at:\n%1").arg(ldrawEdit->text());
+        if (failed > 0) {
+            msg += QStringLiteral("\n\n")
+                 + QObject::tr("Archive entries not written (write error or unsafe path): %1")
+                       .arg(failed);
+        }
+        QMessageBox::information(w, QObject::tr("LDraw library installed"), msg);
     });
     form->addRow(QString(), autoBtn);
 

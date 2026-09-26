@@ -1,4 +1,5 @@
 add_executable(bld_import_tests
+    ArchivePathTest.cpp
     LDrawReaderTest.cpp
     LDrawLibraryTest.cpp
     LDrawMeshLoaderTest.cpp

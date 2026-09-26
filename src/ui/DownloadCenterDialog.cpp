@@ -1,4 +1,5 @@
 #include "DownloadCenterDialog.h"
+#include "../import/ArchivePath.h"
 
 #include <QApplication>
 #include <QBrush>
@@ -8,6 +9,7 @@
 #include <QDir>
 #include <QEventLoop>
 #include <QFile>
+#include <QFileInfo>
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
@@ -364,9 +366,31 @@ bool DownloadCenterDialog::downloadAndInstall(const Package& pkg, QString* error
         if (error) *error = tr("Could not read the archive.");
         return false;
     }
-    if (!z.extractAll(libraryRoot_)) {
-        if (error) *error = tr("Could not extract files into %1").arg(libraryRoot_);
-        return false;
+    // Not QZipReader::extractAll(): it trusts entry names ("../" escapes
+    // the library root) and recreates symlink entries. Package sources are
+    // user-configurable URLs, so treat every entry as hostile.
+    const QDir root(libraryRoot_);
+    for (const auto& info : z.fileInfoList()) {
+        const QString abs = import::resolveArchiveEntryPath(root.absolutePath(), info.filePath);
+        if (abs.isEmpty() || info.isSymLink) {
+            if (error) *error = tr("Refusing unsafe archive entry: %1").arg(info.filePath);
+            return false;
+        }
+        if (info.isDir) {
+            if (!QDir().mkpath(abs)) {
+                if (error) *error = tr("Could not create %1").arg(abs);
+                return false;
+            }
+            continue;
+        }
+        if (!info.isFile) continue;
+        QDir().mkpath(QFileInfo(abs).absolutePath());
+        QFile out(abs);
+        if (!out.open(QIODevice::WriteOnly | QIODevice::Truncate)
+            || out.write(z.fileData(info.filePath)) < 0) {
+            if (error) *error = tr("Could not extract files into %1").arg(libraryRoot_);
+            return false;
+        }
     }
     return true;
 #endif

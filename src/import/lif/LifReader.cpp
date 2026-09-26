@@ -1,5 +1,7 @@
 #include "LifReader.h"
 
+#include "../ArchivePath.h"
+
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -188,7 +190,11 @@ int LifReader::extractAll(const QString& destRoot) {
     int written = 0;
     for (auto it = entries_.constBegin(); it != entries_.constEnd(); ++it) {
         const QString rel = it.key().mid(1);  // drop leading '/'
-        const QString abs = dst.absoluteFilePath(rel);
+        const QString abs = resolveArchiveEntryPath(dst.absolutePath(), rel);
+        if (abs.isEmpty()) {
+            errorString_ += QStringLiteral("\n  skipped unsafe entry %1").arg(it.key());
+            continue;
+        }
         QDir().mkpath(QFileInfo(abs).absolutePath());
         QSaveFile f(abs);
         if (!f.open(QIODevice::WriteOnly)) {
