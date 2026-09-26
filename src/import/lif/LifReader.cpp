@@ -32,13 +32,37 @@ bool LifReader::open(const QString& path) {
     errorString_.clear();
     entries_.clear();
     data_.clear();
-
-    QFile f(path);
-    if (!f.open(QIODevice::ReadOnly)) {
-        errorString_ = QStringLiteral("Could not open %1: %2").arg(path, f.errorString());
+    file_ = std::make_unique<QFile>(path);
+    if (!file_->open(QIODevice::ReadOnly)) {
+        errorString_ = QStringLiteral("Could not open %1: %2").arg(path, file_->errorString());
+        file_.reset();
         return false;
     }
-    data_ = f.readAll();
+    if (uchar* mapped = file_->map(0, file_->size())) {
+        data_ = QByteArray::fromRawData(reinterpret_cast<const char*>(mapped),
+                                        static_cast<qsizetype>(file_->size()));
+    } else {
+        data_ = file_->readAll();
+    }
+    return parseArchive();
+}
+
+bool LifReader::openNested(const LifReader& outer, const QString& lifPath) {
+    errorString_.clear();
+    entries_.clear();
+    data_.clear();
+    file_.reset();
+    const auto it = outer.entries_.constFind(lifPath);
+    if (it == outer.entries_.constEnd()) {
+        errorString_ = QStringLiteral("%1 not found in archive").arg(lifPath);
+        return false;
+    }
+    data_ = QByteArray::fromRawData(outer.data_.constData() + it->offset,
+                                    static_cast<qsizetype>(it->size));
+    return parseArchive();
+}
+
+bool LifReader::parseArchive() {
     if (data_.size() < 84) {
         errorString_ = QStringLiteral("Truncated file (need 84 byte header, got %1)")
                             .arg(data_.size());
@@ -179,7 +203,10 @@ QByteArray LifReader::read(const QString& lifPath) const {
     auto it = entries_.constFind(lifPath);
     if (it == entries_.constEnd()) return {};
     const auto& e = it.value();
-    return data_.mid(e.offset, e.size);
+    if (e.offset < 0 || e.size < 0 || e.offset + e.size > data_.size()) return {};
+    // Deep copy: data_ may alias a memory map that dies with this reader,
+    // and mid() on raw data can return a view onto it.
+    return QByteArray(data_.constData() + e.offset, static_cast<qsizetype>(e.size));
 }
 
 int LifReader::extractAll(const QString& destRoot) {
@@ -201,7 +228,7 @@ int LifReader::extractAll(const QString& destRoot) {
             errorString_ += QStringLiteral("\n  write %1: %2").arg(abs, f.errorString());
             continue;
         }
-        const QByteArray bytes = data_.mid(it.value().offset, it.value().size);
+        const QByteArray bytes = read(it.key());
         f.write(bytes);
         if (f.commit()) ++written;
         else errorString_ += QStringLiteral("\n  commit %1: %2").arg(abs, f.errorString());

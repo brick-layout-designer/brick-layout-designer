@@ -280,11 +280,13 @@ void PartsBrowser::rebuild() {
 void PartsBrowser::addOne(const QString& key) {
     auto meta = lib_.metadata(key);
     if (!meta) return;
-    // Skip if the grid already has this key — protects against duplicate
-    // adds when a caller rescans a path that contains an already-imported
-    // part.
+    // Replace an existing entry for this key (a re-imported part gets a
+    // new sprite) rather than listing it twice.
     for (int i = 0; i < grid_->count(); ++i) {
-        if (grid_->item(i)->data(kPartKeyRole).toString() == key) return;
+        if (grid_->item(i)->data(kPartKeyRole).toString() == key) {
+            delete grid_->takeItem(i);
+            break;
+        }
     }
     const QString cat = categoryForPath(meta->xmlFilePath);
     // Add the category to the dropdown if it's new. blockSignals so the

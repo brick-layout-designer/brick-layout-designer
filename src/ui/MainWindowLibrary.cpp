@@ -97,9 +97,16 @@ QString MainWindow::registerImportedPart(const QString& xmlAbsPath) {
     // part. addSearchPath is a no-op when the path is already present.
     parts_.addSearchPath(QFileInfo(xmlAbsPath).absolutePath());
 
+    // A re-import that replaced an existing part: drop the stale entry
+    // and cached sprite, and redraw copies already on the map.
+    const QString stem = QFileInfo(xmlAbsPath).completeBaseName();
+    const bool replaced = parts_.metadata(stem).has_value();
+    if (replaced) parts_.forget(stem);
+
     const QString libKey = parts_.scanFile(xmlAbsPath);
     if (libKey.isEmpty()) return {};
     partsBrowser_->addOne(libKey);
+    if (replaced) mapView_->rebuildScene();
     return libKey;
 }
 

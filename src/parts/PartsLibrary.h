@@ -145,6 +145,10 @@ public:
 
     void clear();
 
+    // Drop one part (and its cached sprite / hull) so scanFile() can
+    // index a replaced version of it.
+    void forget(const QString& key);
+
 private:
     QStringList searchPaths_;
     QHash<QString, PartMetadata> index_;

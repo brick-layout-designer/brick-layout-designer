@@ -14,8 +14,9 @@ namespace bld::import {
 //   <key>.png  the sprite as given, when it isn't 8 px/stud
 //   <key>.gif  8 px/stud sprite; the only file vanilla BlueBrick reads
 // `widthStuds` x `heightStuds` is the footprint; the sprite's pixel size
-// divided by it gives the resolution. The key is `sourceFilePath`'s stem,
-// suffixed -2, -3, ... to avoid overwriting an existing part.
+// divided by it gives the resolution. The key is `sourceFilePath`'s stem;
+// an existing part of that name is replaced when `replaceExisting`,
+// otherwise the key gets a -2, -3, ... suffix.
 //
 // Returns the new part key (the filename stem without the extension),
 // or an empty string on failure; the error is written to *error
@@ -30,6 +31,10 @@ struct ImportedConnection {
     double  yStuds   = 0.0;    // sprite-local y
     double  angleDeg = 0.0;    // world-facing angle
 };
+
+// The part key (file stem) writeImportedModelAsLibraryPart derives from a
+// source path or user-entered name, before any -2/-3 suffix.
+QString importedPartKey(const QString& sourceFilePathOrName);
 
 QString writeImportedModelAsLibraryPart(
     const QString& sourceFilePath,
@@ -52,6 +57,7 @@ QString writeImportedModelAsLibraryPart(
     const QString& destLibraryDir,
     const QString& authorName,
     const QVector<ImportedConnection>& connections,
-    QString*       error = nullptr);
+    QString*       error = nullptr,
+    bool           replaceExisting = false);
 
 }  // namespace bld::import

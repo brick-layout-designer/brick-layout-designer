@@ -458,6 +458,13 @@ QPointF PartsLibrary::hullBboxOffsetStuds(const QString& key,
     return QPointF(-cx, -cy);
 }
 
+void PartsLibrary::forget(const QString& key) {
+    const QString lk = key.toLower();
+    index_.remove(lk);
+    pixmapCache_.remove(lk);
+    hullCache_.remove(lk);
+}
+
 void PartsLibrary::clear() {
     index_.clear();
     pixmapCache_.clear();

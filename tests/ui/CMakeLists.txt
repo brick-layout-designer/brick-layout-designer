@@ -1,5 +1,6 @@
 add_executable(bld_ui_tests
     MapViewTest.cpp
+    ImportPipelineTest.cpp
 )
 
 target_compile_definitions(bld_ui_tests PRIVATE
@@ -10,6 +11,7 @@ target_compile_definitions(bld_ui_tests PRIVATE
 target_link_libraries(bld_ui_tests
     PRIVATE
         bld_ui
+        bld_import
         bld_edit
         bld_saveload
         bld_parts

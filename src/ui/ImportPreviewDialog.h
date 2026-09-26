@@ -1,58 +1,65 @@
 #pragma once
 
+#include "ImportPipeline.h"
+
 #include <QDialog>
-#include <QImage>
 #include <QString>
 #include <QStringList>
-#include <QVector>
 
-#include "../import/ImportToPart.h"
+#include <functional>
 
 class QCheckBox;
+class QComboBox;
+class QGraphicsPixmapItem;
+class QGraphicsScene;
 class QLabel;
-class QPlainTextEdit;
 class QLineEdit;
-class QSpinBox;
+class QListWidget;
 
 namespace bld::ui {
 
-// Preview dialog shown after parsing + rasterizing an LDraw / Studio /
-// LDD model but BEFORE writing it as a library part. Lets the user
-// confirm the import looks right (sprite, dimensions, errors), name
-// the resulting part, and either accept or cancel. Cancelling aborts
-// the import cleanly without disturbing the parts library.
-//
-// Stats panel mirrors what the importer reports — translated /
-// rendered / unmapped / skipped counts plus any per-part error
-// strings the bake collected. Helps diagnose why a model came out
-// half-rendered without round-tripping through the file system.
+class PreviewView;
+
+// Preview shown after an LDraw / Studio / LDD model has been turned into
+// a PreparedPart but BEFORE anything is written. The user can rotate the
+// part, drop connection points they don't want, name it, pick the
+// category (library sub-folder) it goes into and choose whether to
+// replace an existing part of the same name. Cancel leaves the library
+// untouched.
 class ImportPreviewDialog : public QDialog {
     Q_OBJECT
 public:
-    struct Stats {
-        int    ldrawResolved = 0;     // refs the LDraw library returned geometry for
-        int    lddRendered   = 0;     // refs the LDD .g fallback rendered
-        int    translated    = 0;     // LDD refs we re-mapped to LDraw
-        int    unmapped      = 0;     // LDD refs that had no LDraw equivalent
-        int    skipped       = 0;     // LDD refs the .g lookup couldn't find
-    };
-
-    ImportPreviewDialog(const QString& sourceFile,
-                        const QString& kindLabel,
-                        const QImage& sprite,
-                        int widthStuds,
-                        int heightStuds,
-                        const Stats& stats,
-                        const QStringList& errors,
-                        const QVector<import::ImportedConnection>& connections,
+    // `categories` fills the category picker (editable, so new ones can be
+    // typed). `partExists(name, category)` reports whether saving would
+    // collide with an existing part, to offer "replace".
+    ImportPreviewDialog(PreparedPart part,
+                        const QStringList& categories,
+                        const QString& defaultCategory,
+                        std::function<bool(const QString&, const QString&)> partExists,
                         QWidget* parent = nullptr);
 
     // Final values after exec() returns Accepted.
+    PreparedPart result() const;   // rotated, unchecked connections removed
     QString partName() const;
-
+    QString category() const;
+    bool    replaceExisting() const;
 
 private:
-    QLineEdit*     nameEdit_   = nullptr;
+    void rotate(int quarterTurns);
+    void refreshSprite();
+    void refreshConnections();
+    void refreshReplace();
+
+    PreparedPart part_;
+    std::function<bool(const QString&, const QString&)> partExists_;
+    QGraphicsScene*      scene_       = nullptr;
+    PreviewView*         view_        = nullptr;
+    QGraphicsPixmapItem* pixmapItem_  = nullptr;
+    QLabel*              header_      = nullptr;
+    QListWidget*         connList_    = nullptr;
+    QLineEdit*           nameEdit_    = nullptr;
+    QComboBox*           categoryBox_ = nullptr;
+    QCheckBox*           replaceBox_  = nullptr;
 };
 
 }  // namespace bld::ui

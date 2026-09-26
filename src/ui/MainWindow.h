@@ -58,6 +58,11 @@ protected:
     // a valid part XML or is already indexed.
     QString registerImportedPart(const QString& xmlAbsPath);
 
+    // Import an LDraw / Studio / LDD file as a new library part: prepare,
+    // preview (rotate, connections, name, category), write, register and
+    // place it at the view centre.
+    void importModelFile(const QString& path);
+
 private slots:
     void onNew();
     void onOpen();
@@ -68,6 +73,7 @@ private slots:
     void onFitToView();
     void onManageLibraries();
     void onReloadLibrary();
+    void onBatchImport();
     void onExportPartList();
     void onAbout();
     void onCreateModuleFromSelection();

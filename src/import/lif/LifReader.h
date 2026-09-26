@@ -1,6 +1,9 @@
 #pragma once
 
 #include <QByteArray>
+#include <QFile>
+
+#include <memory>
 #include <QHash>
 #include <QString>
 #include <QStringList>
@@ -39,7 +42,14 @@ public:
 
     // Open `path`. Returns false if the file cannot be read or the
     // header magic doesn't match. errorString() carries a diagnostic.
+    // The file is memory-mapped where possible (LDD's Assets.lif is
+    // ~500 MB), falling back to reading it into memory.
     bool open(const QString& path);
+
+    // Open the LIF archive stored as `lifPath` inside `outer` (LDD ships
+    // its brick database as /db.lif inside Assets.lif). No copy is made:
+    // `outer` must stay open and alive while this reader is used.
+    bool openNested(const LifReader& outer, const QString& lifPath);
     bool isOpen() const { return !data_.isEmpty(); }
     const QString& errorString() const { return errorString_; }
 
@@ -67,10 +77,12 @@ private:
     };
 
     QString             errorString_;
-    QByteArray          data_;
+    std::unique_ptr<QFile> file_;   // owns the mapping behind data_
+    QByteArray          data_;      // whole archive (may alias file_'s map)
     QHash<QString, FileEntry> entries_;  // keyed on "/path/in/archive"
 
     bool parseTableOfContents();
+    bool parseArchive();
 };
 
 }  // namespace bld::import

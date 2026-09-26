@@ -30,6 +30,8 @@ add_library(bld_import STATIC
     ldd/LDDGeomReader.h
     ldd/LDDLDrawMapping.cpp
     ldd/LDDLDrawMapping.h
+    ldd/LDDAssets.cpp
+    ldd/LDDAssets.h
     ldd/LDDMaterials.cpp
     ldd/LDDMaterials.h
     ldd/LDDMeshBuilder.cpp

@@ -20,7 +20,12 @@ namespace {
 // non-alphanumeric / non-underscore / non-dash / non-dot char replaced
 // by '_'. Collapses consecutive separators and trims trailing dots.
 QString sanitizeKey(const QString& sourcePath) {
-    QString stem = QFileInfo(sourcePath).completeBaseName();
+    // File name minus a model extension; other dots are kept so a typed
+    // name like "Loop v1.5" isn't truncated.
+    QString stem = QFileInfo(sourcePath).fileName();
+    static const QRegularExpression modelExt(QStringLiteral("\\.(ldr|dat|mpd|io|lxf|lxfml)$"),
+                                             QRegularExpression::CaseInsensitiveOption);
+    stem.remove(modelExt);
     static const QRegularExpression bad(QStringLiteral("[^A-Za-z0-9_\\-.]"));
     stem.replace(bad, QStringLiteral("_"));
     static const QRegularExpression runs(QStringLiteral("_+"));
@@ -31,6 +36,10 @@ QString sanitizeKey(const QString& sourcePath) {
 }
 
 }  // namespace
+
+QString importedPartKey(const QString& sourceFilePathOrName) {
+    return sanitizeKey(sourceFilePathOrName);
+}
 
 QString writeImportedModelAsLibraryPart(
     const QString& sourceFilePath,
@@ -55,7 +64,8 @@ QString writeImportedModelAsLibraryPart(
     const QString& destLibraryDir,
     const QString& authorName,
     const QVector<ImportedConnection>& connections,
-    QString*       error) {
+    QString*       error,
+    bool           replaceExisting) {
 
     if (renderedSprite.isNull() || widthStuds <= 0 || heightStuds <= 0) {
         if (error) *error = QStringLiteral("Empty sprite or zero dimensions");
@@ -68,8 +78,14 @@ QString writeImportedModelAsLibraryPart(
     }
 
     QString baseKey = sanitizeKey(sourceFilePath);
-    // Avoid overwriting an existing part: suffix -2, -3, ...
     QString key = baseKey;
+    const QStringList exts{ QStringLiteral(".xml"), QStringLiteral(".png"), QStringLiteral(".gif") };
+    if (replaceExisting) {
+        // Drop every sibling first so a hi-res part replaced by an
+        // 8 px/stud one doesn't keep a stale .png.
+        for (const QString& ext : exts) QFile::remove(dir.filePath(key + ext));
+    }
+    // Otherwise avoid overwriting an existing part: suffix -2, -3, ...
     int     n = 1;
     while (QFile::exists(dir.filePath(key + QStringLiteral(".gif"))) ||
            QFile::exists(dir.filePath(key + QStringLiteral(".png"))) ||
