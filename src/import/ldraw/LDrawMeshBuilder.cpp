@@ -14,6 +14,26 @@ geom::Mat4 refTransform(const LDrawPartRef& ref) {
         ref.m[6], ref.m[7], ref.m[8]);
 }
 
+// LDraw is -Y up; geom::Mesh (and the rasterizer) is +Y up. A 180°
+// rotation about X (negate Y and Z) converts between them without
+// mirroring. Skipping it rendered every LDraw import from underneath:
+// mirror-imaged, bottoms visible, prints hidden. The resulting Z also
+// matches BlueBrick's LDraw convention (BlueBrick y = -LDraw z).
+geom::Vec3 toMeshFrame(geom::Vec3 v) { return { v.x, -v.y, -v.z }; }
+
+void convertToMeshFrame(geom::Mesh& mesh) {
+    for (auto& t : mesh.tris) {
+        for (int k = 0; k < 3; ++k) {
+            t.v[k] = toMeshFrame(t.v[k]);
+            t.n[k] = toMeshFrame(t.n[k]);
+        }
+    }
+    for (auto& e : mesh.edges) {
+        e.v[0] = toMeshFrame(e.v[0]);
+        e.v[1] = toMeshFrame(e.v[1]);
+    }
+}
+
 }  // namespace
 
 BakedModel bakeMeshFromLDraw(const LDrawReadResult& src,
@@ -100,6 +120,7 @@ BakedModel bakeMeshFromLDraw(const LDrawReadResult& src,
         }
     }
 
+    convertToMeshFrame(out.mesh);
     out.errors = loader.errors();
     return out;
 }

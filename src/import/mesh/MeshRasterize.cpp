@@ -67,17 +67,31 @@ RasterizeResult rasterizeMeshTopDown(const geom::Mesh& mesh,
     }
     out.meshBoundsXZ = QRectF(QPointF(xmin, zmin), QPointF(xmax, zmax));
 
-    // Render at supersampled px/stud, then smooth-downscale at the end.
+    // Canvas = the mesh bounds padded out to whole studs, centred on the
+    // mesh. Placement derives the part's footprint as pixels / pxPerStud,
+    // so whole studs keep grid snapping clean; padding (rather than
+    // scaling the mesh to fit) keeps every feature at its true stud
+    // position, which is what imported connection points are measured
+    // against. Overhangs under kSnapSlackStuds are trimmed instead of
+    // adding a whole stud of padding.
+    constexpr double kSnapSlackStuds = 0.05;
+    const int wStud = std::max(1, static_cast<int>(std::ceil((xmax - xmin) - kSnapSlackStuds)));
+    const int hStud = std::max(1, static_cast<int>(std::ceil((zmax - zmin) - kSnapSlackStuds)));
+    const QPointF centre = out.meshBoundsXZ.center();
+    out.spriteStuds = QRectF(centre.x() - wStud / 2.0, centre.y() - hStud / 2.0, wStud, hStud);
+    const double canvasX0 = out.spriteStuds.left();
+    const double canvasZ0 = out.spriteStuds.top();
+
+    // Render at supersampled px/stud, then downscale by exactly `ssaa`.
     const int ssaa = std::max(1, opt.ssaa);
     const int superPxPerStud = opt.pxPerStud * ssaa;
     const int superMarginPx  = opt.marginPx  * ssaa;
 
-    const int W = static_cast<int>(std::ceil((xmax - xmin) * superPxPerStud + 2.0 * superMarginPx));
-    const int H = static_cast<int>(std::ceil((zmax - zmin) * superPxPerStud + 2.0 * superMarginPx));
-    if (W <= 0 || H <= 0) return out;
+    const int W = wStud * superPxPerStud + 2 * superMarginPx;
+    const int H = hStud * superPxPerStud + 2 * superMarginPx;
 
-    out.imageOriginInStuds = QPointF(xmin - opt.marginPx / static_cast<double>(opt.pxPerStud),
-                                      zmin - opt.marginPx / static_cast<double>(opt.pxPerStud));
+    out.imageOriginInStuds = QPointF(canvasX0 - opt.marginPx / static_cast<double>(opt.pxPerStud),
+                                      canvasZ0 - opt.marginPx / static_cast<double>(opt.pxPerStud));
 
     // Z-buffer + colour buffer. Initial depth is -inf so any valid
     // fragment beats it; initial colour is transparent.
@@ -104,8 +118,8 @@ RasterizeResult rasterizeMeshTopDown(const geom::Mesh& mesh,
         for (int k = 0; k < 3; ++k) {
             const double xs = tri.v[k].x * opt.studsPerLdu;
             const double zs = tri.v[k].z * opt.studsPerLdu;
-            px[k] = (xs - xmin) * superPxPerStud + superMarginPx;
-            py[k] = (zs - zmin) * superPxPerStud + superMarginPx;
+            px[k] = (xs - canvasX0) * superPxPerStud + superMarginPx;
+            py[k] = (zs - canvasZ0) * superPxPerStud + superMarginPx;
             wy[k] = tri.v[k].y;
         }
 
@@ -181,28 +195,13 @@ RasterizeResult rasterizeMeshTopDown(const geom::Mesh& mesh,
         for (int xx = 0; xx < W; ++xx) row[xx] = src[xx].argb;
     }
 
-    // Smooth-downscale to the final resolution. The final pixel size
-    // must be a clean multiple of pxPerStud — placement code re-derives
-    // the brick's stud footprint as (pixels / pxPerStud), so any non-
-    // integer-stud final size translates directly into a fractional
-    // footprint and the brick won't grid-snap. Round each axis to its
-    // nearest whole stud, then multiply back by pxPerStud.
-    int finalW = 0, finalH = 0;
-    {
-        const double widthStudsExact  = (xmax - xmin);
-        const double heightStudsExact = (zmax - zmin);
-        const int wStud = std::max(1, static_cast<int>(std::round(widthStudsExact)));
-        const int hStud = std::max(1, static_cast<int>(std::round(heightStudsExact)));
-        finalW = wStud * opt.pxPerStud + 2 * opt.marginPx;
-        finalH = hStud * opt.pxPerStud + 2 * opt.marginPx;
-        if (ssaa > 1 || finalW != W || finalH != H) {
-            out.image = img.scaled(finalW, finalH,
-                                   Qt::IgnoreAspectRatio,
-                                   Qt::SmoothTransformation);
-        } else {
-            out.image = std::move(img);
-        }
-    }
+    // Downscale by exactly `ssaa`, so the final image is whole studs at
+    // pxPerStud (plus margin) with no distortion.
+    const int finalW = wStud * opt.pxPerStud + 2 * opt.marginPx;
+    const int finalH = hStud * opt.pxPerStud + 2 * opt.marginPx;
+    out.image = (ssaa > 1)
+        ? img.scaled(finalW, finalH, Qt::IgnoreAspectRatio, Qt::SmoothTransformation)
+        : std::move(img);
 
     // Wireframe overlay. Stud rims (LDD-synthesised) and brick-top
     // silhouettes (LDraw type-2 edges) trace the visible top of the
@@ -225,19 +224,15 @@ RasterizeResult rasterizeMeshTopDown(const geom::Mesh& mesh,
             }
             return buf[static_cast<size_t>(sz) * W + static_cast<size_t>(sx)].yWorld;
         };
-        const double finalPxPerStudW = (xmax > xmin)
-            ? out.image.width()  / (xmax - xmin) : opt.pxPerStud;
-        const double finalPxPerStudH = (zmax > zmin)
-            ? out.image.height() / (zmax - zmin) : opt.pxPerStud;
         for (const auto& e : mesh.edges) {
             const double xs0 = e.v[0].x * opt.studsPerLdu;
             const double zs0 = e.v[0].z * opt.studsPerLdu;
             const double xs1 = e.v[1].x * opt.studsPerLdu;
             const double zs1 = e.v[1].z * opt.studsPerLdu;
-            const double x0 = (xs0 - xmin) * finalPxPerStudW;
-            const double y0 = (zs0 - zmin) * finalPxPerStudH;
-            const double x1 = (xs1 - xmin) * finalPxPerStudW;
-            const double y1 = (zs1 - zmin) * finalPxPerStudH;
+            const double x0 = (xs0 - canvasX0) * opt.pxPerStud + opt.marginPx;
+            const double y0 = (zs0 - canvasZ0) * opt.pxPerStud + opt.marginPx;
+            const double x1 = (xs1 - canvasX0) * opt.pxPerStud + opt.marginPx;
+            const double y1 = (zs1 - canvasZ0) * opt.pxPerStud + opt.marginPx;
 
             // Depth test: skip edges that are occluded by a brick
             // above them. Sample three points along the edge and

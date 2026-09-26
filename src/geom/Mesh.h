@@ -11,9 +11,11 @@
 namespace bld::geom {
 
 // Minimal CPU-side 3D types so all importers (LDraw, Studio, LDD) feed
-// into one common pipeline before rasterization. Right-handed, Y-up
-// like LDraw — LDD's left-handed XYZ-up coordinates get converted at
-// load time so downstream code only handles one convention.
+// into one common pipeline before rasterization. Convention: +Y is up
+// (LDD's native frame), units are LDU, and the top-down view maps
+// x -> image x, z -> image y. LDraw is -Y up, so bakeMeshFromLDraw
+// rotates its output 180° about X (negates y and z) into this frame.
+// LDrawMeshLoader::loadPart still returns raw LDraw part coordinates.
 struct Vec3 {
     double x = 0.0, y = 0.0, z = 0.0;
 
