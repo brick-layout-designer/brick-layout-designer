@@ -48,6 +48,10 @@ add_library(bld_import STATIC
     # the final step.
     ImportToPart.cpp
     ImportToPart.h
+
+    # Zip-slip guard shared by every archive extractor.
+    ArchivePath.cpp
+    ArchivePath.h
 )
 
 target_include_directories(bld_import PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
