@@ -62,7 +62,7 @@ jobs:
       HAS_WINDOWS_PFX: ${{ inputs.sign && secrets.WINDOWS_PFX_BASE64 != '' }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
 
@@ -83,7 +83,7 @@ jobs:
           max-size: 1G
 
       - name: Ninja
-        uses: seanmiddleditch/gha-setup-ninja@v5
+        uses: seanmiddleditch/gha-setup-ninja@v6
 
       - name: MSVC environment (Windows)
         if: runner.os == 'Windows'
@@ -317,7 +317,7 @@ jobs:
           Remove-Item cert.pfx
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ env.ARTIFACT }}
           path: |

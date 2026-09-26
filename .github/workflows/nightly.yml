@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
 
-# actions/checkout@v4 et al currently target Node 20, which GitHub
+# actions/checkout@v7 et al currently target Node 20, which GitHub
 # starts forcing off in June 2026. Opt into Node 24 now so the
 # deprecation warnings stop cluttering the logs.
 env:
@@ -27,13 +27,13 @@ jobs:
 
     steps:
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
           merge-multiple: true
 
       - name: Create or update pre-release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: latest
           name: Latest Build
