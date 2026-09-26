@@ -17,8 +17,8 @@ namespace bld::import {
 //   * Output `pxPerStud` defaults to 8 (BlueBrick's sampling rate).
 //   * "Top-down" means we drop Y (LDraw up-axis) and project (x, z).
 //     Higher-Y triangles draw on top of lower-Y triangles.
-//   * Image size auto-fits the mesh's XZ bounding box, with a 1-pixel
-//     margin on each side so anti-aliased edges don't get clipped.
+//   * Image size is the mesh's XZ bounding box padded to whole studs
+//     (see RasterizeResult::spriteStuds), plus `marginPx` on each side.
 //
 // Implementation:
 //   * Sort triangles by maximum Y ascending so the painter naturally
@@ -53,7 +53,12 @@ struct RasterizeOptions {
 
 struct RasterizeResult {
     QImage  image;
-    QRectF  meshBoundsXZ;     // pre-scale, in stud units (handy for caller layout)
+    QRectF  meshBoundsXZ;     // exact mesh bounds, in stud units
+    // The sprite's footprint in mesh stud coords: meshBoundsXZ padded to
+    // whole studs and centred on the mesh (excludes marginPx). Its size
+    // is the part's width x height in studs; its centre is the part's
+    // origin, which imported connection points are relative to.
+    QRectF  spriteStuds;
     QPointF imageOriginInStuds;  // stud coord of the image's (0, 0) pixel
 };
 

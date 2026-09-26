@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <vector>
 
 namespace bld::import {
 
@@ -20,10 +21,11 @@ namespace {
 // via `pxPerStud` inside the painter.
 constexpr double kLduPerStud = 20.0;
 
-// Project an LDU (x, y, z) onto the top-down plane. Y (up) is
-// discarded; X → X, Z → Y so "forward" reads as down the page.
+// Project an LDU (x, y, z) onto the top-down plane, viewed from above.
+// LDraw is -Y up, so looking down puts -Z ("back") at the bottom of the
+// page: image y = -z. (Mapping +z to image y rendered a mirror image.)
 QPointF projectStuds(const double v[3]) {
-    return QPointF(v[0] / kLduPerStud, v[2] / kLduPerStud);
+    return QPointF(v[0] / kLduPerStud, -v[2] / kLduPerStud);
 }
 
 struct Bounds {
@@ -76,7 +78,23 @@ QImage rasterizeTopDown(const LDrawReadResult& src,
                 marginPx - bb.minY * pxPerStud);
     g.scale(pxPerStud, pxPerStud);
 
-    for (const auto& p : src.primitives) {
+    // Painter's order: physically lower primitives first (LDraw is -Y
+    // up, so height = -y) so tops cover what sits beneath them.
+    std::vector<const LDrawPrimitive*> order;
+    order.reserve(src.primitives.size());
+    for (const auto& p : src.primitives) order.push_back(&p);
+    const auto height = [](const LDrawPrimitive* p) {
+        double h = -std::numeric_limits<double>::infinity();
+        for (int i = 0; i < p->kind; ++i) h = std::max(h, -p->v[i][1]);
+        return h;
+    };
+    std::stable_sort(order.begin(), order.end(),
+                     [&](const LDrawPrimitive* a, const LDrawPrimitive* b) {
+                         return height(a) < height(b);
+                     });
+
+    for (const LDrawPrimitive* pp : order) {
+        const LDrawPrimitive& p = *pp;
         const QColor fill = ldrawColor(p.colorCode);
         // Convert the 2 / 3 / 4 vertices to screen-space polygon.
         QPolygonF poly;

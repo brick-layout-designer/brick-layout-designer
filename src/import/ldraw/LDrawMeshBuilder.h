@@ -12,7 +12,8 @@
 namespace bld::import {
 
 // Bake an entire parsed LDraw / Studio model into one flat triangle
-// mesh, in part-local coords (LDU). Walks every type-1 ref in the
+// mesh, in model coords (LDU), converted to geom::Mesh's +Y-up frame
+// (LDraw y and z negated). Walks every type-1 ref in the
 // model, resolves each against the library, applies the ref's color +
 // transform, and concatenates the resolved part meshes into a single
 // model-level mesh ready for the rasterizer.
