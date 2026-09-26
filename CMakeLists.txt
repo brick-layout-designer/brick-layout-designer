@@ -33,6 +33,11 @@ else()
 endif()
 
 include(CTest)
+if(WIN32)
+    # Flat layout: Qt's deploy script puts the Qt DLLs and qt.conf in
+    # CMAKE_INSTALL_BINDIR, so it must be the exe's own folder.
+    set(CMAKE_INSTALL_BINDIR "." CACHE PATH "Executable install directory")
+endif()
 include(GNUInstallDirs)
 
 # ----- Install layout ---------------------------------------------------------
