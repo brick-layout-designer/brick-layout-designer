@@ -7,6 +7,6 @@ Exec=brick-layout-designer %f
 Icon=brick-layout-designer
 Categories=Graphics;Engineering;
 Terminal=false
-MimeType=application/x-bluebrick-map;application/x-bluebrick-bld-venue;
+MimeType=application/x-bluebrick-map;
 StartupWMClass=brick-layout-designer
 Keywords=lego;bluebrick;train;track;layout;

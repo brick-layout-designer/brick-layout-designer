@@ -7,24 +7,25 @@
    - Creates a Start menu shortcut
    - Registers a shared "App Paths" entry so `brick-layout-designer`
      on cmd.exe finds the binary without full-path PATH surgery
-   - No per-user state, no persistent file associations (the .bbm MIME
-     lives in the .desktop file on Linux; Windows users double-click
-     from Explorer and the app opens them via argv[1])
+   - Associates .bbm files with the app (Explorer double-click passes
+     the path as the first argument)
 
-  The exe + Qt + parts library all live inside the staging tree
-  assembled by the workflow BEFORE candle/light run; this wxs file
-  uses a HEAT-generated component group (generated during the build
-  step) to include everything under that tree.
+  The payload is the CMake install tree (exe + Qt runtime + MSVC
+  runtime + parts library + translations) copied into staging\ by the
+  workflow. scripts/harvest-wix.py mirrors it into Harvested.wxs.
 
-  No code-signing — per project decision to not require an EV cert
-  or Apple Developer ID. End users will see an "unknown publisher"
-  SmartScreen warning the first time they install; "More info → Run
-  anyway" proceeds normally. Same tradeoff as the macOS DMG.
+  Build with:  wix build -d Version=X.Y.Z brick-layout-designer.wxs Harvested.wxs
+  Version must change on every release or MajorUpgrade can't replace
+  the previous install.
+
+  Unsigned unless the release workflow's signing secrets are set (see
+  docs/SIGNING.md); unsigned installs show an "unknown publisher"
+  SmartScreen warning ("More info -> Run anyway" proceeds normally).
 -->
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Package Name="Brick Layout Designer"
            Manufacturer="Brick Layout Designer contributors"
-           Version="0.4.1.0"
+           Version="$(var.Version)"
            UpgradeCode="7d5c9ad0-1b8a-4c2f-8b1f-7e6c1a3b5f4d"
            Scope="perMachine"
            Compressed="yes">
@@ -47,7 +48,7 @@
 
     <!-- Main app component: the exe + a Start menu shortcut.
          The rest of the payload (Qt DLLs, parts library) is pulled
-         in by the HEAT-generated Harvested.wxs component group. -->
+         in by the Harvested.wxs component group. -->
     <ComponentGroup Id="MainAppComponents" Directory="INSTALLFOLDER">
       <Component Id="MainExe" Guid="*">
         <File Id="BrickLayoutDesignerExe"
@@ -59,6 +60,14 @@
                     WorkingDirectory="INSTALLFOLDER"
                     Advertise="yes" />
         </File>
+        <ProgId Id="BrickLayoutDesigner.bbm"
+                Description="BlueBrick Map"
+                Icon="BrickLayoutDesignerExe"
+                IconIndex="0">
+          <Extension Id="bbm" ContentType="application/x-bluebrick-map">
+            <Verb Id="open" TargetFile="BrickLayoutDesignerExe" Argument="&quot;%1&quot;" />
+          </Extension>
+        </ProgId>
         <RegistryValue Root="HKLM"
                        Key="SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\brick-layout-designer.exe"
                        Value="[INSTALLFOLDER]brick-layout-designer.exe"
@@ -79,8 +88,8 @@
 
     <Feature Id="MainFeature" Title="Brick Layout Designer" Level="1">
       <ComponentGroupRef Id="MainAppComponents" />
-      <!-- `HarvestedComponents` is the name heat.exe emits for the staged
-           support files (Qt runtime, parts library, translations). -->
+      <!-- `HarvestedComponents` comes from scripts/harvest-wix.py: the
+           staged support files (Qt runtime, parts library, translations). -->
       <ComponentGroupRef Id="HarvestedComponents" />
     </Feature>
 
