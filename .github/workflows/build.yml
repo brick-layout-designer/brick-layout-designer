@@ -72,6 +72,23 @@ jobs:
           version: ${{ env.QT_VERSION }}
           cache: true
 
+      # Compiler cache, saved per platform. PR runs restore main's cache,
+      # so only what changed recompiles. ccache understands macOS's
+      # two-arch compiles; sccache is the one that caches MSVC.
+      - name: Compiler cache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ matrix.name }}
+          variant: ${{ runner.os == 'Windows' && 'sccache' || 'ccache' }}
+          max-size: 1G
+
+      - name: Ninja
+        uses: seanmiddleditch/gha-setup-ninja@v5
+
+      - name: MSVC environment (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
       - name: Install dependencies (Linux)
         if: runner.os == 'Linux'
         run: |
@@ -87,7 +104,10 @@ jobs:
         run: |
           VERSION_ARG=()
           if [ -n "${{ inputs.version }}" ]; then VERSION_ARG=(-DBLD_VERSION="${{ inputs.version }}"); fi
-          cmake -B build -DCMAKE_BUILD_TYPE=Release "${VERSION_ARG[@]}" ${{ matrix.cmake_extra }}
+          LAUNCHER=${{ runner.os == 'Windows' && 'sccache' || 'ccache' }}
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER_LAUNCHER=$LAUNCHER -DCMAKE_CXX_COMPILER_LAUNCHER=$LAUNCHER \
+            "${VERSION_ARG[@]}" ${{ matrix.cmake_extra }}
           # Resolved version (input or CMake default) for package names / MSI.
           echo "BLD_VERSION=$(cmake -N -L build | sed -n 's/^BLD_VERSION:STRING=//p')" >> "$GITHUB_ENV"
 
