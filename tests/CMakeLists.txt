@@ -21,6 +21,7 @@ add_subdirectory(parts)
 add_subdirectory(rendering)
 add_subdirectory(edit)
 add_subdirectory(import)
+add_subdirectory(ui)
 
 # ----- End-to-end binaries ------------------------------------------------------
 # The shipped GUI binary starts, constructs QApplication and reports the

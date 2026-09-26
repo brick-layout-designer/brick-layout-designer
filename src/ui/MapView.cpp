@@ -214,40 +214,10 @@ MapView::MapView(parts::PartsLibrary& parts, QWidget* parent)
         // away from its partner keeps the old link, which makes the
         // connection appear "occupied" to snap + display.
         edit::rebuildConnectivity(*map_, parts_);
-        // Snapshot the currently-selected (layer, guid, kind) triples before
-        // the rebuild wipes the scene so we can reselect the same logical
-        // items on the rebuilt pixmaps. Without this, moving a brick
-        // deselected it the instant the move committed.
-        struct SelKey { int layer; QString guid; QString kind; };
-        QList<SelKey> preserve;
-        for (QGraphicsItem* it : this->scene()->selectedItems()) {
-            if (!it) continue;
-            const QString kind = it->data(kBrickDataKind).toString();
-            if (kind.isEmpty()) continue;  // e.g. overlay item itself
-            preserve.append({ it->data(kBrickDataLayerIndex).toInt(),
-                              it->data(kBrickDataGuid).toString(), kind });
-        }
-        builder_->build(*map_);
-        // Reselect by (layer, guid, kind) — builds a quick index of the new
-        // items once so each lookup is O(1).
-        if (!preserve.isEmpty()) {
-            QHash<QString, QGraphicsItem*> byKey;
-            for (QGraphicsItem* it : this->scene()->items()) {
-                const QString kind = it->data(kBrickDataKind).toString();
-                if (kind.isEmpty()) continue;
-                byKey.insert(QString::number(it->data(kBrickDataLayerIndex).toInt())
-                                 + QLatin1Char('|') + it->data(kBrickDataGuid).toString()
-                                 + QLatin1Char('|') + kind,
-                             it);
-            }
-            for (const auto& k : preserve) {
-                const QString key = QString::number(k.layer) + QLatin1Char('|')
-                                    + k.guid + QLatin1Char('|') + k.kind;
-                if (auto* it = byKey.value(key)) it->setSelected(true);
-            }
-        }
-        refreshSelectionOverlay();
-        viewport()->update();
+        // Go through rebuildScene() (not builder_->build directly) so an
+        // undo / redo fired mid-drag also drops the drag snapshots that
+        // point at the items the rebuild is about to delete.
+        rebuildScene();
     });
 }
 
@@ -331,7 +301,40 @@ void MapView::rebuildScene() {
         dragPreviewKey_.clear();
     }
     clearRulerPreview();
+
+    // Snapshot the currently-selected (layer, guid, kind) triples before
+    // the rebuild wipes the scene so we can reselect the same logical
+    // items on the rebuilt pixmaps. Without this, moving a brick
+    // deselected it the instant the move committed.
+    struct SelKey { int layer; QString guid; QString kind; };
+    QList<SelKey> preserve;
+    for (QGraphicsItem* it : scene()->selectedItems()) {
+        if (!it) continue;
+        const QString kind = it->data(kBrickDataKind).toString();
+        if (kind.isEmpty()) continue;  // e.g. overlay item itself
+        preserve.append({ it->data(kBrickDataLayerIndex).toInt(),
+                          it->data(kBrickDataGuid).toString(), kind });
+    }
     builder_->build(*map_);
+    // Reselect by (layer, guid, kind) — builds a quick index of the new
+    // items once so each lookup is O(1).
+    if (!preserve.isEmpty()) {
+        QHash<QString, QGraphicsItem*> byKey;
+        for (QGraphicsItem* it : scene()->items()) {
+            const QString kind = it->data(kBrickDataKind).toString();
+            if (kind.isEmpty()) continue;
+            byKey.insert(QString::number(it->data(kBrickDataLayerIndex).toInt())
+                             + QLatin1Char('|') + it->data(kBrickDataGuid).toString()
+                             + QLatin1Char('|') + kind,
+                         it);
+        }
+        for (const auto& k : preserve) {
+            const QString key = QString::number(k.layer) + QLatin1Char('|')
+                                + k.guid + QLatin1Char('|') + k.kind;
+            if (auto* it = byKey.value(key)) it->setSelected(true);
+        }
+    }
+    refreshSelectionOverlay();
     viewport()->update();
     emit selectionChanged();
 }
@@ -525,8 +528,7 @@ void MapView::mousePressEvent(QMouseEvent* e) {
             chg.push_back({ cx, cy,
                 tool_ == Tool::PaintArea ? std::optional<QColor>(paintColor_)
                                           : std::nullopt });
-            undoStack_->push(new edit::PaintAreaCellsCommand(*map_, targetLayer, std::move(chg)));
-            rebuildScene();
+            undoStack_->push(new edit::PaintAreaCellsCommand(*map_, targetLayer, std::move(chg)));  // indexChanged handler rebuilds the scene
         }
         e->accept();
         return;
@@ -639,8 +641,7 @@ void MapView::mouseMoveEvent(QMouseEvent* e) {
                 chg.push_back({ cx, cy,
                     tool_ == Tool::PaintArea ? std::optional<QColor>(paintColor_)
                                               : std::nullopt });
-                undoStack_->push(new edit::PaintAreaCellsCommand(*map_, targetLayer, std::move(chg)));
-                rebuildScene();
+                undoStack_->push(new edit::PaintAreaCellsCommand(*map_, targetLayer, std::move(chg)));  // indexChanged handler rebuilds the scene
             }
         }
         e->accept();
@@ -792,8 +793,7 @@ void MapView::mouseReleaseEvent(QMouseEvent* e) {
             any.circular.displayDistance = true;
             any.circular.displayUnit = true;
         }
-        undoStack_->push(new edit::AddRulerItemCommand(*map_, targetLayer, std::move(any)));
-        rebuildScene();
+        undoStack_->push(new edit::AddRulerItemCommand(*map_, targetLayer, std::move(any)));  // indexChanged handler rebuilds the scene
         e->accept();
         return;
     }
@@ -1362,7 +1362,6 @@ void MapView::addPartAtScenePos(const QString& partKey, QPointF sceneCenterPx) {
     }
 
     QPixmap pm = parts_.pixmap(partKey);
-    const double pxPerStud = rendering::SceneBuilder::kPixelsPerStud;
     auto placeMeta = parts_.metadata(partKey);
     const double placePartPxPerStud = (placeMeta && placeMeta->pxPerStud > 0)
         ? placeMeta->pxPerStud : 8.0;
@@ -1384,8 +1383,7 @@ void MapView::addPartAtScenePos(const QString& partKey, QPointF sceneCenterPx) {
     b.orientation = orientation;
 
     const QString newGuid = b.guid;
-    undoStack_->push(new edit::AddBrickCommand(*map_, targetLayer, std::move(b)));
-    rebuildScene();
+    undoStack_->push(new edit::AddBrickCommand(*map_, targetLayer, std::move(b)));  // indexChanged handler rebuilds the scene
 
     // Select the newly-placed brick so the user can immediately chain
     // another connected placement: the next click-place uses it as the
@@ -1436,8 +1434,7 @@ void MapView::bringSelectionToFront() {
     }
     if (targets.empty()) return;
     undoStack_->push(new edit::ReorderBricksCommand(
-        *map_, std::move(targets), edit::ReorderBricksCommand::ToFront));
-    rebuildScene();
+        *map_, std::move(targets), edit::ReorderBricksCommand::ToFront));  // indexChanged handler rebuilds the scene
 }
 
 void MapView::sendSelectionToBack() {
@@ -1450,8 +1447,7 @@ void MapView::sendSelectionToBack() {
     }
     if (targets.empty()) return;
     undoStack_->push(new edit::ReorderBricksCommand(
-        *map_, std::move(targets), edit::ReorderBricksCommand::ToBack));
-    rebuildScene();
+        *map_, std::move(targets), edit::ReorderBricksCommand::ToBack));  // indexChanged handler rebuilds the scene
 }
 
 void MapView::groupSelection() {
@@ -1561,8 +1557,7 @@ void MapView::editSelectedTextContent() {
     const QString next = QInputDialog::getMultiLineText(
         this, tr("Edit text"), tr("Label text:"), current, &ok);
     if (!ok || next == current) return;
-    undoStack_->push(new edit::EditTextCellTextCommand(*map_, li, guid, next));
-    rebuildScene();
+    undoStack_->push(new edit::EditTextCellTextCommand(*map_, li, guid, next));  // indexChanged handler rebuilds the scene
 }
 
 void MapView::mouseDoubleClickEvent(QMouseEvent* e) {
@@ -1652,8 +1647,7 @@ void MapView::addTextAtScenePos(const QString& text, QPointF sceneCenterPx) {
     c.displayArea = QRectF(sceneCenterPx.x() / pxPerStud - widthStuds / 2.0,
                             sceneCenterPx.y() / pxPerStud - heightStuds / 2.0,
                             widthStuds, heightStuds);
-    undoStack_->push(new edit::AddTextCellCommand(*map_, targetLayer, std::move(c)));
-    rebuildScene();
+    undoStack_->push(new edit::AddTextCellCommand(*map_, targetLayer, std::move(c)));  // indexChanged handler rebuilds the scene
 }
 
 void MapView::showDropTargetHint() {
