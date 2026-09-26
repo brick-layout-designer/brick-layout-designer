@@ -81,14 +81,15 @@ TEST(LDrawReader, PositionLduToStuds) {
     QTemporaryDir dir;
     const QString path = writeTempLDraw(dir,
         "0 pos\n"
-        "1 16 400 0 200 1 0 0 0 1 0 0 0 1 3001.dat\n"); // 20 LDU/stud => (20,10) studs
+        "1 16 400 0 200 1 0 0 0 1 0 0 0 1 3001.dat\n"); // 20 LDU/stud => (20,-10) studs
     auto r = import::readLDraw(path);
     ASSERT_TRUE(r.ok);
     auto map = import::toBlueBrickMap(r);
     const auto* L = static_cast<const core::LayerBrick*>(map->layers()[0].get());
     const QPointF center = L->bricks[0].displayArea.center();
+    // Top-down view of a -Y-up model: y = -z, as BlueBrick's LDraw loader.
     EXPECT_NEAR(center.x(), 20.0, 0.01);
-    EXPECT_NEAR(center.y(), 10.0, 0.01);
+    EXPECT_NEAR(center.y(), -10.0, 0.01);
 }
 
 TEST(LDrawReader, EmptyFileReturnsOkWithNoParts) {

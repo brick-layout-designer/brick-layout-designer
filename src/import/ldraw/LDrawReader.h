@@ -6,11 +6,12 @@
 #include <vector>
 
 namespace bld::core { class Map; }
+namespace bld::parts { class PartsLibrary; }
 
 namespace bld::import {
 
 // One type-1 LDraw subfile reference parsed out of a .ldr / .dat / .mpd file.
-// LDraw axes: Y is up, Z is the "forward" axis. We store the raw fields as
+// LDraw axes: -Y is up (Y points down), Z is the "forward" axis. We store the raw fields as
 // read; conversion to BlueBrick coords happens in toBlueBrickMap().
 struct LDrawPartRef {
     int     colorCode = 0;
@@ -38,6 +39,9 @@ struct LDrawReadResult {
     std::vector<LDrawPartRef>    parts;
     std::vector<LDrawPrimitive>  primitives;
     QString title;  // first comment line (line 0 after leading "0")
+    // Set by readLDD: refs keep LDD's native axes (+Y up) rather than
+    // LDraw's, so toBlueBrickMap must not apply LDraw's y = -z mapping.
+    bool lddAxes = false;
 };
 
 // Parse an LDraw text file. Only handles top-level line-1 references and
@@ -47,18 +51,34 @@ struct LDrawReadResult {
 // only for .mpd; further blocks will need a more complete parser later).
 LDrawReadResult readLDraw(const QString& path);
 
+class LDrawLibrary;
+class LDrawMeshLoader;
+
 // Convert a parsed LDraw model into a brand-new core::Map with one brick
-// layer, applying the standard BlueBrick conventions:
-//   - 20 LDU = 1 stud; we divide positions by 20.
-//   - Top-down projection keeps (x, z) and drops y.
-//   - Rotation around Y becomes the brick's orientation angle.
-//   - Color code maps 1:1 (LDraw and BlueBrick share the palette).
-//   - Part file name becomes PartNumber with ".DAT" stripped and upper-cased.
+// layer, placing parts exactly as BlueBrick's own LDraw loader does:
+//   - 20 LDU = 1 stud.
+//   - Top-down view: x stays, y = -z (LDraw is -Y up).
+//   - Orientation = atan2(m[2], m[0]), the rotation around Y.
+//   - Part number = file name without directory / ".dat", upper-cased,
+//     suffixed with ".<colour>".
+// With `lib`, each reference is resolved against the parts library
+// (exact colour, any colour, then LDraw's earlier numbers for renumbered
+// parts via `ldraw`), the brick takes the library's part number, and the
+// part's <LDraw> Angle/Translation remap is applied so the brick's
+// displayArea centre is the library image's centre.
 //
-// Caveat: this path only renders pieces whose `<id>.<color>.gif` exists
-// in the BlueBrickParts library. Use `bakeMeshFromLDraw` (in
-// LDrawMeshBuilder.h) for the user-pointed-LDraw-library pipeline that
-// renders any part regardless of BlueBrickParts coverage.
-std::unique_ptr<core::Map> toBlueBrickMap(const LDrawReadResult& src);
+// With `geometry`, each resolved part's remapped centre is checked
+// against the centre of its real LDraw geometry. BlueBrickParts' remaps
+// were authored against older LDraw files and some parts have since been
+// re-origined (the 9V switch 2861c01 -> 75542-f1 moved its origin from
+// the points end to the middle); when the two disagree by more than a
+// quarter of the part's size the geometry centre is used instead.
+//
+// Only pieces present in the parts library render. Use
+// `bakeMeshFromLDraw` (LDrawMeshBuilder.h) to render real LDraw geometry.
+std::unique_ptr<core::Map> toBlueBrickMap(const LDrawReadResult& src,
+                                          const parts::PartsLibrary* lib = nullptr,
+                                          const LDrawLibrary* ldraw = nullptr,
+                                          LDrawMeshLoader* geometry = nullptr);
 
 }

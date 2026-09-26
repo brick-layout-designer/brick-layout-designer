@@ -3,6 +3,9 @@
 #include "../../core/Brick.h"
 #include "../../core/LayerBrick.h"
 #include "../../core/Map.h"
+#include "../../parts/PartsLibrary.h"
+#include "LDrawLibrary.h"
+#include "LDrawMeshLoader.h"
 
 #include <QFile>
 #include <QRegularExpression>
@@ -10,7 +13,9 @@
 #include <QUuid>
 #include <QtMath>
 
+#include <algorithm>
 #include <cmath>
+#include <optional>
 
 namespace bld::import {
 
@@ -114,7 +119,69 @@ LDrawReadResult readLDraw(const QString& path) {
     return r;
 }
 
-std::unique_ptr<core::Map> toBlueBrickMap(const LDrawReadResult& src) {
+namespace {
+
+// Library key for an LDraw reference: exact "<part>.<colour>", then the
+// part in any colour, then the same two for each earlier LDraw number
+// of a renumbered part. Empty when nothing in `lib` matches.
+QString resolvePartKey(const QString& partNumber, int colorCode,
+                       const parts::PartsLibrary& lib, const LDrawLibrary* ldraw) {
+    QStringList names{ partNumber };
+    if (ldraw) {
+        for (const QString& old : ldraw->formerNames(partNumber)) names << old.toUpper();
+    }
+    // LDraw suffixes pre-assembled parts with cNN ("2861c01" = the 9V
+    // switch with its lever); BlueBrickParts lists the base number.
+    static const QRegularExpression assembly(QStringLiteral("^(.*\\d)C\\d\\d$"),
+                                             QRegularExpression::CaseInsensitiveOption);
+    QStringList candidates;
+    for (const QString& n : names) {
+        candidates << n;
+        const auto m = assembly.match(n);
+        if (m.hasMatch()) candidates << m.captured(1).toUpper();
+    }
+    const QStringList keys = lib.keys();
+    for (const QString& pn : candidates) {
+        const QString exact = QStringLiteral("%1.%2").arg(pn).arg(colorCode);
+        if (lib.metadata(exact)) return exact;
+        if (lib.metadata(pn)) return pn;
+        const QString prefix = pn.toLower() + QLatin1Char('.');
+        for (const QString& k : keys) {
+            if (k.startsWith(prefix)) return k;
+        }
+    }
+    return {};
+}
+
+struct GeometryCentre {
+    QPointF centre;  // top-down, BlueBrick frame (y = -z), LDU
+    double  size;    // larger side of the part's footprint, LDU
+};
+
+// Centre of the part's own top-down bounding box, placed by `ref`.
+std::optional<GeometryCentre> geometryCentre(const LDrawPartRef& ref, LDrawMeshLoader& loader) {
+    const geom::Mesh mesh = loader.loadPart(ref.filename, ref.colorCode);
+    if (mesh.tris.empty()) return std::nullopt;
+    double xmin = 1e300, xmax = -1e300, zmin = 1e300, zmax = -1e300;
+    for (const auto& t : mesh.tris) {
+        for (const auto& v : t.v) {
+            xmin = std::min(xmin, v.x); xmax = std::max(xmax, v.x);
+            zmin = std::min(zmin, v.z); zmax = std::max(zmax, v.z);
+        }
+    }
+    const double cx = (xmin + xmax) / 2.0, cz = (zmin + zmax) / 2.0;
+    // Local (x, 0, z) through the ref's rotation + translation.
+    const double wx = ref.m[0] * cx + ref.m[2] * cz + ref.x;
+    const double wz = ref.m[6] * cx + ref.m[8] * cz + ref.z;
+    return GeometryCentre{ QPointF(wx, -wz), std::max(xmax - xmin, zmax - zmin) };
+}
+
+}  // namespace
+
+std::unique_ptr<core::Map> toBlueBrickMap(const LDrawReadResult& src,
+                                          const parts::PartsLibrary* lib,
+                                          const LDrawLibrary* ldraw,
+                                          LDrawMeshLoader* geometry) {
     auto map = std::make_unique<core::Map>();
     map->author = QStringLiteral("LDraw import");
     if (!src.title.isEmpty()) map->comment = src.title;
@@ -129,17 +196,50 @@ std::unique_ptr<core::Map> toBlueBrickMap(const LDrawReadResult& src) {
         const QString pn = partNumberFromFilename(ref.filename);
         // BlueBrick format bakes color into PartNumber as "<part>.<color>".
         b.partNumber = QStringLiteral("%1.%2").arg(pn).arg(ref.colorCode);
-        b.orientation = static_cast<float>(yRotationDegrees(ref.m));
+
+        // Same mapping as BlueBrick's LDraw loader (parseBrickLineLDRAW):
+        // (LDD reads keep their long-standing y = +z and skip the LDraw
+        // remap, which is keyed on LDraw geometry.)
+        // top-down with y = -z (LDraw is -Y up), angle = atan2(c, a), then
+        // the part's <LDraw> remap rotates/shifts the LDraw origin onto
+        // the image centre.
+        double angle = yRotationDegrees(ref.m);
+        double x = ref.x;
+        double y = src.lddAxes ? ref.z : -ref.z;
+        if (lib && !src.lddAxes) {
+            const QString key = resolvePartKey(pn, ref.colorCode, *lib, ldraw);
+            if (!key.isEmpty()) {
+                const auto meta = lib->metadata(key);
+                b.partNumber = meta->colorCode.isEmpty()
+                    ? meta->partNumber
+                    : QStringLiteral("%1.%2").arg(meta->partNumber, meta->colorCode);
+                angle -= meta->ldrawAngle;
+                const QPointF t = meta->ldrawTranslation;
+                if (!t.isNull()) {
+                    const double r = qDegreesToRadians(angle);
+                    const double c = std::cos(r), s = std::sin(r);
+                    // Rotate (-tx, ty) by `angle` (y-down screen rotation).
+                    x += -t.x() * c - t.y() * s;
+                    y += -t.x() * s + t.y() * c;
+                }
+                if (geometry) {
+                    if (const auto g = geometryCentre(ref, *geometry)) {
+                        const double dist = std::hypot(g->centre.x() - x, g->centre.y() - y);
+                        if (dist > 0.25 * g->size) { x = g->centre.x(); y = g->centre.y(); }
+                    }
+                }
+            }
+        }
+        b.orientation = static_cast<float>(angle);
         b.altitude = static_cast<float>(ref.y / kLduPerStud);
 
-        const double xStuds = ref.x / kLduPerStud;
-        const double zStuds = ref.z / kLduPerStud;
-        // Default brick footprint is 2x2 studs until the parts library resolves
-        // real dimensions; the .bbm writer doesn't care, and our renderer
-        // re-derives size from the part's GIF at render time.
+        const double xStuds = x / kLduPerStud;
+        const double yStuds = y / kLduPerStud;
+        // displayArea's centre is the image centre; its size is refined
+        // from the sprite at render time, so a 2x2 placeholder is fine.
         constexpr double defaultStuds = 2.0;
         b.displayArea = QRectF(xStuds - defaultStuds / 2.0,
-                                zStuds - defaultStuds / 2.0,
+                                yStuds - defaultStuds / 2.0,
                                 defaultStuds, defaultStuds);
         layer->bricks.push_back(std::move(b));
     }

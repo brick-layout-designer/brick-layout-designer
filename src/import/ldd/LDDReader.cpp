@@ -79,6 +79,7 @@ LddTransform parseTransform(QStringView s) {
 
 LDrawReadResult readLDD(const QString& path) {
     LDrawReadResult out;
+    out.lddAxes = true;
 
     // Decide whether the input is a .lxf ZIP or raw .lxfml XML.
     QByteArray xmlBytes;

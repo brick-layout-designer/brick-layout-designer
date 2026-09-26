@@ -77,6 +77,15 @@ void readSubPartList(QXmlStreamReader& r, QList<PartSubPart>& out) {
     }
 }
 
+void readLDrawRemap(QXmlStreamReader& r, PartMetadata& out) {
+    while (r.readNextStartElement()) {
+        const auto n = r.name();
+        if      (n == QStringLiteral("Angle"))       out.ldrawAngle = r.readElementText().toDouble();
+        else if (n == QStringLiteral("Translation")) out.ldrawTranslation = readPositionBlock(r);
+        else r.skipCurrentElement();
+    }
+}
+
 void buildElectricCircuits(PartMetadata& meta) {
     const int n = meta.connections.size();
     for (int i = 0; i < n - 1; ++i) {
@@ -112,6 +121,7 @@ bool parsePartXml(const QString& xmlPath, PartMetadata& out) {
             else if (n == QStringLiteral("Description")) readDescriptions(r, out.descriptions);
             else if (n == QStringLiteral("ConnexionList")) readConnexionList(r, out.connections);
             else if (n == QStringLiteral("SubPartList"))   readSubPartList(r, out.subparts);
+            else if (n == QStringLiteral("LDraw"))         readLDrawRemap(r, out);
             else if (n == QStringLiteral("PixelsPerStud")) {
                 bool ok = false;
                 const int v = r.readElementText().trimmed().toInt(&ok);
@@ -150,23 +160,30 @@ QString PartsLibrary::scanFile(const QString& xmlPath) {
     meta.colorCode  = colorCode;
     meta.xmlFilePath = xmlPath;
 
-    // Sibling sprite. BlueBrickParts uses .gif but our import
-    // pipeline falls back to .png on Qt builds without GIF
-    // write support, and some user-imported parts arrive as
-    // .jpg or .jpeg. Try each in order so the parts panel
-    // gets a thumbnail regardless of which format the writer
-    // actually produced.
+    if (!parsePartXml(xmlPath, meta)) return {};
+    buildElectricCircuits(meta);
+
+    // Sibling sprite. BlueBrickParts ships 8 px/stud .gif files. Our
+    // importer writes a high-resolution .png (declared via
+    // <PixelsPerStud>) plus an 8 px/stud .gif for vanilla BlueBrick, so
+    // when the XML declares a higher resolution prefer the .png; a .gif
+    // is always 8 px/stud whatever the XML says. .jpg/.jpeg cover
+    // hand-added parts.
     const QString stemPath = info.absolutePath() + QLatin1Char('/') + info.completeBaseName();
-    for (const QString& ext : { QStringLiteral(".gif"),
-                                  QStringLiteral(".png"),
-                                  QStringLiteral(".jpg"),
-                                  QStringLiteral(".jpeg") }) {
+    const bool hiRes = meta.pxPerStud != 8;
+    const QStringList exts = hiRes
+        ? QStringList{ QStringLiteral(".png"), QStringLiteral(".gif"),
+                       QStringLiteral(".jpg"), QStringLiteral(".jpeg") }
+        : QStringList{ QStringLiteral(".gif"), QStringLiteral(".png"),
+                       QStringLiteral(".jpg"), QStringLiteral(".jpeg") };
+    for (const QString& ext : exts) {
         const QString candidate = stemPath + ext;
         if (QFile::exists(candidate)) {
             meta.gifFilePath = candidate;
             break;
         }
     }
+    if (meta.gifFilePath.endsWith(QStringLiteral(".gif"), Qt::CaseInsensitive)) meta.pxPerStud = 8;
     // One-time migration: an older import bug wrote PNG bytes
     // to "<stem>.gif.png" when GIF support was missing in Qt.
     // Rename those to "<stem>.png" so the parts panel finally
@@ -183,9 +200,6 @@ QString PartsLibrary::scanFile(const QString& xmlPath) {
             }
         }
     }
-
-    if (!parsePartXml(xmlPath, meta)) return {};
-    buildElectricCircuits(meta);
 
     // Library keys are the full stem (case-folded) so lookup matches
     // both "TABLE96X190" and "3811.1" naturally — the stored key

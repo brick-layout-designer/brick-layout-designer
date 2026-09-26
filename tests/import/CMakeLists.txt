@@ -1,5 +1,7 @@
 add_executable(bld_import_tests
     ArchivePathTest.cpp
+    GifWriterTest.cpp
+    ImportPipelineTest.cpp
     LDrawReaderTest.cpp
     LDrawLibraryTest.cpp
     LDrawMeshLoaderTest.cpp
