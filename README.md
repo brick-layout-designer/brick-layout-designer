@@ -116,7 +116,8 @@ reads the `.bbm` normally and ignores the sidecar.
 - Venue walkway / obstacle / outline validator (non-blocking warnings).
 - Ruler attachment rendering (rulers follow their attached bricks).
 - Find & Replace live updates as you type.
-- Localization scaffolding for 9 languages (translations accept PRs).
+- Localization scaffolding for 8 languages beyond English — fr, de, es,
+  it, nl, pt, zh, ja (translations accept PRs).
 - Budget tracking with status-bar readout.
 - **External format import → composite library part**: LDraw
   (`.ldr` / `.dat` / `.mpd`), Studio (`.io`), and LDD (`.lxf` / `.lxfml`)
@@ -125,11 +126,14 @@ reads the `.bbm` normally and ignores the sidecar.
   composite inherits the free external connections from its
   constituent pieces.
 - Autosave on every edit (5 s throttled) + crash-recovery prompt.
-- Cross-platform CI/CD with Linux / Windows / macOS-arm64 / macOS-x86_64
-  packaging. Each release tag now emits:
-  - Linux: `.tar.gz` + AppImage
-  - macOS: `.zip` (app bundle) + `.dmg` disk image
-  - Windows: `.zip` + WiX v4 MSI installer
+- Cross-platform CI/CD: every PR builds, tests and packages Linux x86_64,
+  Windows x64 and a universal (arm64 + x86_64) macOS bundle, smoke-launches
+  each package, and runs the test suite under ASan + UBSan. Every package
+  bundles its runtime (Qt, plus the MSVC runtime on Windows), the
+  BlueBrickParts library and the translations. Each release tag emits:
+  - Linux: AppImage + `.tar.gz` (built on Ubuntu 22.04, so glibc 2.35+)
+  - macOS: universal `.zip` (app bundle) + `.dmg` disk image
+  - Windows: `.zip` + WiX v4 MSI installer (with `.bbm` file association)
   Unsigned by default — signing + notarization activate when the
   secrets described in [`docs/SIGNING.md`](docs/SIGNING.md) are
   configured in the repo.
@@ -178,8 +182,20 @@ reads the `.bbm` normally and ignores the sidecar.
 - **Flatpak for Linux**: AppImage covers portable Linux distribution
   already; Flatpak is a follow-up if someone wants it.
 
+**Feature-parity gaps vs. BlueBrick 1.9.2**
+- Opening / saving LDraw (`.ldr` / `.mpd`), TrackDesigner (`.tdl`) and
+  4DBrix (`.ncp`) files *as maps* (LDraw import currently produces a
+  composite library part instead).
+- Flex-track bending (BlueBrick's `FlexMove`).
+- Budget menu: *Show Only Budgeted Parts*, *Show Budget Numbers* in the
+  parts library, *Use Budget Limitation* (block placing over-limit
+  parts), *Import and Merge*.
+- Dragging the grid's cell-index origin on the map (`MoveGridOrigin`;
+  the value itself round-trips).
+- HTML part-list export (CSV and text are supported).
+- Help → Contents (BlueBrick ships a `.chm`).
+
 **Deferred (niche)**
-- BlueBrick's Download Center dialog.
 - Async-signal-safe crash autosave (the 5 s throttled autosave covers
   the common loss case; a real signal handler would cover hard crashes).
 
@@ -199,6 +215,17 @@ Run the test suite:
 ```sh
 ctest --test-dir build
 ```
+
+Build a self-contained install tree (what CI packages):
+
+```sh
+cmake --install build --prefix dist
+```
+
+On Windows and macOS this also bundles the Qt runtime (`BLD_DEPLOY_QT`,
+on by default). On Linux the tree uses the system Qt; CI bundles it with
+[linuxdeploy](https://github.com/linuxdeploy/linuxdeploy) — see
+[`.github/workflows/build.yml`](.github/workflows/build.yml).
 
 ## License
 

@@ -625,18 +625,24 @@ roads / monorails as if it were a hand-authored library piece.
 Before tagging a release, verify each platform-specific item on the
 actual target OS (not just via CI artifacts):
 
-### 17.1 Linux (Ubuntu 24.04 / Manjaro)
+### 17.1 Linux (Ubuntu 22.04+ / Manjaro)
 - [ ] AppImage / tarball runs without extra dependency install.
+- [ ] Double-clicking a `.bbm` opens it (desktop entry + MIME type).
 - [ ] Wayland + X11 both work.
 - [ ] File dialogs use the native GTK/KDE picker when available.
 
 ### 17.2 Windows (10 + 11)
-- [ ] `.exe` runs self-contained (no "missing Qt DLL" dialog).
+- [ ] `.exe` runs self-contained (no "missing Qt DLL" / "VCRUNTIME140.dll" dialog)
+      from both the `.zip` and the MSI, and finds the bundled parts library.
+- [ ] MSI upgrade over the previous release replaces it (no second entry
+      in Apps & Features); double-clicking a `.bbm` opens it.
 - [ ] UNC paths in recent files work.
 - [ ] Drag-out-to-delete doesn't break on the Windows shell.
 
-### 17.3 macOS (arm64 + x86_64)
-- [ ] `.app` bundle opens on Apple Silicon and Intel.
+### 17.3 macOS (universal: arm64 + x86_64)
+- [ ] The one universal `.app` opens on Apple Silicon and Intel.
+- [ ] Double-clicking a `.bbm` in Finder opens it (QFileOpenEvent).
+- [ ] UI appears translated when the language preference is non-English.
 - [ ] File → Open dialog uses the native macOS picker.
 - [ ] Ctrl-click = right-click still triggers context menus.
 - [ ] macdeployqt bundled Qt libraries, not pulled from system.

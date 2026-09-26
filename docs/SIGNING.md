@@ -1,6 +1,7 @@
 # Code signing & notarization
 
-The release workflow (`.github/workflows/release.yml`) ships **unsigned**
+The release workflow (`.github/workflows/release.yml`, which runs the shared
+`.github/workflows/build.yml` with `sign: true`) ships **unsigned**
 installers by default. When you acquire an Apple Developer ID and/or a
 Windows code-signing certificate, drop the secrets below into the repo
 and signing + notarization activate automatically on the next tag.
@@ -37,7 +38,8 @@ allow the app on first launch. Signing removes that warning.
 1. `Codesign (macOS)` step imports the .p12 into a fresh per-job
    keychain and runs `codesign --deep --options runtime --timestamp
    --sign "<NAME>"` on the `.app`. Falls back to no-op if the
-   `MACOS_CERTIFICATE` secret isn't set.
+   `MACOS_CERTIFICATE` secret isn't set (the bundle then keeps the
+   ad-hoc signature applied after `cmake --install`).
 2. `Notarize (macOS)` submits a zipped copy of the bundle to Apple's
    notary via `xcrun notarytool submit ... --wait`, then staples the
    ticket so it launches without an internet connection. Falls back
@@ -72,16 +74,21 @@ allow the app on first launch. Signing removes that warning.
    it.
 3. Both steps skip when `WINDOWS_PFX_BASE64` isn't set.
 
+Secret presence is resolved into job-level `HAS_*` flags in `build.yml`:
+a step's `if:` cannot read that same step's `env:`, so checking the
+secret there would always skip signing. PR and nightly builds never
+sign (they don't inherit secrets).
+
 The workflow uses `signtool.exe` from the Windows SDK (pre-installed
-on `windows-latest`). Timestamp URL is Sectigo's public one; any
+on `windows-2022`). Timestamp URL is Sectigo's public one; any
 RFC-3161 timestamp authority works if you prefer.
 
 ## Verifying
 
 After a signed release:
 
-- **macOS**: `codesign -dvv BrickLayoutDesigner.app` and
-  `spctl --assess --verbose=4 BrickLayoutDesigner.app` —
+- **macOS**: `codesign -dvv brick-layout-designer.app` and
+  `spctl --assess --verbose=4 brick-layout-designer.app` —
   should report your team ID and `accepted`.
 - **Windows**: right-click the `.msi` → Properties → Digital
   Signatures → should list your certificate with a valid timestamp.
