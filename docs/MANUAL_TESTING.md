@@ -554,42 +554,63 @@ Text / Ruler layers have no kind-specific extras beyond the base fields.
 ## 14. External format import → library part
 
 Imports do NOT load a whole new map — they turn the imported file into
-a single composite part (GIF + XML) in the user library, then drop that
-part onto the current map at the view centre.
+a single composite part in the user library (`<name>.xml`, plus a
+32 px/stud `.png` and an 8 px/stud `.gif` for geometry renders, or just
+the `.gif` for BlueBrickParts composites), then drop that part onto the
+current map at the view centre.
 
-The composite part's XML `<ConnexionList>` inherits every FREE external
-connection from the constituent bricks (internal joints within the
-imported model are automatically excluded via `rebuildConnectivity`).
-That means the imported part is snap-compatible with other rails /
-roads / monorails as if it were a hand-authored library piece.
+The part's `<ConnexionList>` inherits every FREE external connection of
+the track / road / monorail pieces BlueBrickParts knows (internal joints
+are excluded via `rebuildConnectivity`), so it snaps like a
+hand-authored library piece.
+
+Useful settings (Preferences → Import): LDraw library root, Studio
+library root, LDD install (program folder with `Assets.lif`, or the data
+folder with `db.lif`), and an optional newer LDD `ldraw.xml`
+(slswww.free.fr/ldraw.xml — LDD's own one has no train track).
 
 ### 14.1 LDraw (.ldr / .dat / .mpd)
-- [ ] Tools → Import → LDraw... pick a `.ldr` file.
-- [ ] Status bar reports "Imported X as part 'Y' (W × H studs, N source parts)".
-- [ ] A new `.gif` + `.xml` pair appears in the configured module
-      library's `imports/` subfolder.
-- [ ] The newly-created part appears in the Parts panel (library is
-      rescanned automatically).
-- [ ] A single brick of the new part shows at the view centre.
-- [ ] Unknown LDraw parts are silently dropped from the sprite — only
-      library-resolvable parts contribute pixels.
+- [ ] Tools → Import → LDraw... pick a `.ldr` file; the preview opens.
+- [ ] With an LDraw library set, the sprite is seen from above: printed
+      tiles read correctly, a left switch branches left, studs visible.
+- [ ] A track model shows red connection rings on its free ends; they
+      sit between the rails at the ends of the rendered track.
+- [ ] Current LDraw numbers (e.g. 9V track `74746` / `74747`, switch
+      `75542-f1`) still get connection points.
+- [ ] Without an LDraw library, parts BlueBrickParts knows are
+      composited at 8 px/stud; unknown parts are reported as missing.
+- [ ] After saving, the part appears in the Parts panel under the
+      chosen category and one copy is placed at the view centre.
 
 ### 14.2 Studio (.io)
-- [ ] Tools → Import → Studio... pick a `.io` file.
-- [ ] Same flow as LDraw — composited sprite gets saved as a library
-      part, placed at view centre.
+- [ ] Tools → Import → Studio... pick a `.io` file. Same flow as LDraw;
+      uses the Studio library root when set.
 - [ ] An archive without a `model.ldr` entry surfaces a clear error.
 
 ### 14.3 LDD (.lxf / .lxfml)
-- [ ] Tools → Import → LDD... pick a `.lxf` file. Same composite-part
-      flow as LDraw/Studio.
+- [ ] With the LDD install set, the sprite comes from LDD's own
+      geometry (both the program folder and the `db.lif` data folder
+      work), seen from above and not mirrored.
+- [ ] With the community `ldraw.xml`, 9V / RC track in an LDD model gets
+      connection points (with or without an LDraw library).
+- [ ] With only `ldraw.xml` (no LDD database) plus an LDraw library, the
+      model renders from LDraw geometry instead.
 - [ ] .lxfml (raw XML without the surrounding ZIP) also works.
-- [ ] Parts that don't match anything in the BlueBrickParts library
-      contribute nothing to the sprite — status bar reports source
-      part count separately from rendered pixel coverage.
-- [ ] LDD transformation matrices → orientation mapping: a brick
-      placed at 90° in LDD imports rotated 90° in the sprite.
-- [ ] An LDD file with no parts surfaces a clear error.
+
+### 14.4 Preview edits
+- [ ] Rotate ⟲ / ⟳ turns sprite, footprint and connection rings.
+- [ ] Unchecking a connection drops it (dashed grey ring); the saved
+      part has only the checked ones.
+- [ ] Category picker lists `imports` and its sub-folders; a new name
+      creates a folder and a new Parts-panel category.
+- [ ] Re-importing under an existing name offers "Replace"; replacing
+      updates copies already on the map, otherwise a `-2` copy is saved.
+
+### 14.5 Batch import
+- [ ] Tools → Import → Batch Import... select several model files, pick
+      a category; one progress dialog, cancellable between files.
+- [ ] Summary lists imported parts (size, connection count) and any
+      failures with reasons.
 
 ---
 
