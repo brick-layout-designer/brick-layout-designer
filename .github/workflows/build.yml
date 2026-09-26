@@ -142,7 +142,8 @@ jobs:
       - name: Install (macOS)
         if: runner.os == 'macOS'
         run: |
-          cmake --install build --config Release --prefix dist
+          # Qt's deploy step requires an absolute install prefix.
+          cmake --install build --config Release --prefix "$PWD/dist"
           APP=dist/brick-layout-designer.app
           # Parts/translations land in Resources after macdeployqt ran, which
           # invalidates its ad-hoc signature; re-seal. Replaced by the real
@@ -213,7 +214,8 @@ jobs:
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          cmake --install build --config Release --prefix dist/brick-layout-designer
+          # Qt's deploy step requires an absolute install prefix.
+          cmake --install build --config Release --prefix "$PWD/dist/brick-layout-designer"
           ./dist/brick-layout-designer/brick-layout-designer.exe --version > version.txt
           cat version.txt
           grep -F "$BLD_VERSION" version.txt
