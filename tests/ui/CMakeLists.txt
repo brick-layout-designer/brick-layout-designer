@@ -5,6 +5,7 @@ add_executable(bld_ui_tests
     BrickPlacementTest.cpp
     ConnectivityTest.cpp
     FlexMoveTest.cpp
+    FuzzRegressionTest.cpp
 )
 
 target_compile_definitions(bld_ui_tests PRIVATE

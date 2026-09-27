@@ -1244,8 +1244,8 @@ void MapView::resolvePartPlacement(const QString& partKey, QPointF cursorScenePx
                         anchorCenter.y() + ac.position.x() * saA + ac.position.y() * caA);
                     const double targetAngle = ac.angleDegrees + anchor->orientation;
                     double newOrient = targetAngle + 180.0 - nc.angleDegrees;
-                    while (newOrient >  180.0) newOrient -= 360.0;
-                    while (newOrient <= -180.0) newOrient += 360.0;
+                    newOrient = std::remainder(newOrient, 360.0);  // (-180, 180], no loop on absurd angles
+                    if (newOrient <= -180.0) newOrient += 360.0;
                     const double rN = newOrient * M_PI / 180.0;
                     const double caN = std::cos(rN), saN = std::sin(rN);
                     centreStuds.setX(acWorld.x() - (nc.position.x() * caN - nc.position.y() * saN));

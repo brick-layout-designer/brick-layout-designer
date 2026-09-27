@@ -106,8 +106,8 @@ ConnectionSnapResult masterBrickSnap(
     // Rotation-aligned variant: orient so angles match 180°.
     //   newOrient + activeConn.angle == target.angle + 180
     double newOrient = target.angle + 180.0 - activeConn.angleDegrees;
-    while (newOrient >  180.0) newOrient -= 360.0;
-    while (newOrient <= -180.0) newOrient += 360.0;
+    newOrient = std::remainder(newOrient, 360.0);  // (-180, 180], no loop on absurd angles
+    if (newOrient <= -180.0) newOrient += 360.0;
     const QPointF newCenter = target.worldPos - rotatePoint(activeConn.position, newOrient);
     out.rotationAlignedTranslationStuds = newCenter - masterCenterStuds;
     out.newOrientation = static_cast<float>(newOrient);
@@ -144,8 +144,8 @@ ConnectionSnapResult newPartPlacementSnap(
             best.translationStuds = target.worldPos - activeWorldPos;
 
             double newOrient = target.angle + 180.0 - c.angleDegrees;
-            while (newOrient >  180.0) newOrient -= 360.0;
-            while (newOrient <= -180.0) newOrient += 360.0;
+            newOrient = std::remainder(newOrient, 360.0);  // (-180, 180], no loop on absurd angles
+            if (newOrient <= -180.0) newOrient += 360.0;
             const QPointF newCenter =
                 target.worldPos - rotatePoint(c.position, newOrient);
             best.rotationAlignedTranslationStuds = newCenter - placementCenterStuds;
