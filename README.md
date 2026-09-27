@@ -122,6 +122,9 @@ AI-assisted warning above and keep backups. What works today:
 - Localization scaffolding for 8 languages beyond English — fr, de, es,
   it, nl, pt, zh, ja (translations accept PRs).
 - Budget tracking with status-bar readout.
+- Open and save LDraw (`.ldr` / `.mpd`), TrackDesigner (`.tdl`) and
+  4DBrix nControl (`.ncp`) files as maps, the way BlueBrick does
+  (checked against vanilla BlueBrick's own output in the tests).
 - **External format import → composite library part**: LDraw
   (`.ldr` / `.dat` / `.mpd`), Studio (`.io`), and LDD (`.lxf` / `.lxfml`)
   all render to a top-down sprite + XML saved as a new part in the
@@ -193,9 +196,6 @@ AI-assisted warning above and keep backups. What works today:
   already; Flatpak is a follow-up if someone wants it.
 
 **Feature-parity gaps vs. BlueBrick 1.9.2**
-- Opening / saving LDraw (`.ldr` / `.mpd`), TrackDesigner (`.tdl`) and
-  4DBrix (`.ncp`) files *as maps* (LDraw import currently produces a
-  composite library part instead).
 - Flex-track bending (BlueBrick's `FlexMove`).
 - Budget menu: *Show Only Budgeted Parts*, *Show Budget Numbers* in the
   parts library, *Use Budget Limitation* (block placing over-limit

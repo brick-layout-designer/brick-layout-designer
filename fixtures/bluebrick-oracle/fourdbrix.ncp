@@ -1,0 +1,3064 @@
+<?xml version="1.0"?>
+<data type="nControl" version="1">
+   <project>
+      <ncontrol version="2020.0"/>
+      <title value="Unknown Event"/>
+      <author value="Unknown Author"/>
+      <lug value="Unknown LUG"/>
+      <created value="26-Sep-2026, 22:56:42"/>
+      <modified value="26-Sep-2026, 22:56:42"/>
+      <description value="6-Dec-2025, 00:00:00"/>
+      <info value=""/>
+      <tracklayout width="795" height="290" scale="0.25"/>
+      <tilepanel rows="1" columns="6"/>
+   </project>
+   <script type="ST_ACTIVATION">
+      <action value=""/>
+   </script>
+   <script type="ST_DEACTIVATION">
+      <action value=""/>
+   </script>
+   <node>
+      <coordinates x="5443.899" y="57.34163" z="0"/>
+      <segments a="90012" b="None"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="5567.538" y="90.47047" z="0"/>
+      <segments a="90012" b="None"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="5440" y="336" z="0"/>
+      <segments a="90006" b="None"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAILRAMP"/>
+   </node>
+   <node>
+      <coordinates x="5696" y="336" z="0"/>
+      <segments a="90006" b="None"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="3456" y="960" z="0"/>
+      <segments a="59" b="18"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="3328" y="960" z="0"/>
+      <segments a="59" b="1007"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="3456" y="832" z="0"/>
+      <segments a="65" b="152"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="3328" y="832" z="0"/>
+      <segments a="65" b="1017"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="3776" y="1152" z="0"/>
+      <segments a="145" b="149"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="3776" y="1280" z="0"/>
+      <segments a="145" b="1362"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="3648" y="1152" z="0"/>
+      <segments a="141" b="35"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="3648" y="1280" z="0"/>
+      <segments a="141" b="1372"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="3776" y="1088" z="0"/>
+      <segments a="149" b="104"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="3520" y="832" z="0"/>
+      <segments a="152" b="95"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="3648" y="1920" z="0"/>
+      <segments a="322" b="307"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="3648" y="1792" z="0"/>
+      <segments a="322" b="1339"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="3776" y="1920" z="0"/>
+      <segments a="318" b="277"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="3776" y="1792" z="0"/>
+      <segments a="318" b="1336"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="3456" y="2240" z="0"/>
+      <segments a="314" b="281"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="3328" y="2240" z="0"/>
+      <segments a="314" b="547"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="3456" y="2112" z="0"/>
+      <segments a="310" b="297"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="3328" y="2112" z="0"/>
+      <segments a="310" b="528"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="3520" y="2240" z="0"/>
+      <segments a="281" b="284"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="3776" y="1984" z="0"/>
+      <segments a="277" b="294"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="960" y="1152" z="0"/>
+      <segments a="422" b="407"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="960" y="1280" z="0"/>
+      <segments a="422" b="1300"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="832" y="1152" z="0"/>
+      <segments a="418" b="377"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="832" y="1280" z="0"/>
+      <segments a="418" b="1310"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="1152" y="832" z="0"/>
+      <segments a="414" b="381"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="1280" y="832" z="0"/>
+      <segments a="414" b="916"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="1152" y="960" z="0"/>
+      <segments a="410" b="397"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="1280" y="960" z="0"/>
+      <segments a="410" b="913"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="1088" y="832" z="0"/>
+      <segments a="381" b="384"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="832" y="1088" z="0"/>
+      <segments a="377" b="394"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="1152" y="2112" z="0"/>
+      <segments a="522" b="507"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="1280" y="2112" z="0"/>
+      <segments a="522" b="754"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="1152" y="2240" z="0"/>
+      <segments a="518" b="477"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="1280" y="2240" z="0"/>
+      <segments a="518" b="751"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="832" y="1920" z="0"/>
+      <segments a="514" b="481"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="832" y="1792" z="0"/>
+      <segments a="514" b="1277"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="960" y="1920" z="0"/>
+      <segments a="510" b="497"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="960" y="1792" z="0"/>
+      <segments a="510" b="1274"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="832" y="1984" z="0"/>
+      <segments a="481" b="484"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="1088" y="2240" z="0"/>
+      <segments a="477" b="494"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="3200" y="2112" z="0"/>
+      <segments a="528" b="534"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="3072" y="2112" z="0"/>
+      <segments a="534" b="577"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="3072" y="2240" z="0"/>
+      <segments a="541" b="567"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="3200" y="2240" z="0"/>
+      <segments a="541" b="547"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="2944" y="2112" z="0"/>
+      <segments a="577" b="574"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="2816" y="2112" z="0"/>
+      <segments a="574" b="607"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="2816" y="2240" z="0"/>
+      <segments a="571" b="597"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="2944" y="2240" z="0"/>
+      <segments a="571" b="567"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="2688" y="2112" z="0"/>
+      <segments a="607" b="604"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="2560" y="2112" z="0"/>
+      <segments a="604" b="2078"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="2560" y="2240" z="0"/>
+      <segments a="601" b="2081"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="2688" y="2240" z="0"/>
+      <segments a="601" b="597"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="1920" y="2112" z="0"/>
+      <segments a="697" b="694"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="2048" y="2112" z="0"/>
+      <segments a="697" b="2095"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="1792" y="2112" z="0"/>
+      <segments a="694" b="727"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="1792" y="2240" z="0"/>
+      <segments a="691" b="717"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="1920" y="2240" z="0"/>
+      <segments a="691" b="687"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="2048" y="2240" z="0"/>
+      <segments a="687" b="2088"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="1664" y="2112" z="0"/>
+      <segments a="727" b="724"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="1536" y="2112" z="0"/>
+      <segments a="724" b="757"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="1536" y="2240" z="0"/>
+      <segments a="721" b="747"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="1664" y="2240" z="0"/>
+      <segments a="721" b="717"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="1408" y="2112" z="0"/>
+      <segments a="757" b="754"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="1408" y="2240" z="0"/>
+      <segments a="751" b="747"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="3200" y="832" z="0"/>
+      <segments a="1017" b="1014"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="3072" y="832" z="0"/>
+      <segments a="1014" b="1003"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="3072" y="960" z="0"/>
+      <segments a="1011" b="993"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="3200" y="960" z="0"/>
+      <segments a="1011" b="1007"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="2944" y="832" z="0"/>
+      <segments a="1003" b="1000"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="2816" y="832" z="0"/>
+      <segments a="1000" b="989"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="2816" y="960" z="0"/>
+      <segments a="997" b="979"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="2944" y="960" z="0"/>
+      <segments a="997" b="993"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="2688" y="832" z="0"/>
+      <segments a="989" b="986"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="2560" y="832" z="0"/>
+      <segments a="986" b="975"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="2560" y="960" z="0"/>
+      <segments a="983" b="965"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="2688" y="960" z="0"/>
+      <segments a="983" b="979"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="2432" y="832" z="0"/>
+      <segments a="975" b="972"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="2304" y="832" z="0"/>
+      <segments a="972" b="961"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="2304" y="960" z="0"/>
+      <segments a="969" b="951"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="2432" y="960" z="0"/>
+      <segments a="969" b="965"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="2176" y="832" z="0"/>
+      <segments a="961" b="958"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="2048" y="832" z="0"/>
+      <segments a="958" b="947"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="2048" y="960" z="0"/>
+      <segments a="955" b="937"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="2176" y="960" z="0"/>
+      <segments a="955" b="951"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="1920" y="832" z="0"/>
+      <segments a="947" b="944"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="1792" y="832" z="0"/>
+      <segments a="944" b="933"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="1792" y="960" z="0"/>
+      <segments a="941" b="923"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="1920" y="960" z="0"/>
+      <segments a="941" b="937"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="1664" y="832" z="0"/>
+      <segments a="933" b="930"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="1536" y="832" z="0"/>
+      <segments a="930" b="919"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="1536" y="960" z="0"/>
+      <segments a="927" b="909"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="1664" y="960" z="0"/>
+      <segments a="927" b="923"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="1408" y="832" z="0"/>
+      <segments a="919" b="916"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="1408" y="960" z="0"/>
+      <segments a="913" b="909"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="832" y="1664" z="0"/>
+      <segments a="1280" b="1277"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="832" y="1536" z="0"/>
+      <segments a="1280" b="1307"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="960" y="1664" z="0"/>
+      <segments a="1274" b="1270"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="960" y="1536" z="0"/>
+      <segments a="1270" b="1304"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="832" y="1408" z="0"/>
+      <segments a="1310" b="1307"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="960" y="1408" z="0"/>
+      <segments a="1304" b="1300"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="3648" y="1664" z="0"/>
+      <segments a="1342" b="1339"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="3648" y="1536" z="0"/>
+      <segments a="1342" b="1369"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="3776" y="1664" z="0"/>
+      <segments a="1336" b="1332"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="3776" y="1536" z="0"/>
+      <segments a="1332" b="1366"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="3648" y="1408" z="0"/>
+      <segments a="1372" b="1369"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="3776" y="1408" z="0"/>
+      <segments a="1366" b="1362"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="2496" y="2112" z="0"/>
+      <segments a="2078" b="2098"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="2496" y="2240" z="0"/>
+      <segments a="2081" b="2098"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="2112" y="2240" z="0"/>
+      <segments a="2088" b="2098"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="2112" y="2112" z="0"/>
+      <segments a="2095" b="2098"/>
+      <anchor value="no"/>
+      <type value="NT_UNDEFINED"/>
+   </node>
+   <node>
+      <coordinates x="3488" y="896" z="0"/>
+      <segments a="1412" b="1409"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="3712" y="1120" z="0"/>
+      <segments a="1412" b="1732"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="3232" y="896" z="0"/>
+      <segments a="1409" b="1406"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="2976" y="896" z="0"/>
+      <segments a="1406" b="1419"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="2720" y="896" z="0"/>
+      <segments a="1419" b="1426"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="2464" y="896" z="0"/>
+      <segments a="1426" b="1433"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="2208" y="896" z="0"/>
+      <segments a="1433" b="1440"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="1952" y="896.0001" z="0"/>
+      <segments a="1440" b="1447"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="1696" y="896" z="0"/>
+      <segments a="1447" b="1454"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="1440" y="896" z="0"/>
+      <segments a="1454" b="1461"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="1184" y="896" z="0"/>
+      <segments a="1461" b="1473"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="896" y="1120" z="0"/>
+      <segments a="1464" b="1757"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="1120" y="896" z="0"/>
+      <segments a="1464" b="1473"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="1120" y="2176" z="0"/>
+      <segments a="1545" b="1542"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="896" y="1952" z="0"/>
+      <segments a="1545" b="1632"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="1376" y="2176" z="0"/>
+      <segments a="1542" b="1539"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="1632" y="2176" z="0"/>
+      <segments a="1539" b="1536"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="1888" y="2176" z="0"/>
+      <segments a="1536" b="1533"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="2144" y="2176" z="0"/>
+      <segments a="1533" b="1530"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="2400" y="2176" z="0"/>
+      <segments a="1530" b="1527"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="2656" y="2176" z="0"/>
+      <segments a="1527" b="1524"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="2912" y="2176" z="0"/>
+      <segments a="1524" b="1521"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="3168" y="2176" z="0"/>
+      <segments a="1521" b="1518"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="3424" y="2176" z="0"/>
+      <segments a="1518" b="1512"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="3712" y="1952" z="0"/>
+      <segments a="1515" b="1744"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="3488" y="2176" z="0"/>
+      <segments a="1515" b="1512"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="896" y="1824" z="0"/>
+      <segments a="1628" b="1638"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="896" y="1568" z="0"/>
+      <segments a="1628" b="1747"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="961.608" y="1665.608" z="0"/>
+      <segments a="1628" b="1635"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL45"/>
+   </node>
+   <node>
+      <coordinates x="896" y="1888" z="0"/>
+      <segments a="1632" b="1638"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="1120" y="1600" z="0"/>
+      <segments a="1635" b="1653"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="1376" y="1600" z="0"/>
+      <segments a="1653" b="1660"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="1632" y="1600" z="0"/>
+      <segments a="1660" b="1667"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="1888" y="1600" z="0"/>
+      <segments a="1667" b="1674"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="2144" y="1600" z="0"/>
+      <segments a="1674" b="1681"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="2400" y="1600" z="0"/>
+      <segments a="1681" b="1688"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="2656" y="1600" z="0"/>
+      <segments a="1688" b="1695"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="2912" y="1600" z="0"/>
+      <segments a="1695" b="1702"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="3168" y="1600" z="0"/>
+      <segments a="1702" b="1709"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="3424" y="1599.999" z="0"/>
+      <segments a="1709" b="1712"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="3488" y="1599.999" z="0"/>
+      <segments a="1712" b="1719"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="3712" y="1823.999" z="0"/>
+      <segments a="1715" b="1741"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="3712" y="1567.999" z="0"/>
+      <segments a="1715" b="1738"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="3646.392" y="1665.607" z="0"/>
+      <segments a="1715" b="1719"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL45"/>
+   </node>
+   <node>
+      <coordinates x="3712" y="1248" z="0"/>
+      <segments a="1722" b="1735"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="3712" y="1504" z="0"/>
+      <segments a="1722" b="1738"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="3646.392" y="1406.392" z="0"/>
+      <segments a="1722" b="1726"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL45"/>
+   </node>
+   <node>
+      <coordinates x="3488" y="1472" z="0"/>
+      <segments a="1726" b="1792"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="3712" y="1184" z="0"/>
+      <segments a="1732" b="1735"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="3712" y="1887.999" z="0"/>
+      <segments a="1741" b="1744"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="896" y="1504" z="0"/>
+      <segments a="1747" b="1750"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="896" y="1248" z="0"/>
+      <segments a="1750" b="1754"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="961.608" y="1406.392" z="0"/>
+      <segments a="1750" b="1760"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL45"/>
+   </node>
+   <node>
+      <coordinates x="896" y="1184" z="0"/>
+      <segments a="1754" b="1757"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="1120" y="1472" z="0"/>
+      <segments a="1760" b="1819"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="1184" y="1472.001" z="0"/>
+      <segments a="1816" b="1819"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="1440" y="1472.001" z="0"/>
+      <segments a="1816" b="1813"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="1696" y="1472.001" z="0"/>
+      <segments a="1813" b="1810"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="1952" y="1472.001" z="0"/>
+      <segments a="1810" b="1807"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="2208" y="1472.001" z="0"/>
+      <segments a="1807" b="1804"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="2464" y="1472.001" z="0"/>
+      <segments a="1804" b="1801"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="2720" y="1472.001" z="0"/>
+      <segments a="1801" b="1798"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="2976" y="1472.001" z="0"/>
+      <segments a="1798" b="1795"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <node>
+      <coordinates x="3232" y="1472.001" z="0"/>
+      <segments a="1795" b="1792"/>
+      <anchor value="no"/>
+      <type value="NT_MONORAIL"/>
+   </node>
+   <segment>
+      <index value="90012"/>
+      <type value="TS_MONORAILMONOSWITCH"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="1"/>
+      <node2 value="0"/>
+      <angle value="195"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="90006"/>
+      <type value="TS_MONORAILUPPERRAMP"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="3"/>
+      <node2 value="2"/>
+      <angle value="180"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="59"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="4"/>
+      <node2 value="5"/>
+      <angle value="-180"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="65"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="6"/>
+      <node2 value="7"/>
+      <angle value="-180"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="145"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="8"/>
+      <node2 value="9"/>
+      <angle value="90"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="141"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="10"/>
+      <node2 value="11"/>
+      <angle value="90"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="149"/>
+      <type value="TS_HALFSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="8"/>
+      <node2 value="12"/>
+      <angle value="270"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="152"/>
+      <type value="TS_HALFSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="6"/>
+      <node2 value="13"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="322"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="14"/>
+      <node2 value="15"/>
+      <angle value="-450"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="318"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="16"/>
+      <node2 value="17"/>
+      <angle value="-450"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="314"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="18"/>
+      <node2 value="19"/>
+      <angle value="-180"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="310"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="20"/>
+      <node2 value="21"/>
+      <angle value="-180"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="281"/>
+      <type value="TS_HALFSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="18"/>
+      <node2 value="22"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="277"/>
+      <type value="TS_HALFSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="16"/>
+      <node2 value="23"/>
+      <angle value="-270"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="422"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="24"/>
+      <node2 value="25"/>
+      <angle value="-270"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="418"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="26"/>
+      <node2 value="27"/>
+      <angle value="-270"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="414"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="28"/>
+      <node2 value="29"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="410"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="30"/>
+      <node2 value="31"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="381"/>
+      <type value="TS_HALFSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="28"/>
+      <node2 value="32"/>
+      <angle value="180"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="377"/>
+      <type value="TS_HALFSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="26"/>
+      <node2 value="33"/>
+      <angle value="-90"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="522"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="34"/>
+      <node2 value="35"/>
+      <angle value="-360"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="518"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="36"/>
+      <node2 value="37"/>
+      <angle value="-360"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="514"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="38"/>
+      <node2 value="39"/>
+      <angle value="-90"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="510"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="40"/>
+      <node2 value="41"/>
+      <angle value="-90"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="481"/>
+      <type value="TS_HALFSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="38"/>
+      <node2 value="42"/>
+      <angle value="90"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="477"/>
+      <type value="TS_HALFSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="36"/>
+      <node2 value="43"/>
+      <angle value="-180"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="528"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="44"/>
+      <node2 value="21"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="534"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="45"/>
+      <node2 value="44"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="541"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="46"/>
+      <node2 value="47"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="547"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="47"/>
+      <node2 value="19"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="577"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="48"/>
+      <node2 value="45"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="574"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="49"/>
+      <node2 value="48"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="571"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="50"/>
+      <node2 value="51"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="567"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="51"/>
+      <node2 value="46"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="607"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="52"/>
+      <node2 value="49"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="604"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="53"/>
+      <node2 value="52"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="601"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="54"/>
+      <node2 value="55"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="597"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="55"/>
+      <node2 value="50"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="697"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="56"/>
+      <node2 value="57"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="694"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="58"/>
+      <node2 value="56"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="691"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="59"/>
+      <node2 value="60"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="687"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="60"/>
+      <node2 value="61"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="727"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="62"/>
+      <node2 value="58"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="724"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="63"/>
+      <node2 value="62"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="721"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="64"/>
+      <node2 value="65"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="717"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="65"/>
+      <node2 value="59"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="757"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="66"/>
+      <node2 value="63"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="754"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="35"/>
+      <node2 value="66"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="751"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="37"/>
+      <node2 value="67"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="747"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="67"/>
+      <node2 value="64"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1017"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="68"/>
+      <node2 value="7"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1014"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="69"/>
+      <node2 value="68"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1011"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="70"/>
+      <node2 value="71"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1007"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="71"/>
+      <node2 value="5"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1003"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="72"/>
+      <node2 value="69"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1000"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="73"/>
+      <node2 value="72"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="997"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="74"/>
+      <node2 value="75"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="993"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="75"/>
+      <node2 value="70"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="989"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="76"/>
+      <node2 value="73"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="986"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="77"/>
+      <node2 value="76"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="983"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="78"/>
+      <node2 value="79"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="979"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="79"/>
+      <node2 value="74"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="975"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="80"/>
+      <node2 value="77"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="972"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="81"/>
+      <node2 value="80"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="969"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="82"/>
+      <node2 value="83"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="965"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="83"/>
+      <node2 value="78"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="961"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="84"/>
+      <node2 value="81"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="958"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="85"/>
+      <node2 value="84"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="955"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="86"/>
+      <node2 value="87"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="951"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="87"/>
+      <node2 value="82"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="947"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="88"/>
+      <node2 value="85"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="944"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="89"/>
+      <node2 value="88"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="941"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="90"/>
+      <node2 value="91"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="937"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="91"/>
+      <node2 value="86"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="933"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="92"/>
+      <node2 value="89"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="930"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="93"/>
+      <node2 value="92"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="927"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="94"/>
+      <node2 value="95"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="923"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="95"/>
+      <node2 value="90"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="919"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="96"/>
+      <node2 value="93"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="916"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="29"/>
+      <node2 value="96"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="913"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="31"/>
+      <node2 value="97"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="909"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="97"/>
+      <node2 value="94"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1280"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="98"/>
+      <node2 value="99"/>
+      <angle value="-90"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1277"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="39"/>
+      <node2 value="98"/>
+      <angle value="-90"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1274"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="41"/>
+      <node2 value="100"/>
+      <angle value="-90"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1270"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="100"/>
+      <node2 value="101"/>
+      <angle value="-90"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1310"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="102"/>
+      <node2 value="27"/>
+      <angle value="-90"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1307"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="99"/>
+      <node2 value="102"/>
+      <angle value="-90"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1304"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="101"/>
+      <node2 value="103"/>
+      <angle value="-90"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1300"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="103"/>
+      <node2 value="25"/>
+      <angle value="-90"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1342"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="104"/>
+      <node2 value="105"/>
+      <angle value="-90"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1339"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="15"/>
+      <node2 value="104"/>
+      <angle value="-90"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1336"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="17"/>
+      <node2 value="106"/>
+      <angle value="-90"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1332"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="106"/>
+      <node2 value="107"/>
+      <angle value="-90"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1372"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="108"/>
+      <node2 value="11"/>
+      <angle value="-90"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1369"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="105"/>
+      <node2 value="108"/>
+      <angle value="-90"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1366"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="107"/>
+      <node2 value="109"/>
+      <angle value="-90"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1362"/>
+      <type value="TS_STRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="109"/>
+      <node2 value="9"/>
+      <angle value="-90"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="2078"/>
+      <type value="TS_HALFSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="110"/>
+      <node2 value="53"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="2081"/>
+      <type value="TS_HALFSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="54"/>
+      <node2 value="111"/>
+      <angle value="180"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="2088"/>
+      <type value="TS_HALFSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="112"/>
+      <node2 value="61"/>
+      <angle value="180"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="2095"/>
+      <type value="TS_HALFSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="113"/>
+      <node2 value="57"/>
+      <angle value="180"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1412"/>
+      <type value="TS_MONORAILCURVE"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="114"/>
+      <node2 value="115"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1409"/>
+      <type value="TS_MONORAILSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="114"/>
+      <node2 value="116"/>
+      <angle value="180"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1406"/>
+      <type value="TS_MONORAILSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="117"/>
+      <node2 value="116"/>
+      <angle value="360"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1419"/>
+      <type value="TS_MONORAILSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="117"/>
+      <node2 value="118"/>
+      <angle value="540"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1426"/>
+      <type value="TS_MONORAILSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="119"/>
+      <node2 value="118"/>
+      <angle value="720"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1433"/>
+      <type value="TS_MONORAILSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="120"/>
+      <node2 value="119"/>
+      <angle value="720"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1440"/>
+      <type value="TS_MONORAILSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="120"/>
+      <node2 value="121"/>
+      <angle value="900"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1447"/>
+      <type value="TS_MONORAILSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="122"/>
+      <node2 value="121"/>
+      <angle value="1080"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1454"/>
+      <type value="TS_MONORAILSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="123"/>
+      <node2 value="122"/>
+      <angle value="1080"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1461"/>
+      <type value="TS_MONORAILSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="124"/>
+      <node2 value="123"/>
+      <angle value="1080"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1464"/>
+      <type value="TS_MONORAILCURVE"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="125"/>
+      <node2 value="126"/>
+      <angle value="-450"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1473"/>
+      <type value="TS_MONORAILSTRAIGHTQUARTER"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="124"/>
+      <node2 value="126"/>
+      <angle value="900"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1545"/>
+      <type value="TS_MONORAILCURVE"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="127"/>
+      <node2 value="128"/>
+      <angle value="-180"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1542"/>
+      <type value="TS_MONORAILSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="127"/>
+      <node2 value="129"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1539"/>
+      <type value="TS_MONORAILSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="130"/>
+      <node2 value="129"/>
+      <angle value="180"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1536"/>
+      <type value="TS_MONORAILSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="130"/>
+      <node2 value="131"/>
+      <angle value="360"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1533"/>
+      <type value="TS_MONORAILSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="132"/>
+      <node2 value="131"/>
+      <angle value="540"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1530"/>
+      <type value="TS_MONORAILSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="133"/>
+      <node2 value="132"/>
+      <angle value="540"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1527"/>
+      <type value="TS_MONORAILSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="133"/>
+      <node2 value="134"/>
+      <angle value="720"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1524"/>
+      <type value="TS_MONORAILSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="135"/>
+      <node2 value="134"/>
+      <angle value="900"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1521"/>
+      <type value="TS_MONORAILSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="136"/>
+      <node2 value="135"/>
+      <angle value="900"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1518"/>
+      <type value="TS_MONORAILSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="137"/>
+      <node2 value="136"/>
+      <angle value="900"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1515"/>
+      <type value="TS_MONORAILCURVE"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="138"/>
+      <node2 value="139"/>
+      <angle value="-630"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1512"/>
+      <type value="TS_MONORAILSTRAIGHTQUARTER"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="137"/>
+      <node2 value="139"/>
+      <angle value="720"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1628"/>
+      <type value="TS_MONORAILRIGHTSWITCH"/>
+      <label value=""/>
+      <nodes value="3"/>
+      <node1 value="140"/>
+      <node2 value="141"/>
+      <node3 value="142"/>
+      <angle value="270"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1632"/>
+      <type value="TS_MONORAILSTRAIGHTQUARTER"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="143"/>
+      <node2 value="128"/>
+      <angle value="90"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1635"/>
+      <type value="TS_MONORAILSHORTCURVERIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="144"/>
+      <node2 value="142"/>
+      <angle value="180"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1638"/>
+      <type value="TS_MONORAILSTRAIGHTQUARTER"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="143"/>
+      <node2 value="140"/>
+      <angle value="270"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1653"/>
+      <type value="TS_MONORAILSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="144"/>
+      <node2 value="145"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1660"/>
+      <type value="TS_MONORAILSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="146"/>
+      <node2 value="145"/>
+      <angle value="180"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1667"/>
+      <type value="TS_MONORAILSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="146"/>
+      <node2 value="147"/>
+      <angle value="360"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1674"/>
+      <type value="TS_MONORAILSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="148"/>
+      <node2 value="147"/>
+      <angle value="540"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1681"/>
+      <type value="TS_MONORAILSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="148"/>
+      <node2 value="149"/>
+      <angle value="720"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1688"/>
+      <type value="TS_MONORAILSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="150"/>
+      <node2 value="149"/>
+      <angle value="900"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1695"/>
+      <type value="TS_MONORAILSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="150"/>
+      <node2 value="151"/>
+      <angle value="1080"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1702"/>
+      <type value="TS_MONORAILSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="152"/>
+      <node2 value="151"/>
+      <angle value="1260"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1709"/>
+      <type value="TS_MONORAILSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="153"/>
+      <node2 value="152"/>
+      <angle value="1260"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1712"/>
+      <type value="TS_MONORAILSTRAIGHTQUARTER"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="153"/>
+      <node2 value="154"/>
+      <angle value="1080"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1715"/>
+      <type value="TS_MONORAILLEFTSWITCH"/>
+      <label value=""/>
+      <nodes value="3"/>
+      <node1 value="155"/>
+      <node2 value="156"/>
+      <node3 value="157"/>
+      <angle value="990"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1719"/>
+      <type value="TS_MONORAILSHORTCURVELEFT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="154"/>
+      <node2 value="157"/>
+      <angle value="1080"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1722"/>
+      <type value="TS_MONORAILRIGHTSWITCH"/>
+      <label value=""/>
+      <nodes value="3"/>
+      <node1 value="158"/>
+      <node2 value="159"/>
+      <node3 value="160"/>
+      <angle value="450"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1726"/>
+      <type value="TS_MONORAILSHORTCURVERIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="161"/>
+      <node2 value="160"/>
+      <angle value="720"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1732"/>
+      <type value="TS_MONORAILSTRAIGHTQUARTER"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="115"/>
+      <node2 value="162"/>
+      <angle value="90"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1735"/>
+      <type value="TS_MONORAILSTRAIGHTQUARTER"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="162"/>
+      <node2 value="158"/>
+      <angle value="90"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1738"/>
+      <type value="TS_MONORAILSTRAIGHTQUARTER"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="159"/>
+      <node2 value="156"/>
+      <angle value="90"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1741"/>
+      <type value="TS_MONORAILSTRAIGHTQUARTER"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="155"/>
+      <node2 value="163"/>
+      <angle value="810"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1744"/>
+      <type value="TS_MONORAILSTRAIGHTQUARTER"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="163"/>
+      <node2 value="138"/>
+      <angle value="450"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1747"/>
+      <type value="TS_MONORAILSTRAIGHTQUARTER"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="141"/>
+      <node2 value="164"/>
+      <angle value="270"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1750"/>
+      <type value="TS_MONORAILLEFTSWITCH"/>
+      <label value=""/>
+      <nodes value="3"/>
+      <node1 value="165"/>
+      <node2 value="164"/>
+      <node3 value="166"/>
+      <angle value="90"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1754"/>
+      <type value="TS_MONORAILSTRAIGHTQUARTER"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="165"/>
+      <node2 value="167"/>
+      <angle value="270"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1757"/>
+      <type value="TS_MONORAILSTRAIGHTQUARTER"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="167"/>
+      <node2 value="125"/>
+      <angle value="270"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1760"/>
+      <type value="TS_MONORAILSHORTCURVELEFT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="168"/>
+      <node2 value="166"/>
+      <angle value="180"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1816"/>
+      <type value="TS_MONORAILSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="169"/>
+      <node2 value="170"/>
+      <angle value="-360"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1813"/>
+      <type value="TS_MONORAILSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="171"/>
+      <node2 value="170"/>
+      <angle value="-180"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1810"/>
+      <type value="TS_MONORAILSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="171"/>
+      <node2 value="172"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1807"/>
+      <type value="TS_MONORAILSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="173"/>
+      <node2 value="172"/>
+      <angle value="180"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1804"/>
+      <type value="TS_MONORAILSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="173"/>
+      <node2 value="174"/>
+      <angle value="360"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1801"/>
+      <type value="TS_MONORAILSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="175"/>
+      <node2 value="174"/>
+      <angle value="540"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1798"/>
+      <type value="TS_MONORAILSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="175"/>
+      <node2 value="176"/>
+      <angle value="720"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1795"/>
+      <type value="TS_MONORAILSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="177"/>
+      <node2 value="176"/>
+      <angle value="900"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1792"/>
+      <type value="TS_MONORAILSTRAIGHT"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="161"/>
+      <node2 value="177"/>
+      <angle value="900"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <segment>
+      <index value="1819"/>
+      <type value="TS_MONORAILSTRAIGHTQUARTER"/>
+      <label value=""/>
+      <nodes value="2"/>
+      <node1 value="168"/>
+      <node2 value="169"/>
+      <angle value="0"/>
+      <origin value="0"/>
+      <slope value="0"/>
+   </segment>
+   <table>
+      <coordinates x ="2304" y="1536"/>
+      <angle value="0"/>
+      <svgfile value="/tables/imperial/US-60x30.svg"/>
+   </table>
+   <table>
+      <coordinates x ="768" y="1536"/>
+      <angle value="0"/>
+      <svgfile value="/tables/imperial/US-60x30.svg"/>
+   </table>
+   <table>
+      <coordinates x ="2304" y="768"/>
+      <angle value="0"/>
+      <svgfile value="/tables/imperial/US-60x30.svg"/>
+   </table>
+   <table>
+      <coordinates x ="768" y="768"/>
+      <angle value="0"/>
+      <svgfile value="/tables/imperial/US-60x30.svg"/>
+   </table>
+   <table>
+      <coordinates x ="6362" y="800.0001"/>
+      <angle value="90"/>
+      <svgfile value="/tables/imperial/US-60x30.svg"/>
+   </table>
+   <baseplate>
+      <coordinates x ="4160" y="0"/>
+      <angle value="0"/>
+      <svgfile value="/baseplates/landscape/10700.svg"/>
+      <size height="256" width="256"/>
+   </baseplate>
+   <baseplate>
+      <coordinates x ="4287.817" y="479.817"/>
+      <angle value="30"/>
+      <svgfile value="/baseplates/landscape/10700.svg"/>
+      <size height="256" width="256"/>
+   </baseplate>
+   <baseplate>
+      <coordinates x ="4800" y="256"/>
+      <angle value="-90"/>
+      <svgfile value="/baseplates/roads/44342px2.svg"/>
+      <size height="256" width="256"/>
+   </baseplate>
+   <baseplate>
+      <coordinates x ="4799.793" y="660.8123"/>
+      <angle value="-45"/>
+      <svgfile value="/baseplates/roads/44342px2.svg"/>
+      <size height="256" width="256"/>
+   </baseplate>
+   <baseplate>
+      <coordinates x ="6080" y="256"/>
+      <angle value="270"/>
+      <svgfile value="/baseplates/landscape/2748.svg"/>
+      <size height="128" width="256"/>
+   </baseplate>
+   <group>
+      <segments list="3227,3220"/>
+      <boundingbox x="2688" y="1536" w="256" h="384"/>
+   </group>
+   <group>
+      <segments list="3226,3225"/>
+      <boundingbox x="1408" y="1664" w="512" h="256"/>
+   </group>
+   <group>
+      <segments list="3224,3222"/>
+      <boundingbox x="1920" y="1664" w="384" h="256"/>
+   </group>
+   <group>
+      <segments list="3217,3216"/>
+      <boundingbox x="1664" y="1152" w="512" h="256"/>
+   </group>
+   <group>
+      <segments list="3214,3213"/>
+      <boundingbox x="2432" y="1152" w="512" h="256"/>
+   </group>
+   <group>
+      <segments list="3235,3237"/>
+      <boundingbox x="2944" y="1664" w="512" h="256"/>
+   </group>
+   <group>
+      <segments list="155,149,152,17,59,65,148,145,141,18,21,28,35,95,98,101,104"/>
+      <boundingbox x="3324" y="768" w="516" h="516"/>
+   </group>
+   <group>
+      <segments list="326,281,277,325,322,318,317,314,310,307,304,301,297,294,291,288,284"/>
+      <boundingbox x="3324" y="1788" w="516" h="516"/>
+   </group>
+   <group>
+      <segments list="426,381,377,425,422,418,417,414,410,407,404,401,397,394,391,388,384"/>
+      <boundingbox x="768" y="768" w="516" h="516"/>
+   </group>
+   <group>
+      <segments list="526,481,477,525,522,518,517,514,510,507,504,501,497,494,491,488,484"/>
+      <boundingbox x="768" y="1788" w="516" h="516"/>
+   </group>
+   <group>
+      <segments list="527,528,534,541,547"/>
+      <boundingbox x="3068" y="2048" w="264" h="256"/>
+   </group>
+   <group>
+      <segments list="580,577,574,571,567"/>
+      <boundingbox x="2812" y="2048" w="264" h="256"/>
+   </group>
+   <group>
+      <segments list="610,607,604,601,597"/>
+      <boundingbox x="2556" y="2048" w="264" h="256"/>
+   </group>
+   <group>
+      <segments list="700,697,694,691,687"/>
+      <boundingbox x="1788" y="2048" w="264" h="256"/>
+   </group>
+   <group>
+      <segments list="730,727,724,721,717"/>
+      <boundingbox x="1532" y="2048" w="264" h="256"/>
+   </group>
+   <group>
+      <segments list="760,757,754,751,747"/>
+      <boundingbox x="1276" y="2048" w="264" h="256"/>
+   </group>
+   <group>
+      <segments list="1020,1017,1014,1011,1007"/>
+      <boundingbox x="3068" y="768" w="264" h="256"/>
+   </group>
+   <group>
+      <segments list="1006,1003,1000,997,993"/>
+      <boundingbox x="2812" y="768" w="264" h="256"/>
+   </group>
+   <group>
+      <segments list="992,989,986,983,979"/>
+      <boundingbox x="2556" y="768" w="264" h="256"/>
+   </group>
+   <group>
+      <segments list="978,975,972,969,965"/>
+      <boundingbox x="2300" y="768" w="264" h="256"/>
+   </group>
+   <group>
+      <segments list="964,961,958,955,951"/>
+      <boundingbox x="2044" y="768" w="264" h="256"/>
+   </group>
+   <group>
+      <segments list="950,947,944,941,937"/>
+      <boundingbox x="1788" y="768" w="264" h="256"/>
+   </group>
+   <group>
+      <segments list="936,933,930,927,923"/>
+      <boundingbox x="1532" y="768" w="264" h="256"/>
+   </group>
+   <group>
+      <segments list="922,919,916,913,909"/>
+      <boundingbox x="1276" y="768" w="264" h="256"/>
+   </group>
+   <group>
+      <segments list="1283,1280,1277,1274,1270"/>
+      <boundingbox x="768" y="1532" w="256" h="264"/>
+   </group>
+   <group>
+      <segments list="1313,1310,1307,1304,1300"/>
+      <boundingbox x="768" y="1276" w="256" h="264"/>
+   </group>
+   <group>
+      <segments list="1345,1342,1339,1336,1332"/>
+      <boundingbox x="3584" y="1532" w="256" h="264"/>
+   </group>
+   <group>
+      <segments list="1375,1372,1369,1366,1362"/>
+      <boundingbox x="3584" y="1276" w="256" h="264"/>
+   </group>
+</data>

@@ -25,3 +25,9 @@ Known BlueBrick behaviours the tests allow for:
   (BlueBrick rebuilds their placeholder at a whole-stud size).
 - Parts whose name contains a space are dropped when BlueBrick reads LDraw.
 - Under Wine, ruler fonts may be substituted (e.g. Arial -> Tahoma).
+- `fourdbrix.bbm` links some track to BrickTracks / TrixBrix parts that only
+  vanilla's installed library has, so the 4DBrix write test keeps the links
+  stored in the file instead of rebuilding them.
+- BlueBrick reads a 4DBrix segment's `index` as an integer, so groups in
+  `.ncp` files it wrote itself (brick GUIDs) are lost when it reads them
+  back; this port matches the ids as text and keeps them.

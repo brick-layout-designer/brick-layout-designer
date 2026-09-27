@@ -125,6 +125,16 @@ struct PartMetadata {
     };
     std::optional<TrackDesigner> trackDesigner;
 
+    // <FourDBrix> remap: how this part maps to 4DBrix nControl (.ncp).
+    struct FourDBrix {
+        enum class Type { Segment, Table, Baseplate, Structure };
+        Type    type = Type::Segment;
+        QString partName;                  // segment name or svg path in nControl
+        float   orientationDifference = 0.0f;
+        int     originConnection = 0;      // connection used as the segment origin
+    };
+    std::optional<FourDBrix> fourDBrix;
+
     // BlueBrick's "ignorable" parts: a leaf part with an XML but no image,
     // e.g. the sleeper plates that LDraw exports put under 12V/4.5V rails.
     // They are skipped when loading LDraw files and never listed.
@@ -157,6 +167,9 @@ public:
     // The part TrackDesigner id `tdId` maps to (BlueBrick's preference: the
     // current registry's id, then a default id, then any), or empty.
     QString partForTrackDesignerId(int tdId, const QString& registry = QStringLiteral("default")) const;
+
+    // The part a 4DBrix name maps to, or empty. Case-sensitive, as in BlueBrick.
+    QString partForFourDBrixName(const QString& name) const;
 
     // The current key for `key`: itself, or the part an old name maps to.
     // Empty when unknown.
@@ -196,6 +209,9 @@ public:
     struct Footprint {
         QPointF imageOffset;  // studs, from displayArea centre to sprite centre
         QSizeF  size;         // studs, displayArea size
+        // studs, from displayArea's top-left to the rotated image's top-left
+        // corner (BlueBrick's TopLeftCornerPositionInStud).
+        QPointF imageCorner;
     };
     std::optional<Footprint> footprint(const QString& key, double orientationDegrees);
 
@@ -210,6 +226,7 @@ private:
     QHash<QString, PartMetadata> index_;
     QHash<QString, QString>      renamed_;   // lower-cased old name -> current key
     QHash<int, QStringList>      trackDesignerIds_;  // TD id -> keys using it
+    QHash<QString, QString>      fourDBrixNames_;    // 4DBrix name -> key
     QHash<QString, QPixmap>      pixmapCache_;
     QHash<QString, QPolygonF>    hullCache_;
 };
