@@ -67,6 +67,9 @@ if(WIN32 OR APPLE)
 endif()
 option(BLD_INSTALL_PARTS "Install the vendored BlueBrickParts library" ON)
 
+# compile_commands.json for clang-tidy and editors.
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 # Fuzzing (fuzz/README.md): clang only; instruments everything.
 option(BLD_FUZZ "Build the libFuzzer parser harnesses (clang)" OFF)
 if(BLD_FUZZ)

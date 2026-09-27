@@ -183,3 +183,94 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
         run: scripts/bluebrick-oracle/compat.sh bluebrick build/src/app/bld_convert parts/BlueBrickParts/parts
+
+  lint:
+    # clang-tidy's bug-finding checks on the lines a pull request changes
+    # (blocking) and clang-format on them (advisory); scripts/ci/lint-changes.sh.
+    name: Lint changed lines
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.7.*'
+          cache: true
+
+      - name: Compiler cache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: lint
+          max-size: 1G
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1-mesa-dev libxkbcommon-dev libcups2-dev ninja-build clang clang-tidy clang-format
+
+      - name: Build (clang, for the compile database)
+        run: |
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          cmake --build build --parallel
+
+      - name: Lint
+        run: scripts/ci/lint-changes.sh "origin/${{ github.base_ref }}" build
+
+  coverage:
+    # Line / function / branch coverage of src/ by the test suite, as a job
+    # summary and an HTML report artifact. Reported, not enforced.
+    name: Coverage
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.7.*'
+          cache: true
+
+      - name: Compiler cache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: coverage
+          max-size: 1G
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1-mesa-dev libxkbcommon-dev libcups2-dev ninja-build
+          pip install --user gcovr
+
+      - name: Build
+        run: |
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DBLD_DEPLOY_QT=OFF \
+            -DCMAKE_C_FLAGS=--coverage -DCMAKE_CXX_FLAGS=--coverage -DCMAKE_EXE_LINKER_FLAGS=--coverage \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          cmake --build build --parallel
+
+      - name: Test
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: ctest --test-dir build --output-on-failure --timeout 600
+
+      - name: Report
+        run: |
+          mkdir -p coverage
+          gcovr -r . --object-directory build --filter 'src/' --exclude 'src/app/' -j "$(nproc)" \
+            --print-summary --markdown-summary coverage/summary.md --html-details coverage/index.html
+          cat coverage/summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: coverage-report
+          path: coverage

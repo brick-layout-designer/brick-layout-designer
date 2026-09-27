@@ -11,10 +11,14 @@ FixNamespaceComments: true
 PointerAlignment: Left
 AlignAfterOpenBracket: Align
 AllowShortFunctionsOnASingleLine: InlineOnly
-AllowShortIfStatementsOnASingleLine: WithoutElse
 AllowShortLambdasOnASingleLine: All
 BreakBeforeBraces: Attach
 IncludeBlocks: Preserve
 SortIncludes: CaseSensitive
 SpaceBeforeParens: ControlStatements
-Cpp11BracedListStyle: true
+Cpp11BracedListStyle: false
+AllowShortIfStatementsOnASingleLine: AllIfsAndElse
+AllowShortLoopsOnASingleLine: true
+AllowShortBlocksOnASingleLine: Always
+AllowShortCaseLabelsOnASingleLine: true
+BreakBeforeBinaryOperators: NonAssignment
