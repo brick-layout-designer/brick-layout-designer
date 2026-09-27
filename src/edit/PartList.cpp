@@ -20,11 +20,12 @@ namespace bld::edit {
 
 namespace {
 
-QString tr(const char* text) { return QCoreApplication::translate("bld::edit::PartList", text); }
+// lupdate reads the context from Q_DECLARE_TR_FUNCTIONS; call Text::tr().
+struct Text { Q_DECLARE_TR_FUNCTIONS(bld::edit::PartList) };
 
 QStringList columnTitles() {
-    return { tr("Part"), tr("In Use"), tr("Color"), tr("Description"),
-             tr("Budgeted"), tr("Missing"), tr("Part Usage %") };
+    return { Text::tr("Part"), Text::tr("In Use"), Text::tr("Color"), Text::tr("Description"),
+             Text::tr("Budgeted"), Text::tr("Missing"), Text::tr("Part Usage %") };
 }
 
 QString descriptionOf(const parts::PartMetadata& meta, const QString& language) {
@@ -37,11 +38,11 @@ QString descriptionOf(const parts::PartMetadata& meta, const QString& language) 
 
 // One row's cells in column order (BlueBrick's ListViewItem texts).
 QStringList cells(const PartListRow& r, bool isTotal, bool hasBudget) {
-    QStringList out{ isTotal ? tr("Total") : r.part, QString::number(r.count), r.colorName, r.description };
+    QStringList out{ isTotal ? Text::tr("Total") : r.part, QString::number(r.count), r.colorName, r.description };
     if (!hasBudget) {
-        out << tr("N/A") << tr("N/A") << tr("N/A");
+        out << Text::tr("N/A") << Text::tr("N/A") << Text::tr("N/A");
     } else if (!isTotal && r.usage < 0) {
-        out << tr("Unbudgeted") << QString::number(r.missing) << tr("Unbudgeted");
+        out << Text::tr("Unbudgeted") << QString::number(r.missing) << Text::tr("Unbudgeted");
     } else {
         out << QString::number(r.budget) << QString::number(r.missing) << percentageBar(r.usage);
     }
@@ -166,11 +167,11 @@ QString partListText(const core::Map& map, const std::vector<PartListGroup>& gro
     QString out = indent + frame + QLatin1Char('\n')
                 + indent + QStringLiteral("| ") + title + QStringLiteral(" |\n")
                 + indent + frame + QStringLiteral("\n\n");
-    out += tr("Author:") + QLatin1Char(' ') + map.author + QLatin1Char('\n');
-    out += tr("LUG:") + QLatin1Char(' ') + map.lug + QLatin1Char('\n');
-    out += tr("Event:") + QLatin1Char(' ') + map.event + QLatin1Char('\n');
-    out += tr("Date:") + QLatin1Char(' ') + QLocale(QLocale::English, QLocale::UnitedStates).toString(map.date, QLocale::LongFormat) + QLatin1Char('\n');
-    out += tr("Comment:") + QLatin1Char('\n') + map.comment + QStringLiteral("\n\n\n");
+    out += Text::tr("Author:") + QLatin1Char(' ') + map.author + QLatin1Char('\n');
+    out += Text::tr("LUG:") + QLatin1Char(' ') + map.lug + QLatin1Char('\n');
+    out += Text::tr("Event:") + QLatin1Char(' ') + map.event + QLatin1Char('\n');
+    out += Text::tr("Date:") + QLatin1Char(' ') + QLocale(QLocale::English, QLocale::UnitedStates).toString(map.date, QLocale::LongFormat) + QLatin1Char('\n');
+    out += Text::tr("Comment:") + QLatin1Char('\n') + map.comment + QStringLiteral("\n\n\n");
     for (const auto& g : groups) {
         if (!g.name.isEmpty()) out += QStringLiteral("| ") + g.name + QLatin1Char('\n');
         out += rule + QLatin1Char('\n') + line(titles) + rule + QLatin1Char('\n');
@@ -239,11 +240,11 @@ QString partListHtml(const core::Map& map, const std::vector<PartListGroup>& gro
     const auto info = [&](const QString& label, const QString& value) {
         out += QStringLiteral("\t<tr><td class=\"info\">%1</td><td>%2</td></tr>\n").arg(escapeHtml(label), value);
     };
-    info(tr("Author:"), escapeHtml(map.author));
-    info(tr("LUG:"), escapeHtml(map.lug));
-    info(tr("Event:"), escapeHtml(map.event));
-    info(tr("Date:"), escapeHtml(QLocale(QLocale::English, QLocale::UnitedStates).toString(map.date, QLocale::LongFormat)));
-    info(tr("Comment:"), escapeHtml(map.comment).replace(QLatin1Char('\n'), QStringLiteral("<br/>")));
+    info(Text::tr("Author:"), escapeHtml(map.author));
+    info(Text::tr("LUG:"), escapeHtml(map.lug));
+    info(Text::tr("Event:"), escapeHtml(map.event));
+    info(Text::tr("Date:"), escapeHtml(QLocale(QLocale::English, QLocale::UnitedStates).toString(map.date, QLocale::LongFormat)));
+    info(Text::tr("Comment:"), escapeHtml(map.comment).replace(QLatin1Char('\n'), QStringLiteral("<br/>")));
     out += QStringLiteral("</table>\n<br/>\n<br/>\n\n");
 
     const auto headerRow = [&] {
