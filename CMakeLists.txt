@@ -67,7 +67,20 @@ if(WIN32 OR APPLE)
 endif()
 option(BLD_INSTALL_PARTS "Install the vendored BlueBrickParts library" ON)
 
+# Fuzzing (fuzz/README.md): clang only; instruments everything.
+option(BLD_FUZZ "Build the libFuzzer parser harnesses (clang)" OFF)
+if(BLD_FUZZ)
+    if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        message(FATAL_ERROR "BLD_FUZZ needs clang (libFuzzer)")
+    endif()
+    add_compile_options(-fsanitize=fuzzer-no-link,address,undefined -fno-omit-frame-pointer -g)
+    add_link_options(-fsanitize=address,undefined)
+endif()
+
 add_subdirectory(src)
+if(BLD_FUZZ)
+    add_subdirectory(fuzz)
+endif()
 
 if(BUILD_TESTING)
     add_subdirectory(tests)
