@@ -125,6 +125,8 @@ AI-assisted warning above and keep backups. What works today:
   Merge / Close / Save), *Show Only Budgeted Parts*, *Show Budget
   Numbers* in the parts library, *Use Budget Limitation*, and a
   status-bar readout. `.bbb` files are byte-identical to BlueBrick's.
+- Help → Contents (F1): BlueBrick's manual as offline HTML (converted
+  from its `.chm` by `scripts/help/chm_to_html.py`).
 - Grid cell indices (A, B, C… / 1, 2, 3…), and moving their origin by
   dragging the map with the grid layer selected, as in BlueBrick.
 - Part list export as HTML (with part pictures), text or CSV, laid out
@@ -206,7 +208,7 @@ AI-assisted warning above and keep backups. What works today:
   already; Flatpak is a follow-up if someone wants it.
 
 **Feature-parity gaps vs. BlueBrick 1.9.2**
-- Help → Contents (BlueBrick ships a `.chm`).
+- None known; report anything you miss.
 
 **Deferred (niche)**
 - Async-signal-safe crash autosave (the 5 s throttled autosave covers

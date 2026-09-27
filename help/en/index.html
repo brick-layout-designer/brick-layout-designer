@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Brick Layout Designer Help</title>
+<style>
+  body { margin: 0; display: flex; height: 100vh; font-family: sans-serif; }
+  nav { width: 18em; overflow: auto; padding: 0.5em 1em; border-right: 1px solid #ccc; font-size: 90%; }
+  nav ul { padding-left: 1.2em; margin: 0.2em 0; }
+  nav p { font-size: 85%; color: #555; }
+  iframe { flex: 1; border: 0; height: 100%; }
+</style>
+</head>
+<body>
+<nav>
+<h3>Contents</h3>
+<p>Brick Layout Designer follows BlueBrick, so this is BlueBrick's own
+manual (by Alban Nanty and Alex McKenna). Where the two differ, see the
+<a href="https://github.com/brick-layout-designer/brick-layout-designer#readme" target="_blank">README</a>.</p>
+<ul>
+<li><a href="Start_Page.htm" target="page">Start Page</a></li>
+<li><a href="Choosing_a_language.htm" target="page">Choosing a language</a></li>
+<li><a href="Software_Overview.htm" target="page">Software Overview</a></li>
+<ul>
+<li><a href="Software_Overview_Toolbars.htm" target="page">Toolbars</a></li>
+<li><a href="Software_Overview_Window_Panes.htm" target="page">Window Panes</a></li>
+</ul>
+<li><a href="Part_Library.htm" target="page">The Part Library</a></li>
+<ul>
+<li><a href="Part_Library_Organization.htm" target="page">Organization</a></li>
+<li><a href="Part_Library_How_to_Filter.htm" target="page">Part Filtering</a></li>
+<li><a href="Part_Library_Download_Additional_Parts.htm" target="page">Download Additional Parts</a></li>
+<li><a href="Part_Library_Save_a_Group_in_the_Library.htm" target="page">Save a Group in the Library</a></li>
+</ul>
+<li><a href="Navigation.htm" target="page">Navigation</a></li>
+<ul>
+<li><a href="Navigation_Zooming_and_Viewing.htm" target="page">Zooming and Viewing</a></li>
+<li><a href="Navigation_Selecting_Parts.htm" target="page">Selecting Parts</a></li>
+</ul>
+<li><a href="Creating_Using_Layers.htm" target="page">Creating and Using Layers</a></li>
+<ul>
+<li><a href="Creating_Using_Layers_Layer_Toolbar.htm" target="page">The Layer Toolbar</a></li>
+<li><a href="Creating_Using_Layers_Different_Type_of_Layers.htm" target="page">The Five Different Type of Layers</a></li>
+</ul>
+<li><a href="Creating_Modifying_Layouts.htm" target="page">Creating and Modifying Layouts</a></li>
+<ul>
+<li><a href="Creating_Modifying_Layouts_Adding_and_Deleting_Parts.htm" target="page">Adding and Deleting Parts</a></li>
+<li><a href="Creating_Modifying_Layouts_Moving_Parts.htm" target="page">Moving Parts</a></li>
+<li><a href="Creating_Modifying_Layouts_Grouping_Parts.htm" target="page">Grouping Parts</a></li>
+<li><a href="Creating_Modifying_Layouts_Using_Rulers.htm" target="page">Using Rulers</a></li>
+<li><a href="Creating_Modifying_Layouts_Using_Texts.htm" target="page">Using Texts</a></li>
+<li><a href="Creating_Modifying_Layouts_Search_Replace_Parts.htm" target="page">Searching and Replacing Parts</a></li>
+<li><a href="Creating_Modifying_Layouts_Using_Flex_Track.htm" target="page">Using Flex Track</a></li>
+<li><a href="Creating_Modifying_Layouts_Electric_Circuits.htm" target="page">Electric Circuits</a></li>
+<li><a href="Creating_Modifying_Layouts_Map_Properties.htm" target="page">Layout Properties</a></li>
+<li><a href="Creating_Modifying_Layouts_Undo_and_Redo.htm" target="page">Undo and Redo</a></li>
+<li><a href="Creating_Modifying_Layouts_Saving_and_Loading.htm" target="page">Saving and Loading</a></li>
+</ul>
+<li><a href="Part_Budget.htm" target="page">Part Budget</a></li>
+<ul>
+<li><a href="Part_Budget_Using_Budget.htm" target="page">Using a Budget</a></li>
+<li><a href="Part_Budget_Saving_and_Loading_Budget.htm" target="page">Saving and Loading a Budget</a></li>
+</ul>
+<li><a href="Export_Report_Printing.htm" target="page">Export, Report and Printing</a></li>
+<ul>
+<li><a href="Export_Report_Printing_Export_Layout_as_Image.htm" target="page">Exporting a Layout as an Image</a></li>
+<li><a href="Export_Report_Printing_Exporting_Parts_List.htm" target="page">Displaying and Exporting the Parts List</a></li>
+</ul>
+<li><a href="Preferences_BlueBrick.htm" target="page">BlueBrick Preferences</a></li>
+<ul>
+<li><a href="Preferences_General.htm" target="page">General Preferences</a></li>
+<li><a href="Preferences_Edition.htm" target="page">Edition Preferences</a></li>
+<li><a href="Preferences_Appearance.htm" target="page">Appearance Preferences</a></li>
+<li><a href="Preferences_Part_Library.htm" target="page">Part Library Preferences</a></li>
+<li><a href="Preferences_Shortcut_Keys.htm" target="page">Shortcut Keys</a></li>
+<li><a href="Preferences_Other_Options.htm" target="page">Other Options</a></li>
+</ul>
+<li><a href="How_to_extend_the_Part_Library.htm" target="page">How to extend the Part Library</a></li>
+<ul>
+<li><a href="Part_Library_Folders.htm" target="page">Part Library Folders</a></li>
+<li><a href="Part_Image_Format.htm" target="page">Part Image Format</a></li>
+<li><a href="Part_XML_Description.htm" target="page">XML Part Description</a></li>
+<ul>
+<li><a href="Part_XML_Description_Author.htm" target="page">Author</a></li>
+<li><a href="Part_XML_Description_Description.htm" target="page">Part Description</a></li>
+<li><a href="Part_XML_Description_Image.htm" target="page">Image URL</a></li>
+<li><a href="Part_XML_Description_SortingKey.htm" target="page">Specify the Sorting Order</a></li>
+<li><a href="Part_XML_Description_NotListedInLibrary.htm" target="page">Not Listed in Library</a></li>
+<li><a href="Part_XML_Description_OldName.htm" target="page">Old Name</a></li>
+<li><a href="Part_XML_Description_Margin.htm" target="page">Margins</a></li>
+<li><a href="Part_XML_Description_Connection.htm" target="page">Connections</a></li>
+<li><a href="Part_XML_Description_Hull.htm" target="page">Hull</a></li>
+<li><a href="Part_XML_Description_Track_Designer.htm" target="page">TD Compatibility</a></li>
+<li><a href="Part_XML_Description_LDRAW.htm" target="page">LDraw Compatibility</a></li>
+<li><a href="Part_XML_Description_4DBrix.htm" target="page">4DBrix Compatibility</a></li>
+</ul>
+<li><a href="Group_XML_Description.htm" target="page">XML Group Description</a></li>
+<ul>
+<li><a href="Part_XML_Description_Author.htm" target="page">Author</a></li>
+<li><a href="Part_XML_Description_Description.htm" target="page">Group Description</a></li>
+<li><a href="Part_XML_Description_Image.htm" target="page">Image URL</a></li>
+<li><a href="Part_XML_Description_SortingKey.htm" target="page">Specify the Sorting Order</a></li>
+<li><a href="Part_XML_Description_NotListedInLibrary.htm" target="page">Not Listed in Library</a></li>
+<li><a href="Part_XML_Description_OldName.htm" target="page">Old Name</a></li>
+<li><a href="Group_XML_Description_CanUngroup.htm" target="page">Can Ungroup</a></li>
+<li><a href="Part_XML_Description_Margin.htm" target="page">Margins</a></li>
+<li><a href="Group_XML_Description_SubPartList.htm" target="page">Sub Part List</a></li>
+<li><a href="Group_XML_Description_GroupConnectionPreferenceList.htm" target="page">Connection Preference List</a></li>
+</ul>
+<li><a href="Connection_Type_Config_File.htm" target="page">Connection Type Configuration File</a></li>
+<li><a href="Reload_the_Part_Library.htm" target="page">Reload the Part Library</a></li>
+<li><a href="How_to_share_parts.htm" target="page">How to share parts with the community</a></li>
+</ul>
+</ul>
+</nav>
+<iframe name="page" src="Start_Page.htm"></iframe>
+</body>
+</html>
