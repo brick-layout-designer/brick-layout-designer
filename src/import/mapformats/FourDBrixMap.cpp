@@ -411,7 +411,8 @@ private:
                 const auto& cp = b.connections[i];
                 const auto partner = nodeOf.constFind(cp.linkedToId);
                 if (!cp.linkedToId.isEmpty() && partner != nodeOf.constEnd()) {
-                    nodeOf.insert(cp.guid, partner.value());
+                    const int shared = partner.value();  // copy: insert() may rehash
+                    nodeOf.insert(cp.guid, shared);
                     continue;
                 }
                 nodeOf.insert(cp.guid, nodes++);
