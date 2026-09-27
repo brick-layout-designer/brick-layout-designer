@@ -1,4 +1,5 @@
 #include "LDrawMap.h"
+#include "BrickPlacement.h"
 
 #include "../../core/Ids.h"
 #include "../../core/LayerArea.h"
@@ -296,16 +297,8 @@ private:
         b.partNumber = partNumber;
         b.orientation = static_cast<float>(angle);
         b.altitude = static_cast<float>(y);
-        // The LDraw origin is the sprite centre; displayArea is the box
-        // around the rotated hull, `imageOffset` away (as in BlueBrick).
-        QPointF centre(x / kLduPerStud, z / kLduPerStud);
-        QSizeF size(2, 2);
-        if (const auto fp = lib_.footprint(partNumber, angle)) {
-            centre -= fp->imageOffset;
-            size = fp->size;
-        }
-        b.displayArea = QRectF(centre.x() - size.width() / 2.0, centre.y() - size.height() / 2.0,
-                               size.width(), size.height());
+        // The LDraw origin is the sprite centre.
+        placement::placeByImageCentre(b, QPointF(x / kLduPerStud, z / kLduPerStud), lib_);
         b.myGroupId = takePendingGroup();
         layer.bricks.push_back(std::move(b));
     }
@@ -496,9 +489,7 @@ private:
             bool numeric = false;
             colour.toInt(&numeric);
             if (!numeric) continue;  // sets, logos, custom parts
-            // Sprite centre: displayArea is the hull's box (see footprint()).
-            QPointF centre = b.displayArea.center();
-            if (const auto fp = lib_.footprint(b.partNumber, b.orientation)) centre += fp->imageOffset;
+            const QPointF centre = placement::imageCentre(b, lib_);
             const auto meta = lib_.metadata(b.partNumber);
             if (meta && !meta->ldrawAlias.isEmpty()) {
                 auto [aliasPn, aliasColour] = splitPartAndColour(meta->ldrawAlias);
@@ -534,7 +525,7 @@ private:
                 }
                 if (!add) continue;
                 const auto& cm = meta->connections[i];
-                const QPointF at = centre + rotated(cm.position, b.orientation);
+                const QPointF at = placement::connectionWorld(b, i, lib_);
                 oneBrick(sleeperPn, sleeperColour, sleeperAltitude,
                          b.orientation + static_cast<float>(cm.angleDegrees),
                          static_cast<float>(at.x()), static_cast<float>(-at.y()), sleeperMeta, hide);

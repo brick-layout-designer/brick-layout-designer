@@ -2,6 +2,7 @@
 // output (fixtures/bluebrick-oracle, made with scripts/bluebrick-oracle).
 
 #include "import/mapformats/LDrawMap.h"
+#include "import/mapformats/TrackDesignerMap.h"
 #include "core/Ids.h"
 #include "core/LayerBrick.h"
 #include "core/LayerRuler.h"
@@ -13,12 +14,14 @@
 #include <gtest/gtest.h>
 
 #include <QDir>
+#include <QHash>
 #include <QFile>
 #include <QTemporaryDir>
 #include <QTextStream>
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <functional>
 #include <string>
 #include <vector>
@@ -65,7 +68,7 @@ protected:
         return out;
     }
 
-    struct Key { QString part; double x, y, w, h, angle; };
+    struct Key { QString part; double x, y, w, h, angle; int active; };
 
     // Every kept brick's part, displayArea and orientation.
     static std::vector<Key> bricksOf(const core::Map& map, const std::function<bool(const QString&)>& keep) {
@@ -75,7 +78,7 @@ protected:
             for (const auto& b : static_cast<const core::LayerBrick&>(*layer).bricks) {
                 if (!keep(b.partNumber)) continue;
                 const QRectF a = b.displayArea;
-                out.push_back({ b.partNumber.toUpper(), a.x(), a.y(), a.width(), a.height(), b.orientation });
+                out.push_back({ b.partNumber.toUpper(), a.x(), a.y(), a.width(), a.height(), b.orientation, b.activeConnectionPointIndex });
             }
         }
         return out;
@@ -83,11 +86,12 @@ protected:
 
     // Pairs every brick with an equal one (within 0.01 studs / degrees);
     // describes the leftovers, empty when they all match.
-    static std::string unmatched(std::vector<Key> ours, std::vector<Key> theirs) {
-        const auto same = [](const Key& a, const Key& b) {
+    static std::string unmatched(std::vector<Key> ours, std::vector<Key> theirs, bool compareActive = true) {
+        const auto same = [compareActive](const Key& a, const Key& b) {
             const double da = std::remainder(a.angle - b.angle, 360.0);
             return a.part == b.part && std::abs(a.x - b.x) < 0.01 && std::abs(a.y - b.y) < 0.01
-                && std::abs(a.w - b.w) < 0.01 && std::abs(a.h - b.h) < 0.01 && std::abs(da) < 0.01;
+                && std::abs(a.w - b.w) < 0.01 && std::abs(a.h - b.h) < 0.01 && std::abs(da) < 0.01
+                && (!compareActive || a.active == b.active);
         };
         for (auto it = ours.begin(); it != ours.end();) {
             const auto m = std::find_if(theirs.begin(), theirs.end(), [&](const Key& k) { return same(*it, k); });
@@ -95,7 +99,7 @@ protected:
         }
         const auto text = [](const Key& k) {
             return QStringLiteral("%1 (%2, %3) %4x%5 @%6").arg(k.part).arg(k.x).arg(k.y).arg(k.w).arg(k.h)
-                .arg(k.angle).toStdString();
+                .arg(k.angle).toStdString() + " active " + std::to_string(k.active);
         };
         std::string out;
         for (size_t i = 0; i < ours.size() && i < 8; ++i) out += "\n  first only:  " + text(ours[i]);
@@ -126,16 +130,84 @@ TEST_F(LDrawMapTest, WriteMatchesBlueBrick) {
 }
 
 TEST_F(LDrawMapTest, ReadMatchesBlueBrick) {
-    const auto vanilla = saveload::readBbm(oracle(QStringLiteral("tight-corner.from-ldr.bbm"))).map;
-    ASSERT_TRUE(vanilla);
-    for (const QString ext : { QStringLiteral("ldr"), QStringLiteral("mpd") }) {
-        SCOPED_TRACE(ext.toStdString());
-        auto ours = import::readLDrawMap(oracle(QStringLiteral("tight-corner.") + ext), lib_);
+    // What vanilla BlueBrick itself makes of each file (read, saved as .bbm):
+    // parts, positions, rotations and active connections must agree.
+    for (const char* ext : { "ldr", "mpd", "tdl" }) {
+        SCOPED_TRACE(ext);
+        const QString file = oracle(QStringLiteral("tight-corner.") + QLatin1String(ext));
+        const auto vanilla = saveload::readBbm(oracle(QStringLiteral("tight-corner.from-") + QLatin1String(ext) + QStringLiteral(".bbm"))).map;
+        ASSERT_TRUE(vanilla);
+        auto ours = QLatin1String(ext) == QLatin1String("tdl") ? import::readTrackDesignerMap(file, lib_)
+                                                               : import::readLDrawMap(file, lib_);
         ASSERT_TRUE(ours.ok()) << ours.error.toStdString();
-        // BlueBrick drops parts with a space in their name when reading.
+        // BlueBrick drops parts with a space in their name when reading LDraw.
         const auto noSpace = [](const QString& pn) { return !pn.contains(QLatin1Char(' ')); };
         EXPECT_EQ(unmatched(bricksOf(*ours.map, noSpace), bricksOf(*vanilla, noSpace)), "");
     }
+}
+
+namespace {
+
+// Pieces of a TrackDesigner file, with instance ids replaced by piece
+// indices (BlueBrick writes object hash codes) and polarity dropped.
+std::vector<std::string> tdlPieces(const QString& path) {
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly)) return {};
+    const QByteArray d = f.readAll();
+    qint64 pos = 0;
+    const auto i32 = [&]() { qint32 v; std::memcpy(&v, d.constData() + pos, 4); pos += 4; return v; };
+    const auto i16 = [&]() { qint16 v; std::memcpy(&v, d.constData() + pos, 2); pos += 2; return v; };
+    const auto f64 = [&]() { double v; std::memcpy(&v, d.constData() + pos, 8); pos += 8; return v; };
+    const auto str = [&]() { const int n = static_cast<uchar>(d[pos++]); pos += n; };  // ASCII in these fixtures
+    pos = 4 * 4 + 4 * 4 + 4 * 8 + 4 * 4;
+    str();
+    pos += 5 * 4;
+    str();
+    str();
+    const int pieceList = i16();
+    pos += pieceList > 0 ? 12 + pieceList * 40 : 0;
+    const int count = i16();
+    if (count <= 0) return {};
+    pos += 17;
+    struct Piece { qint32 id, inst; double a, x, y, z; qint32 type, port; qint32 conn[4][2]; qint32 flags; };
+    std::vector<Piece> pieces;
+    while (pos < d.size()) {
+        Piece p{};
+        p.id = i32(); p.inst = i32(); p.a = f64(); p.x = f64(); p.y = f64(); p.z = f64();
+        p.type = i32(); p.port = i32();
+        for (auto& c : p.conn) { c[0] = i32(); c[1] = i32(); i32(); }
+        p.flags = i32(); i32();
+        pieces.push_back(p);
+        if (pos < d.size()) pos += 2;
+    }
+    QHash<qint32, int> index;
+    for (int i = 0; i < static_cast<int>(pieces.size()); ++i) index.insert(pieces[i].inst, i);
+    std::vector<std::string> out;
+    for (const auto& p : pieces) {
+        QString text = QStringLiteral("%1 %2 %3 %4 %5 %6 %7").arg(p.id).arg(p.a, 0, 'f', 3).arg(p.x, 0, 'f', 3)
+            .arg(p.y, 0, 'f', 3).arg(p.z, 0, 'f', 3).arg(p.type).arg(p.port);
+        for (const auto& c : p.conn) {
+            const int other = c[0] ? index.value(c[0], -1) : -1;
+            text += other >= 0 ? QStringLiteral(" %1:%2").arg(other).arg(c[1]) : QStringLiteral(" -");
+        }
+        out.push_back((text + QStringLiteral(" f%1").arg(p.flags)).toStdString());
+    }
+    return out;
+}
+
+}  // namespace
+
+TEST_F(LDrawMapTest, TrackDesignerWriteMatchesBlueBrick) {
+    auto map = saveload::readBbm(corpus(QStringLiteral("tight-corner.bbm"))).map;
+    ASSERT_TRUE(map);
+    edit::rebuildConnectivity(*map, lib_);
+    const QString out = tmp_.filePath(QStringLiteral("tight-corner.tdl"));
+    QString err;
+    ASSERT_TRUE(import::writeTrackDesignerMap(*map, out, lib_, &err)) << err.toStdString();
+    const auto ours = tdlPieces(out), vanilla = tdlPieces(oracle(QStringLiteral("tight-corner.tdl")));
+    ASSERT_EQ(ours.size(), vanilla.size());
+    ASSERT_FALSE(ours.empty());
+    for (size_t i = 0; i < ours.size(); ++i) EXPECT_EQ(ours[i], vanilla[i]) << "piece " << i;
 }
 
 TEST_F(LDrawMapTest, RoundTripKeepsEveryBrick) {
@@ -152,7 +224,7 @@ TEST_F(LDrawMapTest, RoundTripKeepsEveryBrick) {
         pn.section(QLatin1Char('.'), -1).toInt(&numeric);
         return numeric && lib_.metadata(pn).has_value();
     };
-    EXPECT_EQ(unmatched(bricksOf(*back.map, writable), bricksOf(*map, writable)), "");
+    EXPECT_EQ(unmatched(bricksOf(*back.map, writable), bricksOf(*map, writable), false), "");
 }
 
 TEST_F(LDrawMapTest, GroupsRulersAndHiddenLayersSurvive) {

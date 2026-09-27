@@ -60,6 +60,15 @@ public:
 
     ExportInfo exportInfo;
 
+    // TrackDesigner (.tdl) document options. Like BlueBrick, kept in memory
+    // only (not part of .bbm) so a .tdl opened and saved keeps them.
+    struct TrackDesignerOptions {
+        bool allowElectricShortCuts = false;
+        bool allowUnderground = false;
+        bool allowSteps = false;
+        bool allowSlopeMismatch = false;
+    } trackDesigner;
+
     int     selectedLayerIndex = -1;
 
     // ---------- content ----------
