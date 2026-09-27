@@ -91,6 +91,12 @@ target_link_libraries(bld_render
     PRIVATE bld_rendering bld_saveload bld_parts bld_core
             Qt6::Core Qt6::Gui Qt6::Widgets)
 
+# Map conversion (.bbm / .ldr / .mpd / .tdl / .ncp) and comparison, as the
+# app does it; scripts/bluebrick-oracle/compat.sh checks it against vanilla.
+add_executable(bld_convert bld_convert.cpp)
+target_link_libraries(bld_convert
+    PRIVATE bld_import bld_edit bld_saveload bld_parts bld_core Qt6::Core Qt6::Gui)
+
 # LDraw .ldr/.dat/.mpd -> .bbm importer.
 add_executable(bld_ldraw_import bld_ldraw_import.cpp)
 target_link_libraries(bld_ldraw_import
