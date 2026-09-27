@@ -2,28 +2,32 @@
 
 ## Languages we ship
 
-Current target set (matches upstream BlueBrick's shipped set plus Japanese):
+Current target set (upstream BlueBrick's shipped languages plus Chinese and
+Japanese). Counts are strings with a translation, of 870:
 
-| Code | Language            | Status                                                    |
-|------|---------------------|-----------------------------------------------------------|
-| en   | English             | Base — built into `tr()`                                  |
-| fr   | French              | ~75 strings machine-seeded — needs native-speaker review |
-| de   | German              | ~75 strings machine-seeded — needs native-speaker review |
-| es   | Spanish             | ~75 strings machine-seeded — needs native-speaker review |
-| it   | Italian             | ~75 strings machine-seeded — needs native-speaker review |
-| nl   | Dutch               | ~75 strings machine-seeded — needs native-speaker review |
-| pt   | Portuguese          | ~75 strings machine-seeded — needs native-speaker review |
-| zh   | Chinese (Simplified)| ~75 strings machine-seeded — needs native-speaker review |
-| ja   | Japanese            | ~75 strings machine-seeded — needs native-speaker review |
+| Code | Language              | Translated | Source |
+|------|-----------------------|-----------:|--------|
+| en   | English               | —          | built into `tr()` |
+| de   | German                | 164        | BlueBrick's translators + seeded |
+| fr   | French                | 156        | BlueBrick's translators + seeded |
+| it   | Italian               | 160        | BlueBrick's translators + seeded |
+| nl   | Dutch                 | 158        | BlueBrick's translators + seeded |
+| pt   | Portuguese            | 157        | BlueBrick's translators + seeded |
+| es   | Spanish               | 152        | BlueBrick's translators + seeded |
+| sv   | Swedish               | 89         | BlueBrick's translators |
+| no   | Norwegian (Bokmål)    | 88         | BlueBrick's translators |
+| zh   | Chinese (Simplified)  | 72         | seeded |
+| ja   | Japanese              | 72         | seeded |
 
-The seeded translations cover menu titles, common dialog buttons, and
-the most-visible UI labels (top-level menu items, panel names, Yes/No/
-Cancel kinds of prompts). Error messages, tooltips, and formatted
-multi-arg strings are still `type="unfinished"` pending proper review.
-See [`scripts/apply-translations.py`](../scripts/apply-translations.py)
-for the translation dictionary — edit that file and rerun the script
-to extend coverage; the seeded strings are a starting point, not a
-finished product.
+"BlueBrick's translators" are strings identical to one of BlueBrick 1.9.2's,
+taken from its own translations by
+[`scripts/seed-from-bluebrick.py`](../scripts/seed-from-bluebrick.py)
+(pass it the BlueBrick source folder holding `MainForm.resx`; it only fills
+unfinished strings). "Seeded" are the machine-seeded menu and dialog basics
+from [`scripts/apply-translations.py`](../scripts/apply-translations.py) —
+those need native-speaker review. Everything else is still
+`type="unfinished"`: pull requests welcome. Norwegian uses the code `no`, as
+BlueBrick did; systems set to `nb` or `nn` pick it automatically.
 
 Each language has a `translations/bld_<code>.ts` file checked in.
 Running `lupdate` populates the file with every `tr()` call from the

@@ -95,7 +95,7 @@ endif()
 # few we want to cover going forward. Translators populate the .ts files via
 # `lupdate`; `lrelease` compiles them to .qm which the build installs next to
 # the binary. See docs/TRANSLATING.md.
-set(BLD_LANGUAGES fr de es it nl pt zh ja)
+set(BLD_LANGUAGES fr de es it nl pt sv no zh ja)
 
 set(BLD_TS_FILES "")
 foreach(_lang IN LISTS BLD_LANGUAGES)
