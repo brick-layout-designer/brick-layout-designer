@@ -6,6 +6,8 @@
 
 #include "MainWindow.h"
 #include "BudgetSession.h"
+
+#include "../edit/PartList.h"
 #include "../import/mapformats/LDrawMap.h"
 #include "../import/mapformats/FourDBrixMap.h"
 #include "../import/mapformats/TrackDesignerMap.h"
@@ -34,6 +36,7 @@
 #include <QFile>
 #include <QCheckBox>
 #include <QFileDialog>
+#include <QSaveFile>
 #include <QFileInfo>
 #include <QHash>
 #include <QMenu>
@@ -350,43 +353,56 @@ void MainWindow::onNew() {
 void MainWindow::onExportPartList() {
     auto* map = mapView_->currentMap();
     if (!map) return;
-    // Aggregate part counts across every brick layer. Output format mirrors
-    // vanilla's ExportPartList: "part number, count".
-    QHash<QString, int> counts;
-    for (const auto& L : map->layers()) {
-        if (!L || L->kind() != core::LayerKind::Brick) continue;
-        for (const auto& b : static_cast<const core::LayerBrick&>(*L).bricks) {
-            counts[b.partNumber]++;
-        }
-    }
-    if (counts.isEmpty()) {
+    QSettings settings;
+    edit::PartListOptions options;
+    options.splitPerLayer = settings.value(QStringLiteral("partList/splitPerLayer"), false).toBool();
+    options.includeHiddenLayers = settings.value(QStringLiteral("partList/includeHiddenLayers"), true).toBool();
+    options.budget = budget_->budget();
+    options.defaultBudgetIsInfinite = BudgetSession::defaultBudgetIsInfinite();
+    const auto groups = edit::buildPartList(*map, parts_, options);
+    if (groups.empty() || (groups.size() == 1 && groups.front().rows.empty())) {
         QMessageBox::information(this, tr("Export part list"),
             tr("The current layout contains no bricks."));
         return;
     }
-    const QString path = QFileDialog::getSaveFileName(
-        this, tr("Export part list"),
-        currentFilePath_.isEmpty()
-            ? QStringLiteral("parts.csv")
-            : QFileInfo(currentFilePath_).baseName() + ".csv",
-        tr("CSV (*.csv);;Text (*.txt)"));
+    // As BlueBrick: .txt and .csv by extension, HTML otherwise.
+    QString selectedFilter;
+    const QString base = currentFilePath_.isEmpty() ? QStringLiteral("parts") : QFileInfo(currentFilePath_).completeBaseName();
+    QString path = QFileDialog::getSaveFileName(
+        this, tr("Export part list"), base + QStringLiteral(".html"),
+        tr("HTML (*.html *.htm);;Text (*.txt);;CSV (*.csv)"), &selectedFilter);
     if (path.isEmpty()) return;
-    QFile f(path);
-    if (!f.open(QIODevice::WriteOnly | QIODevice::Text)) {
+    if (QFileInfo(path).suffix().isEmpty()) {
+        path += selectedFilter.contains(QStringLiteral("*.txt")) ? QStringLiteral(".txt")
+              : selectedFilter.contains(QStringLiteral("*.csv")) ? QStringLiteral(".csv")
+                                                                  : QStringLiteral(".html");
+    }
+    const QString suffix = QFileInfo(path).suffix().toLower();
+    const QString mapName = currentFilePath_.isEmpty() ? tr("Untitled.bbm") : QFileInfo(currentFilePath_).fileName();
+    const QString title = tr("Part List for file \"%1\"").arg(mapName);
+    const bool hasBudget = options.budget != nullptr;
+    QString text;
+    if (suffix == QLatin1String("txt")) {
+        text = edit::partListText(*map, groups, title, hasBudget);
+    } else if (suffix == QLatin1String("csv")) {
+        text = edit::partListCsv(groups, hasBudget);
+    } else {
+        text = edit::partListHtml(*map, groups, title, hasBudget, [this](const QString& part) {
+            const QPixmap pm = parts_.pixmap(part);
+            if (pm.isNull()) return QImage();
+            return pm.toImage().scaled(160, 160, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        });
+    }
+    QSaveFile f(path);
+    const QByteArray bytes = text.toUtf8();
+    if (!f.open(QIODevice::WriteOnly) || f.write(bytes) != bytes.size() || !f.commit()) {
         QMessageBox::warning(this, tr("Export failed"),
             tr("Cannot write %1: %2").arg(path, f.errorString()));
         return;
     }
-    QStringList keys = counts.keys(); std::sort(keys.begin(), keys.end());
-    f.write("PartNumber,Count\n");
-    int total = 0;
-    for (const QString& k : keys) {
-        f.write(QStringLiteral("%1,%2\n").arg(k).arg(counts[k]).toUtf8());
-        total += counts[k];
-    }
-    f.close();
-    statusBar()->showMessage(tr("Exported %1 unique parts, %2 total, to %3")
-        .arg(keys.size()).arg(total).arg(path), 5000);
+    int kinds = 0, total = 0;
+    for (const auto& g : groups) { kinds += static_cast<int>(g.rows.size()); total += g.total.count; }
+    statusBar()->showMessage(tr("Exported %1 part rows, %2 bricks, to %3").arg(kinds).arg(total).arg(path), 5000);
 }
 
 void MainWindow::onAbout() {

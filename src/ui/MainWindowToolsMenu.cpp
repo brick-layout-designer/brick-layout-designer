@@ -21,6 +21,8 @@
 #include "DownloadCenterDialog.h"
 
 #include <QAction>
+
+#include <tuple>
 #include <QDir>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -66,8 +68,19 @@ void MainWindow::setupToolsMenu() {
     batchAct->setToolTip(tr("Turn many LDraw / Studio / LDD files into library parts at once"));
     connect(batchAct, &QAction::triggered, this, &MainWindow::onBatchImport);
 
-    auto* partListAct = tools->addAction(tr("Export &Part List (CSV)..."));
+    // Part list (BlueBrick's part usage export): HTML, text or CSV.
+    auto* partListMenu = tools->addMenu(tr("&Part List"));
+    auto* partListAct = partListMenu->addAction(tr("&Export Part List..."));
     connect(partListAct, &QAction::triggered, this, &MainWindow::onExportPartList);
+    partListMenu->addSeparator();
+    for (auto [label, key, def] : { std::tuple{ tr("&Split by Layer"), "partList/splitPerLayer", false },
+                                     std::tuple{ tr("Include &Hidden Layers"), "partList/includeHiddenLayers", true } }) {
+        auto* opt = partListMenu->addAction(label);
+        opt->setCheckable(true);
+        const QString settingsKey = QLatin1String(key);
+        opt->setChecked(QSettings().value(settingsKey, def).toBool());
+        connect(opt, &QAction::toggled, this, [settingsKey](bool on){ QSettings().setValue(settingsKey, on); });
+    }
 
     tools->addSeparator();
     auto* dlAct = tools->addAction(tr("&Download Additional Parts..."));
