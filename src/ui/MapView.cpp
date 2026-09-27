@@ -791,9 +791,10 @@ void MapView::mouseReleaseEvent(QMouseEvent* e) {
         if (finalStuds != rulerEndpointOriginalStuds_) {
             undoStack_->push(new edit::MoveRulerEndpointCommand(
                 *map_, rulerEndpointLayer_, rulerEndpointGuid_,
-                rulerEndpointIndex_, finalStuds));
+                rulerEndpointIndex_, finalStuds));  // the undo handler rebuilds
+        } else {
+            rebuildScene();  // put back the live-dragged ruler
         }
-        rebuildScene();
         // Reselect the ruler so subsequent endpoint drags work.
         for (QGraphicsItem* it : scene()->items()) {
             if (it->data(2).toString() == QStringLiteral("ruler")
@@ -2208,7 +2209,6 @@ void MapView::dropEvent(QDropEvent* e) {
             *map_, bbmPath, name, std::move(batches));
         undoStack_->push(cmd);
         const auto placed = cmd->placedBricks();
-        rebuildScene();
         // Select every just-placed brick so R / Shift+R rotate the
         // freshly-dropped module, and arrow keys nudge it. Without this
         // the user has to rubber-band-select after every drop to do

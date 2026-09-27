@@ -215,20 +215,17 @@ void MapView::contextMenuEvent(QContextMenuEvent* e) {
             connect(a, &QAction::triggered, [this, layer, rulerGuid, brickGuid]{
                 undoStack_->push(new edit::AttachRulerCommand(
                     *map_, layer, rulerGuid, 0, brickGuid));
-                rebuildScene();
             });
         } else {
             auto* a1 = menu.addAction(tr("Attach Ruler Endpoint &1 to This Brick"));
             connect(a1, &QAction::triggered, [this, layer, rulerGuid, brickGuid]{
                 undoStack_->push(new edit::AttachRulerCommand(
                     *map_, layer, rulerGuid, 0, brickGuid));
-                rebuildScene();
             });
             auto* a2 = menu.addAction(tr("Attach Ruler Endpoint &2 to This Brick"));
             connect(a2, &QAction::triggered, [this, layer, rulerGuid, brickGuid]{
                 undoStack_->push(new edit::AttachRulerCommand(
                     *map_, layer, rulerGuid, 1, brickGuid));
-                rebuildScene();
             });
         }
         menu.addSeparator();

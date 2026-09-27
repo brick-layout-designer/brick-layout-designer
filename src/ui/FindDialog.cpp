@@ -168,7 +168,6 @@ FindDialog::FindDialog(MapView& view, QWidget* parent)
             }
         }
         view.undoStack()->endMacro();
-        view.rebuildScene();
         status->setText(QObject::tr("Replaced %1 occurrence(s).").arg(replaced));
     };
     connect(replaceBtn, &QPushButton::clicked, this, [doReplace]{ doReplace(false); });

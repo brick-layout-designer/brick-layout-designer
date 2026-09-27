@@ -56,7 +56,6 @@ void MainWindow::setupMapMenu() {
         if (!c.isValid()) return;
         mapView_->undoStack()->push(new edit::ChangeBackgroundColorCommand(
             *m, core::ColorSpec::fromArgb(c)));
-        mapView_->rebuildScene();
         mapView_->scene()->setBackgroundBrush(c);
     });
     auto* bgImgAct = mapMenu->addAction(tr("Background &Image..."));
@@ -193,7 +192,6 @@ void MainWindow::setupMapMenu() {
             v.edges.push_back(e);
         }
         mapView_->undoStack()->push(new edit::SetVenueCommand(*m, std::make_optional(v)));
-        mapView_->rebuildScene();
         statusBar()->showMessage(
             tr("Venue outline built from %1 segments").arg(poly.size()), 3000);
     });
@@ -223,7 +221,6 @@ void MainWindow::setupMapMenu() {
         } else {
             mapView_->undoStack()->push(new edit::SetVenueCommand(*m, dlg.result()));
         }
-        mapView_->rebuildScene();
     });
     auto* clearVenueAct = venueMenu->addAction(tr("&Clear Venue"));
     connect(clearVenueAct, &QAction::triggered, this, [this]{
@@ -233,7 +230,6 @@ void MainWindow::setupMapMenu() {
             tr("Remove the venue from this project?"));
         if (btn != QMessageBox::Yes) return;
         mapView_->undoStack()->push(new edit::SetVenueCommand(*m, std::nullopt));
-        mapView_->rebuildScene();
     });
 
     venueMenu->addSeparator();
@@ -265,7 +261,6 @@ void MainWindow::setupMapMenu() {
             if (btn != QMessageBox::Yes) return;
         }
         mapView_->undoStack()->push(new edit::SetVenueCommand(*m, venue));
-        mapView_->rebuildScene();
     });
 }
 

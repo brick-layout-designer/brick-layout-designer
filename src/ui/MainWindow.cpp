@@ -124,19 +124,16 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
         if (!mapView_->currentMap()) return;
         mapView_->undoStack()->push(new edit::AddLayerCommand(*mapView_->currentMap(), k));
         layerPanel_->setMap(mapView_->currentMap(), mapView_->builder());
-        mapView_->rebuildScene();
     });
     connect(layerPanel_, &LayerPanel::deleteLayerRequested, this, [this](int idx){
         if (!mapView_->currentMap()) return;
         mapView_->undoStack()->push(new edit::DeleteLayerCommand(*mapView_->currentMap(), idx));
         layerPanel_->setMap(mapView_->currentMap(), mapView_->builder());
-        mapView_->rebuildScene();
     });
     connect(layerPanel_, &LayerPanel::moveLayerRequested, this, [this](int idx, int delta){
         if (!mapView_->currentMap()) return;
         mapView_->undoStack()->push(new edit::MoveLayerCommand(*mapView_->currentMap(), idx, delta));
         layerPanel_->setMap(mapView_->currentMap(), mapView_->builder());
-        mapView_->rebuildScene();
     });
     connect(layerPanel_, &LayerPanel::renameLayerRequested, this, [this](int idx, const QString& name){
         if (!mapView_->currentMap()) return;
@@ -319,7 +316,6 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
             if (btn != QMessageBox::Yes) return;
         }
         mapView_->undoStack()->push(new edit::SetVenueCommand(*m, std::make_optional(v)));
-        mapView_->rebuildScene();
         statusBar()->showMessage(tr("Loaded venue \"%1\"").arg(v.name), 3000);
     });
     connect(venueLibraryPanel_, &VenueLibraryPanel::venueSaveRequested,
@@ -375,7 +371,6 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
         if (!mapView_->currentMap() || (dx == 0 && dy == 0)) return;
         mapView_->undoStack()->push(new edit::MoveModuleCommand(
             *mapView_->currentMap(), id, QPointF(dx, dy)));
-        mapView_->rebuildScene();
     });
 
     connect(modulesPanel_, &ModulesPanel::rotateRequested, this,
@@ -383,7 +378,6 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
         if (!mapView_->currentMap()) return;
         mapView_->undoStack()->push(new edit::RotateModuleCommand(
             *mapView_->currentMap(), parts_, id, deg));
-        mapView_->rebuildScene();
     });
 
     connect(modulesPanel_, &ModulesPanel::flattenRequested, this, [this](const QString& id){
@@ -430,7 +424,6 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
         if (!bb.isEmpty()) offset = QPointF(bb.width() + 2.0, 0.0);
         mapView_->undoStack()->push(new edit::CloneModuleCommand(
             *map, id, offset, QString()));
-        mapView_->rebuildScene();
         modulesPanel_->setMap(map);
         statusBar()->showMessage(tr("Module cloned"), 3000);
     });
@@ -606,7 +599,6 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
         }
         mapView_->undoStack()->push(new edit::RescanModuleCommand(
             *map, targetLayer, id, std::move(fresh)));
-        mapView_->rebuildScene();
         modulesPanel_->setMap(map);
     });
 
@@ -1331,7 +1323,6 @@ void MainWindow::onImportModuleFromLibraryPath(const QString& bbmPath) {
     const QString name = QFileInfo(bbmPath).baseName();
     mapView_->undoStack()->push(new edit::ImportBbmAsModuleCommand(
         *map, bbmPath, name, std::move(batches)));
-    mapView_->rebuildScene();
     modulesPanel_->setMap(map);
     layerPanel_->setMap(map, mapView_->builder());
     statusBar()->showMessage(
@@ -1362,7 +1353,6 @@ void MainWindow::onImportBbmAsModule() {
     const QString name = QFileInfo(path).baseName();
     mapView_->undoStack()->push(new edit::ImportBbmAsModuleCommand(
         *map, path, name, std::move(batches)));
-    mapView_->rebuildScene();
     modulesPanel_->setMap(map);
     layerPanel_->setMap(map, mapView_->builder());
     statusBar()->showMessage(
