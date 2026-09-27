@@ -29,6 +29,22 @@ xvfb-run -a wine bbflex.exe in.bbm out.bbm <brick id> <grab x> <grab y> <x1> <y1
 `flex-a/b/c.bbm` were made from `flex-in.bbm` this way (see
 `tests/ui/FlexMoveTest.cpp` for the arguments).
 
+## Compatibility check
+
+`compat.sh` runs on every pull request (the *Vanilla BlueBrick compatibility*
+job, with native Mono) and can be run locally:
+
+```sh
+scripts/bluebrick-oracle/compat.sh <BlueBrick dir with bbconv.exe> build/src/app/bld_convert parts/BlueBrickParts/parts
+BB_RUNNER=wine scripts/bluebrick-oracle/compat.sh ...   # under Wine instead of Mono
+```
+
+For each map in `fixtures/` it checks that vanilla reads the `.bbm` we save
+as the same bricks and links, and that our `.ldr`, `.mpd`, `.tdl` and `.ncp`
+exports read back in vanilla exactly like vanilla's own. Give the BlueBrick
+copy this repository's parts library so both sides see the same parts.
+`bld_convert` (built with the app) does the converting and comparing.
+
 Known BlueBrick behaviours the tests allow for:
 
 - The LDraw header names the map "Untitled" (the harness never sets a file name).

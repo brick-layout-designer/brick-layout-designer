@@ -135,3 +135,51 @@ jobs:
         with:
           name: fuzz-artifacts
           path: build-fuzz/fuzz-artifacts
+
+  bluebrick-compat:
+    # Vanilla BlueBrick 1.9.2 (native Mono) must read what we write and
+    # agree with our exports (scripts/bluebrick-oracle/compat.sh).
+    name: Vanilla BlueBrick compatibility
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.7.*'
+          cache: true
+
+      - name: Compiler cache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: bluebrick-compat
+          max-size: 500M
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1-mesa-dev libxkbcommon-dev libcups2-dev ninja-build mono-complete xvfb
+
+      - name: Get BlueBrick 1.9.2
+        run: |
+          curl -fsSL -o bluebrick.zip https://bluebrick.lswproject.com/download/BlueBrick.1.9.2.zip
+          echo "4e0682a9083b4026cbf2a03e71dc9e8b3865cc72e3beac65c299197c7e492847  bluebrick.zip" | sha256sum -c
+          unzip -q bluebrick.zip -d bluebrick
+          # Both sides use this repository's parts library.
+          rm -rf bluebrick/parts
+          cp -r parts/BlueBrickParts/parts bluebrick/parts
+          mcs -out:bluebrick/bbconv.exe -r:System.Windows.Forms.dll scripts/bluebrick-oracle/bbconv.cs
+
+      - name: Build bld-convert
+        run: |
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          cmake --build build --target bld_convert
+
+      - name: Compare with vanilla BlueBrick
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: scripts/bluebrick-oracle/compat.sh bluebrick build/src/app/bld_convert parts/BlueBrickParts/parts
