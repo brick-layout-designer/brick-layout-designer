@@ -17,6 +17,7 @@
 #include "PartUsagePanel.h"
 
 #include "../core/Map.h"
+#include "../parts/BrickPlacement.h"
 #include "../parts/PartsLibrary.h"
 #include "../core/Brick.h"
 #include "../core/Ids.h"
@@ -367,7 +368,7 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
             [this](const QString& id, double deg){
         if (!mapView_->currentMap()) return;
         mapView_->undoStack()->push(new edit::RotateModuleCommand(
-            *mapView_->currentMap(), id, deg));
+            *mapView_->currentMap(), parts_, id, deg));
         mapView_->rebuildScene();
     });
 
@@ -563,6 +564,7 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
                 tr("Could not read %1: %2").arg(mod->sourceFile, res.error));
             return;
         }
+        parts::placement::fixStaleAreas(*res.map, parts_);
         // Find the target layer (first brick layer currently holding a member).
         int targetLayer = -1;
         for (int li = 0; li < static_cast<int>(map->layers().size()); ++li) {
@@ -1195,18 +1197,13 @@ void MainWindow::onSaveSelectionAsSet() {
         return;
     }
 
-    // BB stores each subpart's sp.position as its ROTATED HULL BBOX
-    // CENTRE. Our bricks live at image-centre coords (displayArea.center),
-    // so we back-compute the hull centre per brick via the same mOffset
-    // we apply during set expansion in MapView's set branch.
+    // BlueBrick stores each subpart's sp.position as its displayArea
+    // centre (Brick.Center).
     std::vector<QPointF> hullCentres;
     hullCentres.reserve(picks.size());
     double sumX = 0.0, sumY = 0.0;
     for (const auto& p : picks) {
-        const QPointF imgCentre = p.brick.displayArea.center();
-        const QPointF mOffset = parts_.hullBboxOffsetStuds(
-            p.brick.partNumber, p.brick.orientation);
-        const QPointF hullCentre = imgCentre - mOffset;
+        const QPointF hullCentre = p.brick.displayArea.center();
         hullCentres.push_back(hullCentre);
         sumX += hullCentre.x();
         sumY += hullCentre.y();
@@ -1319,6 +1316,7 @@ void MainWindow::onImportModuleFromLibraryPath(const QString& bbmPath) {
         QMessageBox::warning(this, tr("Import failed"), loaded.error);
         return;
     }
+    parts::placement::fixStaleAreas(*loaded.map, parts_);
     auto batches = batchesFromModuleMap(*loaded.map);
     if (batches.empty()) return;
     int total = 0;
@@ -1345,6 +1343,7 @@ void MainWindow::onImportBbmAsModule() {
         QMessageBox::warning(this, tr("Import failed"), loaded.error);
         return;
     }
+    parts::placement::fixStaleAreas(*loaded.map, parts_);
     auto batches = batchesFromModuleMap(*loaded.map);
     if (batches.empty()) {
         QMessageBox::information(this, tr("Import module"),

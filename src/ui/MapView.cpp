@@ -17,6 +17,7 @@
 #include "../edit/TextCommands.h"
 #include "../edit/VenueCommands.h"
 #include "../core/Venue.h"
+#include "../parts/BrickPlacement.h"
 #include "../parts/PartsLibrary.h"
 #include "../rendering/SceneBuilder.h"
 #include "ConnectionSnap.h"
@@ -254,6 +255,7 @@ void MapView::loadMap(std::unique_ptr<core::Map> map) {
     if (!map_) { builder_->clear(); return; }
 
     scene()->setBackgroundBrush(map_->backgroundColor.color);
+    parts::placement::fixStaleAreas(*map_, parts_);
     // Freshly-loaded .bbm may have stale linkedToId values (the file
     // stores the last known state, which can disagree with current world
     // positions after e.g. external edits). Rebuild the connection graph
@@ -1042,10 +1044,10 @@ void MapView::nudgeSelected(double dxStuds, double dyStuds) {
 
 void MapView::rotateSelected(float degrees) {
     if (!map_) return;
-    // Collect every selected brick's current state so we can compute the
-    // group centroid. Single-brick rotation is a special case where the
-    // centroid IS the brick's centre, so the position update is a no-op.
-    struct Hit { int li; QString guid; QPointF centre; QSizeF size; float orientation; };
+    // Every selected brick turns around the selection's pivot: for a single
+    // brick that's its own sprite centre (BlueBrick's pivot), so it turns
+    // in place. The displayArea follows the rotated hull.
+    struct Hit { int li; const core::Brick* brick; QPointF centre; };
     std::vector<Hit> hits;
     for (QGraphicsItem* it : scene()->selectedItems()) {
         if (!isBrickItem(it)) continue;
@@ -1056,55 +1058,32 @@ void MapView::rotateSelected(float degrees) {
         if (!L || L->kind() != core::LayerKind::Brick) continue;
         for (const auto& b : static_cast<core::LayerBrick&>(*L).bricks) {
             if (b.guid != guid) continue;
-            hits.push_back({ li, guid, b.displayArea.center(),
-                             b.displayArea.size(), b.orientation });
+            hits.push_back({ li, &b, parts::placement::imageCentre(b, parts_) });
             break;
         }
     }
     if (hits.empty()) return;
 
-    // Centroid in stud coords. For multi-selection this is the pivot we
-    // rotate around; for single selection it equals the brick's centre
-    // so movement-delta is zero.
     QPointF pivot(0, 0);
     for (const auto& h : hits) pivot += h.centre;
     pivot /= hits.size();
 
-    const double rad = degrees * M_PI / 180.0;
-    const double c = std::cos(rad), s = std::sin(rad);
-
-    std::vector<edit::MoveBricksCommand::Entry>    moves;
-    std::vector<edit::RotateBricksCommand::Entry>  rotates;
+    std::vector<edit::RotateBricksCommand::Entry> rotates;
     for (const auto& h : hits) {
+        core::Brick turned = *h.brick;
+        turned.orientation = h.brick->orientation + degrees;
+        parts::placement::placeByImageCentre(
+            turned, pivot + parts::placement::rotated(h.centre - pivot, degrees), parts_);
         edit::RotateBricksCommand::Entry r;
         r.ref.layerIndex = h.li;
-        r.ref.guid = h.guid;
-        r.beforeOrientation = h.orientation;
-        r.afterOrientation  = h.orientation + degrees;
+        r.ref.guid = h.brick->guid;
+        r.beforeOrientation = h.brick->orientation;
+        r.afterOrientation  = turned.orientation;
+        r.beforeArea = h.brick->displayArea;
+        r.afterArea  = turned.displayArea;
         rotates.push_back(r);
-
-        const QPointF rel = h.centre - pivot;
-        const QPointF rotated(rel.x() * c - rel.y() * s, rel.x() * s + rel.y() * c);
-        const QPointF newCentre = pivot + rotated;
-        const QPointF delta = newCentre - h.centre;
-        if (std::abs(delta.x()) > 1e-6 || std::abs(delta.y()) > 1e-6) {
-            edit::MoveBricksCommand::Entry m;
-            m.ref.layerIndex = h.li;
-            m.ref.guid = h.guid;
-            m.beforeTopLeft = h.centre - QPointF(h.size.width() / 2.0, h.size.height() / 2.0);
-            m.afterTopLeft  = newCentre - QPointF(h.size.width() / 2.0, h.size.height() / 2.0);
-            moves.push_back(m);
-        }
     }
-
-    if (moves.empty()) {
-        undoStack_->push(new edit::RotateBricksCommand(*map_, std::move(rotates)));
-    } else {
-        undoStack_->beginMacro(tr("Rotate %1°").arg(degrees, 0, 'f', 1));
-        undoStack_->push(new edit::MoveBricksCommand(*map_, std::move(moves)));
-        undoStack_->push(new edit::RotateBricksCommand(*map_, std::move(rotates)));
-        undoStack_->endMacro();
-    }
+    undoStack_->push(new edit::RotateBricksCommand(*map_, std::move(rotates)));
     // Selection is preserved automatically by the undoStack indexChanged
     // handler, which rebuilds the scene + reselects every item by guid.
 }
@@ -1167,7 +1146,7 @@ void MapView::resolvePartPlacement(const QString& partKey, QPointF cursorScenePx
         if (anchor) {
             auto anchorMeta = parts_.metadata(anchor->partNumber);
             if (anchorMeta) {
-                const QPointF anchorCenter = anchor->displayArea.center();
+                const QPointF anchorCenter = parts::placement::imageCentre(*anchor, parts_);
                 const double rA = anchor->orientation * M_PI / 180.0;
                 const double caA = std::cos(rA), saA = std::sin(rA);
                 for (int i = 0; i < anchorMeta->connections.size(); ++i) {
@@ -1241,11 +1220,17 @@ void MapView::resolvePartPlacement(const QString& partKey, QPointF cursorScenePx
             centreStuds = newCenter;
             snapped = true;
         } else if (snapStepStuds_ > 0.0) {
-            QPointF topLeft(centreStuds.x() - widthStuds / 2.0,
-                            centreStuds.y() - heightStuds / 2.0);
+            // Snap the displayArea's corner, as for placed bricks.
+            core::Brick probe;
+            probe.partNumber = partKey;
+            probe.orientation = orientation;
+            probe.displayArea = QRectF(0, 0, widthStuds, heightStuds);
+            parts::placement::placeByImageCentre(probe, centreStuds, parts_);
+            QPointF topLeft = probe.displayArea.topLeft();
             topLeft.setX(std::round(topLeft.x() / snapStepStuds_) * snapStepStuds_);
             topLeft.setY(std::round(topLeft.y() / snapStepStuds_) * snapStepStuds_);
-            centreStuds = topLeft + QPointF(widthStuds / 2.0, heightStuds / 2.0);
+            probe.displayArea.moveTopLeft(topLeft);
+            centreStuds = parts::placement::imageCentre(probe, parts_);
         }
     }
 
@@ -1291,45 +1276,18 @@ void MapView::addPartAtScenePos(const QString& partKey, QPointF sceneCenterPx) {
             undoStack_->beginMacro(tr("Place set %1").arg(partKey));
             std::vector<edit::CreateModuleCommand::Member> members;
             for (const auto& sp : meta->subparts) {
-                auto subMeta = parts_.metadata(sp.subKey);
-                double wStuds = 2.0, hStuds = 2.0;
-                if (subMeta && !subMeta->gifFilePath.isEmpty()) {
-                    QPixmap pm(subMeta->gifFilePath);
-                    if (!pm.isNull()) {
-                        const double subPxPerStud = (subMeta->pxPerStud > 0)
-                            ? subMeta->pxPerStud : 8.0;
-                        wStuds = pm.width()  / subPxPerStud;
-                        hStuds = pm.height() / subPxPerStud;
-                    }
-                }
-                // BlueBrick convention (verified against MapData/
-                // BrickLibrary.cs::readSubPartListTag + LayerBrickBrick.cs
-                // ::init + updateConnectionPosition): sp.position is the
-                // ROTATED HULL BBOX CENTER for that subpart in set-local
-                // studs. Our render/connectivity code works on the IMAGE
-                // BBOX CENTER (pixmap rotates around its own center and
-                // conn world positions = displayArea.center + rotated
-                // connXMLpos). For asymmetric hulls (curves, switches) at
-                // off-axis rotations the image bbox center and hull bbox
-                // center diverge — that's the mOffsetFromOriginalImage
-                // BlueBrick applies in updateConnectionPosition. Computing
-                // the same offset here and adding it to subCentre is what
-                // makes the tracks line up properly when the set contains
-                // rotated curves/switches.
+                // As BlueBrick's Group constructor: sp.position is the
+                // subpart's displayArea centre (Brick.Center) in set-local
+                // studs; parts with an XML hull draw their sprite off it.
                 double orientDeg = sp.angleDegrees;
                 orientDeg = std::fmod(orientDeg, 360.0);
                 if (orientDeg >  180.0) orientDeg -= 360.0;
                 if (orientDeg <= -180.0) orientDeg += 360.0;
-                const QPointF mOffsetStuds = parts_.hullBboxOffsetStuds(
-                    sp.subKey, orientDeg);
-                const QPointF subCentre = centreStuds + sp.position + mOffsetStuds;
                 core::Brick b;
                 b.guid = core::newBbmId();
                 b.partNumber = sp.subKey;
-                b.displayArea = QRectF(subCentre.x() - wStuds / 2.0,
-                                       subCentre.y() - hStuds / 2.0,
-                                       wStuds, hStuds);
                 b.orientation = static_cast<float>(orientDeg);
+                parts::placement::placeByAreaCentre(b, centreStuds + sp.position, parts_);
                 members.push_back({ targetLayer, b.guid });
                 undoStack_->push(new edit::AddBrickCommand(*map_, targetLayer, std::move(b)));
             }
@@ -1361,13 +1319,6 @@ void MapView::addPartAtScenePos(const QString& partKey, QPointF sceneCenterPx) {
         }
     }
 
-    QPixmap pm = parts_.pixmap(partKey);
-    auto placeMeta = parts_.metadata(partKey);
-    const double placePartPxPerStud = (placeMeta && placeMeta->pxPerStud > 0)
-        ? placeMeta->pxPerStud : 8.0;
-    const double widthStuds  = pm.isNull() ? 2.0 : pm.width()  / placePartPxPerStud;
-    const double heightStuds = pm.isNull() ? 2.0 : pm.height() / placePartPxPerStud;
-
     QPointF centreStuds;
     float   orientation = 0.0f;
     bool    connectionSnapped = false;
@@ -1377,10 +1328,8 @@ void MapView::addPartAtScenePos(const QString& partKey, QPointF sceneCenterPx) {
     core::Brick b;
     b.guid = core::newBbmId();
     b.partNumber = partKey;
-    b.displayArea = QRectF(centreStuds.x() - widthStuds / 2.0,
-                            centreStuds.y() - heightStuds / 2.0,
-                            widthStuds, heightStuds);
     b.orientation = orientation;
+    parts::placement::placeByImageCentre(b, centreStuds, parts_);
 
     const QString newGuid = b.guid;
     undoStack_->push(new edit::AddBrickCommand(*map_, targetLayer, std::move(b)));  // indexChanged handler rebuilds the scene
@@ -1805,6 +1754,7 @@ void MapView::updateModuleDragPreview(const QString& bbmPath, QPointF cursorScen
         clearDragPreview();
         auto res = saveload::readBbm(bbmPath);
         if (!res.ok() || !res.map) return;
+        parts::placement::fixStaleAreas(*res.map, parts_);
 
         const double pxPerStud = rendering::SceneBuilder::kPixelsPerStud;
 
@@ -1911,6 +1861,7 @@ void MapView::dropEvent(QDropEvent* e) {
         if (bbmPath.isEmpty()) { e->ignore(); return; }
         auto res = saveload::readBbm(bbmPath);
         if (!res.ok()) { e->ignore(); return; }
+        parts::placement::fixStaleAreas(*res.map, parts_);
         const double px = rendering::SceneBuilder::kPixelsPerStud;
 
         // Build per-layer batches (preserves the module's z-order /
@@ -1977,7 +1928,7 @@ void MapView::dropEvent(QDropEvent* e) {
                 for (const auto& b : batch.bricks) {
                     auto meta = parts_.metadata(b.partNumber);
                     if (!meta) continue;
-                    const QPointF cen = b.displayArea.center();
+                    const QPointF cen = parts::placement::imageCentre(b, parts_);
                     const int n = meta->connections.size();
                     for (int i = 0; i < n; ++i) {
                         const auto& c = meta->connections[i];
@@ -2006,7 +1957,7 @@ void MapView::dropEvent(QDropEvent* e) {
                 for (const auto& tb : BL.bricks) {
                     auto tmeta = parts_.metadata(tb.partNumber);
                     if (!tmeta) continue;
-                    const QPointF tCen = tb.displayArea.center();
+                    const QPointF tCen = parts::placement::imageCentre(tb, parts_);
                     const int nT = tmeta->connections.size();
                     for (int tci = 0; tci < nT; ++tci) {
                         const auto& tc = tmeta->connections[tci];

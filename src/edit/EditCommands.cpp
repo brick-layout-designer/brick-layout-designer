@@ -62,13 +62,19 @@ RotateBricksCommand::RotateBricksCommand(core::Map& map, std::vector<Entry> entr
 
 void RotateBricksCommand::redo() {
     for (const auto& e : entries_) {
-        if (auto* b = findBrick(map_, e.ref)) b->orientation = e.afterOrientation;
+        if (auto* b = findBrick(map_, e.ref)) {
+            b->orientation = e.afterOrientation;
+            if (!e.afterArea.isNull()) b->displayArea = e.afterArea;
+        }
     }
 }
 
 void RotateBricksCommand::undo() {
     for (const auto& e : entries_) {
-        if (auto* b = findBrick(map_, e.ref)) b->orientation = e.beforeOrientation;
+        if (auto* b = findBrick(map_, e.ref)) {
+            b->orientation = e.beforeOrientation;
+            if (!e.afterArea.isNull()) b->displayArea = e.beforeArea;
+        }
     }
 }
 

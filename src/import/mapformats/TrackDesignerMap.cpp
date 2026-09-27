@@ -1,6 +1,6 @@
 #include "TrackDesignerMap.h"
 
-#include "BrickPlacement.h"
+#include "../../parts/BrickPlacement.h"
 
 #include "../../core/Ids.h"
 #include "../../core/LayerBrick.h"
@@ -206,12 +206,12 @@ MapReadResult readTrackDesignerMap(const QString& path, parts::PartsLibrary& lib
         if (!meta->connections.isEmpty()) {
             // Parts with connections are positioned by their active one.
             b.orientation = static_cast<float>(angle) + diff;
-            placement::placeByConnection(b, b.activeConnectionPointIndex, QPointF(x, y), lib);
+            parts::placement::placeByConnection(b, b.activeConnectionPointIndex, QPointF(x, y), lib);
         } else {
             // Otherwise TD's origin is the middle of the part's left edge.
             const auto fpTd = lib.footprint(b.partNumber, diff);
             const double width = fpTd ? fpTd->size.width() : 2.0;
-            const QPointF toCentre = placement::rotated(QPointF(width / 2.0, 0.0), angle);
+            const QPointF toCentre = parts::placement::rotated(QPointF(width / 2.0, 0.0), angle);
             b.orientation = static_cast<float>(angle) + diff;
             const auto fp = lib.footprint(b.partNumber, b.orientation);
             const QSizeF size = fp ? fp->size : QSizeF(2, 2);
@@ -230,8 +230,8 @@ MapReadResult readTrackDesignerMap(const QString& path, parts::PartsLibrary& lib
                 ramp.partNumber = partNumberOf(*rampMeta);
                 ramp.activeConnectionPointIndex = up ? 0 : 1;
                 ramp.orientation = connectedOrientation(b, *meta, *rampMeta, ramp.activeConnectionPointIndex);
-                placement::placeByConnection(ramp, ramp.activeConnectionPointIndex,
-                                             placement::connectionWorld(b, b.activeConnectionPointIndex, lib), lib);
+                parts::placement::placeByConnection(ramp, ramp.activeConnectionPointIndex,
+                                             parts::placement::connectionWorld(b, b.activeConnectionPointIndex, lib), lib);
                 layer->push_back(b);
                 layer->push_back(ramp);
                 continue;
@@ -351,12 +351,12 @@ bool writeTrackDesignerMap(const core::Map& map, const QString& path, parts::Par
                 double orientation = static_cast<double>(b.orientation - diff);
                 QPointF position;
                 if (!meta->connections.isEmpty() && connectionIndex < meta->connections.size()) {
-                    position = placement::connectionWorld(b, connectionIndex, lib);
+                    position = parts::placement::connectionWorld(b, connectionIndex, lib);
                 } else {
                     position = b.displayArea.center();
                     const auto fpTd = lib.footprint(b.partNumber, diff);
                     const double width = fpTd ? fpTd->size.width() : b.displayArea.width();
-                    position -= placement::rotated(QPointF(width / 2.0, 0.0), orientation);
+                    position -= parts::placement::rotated(QPointF(width / 2.0, 0.0), orientation);
                 }
                 while (orientation < 0.0) orientation += 360.0;
                 while (orientation >= 360.0) orientation -= 360.0;

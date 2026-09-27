@@ -3,6 +3,7 @@
 #include "../../core/Brick.h"
 #include "../../core/LayerBrick.h"
 #include "../../core/Map.h"
+#include "../../parts/BrickPlacement.h"
 #include "../../parts/PartsLibrary.h"
 #include "LDrawLibrary.h"
 #include "LDrawMeshLoader.h"
@@ -243,12 +244,18 @@ std::unique_ptr<core::Map> toBlueBrickMap(const LDrawReadResult& src,
 
         const double xStuds = x / kLduPerStud;
         const double yStuds = y / kLduPerStud;
-        // displayArea's centre is the image centre; its size is refined
-        // from the sprite at render time, so a 2x2 placeholder is fine.
-        constexpr double defaultStuds = 2.0;
-        b.displayArea = QRectF(xStuds - defaultStuds / 2.0,
-                                yStuds - defaultStuds / 2.0,
-                                defaultStuds, defaultStuds);
+        // (x, y) is the sprite centre. Without a library, parts get a
+        // 2x2 placeholder centred on it.
+        if (lib) {
+            // Only fills the library's sprite cache.
+            parts::placement::placeByImageCentre(b, QPointF(xStuds, yStuds),
+                                                 const_cast<parts::PartsLibrary&>(*lib));
+        } else {
+            constexpr double defaultStuds = 2.0;
+            b.displayArea = QRectF(xStuds - defaultStuds / 2.0,
+                                    yStuds - defaultStuds / 2.0,
+                                    defaultStuds, defaultStuds);
+        }
         layer->bricks.push_back(std::move(b));
     }
 

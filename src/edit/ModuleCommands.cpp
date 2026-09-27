@@ -5,6 +5,7 @@
 #include "../core/LayerBrick.h"
 #include "../core/Map.h"
 #include "../core/Sidecar.h"
+#include "../parts/BrickPlacement.h"
 
 #include <QDateTime>
 #include <QObject>
@@ -116,9 +117,9 @@ void MoveModuleCommand::undo() {
 
 // ----- RotateModuleCommand -----
 
-RotateModuleCommand::RotateModuleCommand(core::Map& map, QString moduleId, double degrees,
-                                         QUndoCommand* parent)
-    : QUndoCommand(parent), map_(map), moduleId_(std::move(moduleId)), degrees_(degrees) {
+RotateModuleCommand::RotateModuleCommand(core::Map& map, parts::PartsLibrary& lib, QString moduleId,
+                                         double degrees, QUndoCommand* parent)
+    : QUndoCommand(parent), map_(map), lib_(lib), moduleId_(std::move(moduleId)), degrees_(degrees) {
     setText(QObject::tr("Rotate module %1°").arg(degrees_, 0, 'f', 1));
 }
 
@@ -136,7 +137,7 @@ void RotateModuleCommand::redo() {
             if (!L) continue;
             for (const auto& b : L->bricks) {
                 if (mod.memberIds.contains(b.guid)) {
-                    before_.push_back({ li, b.guid, b.displayArea.topLeft(), b.orientation });
+                    before_.push_back({ li, b.guid, b.displayArea, b.orientation });
                 }
             }
         }
@@ -144,7 +145,7 @@ void RotateModuleCommand::redo() {
     }
     if (before_.empty()) return;
 
-    // Module centre: centroid of member displayArea centres (stud coords).
+    // Module centre: centroid of member sprite centres (stud coords).
     QPointF centroid(0, 0);
     int count = 0;
     for (int li = 0; li < static_cast<int>(map_.layers().size()); ++li) {
@@ -152,7 +153,7 @@ void RotateModuleCommand::redo() {
         if (!L) continue;
         for (const auto& b : L->bricks) {
             if (mod.memberIds.contains(b.guid)) {
-                centroid += b.displayArea.center();
+                centroid += parts::placement::imageCentre(b, lib_);
                 ++count;
             }
         }
@@ -168,15 +169,12 @@ void RotateModuleCommand::redo() {
         if (!L) continue;
         for (auto& b : L->bricks) {
             if (!mod.memberIds.contains(b.guid)) continue;
-            // Rotate the brick's centre around the module centroid.
-            const QPointF centre = b.displayArea.center();
-            const QPointF rel = centre - centroid;
+            // Turn the brick's sprite centre around the module centroid;
+            // its displayArea follows the rotated hull.
+            const QPointF rel = parts::placement::imageCentre(b, lib_) - centroid;
             const QPointF rotated(rel.x() * c - rel.y() * s, rel.x() * s + rel.y() * c);
-            const QPointF newCentre = centroid + rotated;
-            const QPointF newTopLeft = newCentre - QPointF(b.displayArea.width() / 2.0,
-                                                            b.displayArea.height() / 2.0);
-            b.displayArea.moveTo(newTopLeft);
             b.orientation = std::fmod(b.orientation + static_cast<float>(degrees_), 360.0f);
+            parts::placement::placeByImageCentre(b, centroid + rotated, lib_);
         }
     }
 }
@@ -187,7 +185,7 @@ void RotateModuleCommand::undo() {
         if (!L) continue;
         for (auto& b : L->bricks) {
             if (b.guid == s.guid) {
-                b.displayArea.moveTo(s.topLeft);
+                b.displayArea = s.area;
                 b.orientation = s.orientation;
                 break;
             }

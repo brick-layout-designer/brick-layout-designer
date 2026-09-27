@@ -1,5 +1,5 @@
 #include "LDrawMap.h"
-#include "BrickPlacement.h"
+#include "../../parts/BrickPlacement.h"
 
 #include "../../core/Ids.h"
 #include "../../core/LayerArea.h"
@@ -298,7 +298,7 @@ private:
         b.orientation = static_cast<float>(angle);
         b.altitude = static_cast<float>(y);
         // The LDraw origin is the sprite centre.
-        placement::placeByImageCentre(b, QPointF(x / kLduPerStud, z / kLduPerStud), lib_);
+        parts::placement::placeByImageCentre(b, QPointF(x / kLduPerStud, z / kLduPerStud), lib_);
         b.myGroupId = takePendingGroup();
         layer.bricks.push_back(std::move(b));
     }
@@ -489,7 +489,7 @@ private:
             bool numeric = false;
             colour.toInt(&numeric);
             if (!numeric) continue;  // sets, logos, custom parts
-            const QPointF centre = placement::imageCentre(b, lib_);
+            const QPointF centre = parts::placement::imageCentre(b, lib_);
             const auto meta = lib_.metadata(b.partNumber);
             if (meta && !meta->ldrawAlias.isEmpty()) {
                 auto [aliasPn, aliasColour] = splitPartAndColour(meta->ldrawAlias);
@@ -525,7 +525,7 @@ private:
                 }
                 if (!add) continue;
                 const auto& cm = meta->connections[i];
-                const QPointF at = placement::connectionWorld(b, i, lib_);
+                const QPointF at = parts::placement::connectionWorld(b, i, lib_);
                 oneBrick(sleeperPn, sleeperColour, sleeperAltitude,
                          b.orientation + static_cast<float>(cm.angleDegrees),
                          static_cast<float>(at.x()), static_cast<float>(-at.y()), sleeperMeta, hide);

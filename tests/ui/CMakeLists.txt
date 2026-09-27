@@ -2,6 +2,7 @@ add_executable(bld_ui_tests
     MapViewTest.cpp
     ImportPipelineTest.cpp
     LDrawMapTest.cpp
+    BrickPlacementTest.cpp
     ConnectivityTest.cpp
 )
 

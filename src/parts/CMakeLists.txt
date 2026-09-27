@@ -1,4 +1,5 @@
 add_library(bld_parts STATIC
+    BrickPlacement.h
     PartsLibrary.cpp
     PartsLibrary.h
 )

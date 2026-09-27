@@ -83,8 +83,7 @@ void rebuildConnectivity(Map& map, parts::PartsLibrary& lib) {
             while (static_cast<int>(brick.connections.size()) < n) brick.connections.push_back({});
             // Connection positions are relative to the sprite centre, which
             // is off the displayArea centre for parts with an XML hull.
-            QPointF centre = brick.displayArea.center();
-            if (const auto fp = lib.footprint(brick.partNumber, brick.orientation)) centre += fp->imageOffset;
+            const QPointF centre = brick.displayArea.center() + lib.imageOffset(brick.partNumber, brick.orientation);
             for (int i = 0; i < n; ++i) {
                 auto& cp = brick.connections[i];
                 // <LinkedTo> in a .bbm names the partner's connection, so

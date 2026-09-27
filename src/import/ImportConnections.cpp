@@ -3,6 +3,7 @@
 #include "../core/LayerBrick.h"
 #include "../core/Map.h"
 #include "../edit/Connectivity.h"
+#include "../parts/BrickPlacement.h"
 #include "../parts/PartsLibrary.h"
 
 #include <QtMath>
@@ -29,7 +30,7 @@ QVector<ImportedConnection> externalConnections(core::Map& map,
         for (const auto& brick : layer.bricks) {
             const auto meta = lib.metadata(brick.partNumber);
             if (!meta) continue;
-            const QPointF centre = brick.displayArea.center();
+            const QPointF centre = parts::placement::imageCentre(brick, lib);
             for (int i = 0; i < meta->connections.size(); ++i) {
                 const auto& c = meta->connections[i];
                 if (c.type.isEmpty()) continue;
