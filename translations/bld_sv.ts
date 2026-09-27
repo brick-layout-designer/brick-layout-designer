@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE TS>
-<TS version="2.1" language="es">
+<TS version="2.1" language="sv_SE">
 <context>
     <name>QObject</name>
     <message>
@@ -268,6 +268,12 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../src/ui/BackgroundTask.h" line="54"/>
+        <location filename="../src/ui/PreferencesDialog.cpp" line="366"/>
+        <source>Cancel</source>
+        <translation>Avbryt</translation>
+    </message>
+    <message>
         <location filename="../src/ui/EditDialogs.cpp" line="68"/>
         <source>Pick colour</source>
         <translation type="unfinished"></translation>
@@ -458,6 +464,11 @@
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="1120"/>
         <source>Module</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="25"/>
+        <source>BlueBrick budget (*.bbb)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -666,7 +677,7 @@
     <message>
         <location filename="../src/ui/PreferencesDialog.cpp" line="271"/>
         <source>Remove</source>
-        <translation>Quitar</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/PreferencesDialog.cpp" line="275"/>
@@ -847,17 +858,6 @@
     <message>
         <location filename="../src/ui/VenueDimensionsDialog.cpp" line="137"/>
         <source>Open</source>
-        <translation>Abrir</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/BackgroundTask.h" line="54"/>
-        <location filename="../src/ui/PreferencesDialog.cpp" line="366"/>
-        <source>Cancel</source>
-        <translation>Cancelar</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="25"/>
-        <source>BlueBrick budget (*.bbb)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -871,7 +871,7 @@
     <message>
         <location filename="../src/edit/PartList.cpp" line="27"/>
         <source>Part</source>
-        <translation>Piezas</translation>
+        <translation>Kloss</translation>
     </message>
     <message>
         <location filename="../src/edit/PartList.cpp" line="27"/>
@@ -881,12 +881,12 @@
     <message>
         <location filename="../src/edit/PartList.cpp" line="27"/>
         <source>Color</source>
-        <translation type="unfinished"></translation>
+        <translation>Färg</translation>
     </message>
     <message>
         <location filename="../src/edit/PartList.cpp" line="27"/>
         <source>Description</source>
-        <translation>Descripción</translation>
+        <translation>Benämning</translation>
     </message>
     <message>
         <location filename="../src/edit/PartList.cpp" line="28"/>
@@ -913,19 +913,19 @@
         <location filename="../src/edit/PartList.cpp" line="43"/>
         <location filename="../src/edit/PartList.cpp" line="43"/>
         <source>N/A</source>
-        <translation type="unfinished"></translation>
+        <translation>Inte tillgängligt</translation>
     </message>
     <message>
         <location filename="../src/edit/PartList.cpp" line="45"/>
         <location filename="../src/edit/PartList.cpp" line="45"/>
         <source>Unbudgeted</source>
-        <translation>Sin presupuesto</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/edit/PartList.cpp" line="170"/>
         <location filename="../src/edit/PartList.cpp" line="243"/>
         <source>Author:</source>
-        <translation>Autor:</translation>
+        <translation>Skapad av:</translation>
     </message>
     <message>
         <location filename="../src/edit/PartList.cpp" line="171"/>
@@ -937,23 +937,29 @@
         <location filename="../src/edit/PartList.cpp" line="172"/>
         <location filename="../src/edit/PartList.cpp" line="245"/>
         <source>Event:</source>
-        <translation>Evento:</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/edit/PartList.cpp" line="173"/>
         <location filename="../src/edit/PartList.cpp" line="246"/>
         <source>Date:</source>
-        <translation>Fecha:</translation>
+        <translation>Datum:</translation>
     </message>
     <message>
         <location filename="../src/edit/PartList.cpp" line="174"/>
         <location filename="../src/edit/PartList.cpp" line="247"/>
         <source>Comment:</source>
-        <translation>Comentario:</translation>
+        <translation>Kommentar:</translation>
     </message>
 </context>
 <context>
     <name>bld::ui::BudgetDialog</name>
+    <message>
+        <location filename="../src/ui/BudgetDialog.cpp" line="21"/>
+        <location filename="../src/ui/BudgetDialog.cpp" line="63"/>
+        <source>Budget — %1</source>
+        <translation type="unfinished"></translation>
+    </message>
     <message>
         <location filename="../src/ui/BudgetDialog.cpp" line="26"/>
         <source>Refresh from map</source>
@@ -962,7 +968,7 @@
     <message>
         <location filename="../src/ui/BudgetDialog.cpp" line="33"/>
         <source>Part</source>
-        <translation>Piezas</translation>
+        <translation>Kloss</translation>
     </message>
     <message>
         <location filename="../src/ui/BudgetDialog.cpp" line="33"/>
@@ -982,12 +988,6 @@
     <message>
         <location filename="../src/ui/BudgetDialog.cpp" line="113"/>
         <source>All parts within budget</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/BudgetDialog.cpp" line="21"/>
-        <location filename="../src/ui/BudgetDialog.cpp" line="63"/>
-        <source>Budget — %1</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -1015,7 +1015,7 @@
     <message>
         <location filename="../src/ui/DownloadCenterDialog.cpp" line="56"/>
         <source>Download Center</source>
-        <translation>Centro de descarga</translation>
+        <translation>Nedladdningscenter</translation>
     </message>
     <message>
         <location filename="../src/ui/DownloadCenterDialog.cpp" line="62"/>
@@ -1065,7 +1065,7 @@
     <message>
         <location filename="../src/ui/DownloadCenterDialog.cpp" line="116"/>
         <source>Close</source>
-        <translation>Cerrar</translation>
+        <translation>Stäng</translation>
     </message>
     <message>
         <location filename="../src/ui/DownloadCenterDialog.cpp" line="157"/>
@@ -1224,12 +1224,12 @@
     <message>
         <location filename="../src/ui/FindDialog.cpp" line="54"/>
         <source>Replace All</source>
-        <translation>Reemplazar todo</translation>
+        <translation>Ersätt alla</translation>
     </message>
     <message>
         <location filename="../src/ui/FindDialog.cpp" line="55"/>
         <source>Close</source>
-        <translation>Cerrar</translation>
+        <translation>Stäng</translation>
     </message>
 </context>
 <context>
@@ -1436,7 +1436,7 @@
     <message>
         <location filename="../src/ui/LayerPanel.cpp" line="51"/>
         <source>Layers</source>
-        <translation>Capas</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/LayerPanel.cpp" line="59"/>
@@ -1571,12 +1571,12 @@
     <message>
         <location filename="../src/ui/LayerPanel.cpp" line="191"/>
         <source>Move Up</source>
-        <translation>Subir</translation>
+        <translation>Flytta upp</translation>
     </message>
     <message>
         <location filename="../src/ui/LayerPanel.cpp" line="193"/>
         <source>Move Down</source>
-        <translation>Bajar</translation>
+        <translation>Flytta ner</translation>
     </message>
     <message>
         <location filename="../src/ui/LayerPanel.cpp" line="196"/>
@@ -1614,17 +1614,17 @@
     <message>
         <location filename="../src/ui/LibraryPathsDialog.cpp" line="34"/>
         <source>Remove</source>
-        <translation>Quitar</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/LibraryPathsDialog.cpp" line="35"/>
         <source>Move Up</source>
-        <translation>Subir</translation>
+        <translation>Flytta upp</translation>
     </message>
     <message>
         <location filename="../src/ui/LibraryPathsDialog.cpp" line="36"/>
         <source>Move Down</source>
-        <translation>Bajar</translation>
+        <translation>Flytta ner</translation>
     </message>
     <message>
         <location filename="../src/ui/LibraryPathsDialog.cpp" line="65"/>
@@ -1653,7 +1653,7 @@
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="164"/>
         <source>Visible</source>
-        <translation type="unfinished"></translation>
+        <translation>Synligt</translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="169"/>
@@ -1674,7 +1674,7 @@
         <location filename="../src/ui/MainWindow.cpp" line="188"/>
         <location filename="../src/ui/MainWindow.cpp" line="229"/>
         <source> studs</source>
-        <translation type="unfinished"></translation>
+        <translation> knoppar</translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="190"/>
@@ -1733,6 +1733,18 @@ existing cells at their old indexing — paint over to clean up.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../src/ui/MainWindow.cpp" line="317"/>
+        <location filename="../src/ui/MainWindowMapMenu.cpp" line="263"/>
+        <source>Replace venue</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindow.cpp" line="318"/>
+        <location filename="../src/ui/MainWindowMapMenu.cpp" line="264"/>
+        <source>This project already has a venue. Replace it?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <location filename="../src/ui/MainWindow.cpp" line="323"/>
         <source>Loaded venue &quot;%1&quot;</source>
         <translation type="unfinished"></translation>
@@ -1747,7 +1759,7 @@ existing cells at their old indexing — paint over to clean up.</source>
         <location filename="../src/ui/MainWindow.cpp" line="1080"/>
         <location filename="../src/ui/MainWindow.cpp" line="1144"/>
         <source>Module name:</source>
-        <translation>Nombre del módulo:</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="435"/>
@@ -1837,52 +1849,52 @@ Target path:
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="621"/>
         <source>Toolbar</source>
-        <translation>Barra de herramientas</translation>
+        <translation>Verktygsfält</translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="635"/>
         <source>New</source>
-        <translation>Nuevo</translation>
+        <translation>Nytt</translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="636"/>
         <source>Open</source>
-        <translation type="unfinished">Abrir</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="637"/>
         <source>Save</source>
-        <translation>Guardar</translation>
+        <translation>Spara</translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="643"/>
         <source>Undo</source>
-        <translation>Deshacer</translation>
+        <translation>Ångra</translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="647"/>
         <source>Redo</source>
-        <translation>Rehacer</translation>
+        <translation>Upprepa</translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="652"/>
         <source>Delete</source>
-        <translation>Eliminar</translation>
+        <translation>Ta bort</translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="653"/>
         <source>Cut</source>
-        <translation>Cortar</translation>
+        <translation>Klipp ut</translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="654"/>
         <source>Copy</source>
-        <translation>Copiar</translation>
+        <translation>Kopiera</translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="655"/>
         <source>Paste</source>
-        <translation>Pegar</translation>
+        <translation>Klistra in</translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="662"/>
@@ -1903,26 +1915,31 @@ Target path:
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="749"/>
         <source>Rotate CCW</source>
-        <translation>Girar en contra del sentido del reloj</translation>
+        <translation>Rotera vänster</translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="752"/>
         <source>Rotate CW</source>
-        <translation>Girar en el sentido del reloj</translation>
+        <translation>Rotera höger</translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="755"/>
         <source>Send to Back</source>
-        <translation>Enviar al fondo</translation>
+        <translation>Placera längst bak</translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="758"/>
         <source>Bring to Front</source>
-        <translation>Traer al frente</translation>
+        <translation>Placera längst fram</translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="768"/>
         <source>Drawing tool</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindow.cpp" line="772"/>
+        <source>Select</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1943,11 +1960,6 @@ Target path:
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="776"/>
         <source>Add circle</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindow.cpp" line="772"/>
-        <source>Select</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2048,13 +2060,13 @@ Target path:
         <location filename="../src/ui/MainWindow.cpp" line="1110"/>
         <location filename="../src/ui/MainWindow.cpp" line="1203"/>
         <source>Select one or more bricks first.</source>
-        <translation>Seleccione primero una o más piezas.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="1081"/>
         <location filename="../src/ui/MainWindow.cpp" line="1145"/>
         <source>New Module</source>
-        <translation>Nuevo módulo</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="1085"/>
@@ -2065,12 +2077,12 @@ Target path:
         <location filename="../src/ui/MainWindow.cpp" line="1109"/>
         <location filename="../src/ui/MainWindow.cpp" line="1144"/>
         <source>Save module</source>
-        <translation>Guardar módulo</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="1158"/>
         <source>Save selection as module</source>
-        <translation>Guardar selección como módulo</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="1160"/>
@@ -2081,7 +2093,7 @@ Target path:
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="1166"/>
         <source>Save module failed</source>
-        <translation>No se pudo guardar el módulo</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="1169"/>
@@ -2092,22 +2104,22 @@ Target path:
         <location filename="../src/ui/MainWindow.cpp" line="1202"/>
         <location filename="../src/ui/MainWindow.cpp" line="1235"/>
         <source>Save set</source>
-        <translation>Guardar set</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="1235"/>
         <source>Set name:</source>
-        <translation>Nombre del set:</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="1236"/>
         <source>New Set</source>
-        <translation>Nuevo set</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="1261"/>
         <source>Save selection as set</source>
-        <translation>Guardar selección como set</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="1263"/>
@@ -2117,7 +2129,7 @@ Target path:
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="1274"/>
         <source>Save set failed</source>
-        <translation>No se pudo guardar el set</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="1278"/>
@@ -2156,8 +2168,141 @@ Target path:
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="32"/>
+        <source>Unsaved budget</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="33"/>
+        <source>The budget %1 has unsaved changes. Save it before continuing?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="46"/>
+        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="52"/>
+        <source>Save budget</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="59"/>
+        <source>&amp;Budget</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="61"/>
+        <source>&amp;New Budget</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="65"/>
+        <source>&amp;Open Budget...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="68"/>
+        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="71"/>
+        <source>Open budget</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="73"/>
+        <source>&amp;Import and Merge Budget...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="74"/>
+        <source>Add the limits of another budget file to the current budget</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="76"/>
+        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="80"/>
+        <source>Import and merge budget</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="82"/>
+        <source>&amp;Close Budget</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="87"/>
+        <source>&amp;Save Budget</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="89"/>
+        <source>Save Budget &amp;As...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="93"/>
+        <source>Show Only Budgeted &amp;Parts</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="95"/>
+        <source>Hide parts without a budget from the parts library</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="97"/>
+        <source>Show Budget &amp;Numbers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="99"/>
+        <source>Show how many of each part are used and allowed in the parts library</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="101"/>
+        <source>Use Budget &amp;Limitation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="103"/>
+        <source>Refuse to place parts beyond their budget</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="109"/>
+        <source>Budget limitation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="110"/>
+        <source>Do you also want to show the budget numbers in the parts library?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="112"/>
+        <source>Don&apos;t ask again</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="119"/>
+        <source>&amp;Edit Budget...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <location filename="../src/ui/MainWindowFileIO.cpp" line="69"/>
         <source>[untitled]</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowFileIO.cpp" line="77"/>
+        <source>%1%2%3 — Brick Layout Designer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowFileIO.cpp" line="100"/>
+        <source>All supported maps (*.bbm *.ldr *.mpd *.tdl *.ncp);;BlueBrick map (*.bbm);;LDraw (*.ldr);;LDraw multi-part (*.mpd);;TrackDesigner (*.tdl);;4DBrix nControl (*.ncp);;All files (*)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowFileIO.cpp" line="103"/>
+        <source>BlueBrick map (*.bbm);;LDraw (*.ldr);;LDraw multi-part (*.mpd);;TrackDesigner (*.tdl);;4DBrix nControl (*.ncp)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2172,6 +2317,16 @@ Target path:
         <source>%1
 
 %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowFileIO.cpp" line="128"/>
+        <source>Opened %1 — %2 layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowFileIO.cpp" line="129"/>
+        <source>Opened %1 — %2 layers (%3)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2195,9 +2350,20 @@ Target path:
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../src/ui/MainWindowFileIO.cpp" line="178"/>
+        <source>Open map</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <location filename="../src/ui/MainWindowFileIO.cpp" line="191"/>
         <location filename="../src/ui/MainWindowFileIO.cpp" line="205"/>
         <source>Save failed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowFileIO.cpp" line="197"/>
+        <location filename="../src/ui/MainWindowFileIO.cpp" line="229"/>
+        <source>Saved %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2209,90 +2375,6 @@ Target path:
         <location filename="../src/ui/MainWindowFileIO.cpp" line="219"/>
         <source>The .bbm saved successfully but the sidecar failed:
 %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowFileIO.cpp" line="197"/>
-        <location filename="../src/ui/MainWindowFileIO.cpp" line="229"/>
-        <source>Saved %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowFileIO.cpp" line="276"/>
-        <source>Unsaved changes</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowFileIO.cpp" line="277"/>
-        <source>The current layout has unsaved changes. Save before continuing?</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowFileIO.cpp" line="318"/>
-        <source>New layout from template %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowFileIO.cpp" line="337"/>
-        <source>Bricks</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowFileIO.cpp" line="348"/>
-        <source>New layout</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowFileIO.cpp" line="364"/>
-        <location filename="../src/ui/MainWindowFileIO.cpp" line="372"/>
-        <source>Export part list</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowFileIO.cpp" line="365"/>
-        <source>The current layout contains no bricks.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowFileIO.cpp" line="399"/>
-        <location filename="../src/ui/MainWindowMenus.cpp" line="194"/>
-        <location filename="../src/ui/MainWindowMenus.cpp" line="242"/>
-        <source>Export failed</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowFileIO.cpp" line="400"/>
-        <source>Cannot write %1: %2</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowFileIO.cpp" line="77"/>
-        <source>%1%2%3 — Brick Layout Designer</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowFileIO.cpp" line="100"/>
-        <source>All supported maps (*.bbm *.ldr *.mpd *.tdl *.ncp);;BlueBrick map (*.bbm);;LDraw (*.ldr);;LDraw multi-part (*.mpd);;TrackDesigner (*.tdl);;4DBrix nControl (*.ncp);;All files (*)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowFileIO.cpp" line="103"/>
-        <source>BlueBrick map (*.bbm);;LDraw (*.ldr);;LDraw multi-part (*.mpd);;TrackDesigner (*.tdl);;4DBrix nControl (*.ncp)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowFileIO.cpp" line="128"/>
-        <source>Opened %1 — %2 layers</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowFileIO.cpp" line="129"/>
-        <source>Opened %1 — %2 layers (%3)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowFileIO.cpp" line="178"/>
-        <source>Open map</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2318,9 +2400,45 @@ Save anyway?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../src/ui/MainWindowFileIO.cpp" line="276"/>
+        <source>Unsaved changes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowFileIO.cpp" line="277"/>
+        <source>The current layout has unsaved changes. Save before continuing?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowFileIO.cpp" line="318"/>
+        <source>New layout from template %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <location filename="../src/ui/MainWindowFileIO.cpp" line="333"/>
         <source>Grid</source>
-        <translation>Cuadrícula</translation>
+        <translation>Rutnät</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowFileIO.cpp" line="337"/>
+        <source>Bricks</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowFileIO.cpp" line="348"/>
+        <source>New layout</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowFileIO.cpp" line="364"/>
+        <location filename="../src/ui/MainWindowFileIO.cpp" line="372"/>
+        <source>Export part list</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowFileIO.cpp" line="365"/>
+        <source>The current layout contains no bricks.</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowFileIO.cpp" line="373"/>
@@ -2330,11 +2448,23 @@ Save anyway?</source>
     <message>
         <location filename="../src/ui/MainWindowFileIO.cpp" line="381"/>
         <source>Untitled.bbm</source>
-        <translation>SinTítulo.bbm</translation>
+        <translation>Namnlös.bbm</translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowFileIO.cpp" line="382"/>
         <source>Part List for file &quot;%1&quot;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowFileIO.cpp" line="399"/>
+        <location filename="../src/ui/MainWindowMenus.cpp" line="194"/>
+        <location filename="../src/ui/MainWindowMenus.cpp" line="242"/>
+        <source>Export failed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowFileIO.cpp" line="400"/>
+        <source>Cannot write %1: %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2407,6 +2537,161 @@ Restore it?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../src/ui/MainWindowImport.cpp" line="88"/>
+        <source>Import cancelled.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowImport.cpp" line="100"/>
+        <location filename="../src/ui/MainWindowImport.cpp" line="148"/>
+        <source>Could not write library part: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <location filename="../src/ui/MainWindowImport.cpp" line="106"/>
+        <source>Imported %1 as &apos;%2&apos; (%3 × %4 studs, %n connection point(s))</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowImport.cpp" line="118"/>
+        <source>Re-import</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowImport.cpp" line="118"/>
+        <source>The source %1 no longer exists.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowImport.cpp" line="152"/>
+        <source>Re-imported %1 from %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowImport.cpp" line="167"/>
+        <location filename="../src/ui/MainWindowImport.cpp" line="172"/>
+        <location filename="../src/ui/MainWindowImport.cpp" line="183"/>
+        <source>Re-import Changed Parts</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowImport.cpp" line="168"/>
+        <source>No imported part&apos;s source has changed since it was imported.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <location filename="../src/ui/MainWindowImport.cpp" line="173"/>
+        <source>The sources of %n imported part(s) changed. Re-import them now?</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <location filename="../src/ui/MainWindowImport.cpp" line="181"/>
+        <source>Re-imported %n part(s).</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowImport.cpp" line="184"/>
+        <source>These parts could not be re-imported:
+%1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowImport.cpp" line="188"/>
+        <location filename="../src/ui/MainWindowImport.cpp" line="195"/>
+        <location filename="../src/ui/MainWindowImport.cpp" line="251"/>
+        <source>Batch Import</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowImport.cpp" line="189"/>
+        <source>Models (*.ldr *.dat *.mpd *.io *.lxf *.lxfml);;All files (*)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <location filename="../src/ui/MainWindowImport.cpp" line="197"/>
+        <source>Import %n file(s) as library parts.</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowImport.cpp" line="202"/>
+        <source>Category:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowImport.cpp" line="203"/>
+        <source>Replace existing parts with the same name</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowImport.cpp" line="204"/>
+        <source>Otherwise a copy is saved with a -2, -3 ... suffix</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowImport.cpp" line="217"/>
+        <source>Importing...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowImport.cpp" line="217"/>
+        <source>Cancel</source>
+        <translation>Avbryt</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowImport.cpp" line="229"/>
+        <source>Importing %1 (%2 of %3)...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowImport.cpp" line="234"/>
+        <location filename="../src/ui/MainWindowImport.cpp" line="240"/>
+        <source>%1: %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <location filename="../src/ui/MainWindowImport.cpp" line="244"/>
+        <source>%1 → %2 (%3 × %4 studs, %n connection point(s))</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowImport.cpp" line="252"/>
+        <source>Imported %1 of %2 file(s) into “%3”.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowImport.cpp" line="255"/>
+        <source>Imported:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowImport.cpp" line="256"/>
+        <source>Failed:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <location filename="../src/ui/MainWindowImport.cpp" line="257"/>
+        <source>%n file(s) skipped (cancelled).</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
         <location filename="../src/ui/MainWindowLibrary.cpp" line="44"/>
         <location filename="../src/ui/MainWindowLibrary.cpp" line="137"/>
         <source>Reloaded library: %1 parts across %2 path(s)</source>
@@ -2415,12 +2700,12 @@ Restore it?</source>
     <message>
         <location filename="../src/ui/MainWindowMapMenu.cpp" line="48"/>
         <source>&amp;Map</source>
-        <translation>&amp;Mapa</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMapMenu.cpp" line="49"/>
         <source>Background &amp;Colour...</source>
-        <translation>Color de &amp;fondo...</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMapMenu.cpp" line="54"/>
@@ -2440,6 +2725,12 @@ Restore it?</source>
     <message>
         <location filename="../src/ui/MainWindowMapMenu.cpp" line="68"/>
         <source>Background image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowMapMenu.cpp" line="71"/>
+        <location filename="../src/ui/MainWindowMenus.cpp" line="122"/>
+        <source>...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2495,7 +2786,7 @@ Restore it?</source>
     <message>
         <location filename="../src/ui/MainWindowMapMenu.cpp" line="128"/>
         <source>General &amp;Info...</source>
-        <translation>&amp;Información general...</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMapMenu.cpp" line="133"/>
@@ -2505,7 +2796,7 @@ Restore it?</source>
     <message>
         <location filename="../src/ui/MainWindowMapMenu.cpp" line="141"/>
         <source>Author:</source>
-        <translation>Autor:</translation>
+        <translation>Skapad av:</translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMapMenu.cpp" line="142"/>
@@ -2515,27 +2806,27 @@ Restore it?</source>
     <message>
         <location filename="../src/ui/MainWindowMapMenu.cpp" line="143"/>
         <source>Event:</source>
-        <translation>Evento:</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMapMenu.cpp" line="144"/>
         <source>Date:</source>
-        <translation>Fecha:</translation>
+        <translation>Datum:</translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMapMenu.cpp" line="145"/>
         <source>Comment:</source>
-        <translation>Comentario:</translation>
+        <translation>Kommentar:</translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMapMenu.cpp" line="159"/>
         <source>&amp;Venue</source>
-        <translation>&amp;Lugar</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMapMenu.cpp" line="160"/>
         <source>Draw &amp;Outline...</source>
-        <translation>Dibujar &amp;contorno...</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMapMenu.cpp" line="161"/>
@@ -2550,7 +2841,7 @@ Restore it?</source>
     <message>
         <location filename="../src/ui/MainWindowMapMenu.cpp" line="170"/>
         <source>Draw Outline by &amp;Dimensions...</source>
-        <translation>Dibujar por &amp;dimensiones...</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMapMenu.cpp" line="171"/>
@@ -2565,7 +2856,7 @@ Restore it?</source>
     <message>
         <location filename="../src/ui/MainWindowMapMenu.cpp" line="201"/>
         <source>Add &amp;Obstacle...</source>
-        <translation>Añadir &amp;obstáculo...</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMapMenu.cpp" line="202"/>
@@ -2590,12 +2881,12 @@ Restore it?</source>
     <message>
         <location filename="../src/ui/MainWindowMapMenu.cpp" line="215"/>
         <source>&amp;Edit Venue Properties...</source>
-        <translation>&amp;Editar propiedades del lugar...</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMapMenu.cpp" line="228"/>
         <source>&amp;Clear Venue</source>
-        <translation>&amp;Borrar lugar</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMapMenu.cpp" line="232"/>
@@ -2618,23 +2909,6 @@ Restore it?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindowMapMenu.cpp" line="258"/>
-        <source>Load venue</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindow.cpp" line="317"/>
-        <location filename="../src/ui/MainWindowMapMenu.cpp" line="263"/>
-        <source>Replace venue</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindow.cpp" line="318"/>
-        <location filename="../src/ui/MainWindowMapMenu.cpp" line="264"/>
-        <source>This project already has a venue. Replace it?</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <location filename="../src/ui/MainWindowMapMenu.cpp" line="248"/>
         <source>Load Venue from &amp;File...</source>
         <translation type="unfinished"></translation>
@@ -2650,34 +2924,39 @@ Restore it?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../src/ui/MainWindowMapMenu.cpp" line="258"/>
+        <source>Load venue</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <location filename="../src/ui/MainWindowMenus.cpp" line="79"/>
         <source>&amp;File</source>
-        <translation>&amp;Archivo</translation>
+        <translation>&amp;Arkiv</translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMenus.cpp" line="80"/>
         <source>&amp;New</source>
-        <translation>&amp;Nuevo</translation>
+        <translation>&amp;Nytt</translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMenus.cpp" line="84"/>
         <source>&amp;Open...</source>
-        <translation>&amp;Abrir...</translation>
+        <translation>&amp;Öppna...</translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMenus.cpp" line="88"/>
         <source>Open &amp;Recent</source>
-        <translation>&amp;Recientes</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMenus.cpp" line="92"/>
         <source>&amp;Save</source>
-        <translation>&amp;Guardar</translation>
+        <translation>&amp;Spara</translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMenus.cpp" line="96"/>
         <source>Save &amp;As...</source>
-        <translation>Guardar &amp;como...</translation>
+        <translation>Spara so&amp;m...</translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMenus.cpp" line="101"/>
@@ -2700,12 +2979,6 @@ Restore it?</source>
     <message>
         <location filename="../src/ui/MainWindowMenus.cpp" line="116"/>
         <source>Export image</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowMapMenu.cpp" line="71"/>
-        <location filename="../src/ui/MainWindowMenus.cpp" line="122"/>
-        <source>...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2831,42 +3104,113 @@ Restore it?</source>
     <message>
         <location filename="../src/ui/MainWindowMenus.cpp" line="327"/>
         <source>&amp;Edit</source>
-        <translation>&amp;Edición</translation>
+        <translation>&amp;Redigera</translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMenus.cpp" line="328"/>
         <source>&amp;Undo</source>
-        <translation>&amp;Deshacer</translation>
+        <translation>Å&amp;ngra</translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMenus.cpp" line="331"/>
         <source>&amp;Redo</source>
-        <translation>&amp;Rehacer</translation>
+        <translation>U&amp;pprepa</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindowMenus.cpp" line="433"/>
-        <source>&amp;Insert</source>
+        <location filename="../src/ui/MainWindowMenus.cpp" line="336"/>
+        <source>Cu&amp;t</source>
+        <translation>Kl&amp;ipp ut</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowMenus.cpp" line="339"/>
+        <source>&amp;Copy</source>
+        <translation>K&amp;opiera</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowMenus.cpp" line="342"/>
+        <source>&amp;Paste</source>
+        <translation>K&amp;listra in</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowMenus.cpp" line="345"/>
+        <source>&amp;Duplicate</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindowMenus.cpp" line="434"/>
-        <source>&amp;Text...</source>
+        <location filename="../src/ui/MainWindowMenus.cpp" line="346"/>
+        <source>Ctrl+D</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindowMenus.cpp" line="444"/>
-        <source>&amp;Anchored Label...</source>
+        <location filename="../src/ui/MainWindowMenus.cpp" line="348"/>
+        <source>De&amp;lete</source>
+        <translation>Ta &amp;bort</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowMenus.cpp" line="353"/>
+        <source>&amp;Find &amp;&amp; Replace...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindowMenus.cpp" line="426"/>
-        <source>Rotate &amp;CCW</source>
-        <translation>Girar en contra del sentido del reloj</translation>
+        <location filename="../src/ui/MainWindowMenus.cpp" line="362"/>
+        <source>Select &amp;All</source>
+        <translation>Markera allt</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindowMenus.cpp" line="421"/>
-        <source>Rotate C&amp;W</source>
-        <translation>Girar en el sentido del reloj</translation>
+        <location filename="../src/ui/MainWindowMenus.cpp" line="365"/>
+        <source>Deselect &amp;All</source>
+        <translation>Avmarkera allt</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowMenus.cpp" line="366"/>
+        <source>Ctrl+Shift+A</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowMenus.cpp" line="368"/>
+        <source>Select &amp;Path</source>
+        <translation>Välj sökväg</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowMenus.cpp" line="369"/>
+        <source>Ctrl+P</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowMenus.cpp" line="370"/>
+        <source>Extend selection to every brick connected to current selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowMenus.cpp" line="373"/>
+        <location filename="../src/ui/MainWindowMenus.cpp" line="374"/>
+        <source>&amp;Group</source>
+        <translation>Gruppera</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowMenus.cpp" line="375"/>
+        <source>Ctrl+G</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowMenus.cpp" line="377"/>
+        <source>&amp;Ungroup</source>
+        <translation>Lös upp grupp</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowMenus.cpp" line="378"/>
+        <source>Ctrl+Shift+G</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowMenus.cpp" line="383"/>
+        <source>&amp;Transform</source>
+        <translation>Omforma</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowMenus.cpp" line="384"/>
+        <source>&amp;Move Step</source>
+        <translation>Förflyttningssteg</translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMenus.cpp" line="391"/>
@@ -2881,17 +3225,37 @@ Restore it?</source>
     <message>
         <location filename="../src/ui/MainWindowMenus.cpp" line="393"/>
         <source>&amp;Left</source>
-        <translation>Izquierda</translation>
+        <translation>Vänster</translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMenus.cpp" line="394"/>
         <source>&amp;Right</source>
-        <translation>Derecha</translation>
+        <translation>Höger</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowMenus.cpp" line="395"/>
+        <source>Send to &amp;Back</source>
+        <translation>Placera längst bak</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowMenus.cpp" line="396"/>
+        <source>Ctrl+Shift+[</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowMenus.cpp" line="398"/>
+        <source>Bring to &amp;Front</source>
+        <translation>Placera längst fram</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowMenus.cpp" line="399"/>
+        <source>Ctrl+Shift+]</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMenus.cpp" line="404"/>
         <source>Rotation &amp;Step</source>
-        <translation>Rotación</translation>
+        <translation>Roteringssteg</translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMenus.cpp" line="406"/>
@@ -2906,7 +3270,7 @@ Restore it?</source>
     <message>
         <location filename="../src/ui/MainWindowMenus.cpp" line="408"/>
         <source>22.5°</source>
-        <translation>22,5°</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMenus.cpp" line="409"/>
@@ -2924,104 +3288,28 @@ Restore it?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../src/ui/MainWindowMenus.cpp" line="421"/>
+        <source>Rotate C&amp;W</source>
+        <translation>Rotera höger</translation>
+    </message>
+    <message>
         <location filename="../src/ui/MainWindowMenus.cpp" line="422"/>
         <source>Shift+R</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindowMenus.cpp" line="336"/>
-        <source>Cu&amp;t</source>
-        <translation>Cor&amp;tar</translation>
+        <location filename="../src/ui/MainWindowMenus.cpp" line="426"/>
+        <source>Rotate &amp;CCW</source>
+        <translation>Rotera vänster</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindowMenus.cpp" line="339"/>
-        <source>&amp;Copy</source>
-        <translation>&amp;Copiar</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowMenus.cpp" line="342"/>
-        <source>&amp;Paste</source>
-        <translation>&amp;Pegar</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowMenus.cpp" line="345"/>
-        <source>&amp;Duplicate</source>
-        <translation>&amp;Duplicar</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowMenus.cpp" line="346"/>
-        <source>Ctrl+D</source>
+        <location filename="../src/ui/MainWindowMenus.cpp" line="433"/>
+        <source>&amp;Insert</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindowMenus.cpp" line="348"/>
-        <source>De&amp;lete</source>
-        <translation>Eliminar</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowMenus.cpp" line="362"/>
-        <source>Select &amp;All</source>
-        <translation>Seleccionar &amp;todo</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowMenus.cpp" line="366"/>
-        <source>Ctrl+Shift+A</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowMenus.cpp" line="353"/>
-        <source>&amp;Find &amp;&amp; Replace...</source>
-        <translation>&amp;Buscar y reemplazar...</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowMenus.cpp" line="365"/>
-        <source>Deselect &amp;All</source>
-        <translation>Quitar selección</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowMenus.cpp" line="368"/>
-        <source>Select &amp;Path</source>
-        <translation>Seleccionar tramo</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowMenus.cpp" line="369"/>
-        <source>Ctrl+P</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowMenus.cpp" line="370"/>
-        <source>Extend selection to every brick connected to current selection</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowMenus.cpp" line="383"/>
-        <source>&amp;Transform</source>
-        <translation>Transformar</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowMenus.cpp" line="384"/>
-        <source>&amp;Move Step</source>
-        <translation>Distancia de ajuste</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowMenus.cpp" line="373"/>
-        <location filename="../src/ui/MainWindowMenus.cpp" line="374"/>
-        <source>&amp;Group</source>
-        <translation>Agrupar</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowMenus.cpp" line="375"/>
-        <source>Ctrl+G</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowMenus.cpp" line="377"/>
-        <source>&amp;Ungroup</source>
-        <translation>Desagrupar</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowMenus.cpp" line="378"/>
-        <source>Ctrl+Shift+G</source>
+        <location filename="../src/ui/MainWindowMenus.cpp" line="434"/>
+        <source>&amp;Text...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -3041,23 +3329,8 @@ Restore it?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindowMenus.cpp" line="398"/>
-        <source>Bring to &amp;Front</source>
-        <translation>Traer al frente</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowMenus.cpp" line="399"/>
-        <source>Ctrl+Shift+]</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowMenus.cpp" line="395"/>
-        <source>Send to &amp;Back</source>
-        <translation>Enviar al fondo</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowMenus.cpp" line="396"/>
-        <source>Ctrl+Shift+[</source>
+        <location filename="../src/ui/MainWindowMenus.cpp" line="444"/>
+        <source>&amp;Anchored Label...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -3071,24 +3344,29 @@ Restore it?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../src/ui/MainWindowMenus.cpp" line="479"/>
+        <source>&amp;Preferences...</source>
+        <translation>Inställningar...</translation>
+    </message>
+    <message>
         <location filename="../src/ui/MainWindowMenus.cpp" line="495"/>
         <source>&amp;View</source>
-        <translation>&amp;Ver</translation>
+        <translation>&amp;Visa</translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMenus.cpp" line="496"/>
         <source>Zoom &amp;In</source>
-        <translation>A&amp;cercar</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMenus.cpp" line="500"/>
         <source>Zoom &amp;Out</source>
-        <translation>&amp;Alejar</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMenus.cpp" line="504"/>
         <source>&amp;Fit to View</source>
-        <translation>&amp;Ajustar a la vista</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMenus.cpp" line="516"/>
@@ -3123,7 +3401,7 @@ Restore it?</source>
     <message>
         <location filename="../src/ui/MainWindowMenus.cpp" line="524"/>
         <source>&amp;Status Bar</source>
-        <translation>Barra de estado</translation>
+        <translation>Statusfält</translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMenus.cpp" line="529"/>
@@ -3133,180 +3411,62 @@ Restore it?</source>
     <message>
         <location filename="../src/ui/MainWindowMenus.cpp" line="552"/>
         <source>&amp;Electric Circuits</source>
-        <translation>Circuitos &amp;eléctricos</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMenus.cpp" line="553"/>
         <source>Connection &amp;Points</source>
-        <translation>Punto de &amp;conexión</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMenus.cpp" line="554"/>
         <source>Ruler Attach P&amp;oints</source>
-        <translation>Puntos de anclaje de regla</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMenus.cpp" line="555"/>
         <source>&amp;Watermark</source>
-        <translation>Marca de &amp;agua</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMenus.cpp" line="556"/>
         <source>Brick &amp;Hulls</source>
-        <translation>Contornos de piezas</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMenus.cpp" line="557"/>
         <source>Brick E&amp;levation Labels</source>
-        <translation>Etiquetas de altura</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMenus.cpp" line="558"/>
         <source>&amp;Module Names</source>
-        <translation>Nombres de &amp;módulos</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="32"/>
-        <source>Unsaved budget</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="33"/>
-        <source>The budget %1 has unsaved changes. Save it before continuing?</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="46"/>
-        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="52"/>
-        <source>Save budget</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="59"/>
-        <source>&amp;Budget</source>
-        <translation>&amp;Presupuesto</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="61"/>
-        <source>&amp;New Budget</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="65"/>
-        <source>&amp;Open Budget...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="68"/>
-        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="71"/>
-        <source>Open budget</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="73"/>
-        <source>&amp;Import and Merge Budget...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="74"/>
-        <source>Add the limits of another budget file to the current budget</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="76"/>
-        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="80"/>
-        <source>Import and merge budget</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="82"/>
-        <source>&amp;Close Budget</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="87"/>
-        <source>&amp;Save Budget</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="89"/>
-        <source>Save Budget &amp;As...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="93"/>
-        <source>Show Only Budgeted &amp;Parts</source>
-        <translation>Solo mostrar elementos presupuestados</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="95"/>
-        <source>Hide parts without a budget from the parts library</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="97"/>
-        <source>Show Budget &amp;Numbers</source>
-        <translation>Mostrar números de presupuesto</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="99"/>
-        <source>Show how many of each part are used and allowed in the parts library</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="101"/>
-        <source>Use Budget &amp;Limitation</source>
-        <translation>Usar limitaciones de presupuesto</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="103"/>
-        <source>Refuse to place parts beyond their budget</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="109"/>
-        <source>Budget limitation</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="110"/>
-        <source>Do you also want to show the budget numbers in the parts library?</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="112"/>
-        <source>Don&apos;t ask again</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="119"/>
-        <source>&amp;Edit Budget...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMenus.cpp" line="570"/>
         <source>&amp;Modules</source>
-        <translation>&amp;Módulos</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMenus.cpp" line="571"/>
         <source>Create from &amp;Selection...</source>
-        <translation>Crear desde la &amp;selección...</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMenus.cpp" line="573"/>
         <source>&amp;Import .bbm as Module...</source>
-        <translation>Importar .bbm como módulo...</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMenus.cpp" line="575"/>
         <source>&amp;Save Selection as Module...</source>
-        <translation>&amp;Guardar selección como módulo...</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMenus.cpp" line="577"/>
         <source>Save Selection as &amp;Set...</source>
-        <translation>Guardar selección como &amp;set...</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMenus.cpp" line="578"/>
@@ -3316,7 +3476,7 @@ Restore it?</source>
     <message>
         <location filename="../src/ui/MainWindowMenus.cpp" line="582"/>
         <source>&amp;Help</source>
-        <translation>A&amp;yuda</translation>
+        <translation>&amp;Hjälp</translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMenus.cpp" line="583"/>
@@ -3326,242 +3486,32 @@ Restore it?</source>
     <message>
         <location filename="../src/ui/MainWindowMenus.cpp" line="607"/>
         <source>&amp;About BLD...</source>
-        <translation>&amp;Acerca de BLD...</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMenus.cpp" line="609"/>
         <source>About &amp;Qt...</source>
-        <translation>Acerca de &amp;Qt...</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowToolsMenu.cpp" line="44"/>
         <source>&amp;Tools</source>
-        <translation>&amp;Herramientas</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowToolsMenu.cpp" line="45"/>
         <source>Manage Parts &amp;Libraries...</source>
-        <translation>Administrar &amp;bibliotecas de piezas...</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowToolsMenu.cpp" line="47"/>
         <source>&amp;Reload Parts Library</source>
-        <translation>&amp;Recargar biblioteca de piezas</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowToolsMenu.cpp" line="51"/>
         <source>&amp;Import</source>
-        <translation>&amp;Importar</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowToolsMenu.cpp" line="67"/>
-        <source>&amp;Batch Import...</source>
         <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowToolsMenu.cpp" line="68"/>
-        <source>Turn many LDraw / Studio / LDD files into library parts at once</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowToolsMenu.cpp" line="70"/>
-        <source>&amp;Re-import Changed Parts...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowToolsMenu.cpp" line="71"/>
-        <source>Re-import every imported part whose source model changed since</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowToolsMenu.cpp" line="75"/>
-        <source>&amp;Part List</source>
-        <translation>Lista de piezas</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowToolsMenu.cpp" line="76"/>
-        <source>&amp;Export Part List...</source>
-        <translation>Exportar lista de &amp;Piezas...</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowToolsMenu.cpp" line="79"/>
-        <source>&amp;Split by Layer</source>
-        <translation>Separar por capas</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowToolsMenu.cpp" line="80"/>
-        <source>Include &amp;Hidden Layers</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowToolsMenu.cpp" line="89"/>
-        <source>&amp;Download Additional Parts...</source>
-        <translation>Descargar piezas adicionales...</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowToolsMenu.cpp" line="90"/>
-        <source>Search the official + community part-package servers and install zip archives into your library</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowToolsMenu.cpp" line="111"/>
-        <source>Installed %1 package(s); library reloaded.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowImport.cpp" line="88"/>
-        <source>Import cancelled.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowImport.cpp" line="100"/>
-        <location filename="../src/ui/MainWindowImport.cpp" line="148"/>
-        <source>Could not write library part: %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message numerus="yes">
-        <location filename="../src/ui/MainWindowImport.cpp" line="106"/>
-        <source>Imported %1 as &apos;%2&apos; (%3 × %4 studs, %n connection point(s))</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
-        </translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowImport.cpp" line="118"/>
-        <source>Re-import</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowImport.cpp" line="118"/>
-        <source>The source %1 no longer exists.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowImport.cpp" line="152"/>
-        <source>Re-imported %1 from %2</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowImport.cpp" line="167"/>
-        <location filename="../src/ui/MainWindowImport.cpp" line="172"/>
-        <location filename="../src/ui/MainWindowImport.cpp" line="183"/>
-        <source>Re-import Changed Parts</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowImport.cpp" line="168"/>
-        <source>No imported part&apos;s source has changed since it was imported.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message numerus="yes">
-        <location filename="../src/ui/MainWindowImport.cpp" line="173"/>
-        <source>The sources of %n imported part(s) changed. Re-import them now?</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
-        </translation>
-    </message>
-    <message numerus="yes">
-        <location filename="../src/ui/MainWindowImport.cpp" line="181"/>
-        <source>Re-imported %n part(s).</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
-        </translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowImport.cpp" line="184"/>
-        <source>These parts could not be re-imported:
-%1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowImport.cpp" line="188"/>
-        <location filename="../src/ui/MainWindowImport.cpp" line="195"/>
-        <location filename="../src/ui/MainWindowImport.cpp" line="251"/>
-        <source>Batch Import</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowImport.cpp" line="189"/>
-        <source>Models (*.ldr *.dat *.mpd *.io *.lxf *.lxfml);;All files (*)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message numerus="yes">
-        <location filename="../src/ui/MainWindowImport.cpp" line="197"/>
-        <source>Import %n file(s) as library parts.</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
-        </translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowImport.cpp" line="202"/>
-        <source>Category:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowImport.cpp" line="203"/>
-        <source>Replace existing parts with the same name</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowImport.cpp" line="204"/>
-        <source>Otherwise a copy is saved with a -2, -3 ... suffix</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowImport.cpp" line="217"/>
-        <source>Importing...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowImport.cpp" line="217"/>
-        <source>Cancel</source>
-        <translation>Cancelar</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowImport.cpp" line="229"/>
-        <source>Importing %1 (%2 of %3)...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowImport.cpp" line="234"/>
-        <location filename="../src/ui/MainWindowImport.cpp" line="240"/>
-        <source>%1: %2</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message numerus="yes">
-        <location filename="../src/ui/MainWindowImport.cpp" line="244"/>
-        <source>%1 → %2 (%3 × %4 studs, %n connection point(s))</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
-        </translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowImport.cpp" line="252"/>
-        <source>Imported %1 of %2 file(s) into “%3”.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowImport.cpp" line="255"/>
-        <source>Imported:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MainWindowImport.cpp" line="256"/>
-        <source>Failed:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message numerus="yes">
-        <location filename="../src/ui/MainWindowImport.cpp" line="257"/>
-        <source>%n file(s) skipped (cancelled).</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
-        </translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowToolsMenu.cpp" line="60"/>
@@ -3609,13 +3559,68 @@ Restore it?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindowMenus.cpp" line="479"/>
-        <source>&amp;Preferences...</source>
-        <translation>&amp;Preferencias...</translation>
+        <location filename="../src/ui/MainWindowToolsMenu.cpp" line="67"/>
+        <source>&amp;Batch Import...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowToolsMenu.cpp" line="68"/>
+        <source>Turn many LDraw / Studio / LDD files into library parts at once</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowToolsMenu.cpp" line="70"/>
+        <source>&amp;Re-import Changed Parts...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowToolsMenu.cpp" line="71"/>
+        <source>Re-import every imported part whose source model changed since</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowToolsMenu.cpp" line="75"/>
+        <source>&amp;Part List</source>
+        <translation>Kloss-lista</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowToolsMenu.cpp" line="76"/>
+        <source>&amp;Export Part List...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowToolsMenu.cpp" line="79"/>
+        <source>&amp;Split by Layer</source>
+        <translation>Dela upp i lager</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowToolsMenu.cpp" line="80"/>
+        <source>Include &amp;Hidden Layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowToolsMenu.cpp" line="89"/>
+        <source>&amp;Download Additional Parts...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowToolsMenu.cpp" line="90"/>
+        <source>Search the official + community part-package servers and install zip archives into your library</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindowToolsMenu.cpp" line="111"/>
+        <source>Installed %1 package(s); library reloaded.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>bld::ui::MapView</name>
+    <message>
+        <location filename="../src/ui/MapView.cpp" line="558"/>
+        <source>Area</source>
+        <translation>Område</translation>
+    </message>
     <message>
         <location filename="../src/ui/MapView.cpp" line="678"/>
         <source>Ruler length: %1 studs  (%2)</source>
@@ -3629,7 +3634,17 @@ Restore it?</source>
     <message>
         <location filename="../src/ui/MapView.cpp" line="832"/>
         <source>Rulers</source>
-        <translation>Reglas</translation>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MapView.cpp" line="945"/>
+        <source>%1 studs (%2)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MapView.cpp" line="946"/>
+        <source>r=%1 studs (%2)</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MapView.cpp" line="987"/>
@@ -3644,21 +3659,6 @@ Restore it?</source>
     <message>
         <location filename="../src/ui/MapView.cpp" line="1111"/>
         <source>Move selection</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MapView.cpp" line="558"/>
-        <source>Area</source>
-        <translation>Área</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MapView.cpp" line="945"/>
-        <source>%1 studs (%2)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/MapView.cpp" line="946"/>
-        <source>r=%1 studs (%2)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -3711,7 +3711,7 @@ Restore it?</source>
     <message>
         <location filename="../src/ui/MapView.cpp" line="1681"/>
         <source>Cannot add this part because the budget is reached. If you want to add this part, increase the budget for this part, disable the Budget Limitation or close the budget file.</source>
-        <translation>No se puede añadir la pieza porque se ha excedido el presupuesto. Aumenta el presupuesto para este elemento, deshabilite la limitación o cierre el archivo de presupuesto.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MapView.cpp" line="1685"/>
@@ -3768,7 +3768,7 @@ Restore it?</source>
         <location filename="../src/ui/MapViewContextMenu.cpp" line="126"/>
         <location filename="../src/ui/MapViewContextMenu.cpp" line="132"/>
         <source>Properties...</source>
-        <translation>Propiedades…</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MapViewContextMenu.cpp" line="140"/>
@@ -3778,32 +3778,32 @@ Restore it?</source>
     <message>
         <location filename="../src/ui/MapViewContextMenu.cpp" line="144"/>
         <source>Rotate CCW</source>
-        <translation>Girar en contra del sentido del reloj</translation>
+        <translation>Rotera vänster</translation>
     </message>
     <message>
         <location filename="../src/ui/MapViewContextMenu.cpp" line="147"/>
         <source>Rotate CW</source>
-        <translation>Girar en el sentido del reloj</translation>
+        <translation>Rotera höger</translation>
     </message>
     <message>
         <location filename="../src/ui/MapViewContextMenu.cpp" line="153"/>
         <source>Bring to Front</source>
-        <translation>Traer al frente</translation>
+        <translation>Placera längst fram</translation>
     </message>
     <message>
         <location filename="../src/ui/MapViewContextMenu.cpp" line="155"/>
         <source>Send to Back</source>
-        <translation>Enviar al fondo</translation>
+        <translation>Placera längst bak</translation>
     </message>
     <message>
         <location filename="../src/ui/MapViewContextMenu.cpp" line="160"/>
         <source>Group</source>
-        <translation>Agrupar</translation>
+        <translation>Gruppera</translation>
     </message>
     <message>
         <location filename="../src/ui/MapViewContextMenu.cpp" line="163"/>
         <source>Ungroup</source>
-        <translation>Desagrupar</translation>
+        <translation>Lös upp grupp</translation>
     </message>
     <message>
         <location filename="../src/ui/MapViewContextMenu.cpp" line="165"/>
@@ -3818,12 +3818,12 @@ Restore it?</source>
     <message>
         <location filename="../src/ui/MapViewContextMenu.cpp" line="170"/>
         <source>Cut</source>
-        <translation>Cortar</translation>
+        <translation>Klipp ut</translation>
     </message>
     <message>
         <location filename="../src/ui/MapViewContextMenu.cpp" line="172"/>
         <source>Copy</source>
-        <translation>Copiar</translation>
+        <translation>Kopiera</translation>
     </message>
     <message>
         <location filename="../src/ui/MapViewContextMenu.cpp" line="174"/>
@@ -3833,12 +3833,12 @@ Restore it?</source>
     <message>
         <location filename="../src/ui/MapViewContextMenu.cpp" line="179"/>
         <source>Delete</source>
-        <translation>Eliminar</translation>
+        <translation>Ta bort</translation>
     </message>
     <message>
         <location filename="../src/ui/MapViewContextMenu.cpp" line="187"/>
         <source>Paste</source>
-        <translation>Pegar</translation>
+        <translation>Klistra in</translation>
     </message>
     <message>
         <location filename="../src/ui/MapViewContextMenu.cpp" line="192"/>
@@ -3868,12 +3868,12 @@ Restore it?</source>
     <message>
         <location filename="../src/ui/MapViewContextMenu.cpp" line="237"/>
         <source>Undo</source>
-        <translation>Deshacer</translation>
+        <translation>Ångra</translation>
     </message>
     <message>
         <location filename="../src/ui/MapViewContextMenu.cpp" line="240"/>
         <source>Redo</source>
-        <translation>Rehacer</translation>
+        <translation>Upprepa</translation>
     </message>
     <message>
         <location filename="../src/ui/MapViewDrag.cpp" line="376"/>
@@ -3916,7 +3916,7 @@ Restore it?</source>
     <message>
         <location filename="../src/ui/ModuleLibraryPanel.cpp" line="48"/>
         <source>Module Library</source>
-        <translation>Biblioteca de módulos</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/ModuleLibraryPanel.cpp" line="58"/>
@@ -3931,7 +3931,7 @@ Restore it?</source>
     <message>
         <location filename="../src/ui/ModuleLibraryPanel.cpp" line="60"/>
         <source>Refresh</source>
-        <translation>Actualizar</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/ModuleLibraryPanel.cpp" line="88"/>
@@ -3959,12 +3959,12 @@ Restore it?</source>
     <message>
         <location filename="../src/ui/ModulesPanel.cpp" line="24"/>
         <source>Modules</source>
-        <translation>Módulos</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/ModulesPanel.cpp" line="32"/>
         <source>Create</source>
-        <translation>Crear</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/ModulesPanel.cpp" line="33"/>
@@ -3994,7 +3994,7 @@ Restore it?</source>
     <message>
         <location filename="../src/ui/ModulesPanel.cpp" line="39"/>
         <source>Delete</source>
-        <translation>Eliminar</translation>
+        <translation>Ta bort</translation>
     </message>
     <message>
         <location filename="../src/ui/ModulesPanel.cpp" line="40"/>
@@ -4082,7 +4082,7 @@ Restore it?</source>
     <message>
         <location filename="../src/ui/PartUsagePanel.cpp" line="53"/>
         <source>Used Parts</source>
-        <translation>Piezas utilizadas</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/PartUsagePanel.cpp" line="63"/>
@@ -4092,7 +4092,7 @@ Restore it?</source>
     <message>
         <location filename="../src/ui/PartUsagePanel.cpp" line="70"/>
         <source>Part</source>
-        <translation>Piezas</translation>
+        <translation>Kloss</translation>
     </message>
     <message>
         <location filename="../src/ui/PartUsagePanel.cpp" line="70"/>
@@ -4102,12 +4102,12 @@ Restore it?</source>
     <message>
         <location filename="../src/ui/PartUsagePanel.cpp" line="70"/>
         <source>Description</source>
-        <translation>Descripción</translation>
+        <translation>Benämning</translation>
     </message>
     <message>
         <location filename="../src/ui/PartUsagePanel.cpp" line="71"/>
         <source>Budget</source>
-        <translation>Presupuesto</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/PartUsagePanel.cpp" line="71"/>
@@ -4140,7 +4140,7 @@ Restore it?</source>
     <message>
         <location filename="../src/ui/PartsBrowser.cpp" line="104"/>
         <source>Parts</source>
-        <translation>Piezas</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/PartsBrowser.cpp" line="115"/>
@@ -4207,7 +4207,7 @@ This removes:
     <message>
         <location filename="../src/ui/PreferencesDialog.cpp" line="534"/>
         <source>General</source>
-        <translation type="unfinished"></translation>
+        <translation>Allmänt</translation>
     </message>
     <message>
         <location filename="../src/ui/PreferencesDialog.cpp" line="535"/>
@@ -4217,7 +4217,7 @@ This removes:
     <message>
         <location filename="../src/ui/PreferencesDialog.cpp" line="536"/>
         <source>Appearance</source>
-        <translation>Apariencia</translation>
+        <translation>Utseende</translation>
     </message>
     <message>
         <location filename="../src/ui/PreferencesDialog.cpp" line="537"/>
@@ -4417,7 +4417,7 @@ This removes:
     <message>
         <location filename="../src/ui/VenueLibraryPanel.cpp" line="70"/>
         <source>Refresh</source>
-        <translation type="unfinished">Actualizar</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/VenueLibraryPanel.cpp" line="91"/>
@@ -4432,7 +4432,7 @@ This removes:
     <message>
         <location filename="../src/ui/VenueLibraryPanel.cpp" line="93"/>
         <source>Delete</source>
-        <translation>Eliminar</translation>
+        <translation>Ta bort</translation>
     </message>
     <message>
         <location filename="../src/ui/VenueLibraryPanel.cpp" line="94"/>

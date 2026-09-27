@@ -79,13 +79,17 @@ int main(int argc, char** argv) {
     static QTranslator qtTranslator;
     QString langCode = QSettings().value(QStringLiteral("general/language")).toString();
     if (langCode.isEmpty()) langCode = QLocale::system().name().split('_').value(0);
+    // Norwegian systems report Bokmål (nb) or Nynorsk (nn); we ship "no" as BlueBrick did.
+    if (langCode == QLatin1String("nb") || langCode == QLatin1String("nn")) langCode = QStringLiteral("no");
     if (!langCode.isEmpty() && langCode != QStringLiteral("en")) {
         const QString dir = translationsDir();
         if (appTranslator.load(QStringLiteral("bld_") + langCode, dir)) {
             QCoreApplication::installTranslator(&appTranslator);
         }
-        if (qtTranslator.load(QStringLiteral("qtbase_") + langCode, dir)
-            || qtTranslator.load(QStringLiteral("qtbase_") + langCode,
+        // Qt's own catalogues name Norwegian "nb".
+        const QString qtCode = langCode == QLatin1String("no") ? QStringLiteral("nb") : langCode;
+        if (qtTranslator.load(QStringLiteral("qtbase_") + qtCode, dir)
+            || qtTranslator.load(QStringLiteral("qtbase_") + qtCode,
                                  QLibraryInfo::path(QLibraryInfo::TranslationsPath))) {
             QCoreApplication::installTranslator(&qtTranslator);
         }

@@ -93,6 +93,8 @@ QWidget* buildGeneralTab(QDialog* parent) {
     langCombo->addItem(QObject::tr("Italiano"),    QStringLiteral("it"));
     langCombo->addItem(QObject::tr("Norsk"),       QStringLiteral("no"));
     langCombo->addItem(QObject::tr("Svenska"),     QStringLiteral("sv"));
+    langCombo->addItem(QStringLiteral("中文"),       QStringLiteral("zh"));
+    langCombo->addItem(QStringLiteral("日本語"),     QStringLiteral("ja"));
     const QString curLang = s.value(QStringLiteral("general/language"), QStringLiteral("en")).toString();
     for (int i = 0; i < langCombo->count(); ++i)
         if (langCombo->itemData(i).toString() == curLang) { langCombo->setCurrentIndex(i); break; }
