@@ -76,7 +76,7 @@ void MainWindow::setupToolsMenu() {
     auto* partListAct = partListMenu->addAction(tr("&Export Part List..."));
     connect(partListAct, &QAction::triggered, this, &MainWindow::onExportPartList);
     partListMenu->addSeparator();
-    for (auto [label, key, def] : { std::tuple{ tr("&Split by Layer"), "partList/splitPerLayer", false },
+    for (const auto& [label, key, def] : { std::tuple{ tr("&Split by Layer"), "partList/splitPerLayer", false },
                                      std::tuple{ tr("Include &Hidden Layers"), "partList/includeHiddenLayers", true } }) {
         auto* opt = partListMenu->addAction(label);
         opt->setCheckable(true);
