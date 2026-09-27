@@ -97,3 +97,41 @@ jobs:
           ASAN_OPTIONS: detect_leaks=0:strict_string_checks=1
           UBSAN_OPTIONS: print_stacktrace=1
         run: ctest --test-dir build --output-on-failure --timeout 600
+
+  fuzz:
+    # libFuzzer on every file parser for a short while (fuzz/README.md).
+    name: Fuzz parsers
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.7.*'
+          cache: true
+
+      - name: Compiler cache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: fuzz
+          max-size: 1G
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1-mesa-dev libxkbcommon-dev libcups2-dev ninja-build clang
+
+      - name: Fuzz
+        env:
+          BLD_FUZZ_CMAKE_ARGS: -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+        run: fuzz/run.sh 30 build-fuzz
+
+      - name: Upload crash inputs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fuzz-artifacts
+          path: build-fuzz/fuzz-artifacts
