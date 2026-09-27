@@ -1,6 +1,7 @@
 // LDraw (.ldr / .mpd) maps, checked against vanilla BlueBrick 1.9.2's own
 // output (fixtures/bluebrick-oracle, made with scripts/bluebrick-oracle).
 
+#include "import/mapformats/FourDBrixMap.h"
 #include "import/mapformats/LDrawMap.h"
 #include "import/mapformats/TrackDesignerMap.h"
 #include "core/Ids.h"
@@ -15,6 +16,7 @@
 
 #include <QDir>
 #include <QHash>
+#include <QRegularExpression>
 #include <QFile>
 #include <QTemporaryDir>
 #include <QTextStream>
@@ -117,7 +119,7 @@ TEST_F(LDrawMapTest, WriteMatchesBlueBrick) {
     auto map = saveload::readBbm(corpus(QStringLiteral("tight-corner.bbm"))).map;
     ASSERT_TRUE(map);
     edit::rebuildConnectivity(*map, lib_);  // sleepers depend on the links
-    for (const QString ext : { QStringLiteral("ldr"), QStringLiteral("mpd") }) {
+    for (const QString& ext : { QStringLiteral("ldr"), QStringLiteral("mpd") }) {
         SCOPED_TRACE(ext.toStdString());
         const QString out = tmp_.filePath(QStringLiteral("tight-corner.") + ext);
         QString err;
@@ -263,7 +265,7 @@ TEST_F(LDrawMapTest, GroupsRulersAndHiddenLayersSurvive) {
     rulers->rulers.push_back(circ);
     map.layers().push_back(std::move(rulers));
 
-    for (const QString ext : { QStringLiteral("ldr"), QStringLiteral("mpd") }) {
+    for (const QString& ext : { QStringLiteral("ldr"), QStringLiteral("mpd") }) {
         SCOPED_TRACE(ext.toStdString());
         const QString out = tmp_.filePath(QStringLiteral("small.") + ext);
         ASSERT_TRUE(import::writeLDrawMap(map, out, lib_));
@@ -287,4 +289,78 @@ TEST_F(LDrawMapTest, GroupsRulersAndHiddenLayersSurvive) {
         EXPECT_FLOAT_EQ(rl.rulers[1].circular.radius, 5.0f);
         EXPECT_FALSE(rl.rulers[1].circular.displayDistance);
     }
+}
+
+namespace {
+
+// A 4DBrix file's lines, minus the created / modified times.
+QStringList ncpLines(const QString& path) {
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly)) return {};
+    QStringList out;
+    for (const QString& line : QString::fromUtf8(f.readAll()).split(QStringLiteral("\r\n"))) {
+        if (line.contains(QStringLiteral("<created ")) || line.contains(QStringLiteral("<modified "))) continue;
+        out << line;
+    }
+    return out;
+}
+
+}  // namespace
+
+TEST_F(LDrawMapTest, FourDBrixWriteMatchesBlueBrick) {
+    // Vanilla saved this map, links included; keep them (some partners are
+    // BrickTracks parts only vanilla's installed library has).
+    auto map = saveload::readBbm(oracle(QStringLiteral("fourdbrix.bbm"))).map;
+    ASSERT_TRUE(map);
+    const QString out = tmp_.filePath(QStringLiteral("fourdbrix.ncp"));
+    QString err;
+    ASSERT_TRUE(import::writeFourDBrixMap(*map, out, lib_, &err)) << err.toStdString();
+    const QStringList ours = ncpLines(out), vanilla = ncpLines(oracle(QStringLiteral("fourdbrix.ncp")));
+    ASSERT_EQ(ours.size(), vanilla.size());
+    // Numbers may differ in the last digit (BlueBrick adds up in float).
+    static const QRegularExpression number(QStringLiteral("-?\\d+(\\.\\d+)?(E[-+]\\d+)?"));
+    for (int i = 0; i < ours.size(); ++i) {
+        const QString a = QString(ours[i]).replace(number, QStringLiteral("#"));
+        const QString b = QString(vanilla[i]).replace(number, QStringLiteral("#"));
+        ASSERT_EQ(a.toStdString(), b.toStdString()) << "line " << i;
+        auto x = number.globalMatch(ours[i]), y = number.globalMatch(vanilla[i]);
+        while (x.hasNext() && y.hasNext()) {
+            const double p = x.next().captured().toDouble(), q = y.next().captured().toDouble();
+            ASSERT_LE(std::abs(p - q), 1e-3 * std::max(1.0, std::abs(q)))
+                << "line " << i << ": " << ours[i].toStdString() << " vs " << vanilla[i].toStdString();
+        }
+    }
+}
+
+TEST_F(LDrawMapTest, FourDBrixReadMatchesBlueBrick) {
+    const auto vanilla = saveload::readBbm(oracle(QStringLiteral("fourdbrix.from-ncp.bbm"))).map;
+    ASSERT_TRUE(vanilla);
+    auto ours = import::readFourDBrixMap(oracle(QStringLiteral("fourdbrix.ncp")), lib_);
+    ASSERT_TRUE(ours.ok()) << ours.error.toStdString();
+    EXPECT_TRUE(ours.warnings.isEmpty()) << ours.warnings.join(QLatin1Char('\n')).toStdString();
+    const auto all = [](const QString&) { return true; };
+    EXPECT_EQ(unmatched(bricksOf(*ours.map, all), bricksOf(*vanilla, all)), "");
+    ASSERT_EQ(ours.map->layers().size(), vanilla->layers().size());
+    for (size_t i = 0; i < ours.map->layers().size(); ++i) {
+        if (ours.map->layers()[i]->kind() != core::LayerKind::Brick) continue;  // grid names are a global counter
+        EXPECT_EQ(ours.map->layers()[i]->name, vanilla->layers()[i]->name);
+        EXPECT_EQ(static_cast<const core::LayerBrick&>(*ours.map->layers()[i]).groups.size(),
+                  static_cast<const core::LayerBrick&>(*vanilla->layers()[i]).groups.size()) << "layer " << i;
+    }
+}
+
+TEST_F(LDrawMapTest, FourDBrixRoundTripKeepsGroups) {
+    auto map = saveload::readBbm(oracle(QStringLiteral("fourdbrix.bbm"))).map;
+    ASSERT_TRUE(map);
+    edit::rebuildConnectivity(*map, lib_);
+    const QString out = tmp_.filePath(QStringLiteral("again.ncp"));
+    ASSERT_TRUE(import::writeFourDBrixMap(*map, out, lib_));
+    auto back = import::readFourDBrixMap(out, lib_);
+    ASSERT_TRUE(back.ok());
+    const auto mapped = [&](const QString& pn) { const auto m = lib_.metadata(pn); return m && m->fourDBrix; };
+    EXPECT_EQ(unmatched(bricksOf(*back.map, mapped), bricksOf(*map, mapped), false), "");
+    size_t grouped = 0;
+    for (const auto& layer : back.map->layers())
+        if (layer->kind() == core::LayerKind::Brick) grouped += static_cast<const core::LayerBrick&>(*layer).groups.size();
+    EXPECT_GT(grouped, 0u);
 }

@@ -146,6 +146,23 @@ void readTrackDesigner(QXmlStreamReader& r, PartMetadata::TrackDesigner& td) {
     }
 }
 
+void readFourDBrix(QXmlStreamReader& r, PartMetadata::FourDBrix& fd) {
+    using Type = PartMetadata::FourDBrix::Type;
+    while (r.readNextStartElement()) {
+        const auto n = r.name();
+        if (n == QStringLiteral("PartType")) {
+            const QString t = r.readElementText().trimmed().toUpper();
+            fd.type = t == QLatin1String("TABLE") ? Type::Table
+                    : t == QLatin1String("BASEPLATE") ? Type::Baseplate
+                    : t == QLatin1String("STRUCTURE") ? Type::Structure : Type::Segment;
+        }
+        else if (n == QStringLiteral("PartName"))                    fd.partName = r.readElementText().trimmed();
+        else if (n == QStringLiteral("OrientationDifference"))       fd.orientationDifference = r.readElementText().toFloat();
+        else if (n == QStringLiteral("ConnectionIndexUsedAsOrigin")) fd.originConnection = r.readElementText().toInt();
+        else r.skipCurrentElement();
+    }
+}
+
 void readOldNames(QXmlStreamReader& r, QStringList& out) {
     while (r.readNextStartElement()) {
         if (r.name() == QStringLiteral("OldName")) out << r.readElementText().trimmed();
@@ -195,6 +212,11 @@ bool parsePartXml(const QString& xmlPath, PartMetadata& out) {
                 PartMetadata::TrackDesigner td;
                 readTrackDesigner(r, td);
                 if (td.defaultId != 0 || !td.registryIds.isEmpty()) out.trackDesigner = td;
+            }
+            else if (n == QStringLiteral("FourDBrix")) {
+                PartMetadata::FourDBrix fd;
+                readFourDBrix(r, fd);
+                out.fourDBrix = fd;
             }
             else if (n == QStringLiteral("PixelsPerStud")) {
                 bool ok = false;
@@ -288,6 +310,11 @@ QString PartsLibrary::scanFile(const QString& xmlPath) {
         for (int id : meta.trackDesigner->registryIds) ids.insert(id);
         for (int id : ids) if (id != 0) trackDesignerIds_[id].append(key);
     }
+    if (meta.fourDBrix && !meta.fourDBrix->partName.isEmpty()) {
+        // BlueBrick keeps the first part it reads (files in name order).
+        QString& owner = fourDBrixNames_[meta.fourDBrix->partName];
+        if (owner.isEmpty() || key < owner) owner = key;
+    }
     index_.insert(key, meta);
     return key;
 }
@@ -342,6 +369,7 @@ std::optional<PartsLibrary::Footprint> PartsLibrary::footprint(const QString& ke
     Footprint fp;
     if (meta->xmlHullPx.isEmpty()) {
         fp.size = QSizeF((bb.maxX - bb.minX + 1.0f) / pxPerStud, (bb.maxY - bb.minY + 1.0f) / pxPerStud);
+        fp.imageCorner = QPointF((0.5f - bb.minX) / pxPerStud, (0.5f - bb.minY) / pxPerStud);
         return fp;
     }
     const MinMax hull = bounds(meta->xmlHullPx.cbegin(), meta->xmlHullPx.cend());
@@ -349,6 +377,7 @@ std::optional<PartsLibrary::Footprint> PartsLibrary::footprint(const QString& ke
     const float oy = ((bb.maxY - hull.maxY) + (bb.minY - hull.minY)) * 0.5f / pxPerStud;
     fp.imageOffset = QPointF(ox, oy);
     fp.size = QSizeF((hull.maxX - hull.minX + 1.0f) / pxPerStud, (hull.maxY - hull.minY + 1.0f) / pxPerStud);
+    fp.imageCorner = QPointF((0.5f - hull.minX) / pxPerStud, (0.5f - hull.minY) / pxPerStud);
     return fp;
 }
 
@@ -363,6 +392,10 @@ QString PartsLibrary::partForTrackDesignerId(int tdId, const QString& registry) 
         else other = key;
     }
     return !best.isEmpty() ? best : !fallback.isEmpty() ? fallback : other;
+}
+
+QString PartsLibrary::partForFourDBrixName(const QString& name) const {
+    return fourDBrixNames_.value(name);
 }
 
 QString PartsLibrary::canonicalKey(const QString& key) const {
@@ -603,6 +636,8 @@ QPointF PartsLibrary::hullBboxOffsetStuds(const QString& key,
 void PartsLibrary::forget(const QString& key) {
     const QString lk = key.toLower();
     for (auto& keys : trackDesignerIds_) keys.removeAll(lk);
+    for (auto it = fourDBrixNames_.begin(); it != fourDBrixNames_.end();)
+        it = it.value() == lk ? fourDBrixNames_.erase(it) : std::next(it);
     index_.remove(lk);
     pixmapCache_.remove(lk);
     hullCache_.remove(lk);
@@ -612,6 +647,7 @@ void PartsLibrary::clear() {
     index_.clear();
     renamed_.clear();
     trackDesignerIds_.clear();
+    fourDBrixNames_.clear();
     pixmapCache_.clear();
     hullCache_.clear();
 }

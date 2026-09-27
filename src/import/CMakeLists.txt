@@ -61,6 +61,8 @@ add_library(bld_import STATIC
 
     # Other layout programs' map formats (BlueBrick-compatible).
     mapformats/BrickPlacement.h
+    mapformats/FourDBrixMap.cpp
+    mapformats/FourDBrixMap.h
     mapformats/LDrawMap.cpp
     mapformats/LDrawMap.h
     mapformats/TrackDesignerMap.cpp

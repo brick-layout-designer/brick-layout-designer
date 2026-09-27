@@ -6,6 +6,7 @@
 
 #include "MainWindow.h"
 #include "../import/mapformats/LDrawMap.h"
+#include "../import/mapformats/FourDBrixMap.h"
 #include "../import/mapformats/TrackDesignerMap.h"
 
 #include "LayerPanel.h"
@@ -80,13 +81,19 @@ bool isLDrawMap(const QString& path) {
 bool isTrackDesignerMap(const QString& path) {
     return QFileInfo(path).suffix().compare(QLatin1String("tdl"), Qt::CaseInsensitive) == 0;
 }
-bool isOtherMapFormat(const QString& path) { return isLDrawMap(path) || isTrackDesignerMap(path); }
+bool isFourDBrixMap(const QString& path) {
+    return QFileInfo(path).suffix().compare(QLatin1String("ncp"), Qt::CaseInsensitive) == 0;
+}
+bool isOtherMapFormat(const QString& path) {
+    return isLDrawMap(path) || isTrackDesignerMap(path) || isFourDBrixMap(path);
+}
 
 const char* kOpenFilter = QT_TRANSLATE_NOOP("bld::ui::MainWindow",
-    "All supported maps (*.bbm *.ldr *.mpd *.tdl);;BlueBrick map (*.bbm);;"
-    "LDraw (*.ldr);;LDraw multi-part (*.mpd);;TrackDesigner (*.tdl);;All files (*)");
+    "All supported maps (*.bbm *.ldr *.mpd *.tdl *.ncp);;BlueBrick map (*.bbm);;"
+    "LDraw (*.ldr);;LDraw multi-part (*.mpd);;TrackDesigner (*.tdl);;4DBrix nControl (*.ncp);;All files (*)");
 const char* kSaveFilter = QT_TRANSLATE_NOOP("bld::ui::MainWindow",
-    "BlueBrick map (*.bbm);;LDraw (*.ldr);;LDraw multi-part (*.mpd);;TrackDesigner (*.tdl)");
+    "BlueBrick map (*.bbm);;LDraw (*.ldr);;LDraw multi-part (*.mpd);;TrackDesigner (*.tdl);;"
+    "4DBrix nControl (*.ncp)");
 
 }  // namespace
 
@@ -94,6 +101,7 @@ bool MainWindow::openFile(const QString& path) {
     if (!maybeSave()) return false;
     if (isOtherMapFormat(path)) {
         auto ldraw = isTrackDesignerMap(path) ? import::readTrackDesignerMap(path, parts_)
+                   : isFourDBrixMap(path)     ? import::readFourDBrixMap(path, parts_)
                                               : import::readLDrawMap(path, parts_);
         if (!ldraw.ok()) {
             QMessageBox::warning(this, tr("Open failed"), tr("%1\n\n%2").arg(path, ldraw.error));
@@ -168,6 +176,7 @@ bool MainWindow::writeMapTo(const QString& path) {
     if (isOtherMapFormat(path)) {
         QString err;
         const bool written = isTrackDesignerMap(path) ? import::writeTrackDesignerMap(*map, path, parts_, &err)
+                           : isFourDBrixMap(path)     ? import::writeFourDBrixMap(*map, path, parts_, &err)
                                                       : import::writeLDrawMap(*map, path, parts_, &err);
         if (!written) {
             QMessageBox::warning(this, tr("Save failed"), err);
@@ -232,6 +241,7 @@ bool MainWindow::onSaveAs() {
         path += selectedFilter.contains(QStringLiteral("*.mpd")) ? QStringLiteral(".mpd")
               : selectedFilter.contains(QStringLiteral("*.ldr")) ? QStringLiteral(".ldr")
               : selectedFilter.contains(QStringLiteral("*.tdl")) ? QStringLiteral(".tdl")
+              : selectedFilter.contains(QStringLiteral("*.ncp")) ? QStringLiteral(".ncp")
                                                                   : QStringLiteral(".bbm");
     }
     // As in BlueBrick: other formats can't hold everything a .bbm does.
