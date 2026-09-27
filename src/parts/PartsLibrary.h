@@ -28,6 +28,9 @@ struct PartConnectionPoint {
     // BlueBrick's sign convention exactly — a circuit exists inside a
     // part wherever plug[i] == -plug[j] and both are non-zero.
     int     electricPlug = 0;
+    // <nextConnexionPreference>: the connection that becomes active when
+    // this one gets linked (BlueBrick's chaining order for placing track).
+    int nextPreferredIndex = 0;
 };
 
 // A within-part electrical circuit: the pair of connection indices
@@ -104,6 +107,24 @@ struct PartMetadata {
     // reads it). Empty: the hull is the sprite's bounding box.
     QList<QPointF> xmlHullPx;
 
+    // <TrackDesigner> remap: how this part maps to TrackDesigner (.tdl).
+    struct TrackDesignerPort {
+        int   bbConnectionIndex = 0;  // BlueBrick connection used as the TD origin
+        int   type = 20;              // TD piece type (0 straight, 1 left curve, ... 20 custom)
+        float angleDifference = 0.0f; // TD angle - BlueBrick angle
+    };
+    struct TrackDesigner {
+        int defaultId = 0;
+        QHash<QString, int> registryIds;  // TD "registry" (part set) -> id
+        int  flags = 0;
+        bool hasSeveralPorts = false;
+        QList<TrackDesignerPort> ports;
+        int id(const QString& registry = QStringLiteral("default")) const {
+            return registryIds.value(registry, defaultId);
+        }
+    };
+    std::optional<TrackDesigner> trackDesigner;
+
     // BlueBrick's "ignorable" parts: a leaf part with an XML but no image,
     // e.g. the sleeper plates that LDraw exports put under 12V/4.5V rails.
     // They are skipped when loading LDraw files and never listed.
@@ -132,6 +153,10 @@ public:
     // Lookup key is "<PartNumber>.<ColorCode>" (e.g. "3001.1" or "TS_TRACK18S.8").
     // Old part numbers (<OldNameList>) resolve to the part that replaced them.
     std::optional<PartMetadata> metadata(const QString& key) const;
+
+    // The part TrackDesigner id `tdId` maps to (BlueBrick's preference: the
+    // current registry's id, then a default id, then any), or empty.
+    QString partForTrackDesignerId(int tdId, const QString& registry = QStringLiteral("default")) const;
 
     // The current key for `key`: itself, or the part an old name maps to.
     // Empty when unknown.
@@ -184,6 +209,7 @@ private:
     QStringList searchPaths_;
     QHash<QString, PartMetadata> index_;
     QHash<QString, QString>      renamed_;   // lower-cased old name -> current key
+    QHash<int, QStringList>      trackDesignerIds_;  // TD id -> keys using it
     QHash<QString, QPixmap>      pixmapCache_;
     QHash<QString, QPolygonF>    hullCache_;
 };
