@@ -8,6 +8,7 @@
 #include "../core/LayerRuler.h"
 #include "../core/LayerText.h"
 #include "../core/Map.h"
+#include "../parts/BrickPlacement.h"
 #include "../parts/PartsLibrary.h"
 
 #include <QSettings>
@@ -213,6 +214,13 @@ void addBrickLayer(const core::LayerBrick& L, LayerSink& sink, parts::PartsLibra
                     p->setScale(s);
                 }
                 p->setRotation(brick.orientation);
+                // The item sits at the displayArea centre (what drag and
+                // snap move); parts with an XML hull draw their sprite
+                // off it, like BlueBrick. transform() applies after the
+                // rotation, so this is a scene-space shift that also
+                // carries the connection dots and hull outline.
+                const QPointF offset = lib.imageOffset(partKey, brick.orientation);
+                if (!offset.isNull()) p->setTransform(QTransform::fromTranslate(offset.x() * kPx, offset.y() * kPx));
                 p->setPos(centerPx);
                 p->setZValue(brick.altitude);
                 item = p;
@@ -798,7 +806,8 @@ void SceneBuilder::build(const core::Map& map) {
         if (!layerPtr || layerPtr->kind() != core::LayerKind::Brick) continue;
         const auto& bl = static_cast<const core::LayerBrick&>(*layerPtr);
         for (const auto& b : bl.bricks) {
-            brickCentreByGuid_.insert(b.guid, b.displayArea.center());
+            // Rulers attach to the brick's pivot (its sprite centre).
+            brickCentreByGuid_.insert(b.guid, parts::placement::imageCentre(b, parts_));
         }
     }
     addVenue(map);  // z = -100 so it sits beneath every layer

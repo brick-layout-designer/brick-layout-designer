@@ -11,6 +11,8 @@
 
 namespace bld::core { class Map; }
 
+namespace bld::parts { class PartsLibrary; }
+
 namespace bld::edit {
 
 // Create a sidecar module grouping the given (layer, guid) pairs. No brick data
@@ -64,13 +66,14 @@ private:
 // Cross-layer. Captures pre-state on first redo so undo is exact.
 class RotateModuleCommand : public QUndoCommand {
 public:
-    RotateModuleCommand(core::Map& map, QString moduleId, double degrees,
+    RotateModuleCommand(core::Map& map, parts::PartsLibrary& lib, QString moduleId, double degrees,
                         QUndoCommand* parent = nullptr);
     void undo() override;
     void redo() override;
 private:
-    struct Snap { int layerIndex = -1; QString guid; QPointF topLeft; float orientation = 0.0f; };
+    struct Snap { int layerIndex = -1; QString guid; QRectF area; float orientation = 0.0f; };
     core::Map& map_;
+    parts::PartsLibrary& lib_;
     QString    moduleId_;
     double     degrees_;
     std::vector<Snap> before_;

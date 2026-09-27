@@ -1,6 +1,6 @@
 #include "FourDBrixMap.h"
 
-#include "BrickPlacement.h"
+#include "../../parts/BrickPlacement.h"
 
 #include "../../core/Ids.h"
 #include "../../core/LayerBrick.h"
@@ -220,7 +220,7 @@ private:
         b.orientation = angle;
         const QPointF pos(x * 0.125f, y * 0.125f);
         if (coordInCentre) {
-            placement::placeByImageCentre(b, pos, lib_);
+            parts::placement::placeByImageCentre(b, pos, lib_);
         } else {
             const auto fp = lib_.footprint(b.partNumber, angle);
             const QSizeF size = fp ? fp->size : QSizeF(2, 2);
@@ -272,7 +272,7 @@ private:
                 const int origin = meta->fourDBrix->originConnection;
                 if (!meta->connections.isEmpty()) {
                     b.activeConnectionPointIndex = std::clamp(origin, 0, static_cast<int>(meta->connections.size()) - 1);
-                    placement::placeByConnection(b, b.activeConnectionPointIndex, QPointF(n.x * 0.125f, n.y * 0.125f), lib_);
+                    parts::placement::placeByConnection(b, b.activeConnectionPointIndex, QPointF(n.x * 0.125f, n.y * 0.125f), lib_);
                 }
                 b.altitude = n.z * 2.5f;
             }
@@ -416,7 +416,7 @@ private:
                     continue;
                 }
                 nodeOf.insert(cp.guid, nodes++);
-                const QPointF world = placement::connectionWorld(b, i, lib_);
+                const QPointF world = parts::placement::connectionWorld(b, i, lib_);
                 const Owner other = owner_.value(cp.linkedToId);
                 line(QStringLiteral("   <node>"));
                 line(QStringLiteral("      <coordinates x=\"%1\" y=\"%2\" z=\"%3\"/>")

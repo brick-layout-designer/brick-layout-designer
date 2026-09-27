@@ -18,6 +18,7 @@
 #include "SceneBuilderInternal.h"
 
 #include "../core/LayerBrick.h"
+#include "../parts/BrickPlacement.h"
 #include "../core/Map.h"
 #include "../parts/PartsLibrary.h"
 
@@ -38,12 +39,11 @@ using detail::LayerSink;
 namespace {
 
 // World-space position (pixels) of a connection point on a placed brick.
-QPointF connWorldPx(const core::Brick& b,
+QPointF connWorldPx(const core::Brick& b, QPointF centre,
                     const parts::PartConnectionPoint& c,
                     double px) {
     const double r = b.orientation * M_PI / 180.0;
     const double cs = std::cos(r), sn = std::sin(r);
-    const QPointF centre = b.displayArea.center();
     return QPointF(
         (centre.x() + c.position.x() * cs - c.position.y() * sn) * px,
         (centre.y() + c.position.x() * sn + c.position.y() * cs) * px);
@@ -70,6 +70,7 @@ void SceneBuilder::addElectricCircuits(const core::Map& map) {
     struct BrickEntry {
         const core::Brick*          brick   = nullptr;
         const parts::PartMetadata*  meta    = nullptr;
+        QPointF                     centre;  // sprite centre, studs
         // Polarity per connection index. Sized to meta->connections.size().
         QVector<ConnState>          state;
     };
@@ -86,6 +87,7 @@ void SceneBuilder::addElectricCircuits(const core::Map& map) {
             BrickEntry e;
             e.brick = &b;
             e.meta  = new parts::PartMetadata(*meta);   // owned copy for BFS lifetime
+            e.centre = parts::placement::imageCentre(b, parts_);
             e.state.resize(meta->connections.size());
             entries.insert(b.guid, std::move(e));
         }
@@ -242,8 +244,8 @@ void SceneBuilder::addElectricCircuits(const core::Map& map) {
             const int posIdx = (e.meta->connections[i1].electricPlug > 0) ? i1 : i2;
             const int negIdx = (posIdx == i1) ? i2 : i1;
 
-            const QPointF pPos = connWorldPx(*e.brick, e.meta->connections[posIdx], px);
-            const QPointF pNeg = connWorldPx(*e.brick, e.meta->connections[negIdx], px);
+            const QPointF pPos = connWorldPx(*e.brick, e.centre, e.meta->connections[posIdx], px);
+            const QPointF pNeg = connWorldPx(*e.brick, e.centre, e.meta->connections[negIdx], px);
 
             const double len = std::hypot(pNeg.x() - pPos.x(), pNeg.y() - pPos.y());
             if (len < 0.5) continue;
@@ -276,7 +278,7 @@ void SceneBuilder::addElectricCircuits(const core::Map& map) {
         for (const auto& circuit : e.meta->electricCircuits) {
             for (int idx : { circuit.index1, circuit.index2 }) {
                 if (!e.state[idx].hasShortcut) continue;
-                const QPointF c = connWorldPx(*e.brick, e.meta->connections[idx], px);
+                const QPointF c = connWorldPx(*e.brick, e.centre, e.meta->connections[idx], px);
                 QPolygonF diamond;
                 diamond << QPointF(c.x() - shortcutWidth, c.y())
                         << QPointF(c.x(), c.y() - shortcutWidth)

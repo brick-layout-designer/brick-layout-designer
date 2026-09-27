@@ -18,6 +18,7 @@
 #include "../edit/EditCommands.h"
 #include "../edit/LabelCommands.h"
 #include "../edit/RulerCommands.h"
+#include "../parts/BrickPlacement.h"
 #include "../parts/PartsLibrary.h"
 #include "../rendering/SceneBuilder.h"
 #include "ConnectionSnap.h"
@@ -70,7 +71,7 @@ int nearestConnectionIndex(const core::Brick& brick, parts::PartsLibrary& lib,
     if (!meta) return -1;
     const int n = meta->connections.size();
     if (n == 0) return -1;
-    const QPointF brickCentre = brick.displayArea.center();
+    const QPointF brickCentre = parts::placement::imageCentre(brick, lib);
     int bestIdx = -1;
     double bestDist = std::numeric_limits<double>::max();
     for (int i = 0; i < n; ++i) {
@@ -269,8 +270,11 @@ void MapView::applyLiveConnectionSnap() {
         if (!b) continue;
         auto meta = parts_.metadata(b->partNumber);
         if (!meta) continue;
+        // The item sits at the displayArea centre; connections hang off
+        // the sprite centre.
         const QPointF centerPx = s.item->scenePos();
-        const QPointF centerStuds(centerPx.x() / px, centerPx.y() / px);
+        const QPointF centerStuds = QPointF(centerPx.x() / px, centerPx.y() / px)
+                                  + parts_.imageOffset(b->partNumber, b->orientation);
         const int n = meta->connections.size();
         for (int i = 0; i < n; ++i) {
             const auto& c = meta->connections[i];
@@ -304,7 +308,8 @@ void MapView::applyLiveConnectionSnap() {
 
     for (const auto& fc : free) {
         const QPointF centerPx = fc.snap->item->scenePos();
-        const QPointF centerStuds(centerPx.x() / px, centerPx.y() / px);
+        const QPointF centerStuds = QPointF(centerPx.x() / px, centerPx.y() / px)
+                                  + parts_.imageOffset(fc.brick->partNumber, fc.brick->orientation);
         auto r = ::bld::ui::masterBrickSnap(*map_, parts_, *fc.brick, centerStuds,
                                             fc.connIdx, movingGuids, threshold);
         if (!r.applied) continue;
@@ -399,7 +404,8 @@ void MapView::applyLiveConnectionSnap() {
         meta && bestConnIdx >= 0 && bestConnIdx < meta->connections.size()) {
         const auto& ac = meta->connections[bestConnIdx];
         const QPointF centerPx = bestSnap->item->scenePos() + shiftPx;
-        const QPointF centerStuds(centerPx.x() / px, centerPx.y() / px);
+        const QPointF centerStuds = QPointF(centerPx.x() / px, centerPx.y() / px)
+                                  + parts_.imageOffset(bestBrick->partNumber, bestBrick->orientation);
         const QPointF activeConnWorldAfter =
             centerStuds + rotatePoint(ac.position, bestBrick->orientation);
         liveSnapPointScene_ = QPointF(activeConnWorldAfter.x() * px,
@@ -506,7 +512,8 @@ void MapView::commitDragIfMoved() {
             if (!meta) continue;
             const QPointF centerStuds = e.afterTopLeft + QPointF(
                 b->displayArea.width()  / 2.0,
-                b->displayArea.height() / 2.0);
+                b->displayArea.height() / 2.0)
+                + parts_.imageOffset(b->partNumber, b->orientation);
             const int n = meta->connections.size();
             for (int i = 0; i < n; ++i) {
                 const auto& c = meta->connections[i];
@@ -560,10 +567,17 @@ void MapView::commitDragIfMoved() {
             connectionSnapped = true;
             if (singleBrick && best.newOrientation
                 && std::abs(*best.newOrientation - bestBrick->orientation) > 0.01f) {
+                // The translation above put the sprite centre where the
+                // turned brick's sprite centre belongs; turn around it.
+                core::Brick turned = *bestBrick;
+                turned.displayArea.moveTo(entries.front().afterTopLeft);
                 edit::RotateBricksCommand::Entry re;
                 re.ref = entries.front().ref;
                 re.beforeOrientation = bestBrick->orientation;
-                re.afterOrientation  = *best.newOrientation;
+                re.beforeArea = turned.displayArea;
+                parts::placement::rotateAroundImageCentre(turned, *best.newOrientation, parts_);
+                re.afterOrientation  = turned.orientation;
+                re.afterArea = turned.displayArea;
                 connectionRotate = re;
             }
         }

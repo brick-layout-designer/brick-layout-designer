@@ -7,6 +7,7 @@
 #include <QHash>
 #include <QPointF>
 #include <QSet>
+#include <QRectF>
 #include <QUndoCommand>
 
 #include <vector>
@@ -45,14 +46,18 @@ private:
     std::vector<Entry> entries_;
 };
 
-// Rotate selected bricks in place. Orientation in degrees. `beforeOrient` is
-// stored so undo is exact even for fractional rotations.
+// Rotate bricks. Orientation in degrees; the displayArea changes with it
+// (its size follows the rotated hull, and bricks turn around their sprite
+// centre or a shared pivot), so both are stored for an exact undo. A null
+// afterArea leaves the displayArea alone.
 class RotateBricksCommand : public QUndoCommand {
 public:
     struct Entry {
         BrickRef ref;
         float beforeOrientation = 0.0f;
         float afterOrientation  = 0.0f;
+        QRectF beforeArea;
+        QRectF afterArea;
     };
 
     RotateBricksCommand(core::Map& map, std::vector<Entry> entries, QUndoCommand* parent = nullptr);
