@@ -127,6 +127,8 @@ AI-assisted warning above and keep backups. What works today:
   status-bar readout. `.bbb` files are byte-identical to BlueBrick's.
 - Grid cell indices (A, B, C… / 1, 2, 3…), and moving their origin by
   dragging the map with the grid layer selected, as in BlueBrick.
+- Part list export as HTML (with part pictures), text or CSV, laid out
+  like BlueBrick's, with budget columns and optional per-layer tables.
 - Flex track: double-click and drag a piece of a selected chain with
   hinged connections (PFS flex track, magnet couplings) to bend it,
   solved like BlueBrick's `FlexMove`.
@@ -204,7 +206,6 @@ AI-assisted warning above and keep backups. What works today:
   already; Flatpak is a follow-up if someone wants it.
 
 **Feature-parity gaps vs. BlueBrick 1.9.2**
-- HTML part-list export (CSV and text are supported).
 - Help → Contents (BlueBrick ships a `.chm`).
 
 **Deferred (niche)**

@@ -18,6 +18,8 @@ add_library(bld_edit STATIC
     VenueValidator.cpp
     VenueValidator.h
     Connectivity.cpp
+    PartList.cpp
+    PartList.h
     FlexMove.cpp
     FlexMove.h
     Connectivity.h

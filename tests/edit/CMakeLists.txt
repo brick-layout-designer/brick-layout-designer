@@ -5,6 +5,7 @@ add_executable(bld_edit_tests
     LayerCommandsTest.cpp
     AreaCommandsTest.cpp
     BudgetTest.cpp
+    PartListTest.cpp
 )
 
 target_compile_definitions(bld_edit_tests PRIVATE BLD_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
