@@ -34,6 +34,10 @@
 #include "../saveload/VenueIO.h"
 
 #include <QAction>
+#include <QKeySequence>
+#include <QCoreApplication>
+#include <QUrl>
+#include <QDesktopServices>
 #include <QApplication>
 #include <QCheckBox>
 #include <QColorDialog>
@@ -576,6 +580,30 @@ void MainWindow::setupMenus() {
     connect(saveSetAct, &QAction::triggered, this, &MainWindow::onSaveSelectionAsSet);
 
     auto* help = menuBar()->addMenu(tr("&Help"));
+    auto* contentsAct = help->addAction(tr("&Contents"));
+    contentsAct->setShortcut(QKeySequence::HelpContents);
+    connect(contentsAct, &QAction::triggered, this, [this]{
+        // BlueBrick's manual as offline HTML, in the UI language if there
+        // is one, else English; the online copy if it wasn't installed.
+        const QString exeDir = QCoreApplication::applicationDirPath();
+        const QString lang = QSettings().value(QStringLiteral("general/language")).toString().left(2);
+        QStringList roots;
+        for (const char* rel : { "/../Resources/help", "/../share/brick-layout-designer/help", "/help" })
+            roots << exeDir + QLatin1String(rel);
+        roots << QStringLiteral(BLD_HELP_SOURCE_DIR);
+        for (const QString& root : std::as_const(roots)) {
+            for (const QString& l : { lang, QStringLiteral("en") }) {
+                const QString index = QDir(root).filePath(l + QStringLiteral("/index.html"));
+                if (!l.isEmpty() && QFileInfo::exists(index)) {
+                    QDesktopServices::openUrl(QUrl::fromLocalFile(QFileInfo(index).absoluteFilePath()));
+                    return;
+                }
+            }
+        }
+        QDesktopServices::openUrl(QUrl(QStringLiteral(
+            "https://github.com/brick-layout-designer/brick-layout-designer/tree/main/help/en")));
+    });
+    help->addSeparator();
     auto* aboutAct = help->addAction(tr("&About BLD..."));
     connect(aboutAct, &QAction::triggered, this, &MainWindow::onAbout);
     auto* aboutQtAct = help->addAction(tr("About &Qt..."));

@@ -103,3 +103,6 @@ if(BLD_UI_QZIPREADER_INCLUDE_DIR)
 else()
     target_compile_definitions(bld_ui PRIVATE BLD_NO_QZIPREADER=1)
 endif()
+
+# Help > Contents falls back to the source tree's help/ in development builds.
+target_compile_definitions(bld_ui PRIVATE BLD_HELP_SOURCE_DIR="${CMAKE_SOURCE_DIR}/help")

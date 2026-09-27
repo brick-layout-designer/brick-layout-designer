@@ -109,6 +109,10 @@ if(BLD_INSTALL_PARTS AND EXISTS "${CMAKE_SOURCE_DIR}/parts/BlueBrickParts/parts"
             DESTINATION "${BLD_INSTALL_DATADIR}/parts/BlueBrickParts")
 endif()
 
+# BlueBrick's manual as offline HTML (Help > Contents), made from its .chm
+# by scripts/help/chm_to_html.py.
+install(DIRECTORY "${CMAKE_SOURCE_DIR}/help" DESTINATION "${BLD_INSTALL_DATADIR}")
+
 if(WIN32)
     install(FILES README.md DESTINATION .)
     install(FILES LICENSE DESTINATION . RENAME LICENSE.txt)

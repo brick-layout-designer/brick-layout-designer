@@ -1,0 +1,61 @@
+<html>
+<head>
+<meta name="keywords" content="BlueBrick, Help">
+<meta name="description" content="The reference documentation for BlueBrick.">
+<meta name="author" content="Alban Nanty">
+<link rel="StyleSheet" href="BlueBrick.css" type="text/css" media="screen">
+<title>Connection Type Configuration File</title>
+</head>
+<body>
+<h1>Connection Type Configuration File</h1>
+<P>Since the version 1.7 of BlueBrick you can extend the type of connections for the parts, letting you creating an infinite number of connection types. You can also define the color and the size of the dot used to represent the free connections in BlueBrick.</P>
+
+<P>All the different connections types are described in an XML file named <span class="Important">"ConnectionTypeList.xml"</span> and located in a <span class="Important">"config"</span> folder inside a part package folder, or in the <span class="Important">"config"</span> folder of the BlueBrick install folder. The <span class="Important">"ConnectionTypeList.xml"</span> located in the <span class="Important">"config"</span> folder of the BlueBrick install folder and released with the application, is a legacy file containing the most common and historical connection types. You can still modify it for your own purpose, however, if you want to share with the community, new parts that you created, you probably want to create a new <span class="Important">"ConnectionTypeList.xml"</span> file in a <span class="Important">"config"</span> folder inside the package of parts that you want to distribute. See <a href="How_to_share_parts.htm">How to Share parts with the community</a> for more details.</p>
+
+<p>The file has this architecture:</p>
+
+<TABLE CLASS="XMLDescription">
+<TR>
+	<TD CLASS="Tilte">Selected Connection:</TD>
+	<TD CLASS="XMLCode">&lt;SelectedConnection&gt;<BR>
+		&nbsp;&nbsp;&nbsp;&nbsp;&lt;ColorARGB&gt;...&lt;/ColorARGB&gt;<BR>
+		&nbsp;&nbsp;&nbsp;&nbsp;&lt;Size&gt;...&lt;/Size&gt;<BR>
+		&lt;/SelectedConnection&gt;
+	</TD>
+</TR><TR>
+	<TD CLASS="Tilte">List of Connection Types:</TD>
+	<TD CLASS="XMLCode">&lt;ConnectionTypeList&gt;<BR>
+		&nbsp;&nbsp;&nbsp;&nbsp;&lt;ConnectionType name="..."&gt;<BR>
+		&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&lt;ColorARGB&gt;...&lt;/ColorARGB&gt;<BR>
+		&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&lt;Size&gt;...&lt;/Size&gt;<BR>
+		&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&lt;HingeAngle&gt;...&lt;/HingeAngle&gt;<BR>
+		&nbsp;&nbsp;&nbsp;&nbsp;&lt;/ConnectionType&gt;<BR>
+		&nbsp;&nbsp;&nbsp;&nbsp;...<BR>
+		&lt;/ConnectionTypeList&gt;
+	</TD>
+</TR>  
+</TABLE>
+
+<P>The <span class="Important">SelectedConnection field</span> let you define the size and the color of the connection currently selected when you click on one single part. If this field is not present in the XML file, a big red dot will be used by default. You should always use a size bigger than every size you may define in the following list of connection types, because the selection dot is drawn first, under the actual connection dot. So if you choose a too small size, the selection dot may be hidden by the connection dot.</P>
+
+<P>The <span class="Important">ColorARGB field</span> is a 4 bytes integer written in Hexadecimal and the order of the color components are Alpha (i.e. transparency), Red, Green, Blue. Do not prefix the numbe with "0x". For example the solid green color would be <span class="Important">FF00FF00</span>. If this field is missing the solid black color will be used by default. Be careful to not set a null value in the Alpha channel, otherwise the dot will be totally transparent and therefore invisible.</P>
+
+<P>The <span class="Important">Size field</span> defines the radius of the dot in Stud unit. If this field is missing a default radius of 1 stud will be used.</P>
+
+<P>The <span class="Important">HingeAngle field</span> defines the maximum angle the bricks can rotate while they are connected. This field cannot appears in the selected connection field and is optionnal for the other connections. If this field is set with a value of 0, it has the same effect that not setting it at all (that means the connection is not an hinge). If a non null value is set then this connection is like an hinge, and the two bricks linked through this connection can rotate between them on the connection point.</P>
+
+<P>The <span class="Important">ConnectionTypeList field</span> list a serie of <span class="Important">ConnectionType field</span> that describe all the different connection type.</P>
+
+<P>The <span class="Important">ConnectionType field</span> contains also a color and a size fields for this connection. But most important, this field has a mandatory attribute called <span class="Important">name</span> which is the name id of the connection so this name must be a unique string among all the list of connection. This same name must be used in the XML description files of the parts in the part library in the field <span class="Important">&lt;connexion&gt;&lt;type&gt;</span>.</P>
+
+<P>For your information, here is the list of the available connections so far. Historically it was using a number, but these numbers will be renamed with a more explicit name in the 1.8 version.</P>
+<DIV CLASS="TechNote">
+<FONT STYLE="background-color:yellow">1 = Rail (4.5V, 12V or 9V)</font><BR>
+<FONT STYLE="background-color:cyan">2 = Road</font><BR>
+<FONT STYLE="background-color:purple">3 = Monorail (standard)</font><BR>
+<FONT STYLE="background-color:pink">4 = Monorail (short curve)</font><BR>
+<FONT STYLE="background-color:lightgreen">5 = Duplo Rail</font><BR>
+</DIV>
+
+</body>
+</html>

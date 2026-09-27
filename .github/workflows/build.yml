@@ -167,6 +167,7 @@ jobs:
           xvfb-run -a "./$ARTIFACT.AppImage" --version | grep -F "$BLD_VERSION"
           xvfb-run -a ./dist/brick-layout-designer/brick-layout-designer --version | grep -F "$BLD_VERSION"
           test -d dist/brick-layout-designer/usr/share/brick-layout-designer/parts/BlueBrickParts/parts
+          test -f dist/brick-layout-designer/usr/share/brick-layout-designer/help/en/index.html
           # And natively under a headless Wayland compositor.
           export XDG_RUNTIME_DIR=$(mktemp -d)
           weston --backend=headless-backend.so --socket=bld-test &
@@ -233,6 +234,7 @@ jobs:
           APP=dist/brick-layout-designer.app
           "$APP/Contents/MacOS/brick-layout-designer" --version | grep -F "$BLD_VERSION"
           test -d "$APP/Contents/Resources/parts/BlueBrickParts/parts"
+          test -f "$APP/Contents/Resources/help/en/index.html"
           # ditto keeps the extended attributes / signature intact.
           ditto -c -k --keepParent "$APP" "$ARTIFACT.zip"
           # Drag-to-Applications disk image.
@@ -258,6 +260,7 @@ jobs:
           grep -F "$BLD_VERSION" version.txt
           test -f dist/brick-layout-designer/vcruntime140.dll
           test -d dist/brick-layout-designer/parts/BlueBrickParts/parts
+          test -f dist/brick-layout-designer/help/en/index.html
 
       - name: Codesign exe (Windows)
         # Signs the binaries before they are zipped / wrapped in the MSI.
