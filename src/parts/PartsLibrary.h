@@ -93,6 +93,21 @@ struct PartMetadata {
     // it. Angle in degrees; translation in LDU.
     double   ldrawAngle = 0.0;
     QPointF  ldrawTranslation;
+    double   ldrawPreferredHeight = 0.0;  // LDU; used when saving at altitude 0
+    QString  ldrawSleeper;   // "<part>.<colour>" LDraw sleeper added under rails on save
+    QString  ldrawAlias;     // "<part>[.<colour>]" to write instead of this part
+
+    // Earlier part numbers (<OldNameList>); files using them load as this part.
+    QStringList oldNames;
+
+    // <hull> outline in sprite pixels (half-pixel centred, as BlueBrick
+    // reads it). Empty: the hull is the sprite's bounding box.
+    QList<QPointF> xmlHullPx;
+
+    // BlueBrick's "ignorable" parts: a leaf part with an XML but no image,
+    // e.g. the sleeper plates that LDraw exports put under 12V/4.5V rails.
+    // They are skipped when loading LDraw files and never listed.
+    bool isIgnorable() const { return kind == PartKind::Leaf && gifFilePath.isEmpty(); }
 };
 
 class PartsLibrary {
@@ -115,7 +130,12 @@ public:
     int partCount() const { return static_cast<int>(index_.size()); }
 
     // Lookup key is "<PartNumber>.<ColorCode>" (e.g. "3001.1" or "TS_TRACK18S.8").
+    // Old part numbers (<OldNameList>) resolve to the part that replaced them.
     std::optional<PartMetadata> metadata(const QString& key) const;
+
+    // The current key for `key`: itself, or the part an old name maps to.
+    // Empty when unknown.
+    QString canonicalKey(const QString& key) const;
     QStringList keys() const;
 
     // Lazy-load a decoded QPixmap for a part. Returns a null QPixmap if the
@@ -143,6 +163,17 @@ public:
     // the rest of our renderer / connectivity code uses.
     QPointF hullBboxOffsetStuds(const QString& key, double orientationDegrees);
 
+    // BlueBrick's footprint of a part at an orientation: a brick's
+    // displayArea is the box around its rotated hull (<hull> from the XML,
+    // else the sprite's bounds), and the sprite is drawn `imageOffset`
+    // studs from that box's centre (mOffsetFromOriginalImage). Non-zero
+    // only for parts with an XML hull; up to ~3 studs for 9V switches.
+    struct Footprint {
+        QPointF imageOffset;  // studs, from displayArea centre to sprite centre
+        QSizeF  size;         // studs, displayArea size
+    };
+    std::optional<Footprint> footprint(const QString& key, double orientationDegrees);
+
     void clear();
 
     // Drop one part (and its cached sprite / hull) so scanFile() can
@@ -152,6 +183,7 @@ public:
 private:
     QStringList searchPaths_;
     QHash<QString, PartMetadata> index_;
+    QHash<QString, QString>      renamed_;   // lower-cased old name -> current key
     QHash<QString, QPixmap>      pixmapCache_;
     QHash<QString, QPolygonF>    hullCache_;
 };
