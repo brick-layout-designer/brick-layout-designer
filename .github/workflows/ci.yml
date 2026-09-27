@@ -266,7 +266,8 @@ jobs:
       - name: Report
         run: |
           mkdir -p coverage
-          gcovr -r . --object-directory build --filter 'src/' --exclude 'src/app/' -j "$(nproc)" \
+          gcovr -r . --object-directory build --exclude-directories 'build/CMakeFiles/[0-9.]+' \
+            --filter 'src/' --exclude 'src/app/' -j "$(nproc)" \
             --print-summary --markdown-summary coverage/summary.md --html-details coverage/index.html
           cat coverage/summary.md >> "$GITHUB_STEP_SUMMARY"
 
