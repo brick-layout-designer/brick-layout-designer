@@ -4,6 +4,7 @@ add_executable(bld_ui_tests
     LDrawMapTest.cpp
     BrickPlacementTest.cpp
     ConnectivityTest.cpp
+    FlexMoveTest.cpp
 )
 
 target_compile_definitions(bld_ui_tests PRIVATE

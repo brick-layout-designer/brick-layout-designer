@@ -17,6 +17,7 @@
 #include <QFile>
 #include <QGraphicsItem>
 #include <QGraphicsScene>
+#include <QMouseEvent>
 #include <QUndoStack>
 
 using namespace bld;
@@ -105,6 +106,58 @@ TEST_F(MapViewTest, UndoRedoKeepSelection) {
 }
 
 }  // namespace
+
+namespace {
+
+void mouse(QWidget* w, QEvent::Type type, QPoint pos, Qt::MouseButtons buttons) {
+    const Qt::MouseButton button = type == QEvent::MouseMove ? Qt::NoButton : Qt::LeftButton;
+    QMouseEvent ev(type, QPointF(pos), w->mapToGlobal(QPointF(pos)), button, buttons, Qt::NoModifier);
+    QApplication::sendEvent(w, &ev);
+}
+
+}  // namespace
+
+TEST_F(MapViewTest, DoubleClickDragBendsFlexTrackInOneUndoStep) {
+    auto loaded = saveload::readBbm(QStringLiteral(BLD_SOURCE_DIR "/fixtures/bluebrick-oracle/flex-in.bbm"));
+    ASSERT_TRUE(loaded.ok());
+    view_->loadMap(std::move(loaded.map));
+    view_->resize(800, 600);
+    const double px = 8.0;  // SceneBuilder::kPixelsPerStud
+    view_->centerOn(QPointF(55, 40) * px);
+    for (QGraphicsItem* it : brickItems(*view_->scene())) it->setSelected(true);
+    const auto bricks = [&]() -> const std::vector<core::Brick>& {
+        for (const auto& l : view_->currentMap()->layers())
+            if (l->kind() == core::LayerKind::Brick) return static_cast<const core::LayerBrick&>(*l).bricks;
+        throw std::runtime_error("no brick layer");
+    };
+    const std::vector<core::Brick> before = bricks();
+
+    // Grab the far flex-track end (its free connection is at x = 68).
+    QWidget* vp = view_->viewport();
+    const QPoint grab = view_->mapFromScene(QPointF(67.5, 40) * px);
+    mouse(vp, QEvent::MouseButtonPress, grab, Qt::LeftButton);
+    mouse(vp, QEvent::MouseButtonRelease, grab, Qt::NoButton);
+    mouse(vp, QEvent::MouseButtonDblClick, grab, Qt::LeftButton);
+    ASSERT_EQ(selectedBrickGuids(*view_->scene()).size(), 10) << "the chain after the straight";
+    for (QPointF p : { QPointF(66, 37), QPointF(63, 32) })
+        mouse(vp, QEvent::MouseMove, view_->mapFromScene(p * px), Qt::LeftButton);
+    mouse(vp, QEvent::MouseButtonRelease, view_->mapFromScene(QPointF(63, 32) * px), Qt::NoButton);
+
+    const auto& after = bricks();
+    int moved = 0;
+    for (size_t i = 0; i < after.size(); ++i)
+        if (after[i].displayArea != before[i].displayArea) ++moved;
+    EXPECT_GE(moved, 8);
+    EXPECT_EQ(after.front().displayArea, before.front().displayArea) << "the straight stays";
+    EXPECT_EQ(view_->undoStack()->count(), 1);
+    EXPECT_EQ(view_->undoStack()->undoText(), QStringLiteral("Flex move"));
+
+    view_->undoStack()->undo();
+    for (size_t i = 0; i < before.size(); ++i) {
+        EXPECT_EQ(bricks()[i].displayArea, before[i].displayArea);
+        EXPECT_EQ(bricks()[i].orientation, before[i].orientation);
+    }
+}
 
 int main(int argc, char** argv) {
     QApplication app(argc, argv);

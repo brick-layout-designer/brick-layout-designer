@@ -18,6 +18,17 @@ xvfb-run -a wine bbconv.exe "$(winepath -w in.bbm)" "$(winepath -w out.ldr)" [mo
 
 On Windows run `csc` and `bbconv.exe` directly.
 
+`bbflex.cs` (built the same way, adding `/r:System.Drawing.dll`) runs a
+flex move instead: it selects every brick of the grabbed brick's layer and
+drags that brick through the given points, without connection snapping:
+
+```sh
+xvfb-run -a wine bbflex.exe in.bbm out.bbm <brick id> <grab x> <grab y> <x1> <y1> [<x2> <y2> ...]
+```
+
+`flex-a/b/c.bbm` were made from `flex-in.bbm` this way (see
+`tests/ui/FlexMoveTest.cpp` for the arguments).
+
 Known BlueBrick behaviours the tests allow for:
 
 - The LDraw header names the map "Untitled" (the harness never sets a file name).

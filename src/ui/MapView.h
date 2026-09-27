@@ -19,6 +19,7 @@ class QGraphicsPixmapItem;
 class QUndoStack;
 
 namespace bld::core    { class Map; }
+namespace bld::edit    { class FlexMove; }
 namespace bld::parts   { class PartsLibrary; }
 namespace bld::rendering { class SceneBuilder; }
 
@@ -244,6 +245,22 @@ private:
     // enter this mode and on release commit a MoveRulerEndpointCommand.
     // Only linear rulers expose handles in this first pass — circular
     // edits still go through Properties for now.
+    // BlueBrick's flex move: double-click-drag a piece of a selected
+    // chain with hinged connections (flex track, magnet couplings) to
+    // bend it. Edits the map live; one undo command on release.
+    bool startFlexMove(QGraphicsItem* under, QPointF scenePos);
+    void updateFlexItems();
+    void finishFlexMove();
+    std::unique_ptr<edit::FlexMove> flex_;
+    int     flexLayer_ = -1;
+    QString flexGrabbed_;
+    bool    flexMoved_ = false;
+    QHash<QString, QGraphicsItem*> flexItems_;
+    // Bricks selected when the left button last went down: Qt drops the
+    // rest of a selection when a click on one of them is released, but
+    // the double-click that starts a flex move needs the whole chain.
+    QSet<QString> pressSelection_;
+
     bool    draggingRulerEndpoint_ = false;
     int     rulerEndpointIndex_ = -1;        // 0 = point1, 1 = point2
     int     rulerEndpointLayer_ = -1;
