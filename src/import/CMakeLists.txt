@@ -60,8 +60,11 @@ add_library(bld_import STATIC
     ImportConnections.h
 
     # Other layout programs' map formats (BlueBrick-compatible).
+    mapformats/BrickPlacement.h
     mapformats/LDrawMap.cpp
     mapformats/LDrawMap.h
+    mapformats/TrackDesignerMap.cpp
+    mapformats/TrackDesignerMap.h
 
     # Zip-slip guard shared by every archive extractor.
     ArchivePath.cpp

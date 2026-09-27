@@ -6,6 +6,7 @@
 
 #include "MainWindow.h"
 #include "../import/mapformats/LDrawMap.h"
+#include "../import/mapformats/TrackDesignerMap.h"
 
 #include "LayerPanel.h"
 #include "MapView.h"
@@ -76,19 +77,24 @@ bool isLDrawMap(const QString& path) {
     const QString suffix = QFileInfo(path).suffix().toLower();
     return suffix == QLatin1String("ldr") || suffix == QLatin1String("mpd");
 }
+bool isTrackDesignerMap(const QString& path) {
+    return QFileInfo(path).suffix().compare(QLatin1String("tdl"), Qt::CaseInsensitive) == 0;
+}
+bool isOtherMapFormat(const QString& path) { return isLDrawMap(path) || isTrackDesignerMap(path); }
 
 const char* kOpenFilter = QT_TRANSLATE_NOOP("bld::ui::MainWindow",
-    "All supported maps (*.bbm *.ldr *.mpd);;BlueBrick map (*.bbm);;"
-    "LDraw (*.ldr);;LDraw multi-part (*.mpd);;All files (*)");
+    "All supported maps (*.bbm *.ldr *.mpd *.tdl);;BlueBrick map (*.bbm);;"
+    "LDraw (*.ldr);;LDraw multi-part (*.mpd);;TrackDesigner (*.tdl);;All files (*)");
 const char* kSaveFilter = QT_TRANSLATE_NOOP("bld::ui::MainWindow",
-    "BlueBrick map (*.bbm);;LDraw (*.ldr);;LDraw multi-part (*.mpd)");
+    "BlueBrick map (*.bbm);;LDraw (*.ldr);;LDraw multi-part (*.mpd);;TrackDesigner (*.tdl)");
 
 }  // namespace
 
 bool MainWindow::openFile(const QString& path) {
     if (!maybeSave()) return false;
-    if (isLDrawMap(path)) {
-        auto ldraw = import::readLDrawMap(path, parts_);
+    if (isOtherMapFormat(path)) {
+        auto ldraw = isTrackDesignerMap(path) ? import::readTrackDesignerMap(path, parts_)
+                                              : import::readLDrawMap(path, parts_);
         if (!ldraw.ok()) {
             QMessageBox::warning(this, tr("Open failed"), tr("%1\n\n%2").arg(path, ldraw.error));
             return false;
@@ -159,9 +165,11 @@ void MainWindow::onOpen() {
 bool MainWindow::writeMapTo(const QString& path) {
     auto* map = mapView_->currentMap();
     if (!map) return false;
-    if (isLDrawMap(path)) {
+    if (isOtherMapFormat(path)) {
         QString err;
-        if (!import::writeLDrawMap(*map, path, parts_, &err)) {
+        const bool written = isTrackDesignerMap(path) ? import::writeTrackDesignerMap(*map, path, parts_, &err)
+                                                      : import::writeLDrawMap(*map, path, parts_, &err);
+        if (!written) {
             QMessageBox::warning(this, tr("Save failed"), err);
             return false;
         }
@@ -223,6 +231,7 @@ bool MainWindow::onSaveAs() {
     if (QFileInfo(path).suffix().isEmpty()) {
         path += selectedFilter.contains(QStringLiteral("*.mpd")) ? QStringLiteral(".mpd")
               : selectedFilter.contains(QStringLiteral("*.ldr")) ? QStringLiteral(".ldr")
+              : selectedFilter.contains(QStringLiteral("*.tdl")) ? QStringLiteral(".tdl")
                                                                   : QStringLiteral(".bbm");
     }
     // As in BlueBrick: other formats can't hold everything a .bbm does.
@@ -230,7 +239,7 @@ bool MainWindow::onSaveAs() {
     if (!path.endsWith(QStringLiteral(".bbm"), Qt::CaseInsensitive) && QSettings().value(warnKey, true).toBool()) {
         QMessageBox box(QMessageBox::Question, tr("Save as %1").arg(QFileInfo(path).suffix().toUpper()),
             tr("This format can't store everything in the map: text, area and grid layers, "
-               "module / label / venue data and custom parts without a colour are lost, "
+               "module / label / venue data and parts the format has no equivalent for are lost, "
                "and layer names may change. Keep a .bbm copy if you need them.\n\nSave anyway?"),
             QMessageBox::Yes | QMessageBox::No, this);
         auto* dontAsk = new QCheckBox(tr("Don't show this again"), &box);
