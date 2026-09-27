@@ -14,6 +14,7 @@
 #include <QSettings>
 
 #include <QBrush>
+#include <QCoreApplication>
 #include <QFont>
 #include <QFontMetricsF>
 #include <QGraphicsEllipseItem>
@@ -781,6 +782,12 @@ SceneBuilder::SceneBuilder(QGraphicsScene& scene, parts::PartsLibrary& parts)
     : scene_(scene), parts_(parts) {}
 
 void SceneBuilder::clear() {
+    // Items added since the event loop last ran wait in the scene's
+    // "unpolished" list, and removing each one scans that list: clearing
+    // right after a build (two rebuilds in one event-loop turn) went
+    // quadratic, ~250 ms for 10 000 items. Polish them first (a queued
+    // call on the scene) so removal stays linear.
+    QCoreApplication::sendPostedEvents(&scene_, QEvent::MetaCall);
     for (auto& list : itemsByLayer_) {
         for (auto* it : list) { scene_.removeItem(it); delete it; }
     }
