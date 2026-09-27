@@ -4,6 +4,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QImage>
+#include <QtMath>
 #include <QPainter>
 #include <QTransform>
 #include <QXmlStreamReader>
@@ -80,8 +81,29 @@ void readSubPartList(QXmlStreamReader& r, QList<PartSubPart>& out) {
 void readLDrawRemap(QXmlStreamReader& r, PartMetadata& out) {
     while (r.readNextStartElement()) {
         const auto n = r.name();
-        if      (n == QStringLiteral("Angle"))       out.ldrawAngle = r.readElementText().toDouble();
-        else if (n == QStringLiteral("Translation")) out.ldrawTranslation = readPositionBlock(r);
+        if      (n == QStringLiteral("Angle"))           out.ldrawAngle = r.readElementText().toDouble();
+        else if (n == QStringLiteral("Translation"))     out.ldrawTranslation = readPositionBlock(r);
+        else if (n == QStringLiteral("PreferredHeight")) out.ldrawPreferredHeight = r.readElementText().toDouble();
+        else if (n == QStringLiteral("SleeperID"))       out.ldrawSleeper = r.readElementText().trimmed().toUpper();
+        else if (n == QStringLiteral("Alias"))           out.ldrawAlias = r.readElementText().trimmed().toUpper();
+        else r.skipCurrentElement();
+    }
+    // Vanilla: a sleeper without a colour is black.
+    if (!out.ldrawSleeper.isEmpty() && !out.ldrawSleeper.contains(QLatin1Char('.')))
+        out.ldrawSleeper += QStringLiteral(".0");
+}
+
+void readHull(QXmlStreamReader& r, QList<QPointF>& out) {
+    while (r.readNextStartElement()) {
+        if (r.name() != QStringLiteral("point")) { r.skipCurrentElement(); continue; }
+        // BlueBrick shifts hull points to the pixel centre.
+        out << readPositionBlock(r) + QPointF(0.5, 0.5);
+    }
+}
+
+void readOldNames(QXmlStreamReader& r, QStringList& out) {
+    while (r.readNextStartElement()) {
+        if (r.name() == QStringLiteral("OldName")) out << r.readElementText().trimmed();
         else r.skipCurrentElement();
     }
 }
@@ -122,6 +144,8 @@ bool parsePartXml(const QString& xmlPath, PartMetadata& out) {
             else if (n == QStringLiteral("ConnexionList")) readConnexionList(r, out.connections);
             else if (n == QStringLiteral("SubPartList"))   readSubPartList(r, out.subparts);
             else if (n == QStringLiteral("LDraw"))         readLDrawRemap(r, out);
+            else if (n == QStringLiteral("OldNameList"))   readOldNames(r, out.oldNames);
+            else if (n == QStringLiteral("hull"))          readHull(r, out.xmlHullPx);
             else if (n == QStringLiteral("PixelsPerStud")) {
                 bool ok = false;
                 const int v = r.readElementText().trimmed().toInt(&ok);
@@ -208,6 +232,7 @@ QString PartsLibrary::scanFile(const QString& xmlPath) {
         ? partNum.toLower()
         : QStringLiteral("%1.%2").arg(partNum, colorCode).toLower();
     if (index_.contains(key)) return {};
+    for (const QString& old : meta.oldNames) renamed_.insert(old.toLower(), key);
     index_.insert(key, meta);
     return key;
 }
@@ -225,8 +250,57 @@ int PartsLibrary::scan() {
 
 std::optional<PartMetadata> PartsLibrary::metadata(const QString& key) const {
     auto it = index_.constFind(key.toLower());
-    if (it == index_.constEnd()) return std::nullopt;
+    if (it == index_.constEnd()) {
+        const auto renamed = renamed_.constFind(key.toLower());
+        if (renamed == renamed_.constEnd()) return std::nullopt;
+        it = index_.constFind(renamed.value());
+        if (it == index_.constEnd()) return std::nullopt;
+    }
     return it.value();
+}
+
+std::optional<PartsLibrary::Footprint> PartsLibrary::footprint(const QString& key, double orientationDegrees) {
+    const auto meta = metadata(key);
+    if (!meta) return std::nullopt;
+    const QPixmap pm = pixmap(key);
+    if (pm.isNull()) return std::nullopt;
+    const float pxPerStud = meta->pxPerStud > 0 ? static_cast<float>(meta->pxPerStud) : 8.0f;
+
+    // Same float arithmetic as LayerBrick.Brick.updateImage().
+    const float lastX = static_cast<float>(pm.width()) - 0.5f;
+    const float lastY = static_cast<float>(pm.height()) - 0.5f;
+    const QPointF box[4] = { { 0.5, 0.5 }, { lastX, 0.5 }, { lastX, lastY }, { 0.5, lastY } };
+    const double rad = qDegreesToRadians(orientationDegrees);
+    const float c = static_cast<float>(std::cos(rad)), sn = static_cast<float>(std::sin(rad));
+    struct MinMax { float minX, minY, maxX, maxY; };
+    const auto bounds = [&](auto begin, auto end) {
+        MinMax mm{ 1e30f, 1e30f, -1e30f, -1e30f };
+        for (auto it = begin; it != end; ++it) {
+            const float x = static_cast<float>(it->x()), y = static_cast<float>(it->y());
+            const float rx = x * c - y * sn, ry = x * sn + y * c;
+            mm.minX = std::min(mm.minX, rx); mm.maxX = std::max(mm.maxX, rx);
+            mm.minY = std::min(mm.minY, ry); mm.maxY = std::max(mm.maxY, ry);
+        }
+        return mm;
+    };
+    const MinMax bb = bounds(std::begin(box), std::end(box));
+    Footprint fp;
+    if (meta->xmlHullPx.isEmpty()) {
+        fp.size = QSizeF((bb.maxX - bb.minX + 1.0f) / pxPerStud, (bb.maxY - bb.minY + 1.0f) / pxPerStud);
+        return fp;
+    }
+    const MinMax hull = bounds(meta->xmlHullPx.cbegin(), meta->xmlHullPx.cend());
+    const float ox = ((bb.maxX - hull.maxX) + (bb.minX - hull.minX)) * 0.5f / pxPerStud;
+    const float oy = ((bb.maxY - hull.maxY) + (bb.minY - hull.minY)) * 0.5f / pxPerStud;
+    fp.imageOffset = QPointF(ox, oy);
+    fp.size = QSizeF((hull.maxX - hull.minX + 1.0f) / pxPerStud, (hull.maxY - hull.minY + 1.0f) / pxPerStud);
+    return fp;
+}
+
+QString PartsLibrary::canonicalKey(const QString& key) const {
+    const QString lk = key.toLower();
+    if (index_.contains(lk)) return lk;
+    return renamed_.value(lk);
 }
 
 QStringList PartsLibrary::keys() const {
@@ -467,6 +541,7 @@ void PartsLibrary::forget(const QString& key) {
 
 void PartsLibrary::clear() {
     index_.clear();
+    renamed_.clear();
     pixmapCache_.clear();
     hullCache_.clear();
 }
