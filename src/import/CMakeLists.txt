@@ -59,6 +59,10 @@ add_library(bld_import STATIC
     ImportConnections.cpp
     ImportConnections.h
 
+    # Other layout programs' map formats (BlueBrick-compatible).
+    mapformats/LDrawMap.cpp
+    mapformats/LDrawMap.h
+
     # Zip-slip guard shared by every archive extractor.
     ArchivePath.cpp
     ArchivePath.h
@@ -70,7 +74,7 @@ target_include_directories(bld_import PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
 # in explicitly. Using private Qt APIs is a stability tradeoff — it can
 # break across Qt minor versions, but it spares us the external QuaZip /
 # miniz dep for a tiny feature.
-target_link_libraries(bld_import PUBLIC bld_core bld_geom bld_parts bld_edit Qt6::Core Qt6::Gui)
+target_link_libraries(bld_import PUBLIC bld_core bld_geom bld_parts bld_edit bld_saveload Qt6::Core Qt6::Gui)
 # Qt 6 layout puts private headers under
 # <prefix>/include/QtCore/<version>/QtCore/private/. Locate the specific
 # directory that contains the header we need, then add its parent so

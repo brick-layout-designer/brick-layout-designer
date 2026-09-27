@@ -5,6 +5,7 @@
 // bodies across translation units.
 
 #include "MainWindow.h"
+#include "../import/mapformats/LDrawMap.h"
 
 #include "LayerPanel.h"
 #include "MapView.h"
@@ -28,6 +29,7 @@
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
+#include <QCheckBox>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QHash>
@@ -67,8 +69,45 @@ void MainWindow::updateTitle() {
 
 // ---------- Open / Save / New ----------------------------------------------
 
+namespace {
+
+// Map formats besides .bbm that BlueBrick also opens and saves.
+bool isLDrawMap(const QString& path) {
+    const QString suffix = QFileInfo(path).suffix().toLower();
+    return suffix == QLatin1String("ldr") || suffix == QLatin1String("mpd");
+}
+
+const char* kOpenFilter = QT_TRANSLATE_NOOP("bld::ui::MainWindow",
+    "All supported maps (*.bbm *.ldr *.mpd);;BlueBrick map (*.bbm);;"
+    "LDraw (*.ldr);;LDraw multi-part (*.mpd);;All files (*)");
+const char* kSaveFilter = QT_TRANSLATE_NOOP("bld::ui::MainWindow",
+    "BlueBrick map (*.bbm);;LDraw (*.ldr);;LDraw multi-part (*.mpd)");
+
+}  // namespace
+
 bool MainWindow::openFile(const QString& path) {
     if (!maybeSave()) return false;
+    if (isLDrawMap(path)) {
+        auto ldraw = import::readLDrawMap(path, parts_);
+        if (!ldraw.ok()) {
+            QMessageBox::warning(this, tr("Open failed"), tr("%1\n\n%2").arg(path, ldraw.error));
+            return false;
+        }
+        const int layerCount = static_cast<int>(ldraw.map->layers().size());
+        mapView_->loadMap(std::move(ldraw.map));
+        layerPanel_->setMap(mapView_->currentMap(), mapView_->builder());
+        modulesPanel_->setMap(mapView_->currentMap());
+        currentFilePath_ = path;
+        mapView_->undoStack()->setClean();
+        cleanUndoIndex_ = 0;
+        updateTitle();
+        statusBar()->showMessage(ldraw.warnings.isEmpty()
+            ? tr("Opened %1 — %2 layers").arg(path).arg(layerCount)
+            : tr("Opened %1 — %2 layers (%3)").arg(path).arg(layerCount).arg(ldraw.warnings.join(QStringLiteral("; "))));
+        QSettings().setValue(QString::fromLatin1(kLastFileKey), path);
+        pushRecentFile(path);
+        return true;
+    }
     auto result = saveload::readBbm(path);
     if (!result.ok()) {
         QMessageBox::warning(this, tr("Open failed"),
@@ -113,14 +152,28 @@ bool MainWindow::openFile(const QString& path) {
 
 void MainWindow::onOpen() {
     const QString path = QFileDialog::getOpenFileName(
-        this, tr("Open BlueBrick map"), {},
-        tr("BlueBrick map (*.bbm);;All files (*)"));
+        this, tr("Open map"), {}, tr(kOpenFilter));
     if (!path.isEmpty()) openFile(path);
 }
 
 bool MainWindow::writeMapTo(const QString& path) {
     auto* map = mapView_->currentMap();
     if (!map) return false;
+    if (isLDrawMap(path)) {
+        QString err;
+        if (!import::writeLDrawMap(*map, path, parts_, &err)) {
+            QMessageBox::warning(this, tr("Save failed"), err);
+            return false;
+        }
+        currentFilePath_ = path;
+        mapView_->undoStack()->setClean();
+        updateTitle();
+        statusBar()->showMessage(tr("Saved %1").arg(path), 3000);
+        QSettings().setValue(QString::fromLatin1(kLastFileKey), path);
+        pushRecentFile(path);
+        QFile::remove(autosavePath());
+        return true;
+    }
     auto res = saveload::writeBbm(*map, path);
     if (!res.ok) {
         QMessageBox::warning(this, tr("Save failed"), res.error);
@@ -163,10 +216,29 @@ bool MainWindow::onSave() {
 
 bool MainWindow::onSaveAs() {
     if (!mapView_->currentMap()) return false;
-    const QString path = QFileDialog::getSaveFileName(
-        this, tr("Save BlueBrick map"), currentFilePath_,
-        tr("BlueBrick map (*.bbm)"));
+    QString selectedFilter;
+    QString path = QFileDialog::getSaveFileName(
+        this, tr("Save map"), currentFilePath_, tr(kSaveFilter), &selectedFilter);
     if (path.isEmpty()) return false;
+    if (QFileInfo(path).suffix().isEmpty()) {
+        path += selectedFilter.contains(QStringLiteral("*.mpd")) ? QStringLiteral(".mpd")
+              : selectedFilter.contains(QStringLiteral("*.ldr")) ? QStringLiteral(".ldr")
+                                                                  : QStringLiteral(".bbm");
+    }
+    // As in BlueBrick: other formats can't hold everything a .bbm does.
+    const QString warnKey = QStringLiteral("general/warnNonBbmSave");
+    if (!path.endsWith(QStringLiteral(".bbm"), Qt::CaseInsensitive) && QSettings().value(warnKey, true).toBool()) {
+        QMessageBox box(QMessageBox::Question, tr("Save as %1").arg(QFileInfo(path).suffix().toUpper()),
+            tr("This format can't store everything in the map: text, area and grid layers, "
+               "module / label / venue data and custom parts without a colour are lost, "
+               "and layer names may change. Keep a .bbm copy if you need them.\n\nSave anyway?"),
+            QMessageBox::Yes | QMessageBox::No, this);
+        auto* dontAsk = new QCheckBox(tr("Don't show this again"), &box);
+        box.setCheckBox(dontAsk);
+        const int answer = box.exec();
+        if (dontAsk->isChecked()) QSettings().setValue(warnKey, false);
+        if (answer != QMessageBox::Yes) return false;
+    }
     return writeMapTo(path);
 }
 
