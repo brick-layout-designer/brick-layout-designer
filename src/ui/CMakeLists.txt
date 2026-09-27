@@ -1,6 +1,7 @@
 add_library(bld_ui STATIC
     MainWindow.cpp
     MainWindow.h
+    MainWindowBudgetMenu.cpp
     MainWindowFileIO.cpp
     MainWindowImport.cpp
     MainWindowLibrary.cpp
@@ -45,6 +46,8 @@ add_library(bld_ui STATIC
     FindDialog.h
     BudgetDialog.cpp
     BudgetDialog.h
+    BudgetSession.cpp
+    BudgetSession.h
     VenueDialog.cpp
     VenueDialog.h
     VenueDimensionsDialog.cpp

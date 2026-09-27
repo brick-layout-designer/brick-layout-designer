@@ -34,6 +34,8 @@ public:
     ~MapView() override;
 
     void loadMap(std::unique_ptr<core::Map> map);
+    // Budget whose limitation (when on) placement and paste respect.
+    void setBudget(class BudgetSession* budget) { budget_ = budget; }
     void rebuildScene();  // re-run SceneBuilder against current map (after edits)
 
     core::Map* currentMap() { return map_.get(); }
@@ -251,6 +253,12 @@ private:
     bool startFlexMove(QGraphicsItem* under, QPointF scenePos);
     void updateFlexItems();
     void finishFlexMove();
+    // Whether `quantity` more of `part` fit the budget; tells the user
+    // when not (as BlueBrick, with an opt-out).
+    bool budgetAllows(const QString& part, int quantity = 1);
+    void reportBudgetRefusal();
+    class BudgetSession* budget_ = nullptr;
+
     std::unique_ptr<edit::FlexMove> flex_;
     int     flexLayer_ = -1;
     QString flexGrabbed_;

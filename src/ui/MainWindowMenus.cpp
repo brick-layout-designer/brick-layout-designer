@@ -4,7 +4,6 @@
 
 #include "MainWindow.h"
 
-#include "BudgetDialog.h"
 #include "FindDialog.h"
 #include "LayerPanel.h"
 #include "MapView.h"
@@ -562,14 +561,7 @@ void MainWindow::setupMenus() {
     // MainWindowMapMenu.cpp — it's ~240 lines on its own.
     setupMapMenu();
 
-    auto* budgetMenu = menuBar()->addMenu(tr("&Budget"));
-    auto* budgetDlg = budgetMenu->addAction(tr("Open Budget &Editor..."));
-    connect(budgetDlg, &QAction::triggered, this, [this]{
-        if (!mapView_->currentMap()) return;
-        auto* dlg = new BudgetDialog(*mapView_->currentMap(), this);
-        dlg->setAttribute(Qt::WA_DeleteOnClose);
-        dlg->show();
-    });
+    setupBudgetMenu();
 
     auto* modules = menuBar()->addMenu(tr("&Modules"));
     auto* createModAct = modules->addAction(tr("Create from &Selection..."));

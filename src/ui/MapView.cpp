@@ -12,6 +12,7 @@
 #include "../edit/AreaCommands.h"
 #include "../edit/Connectivity.h"
 #include "../edit/EditCommands.h"
+#include "BudgetSession.h"
 #include "../edit/FlexMove.h"
 #include "../edit/RulerCommands.h"
 #include "../edit/LabelCommands.h"
@@ -40,6 +41,8 @@
 #include <QGraphicsPixmapItem>
 #include <QGraphicsSimpleTextItem>
 #include <QImage>
+#include <QCheckBox>
+#include <QSettings>
 #include <QGraphicsItem>
 #include <QGraphicsScene>
 #include <QHash>
@@ -1270,6 +1273,7 @@ void MapView::resolvePartPlacement(const QString& partKey, QPointF cursorScenePx
 
 void MapView::addPartAtScenePos(const QString& partKey, QPointF sceneCenterPx) {
     if (!map_) return;
+    if (!budgetAllows(partKey)) return;
 
     // Use the active (selected) layer if it's a brick layer — matches
     // BlueBrick's selectedLayerIndex-driven placement. Fall back to the
@@ -1590,6 +1594,29 @@ void MapView::mouseDoubleClickEvent(QMouseEvent* e) {
         }
     }
     QGraphicsView::mouseDoubleClickEvent(e);
+}
+
+bool MapView::budgetAllows(const QString& part, int quantity) {
+    if (!budget_ || !map_ || budget_->canAdd(*map_, part, quantity)) return true;
+    reportBudgetRefusal();
+    return false;
+}
+
+void MapView::reportBudgetRefusal() {
+    if (auto* mw = window())
+        if (auto* sb = mw->findChild<QStatusBar*>())
+            sb->showMessage(tr("Budget reached: part not added"), 3000);
+    const QString key = QStringLiteral("general/warnBudgetLimitation");
+    if (!QSettings().value(key, true).toBool()) return;
+    QMessageBox box(QMessageBox::Critical, tr("Budget reached"),
+                    tr("Cannot add this part because the budget is reached. If you want to add "
+                       "this part, increase the budget for this part, disable the Budget "
+                       "Limitation or close the budget file."),
+                    QMessageBox::Ok, this);
+    auto* dontShow = new QCheckBox(tr("Don't show this message again"), &box);
+    box.setCheckBox(dontShow);
+    box.exec();
+    QSettings().setValue(key, !dontShow->isChecked());
 }
 
 bool MapView::startFlexMove(QGraphicsItem* under, QPointF scenePos) {

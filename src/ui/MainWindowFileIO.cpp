@@ -5,6 +5,7 @@
 // bodies across translation units.
 
 #include "MainWindow.h"
+#include "BudgetSession.h"
 #include "../import/mapformats/LDrawMap.h"
 #include "../import/mapformats/FourDBrixMap.h"
 #include "../import/mapformats/TrackDesignerMap.h"
@@ -65,8 +66,13 @@ void MainWindow::updateTitle() {
         ? tr("[untitled]")
         : QFileInfo(currentFilePath_).fileName();
     const bool dirty = !mapView_->undoStack()->isClean();
-    setWindowTitle(tr("%1%2 — Brick Layout Designer")
-                       .arg(name, dirty ? QStringLiteral(" *") : QString()));
+    // As BlueBrick, the open budget follows the map name.
+    QString budget;
+    if (budget_ && budget_->exists())
+        budget = QStringLiteral(" — %1%2").arg(budget_->displayName(),
+                                                  budget_->isModified() ? QStringLiteral(" *") : QString());
+    setWindowTitle(tr("%1%2%3 — Brick Layout Designer")
+                       .arg(name, dirty ? QStringLiteral(" *") : QString(), budget));
 }
 
 // ---------- Open / Save / New ----------------------------------------------
@@ -273,7 +279,7 @@ bool MainWindow::maybeSave() {
 }
 
 void MainWindow::closeEvent(QCloseEvent* e) {
-    if (!maybeSave()) { e->ignore(); return; }
+    if (!maybeSave() || !maybeSaveBudget()) { e->ignore(); return; }
     // Persist window geometry + dock layout for the next launch.
     QSettings s;
     s.beginGroup(QStringLiteral("ui"));

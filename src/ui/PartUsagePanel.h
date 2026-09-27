@@ -15,6 +15,8 @@ namespace bld::parts { class PartsLibrary; }
 
 namespace bld::ui {
 
+class BudgetSession;
+
 class MapView;
 
 // Live readout of every part currently placed on the map. Columns:
@@ -37,12 +39,16 @@ public:
     // undo-stack changes; callers shouldn't need to call this directly.
     void refresh();
 
+    // Show limits and over-budget warnings from this budget.
+    void setBudget(BudgetSession* budget);
+
     // Drop cached sprite icons after the parts library was rescanned.
     void clearIconCache() { iconCache_.clear(); }
 
 private:
     parts::PartsLibrary& lib_;
     MapView*     mapView_ = nullptr;
+    BudgetSession* budget_ = nullptr;
     QTableWidget* table_   = nullptr;
     QLineEdit*   filterE_  = nullptr;
     QLabel*      summary_  = nullptr;

@@ -1,4 +1,5 @@
 #include "PartUsagePanel.h"
+#include "BudgetSession.h"
 
 #include "MapView.h"
 
@@ -129,6 +130,12 @@ QString PartUsagePanel::filterText() const {
     return filterE_ ? filterE_->text().trimmed().toLower() : QString();
 }
 
+void PartUsagePanel::setBudget(BudgetSession* budget) {
+    budget_ = budget;
+    connect(budget_, &BudgetSession::changed, this, &PartUsagePanel::refresh);
+    refresh();
+}
+
 void PartUsagePanel::refresh() {
     if (!table_) return;
     table_->setSortingEnabled(false);
@@ -142,11 +149,8 @@ void PartUsagePanel::refresh() {
     }
 
     const auto usage = edit::countPartUsage(*map);
-    // Pull in budget limits if one is loaded, so the panel also warns
-    // on over-budget parts. Shared key: budget/lastFile.
-    edit::BudgetLimits limits;
-    const QString bpath = QSettings().value(QStringLiteral("budget/lastFile")).toString();
-    if (!bpath.isEmpty()) limits = edit::readBudgetFile(bpath);
+    // With a budget open, the panel also warns on over-budget parts.
+    const edit::Budget* budget = budget_ ? budget_->budget() : nullptr;
 
     const QString needle = filterText();
     const bool onlyOver = (needle == QStringLiteral("over"));
@@ -173,8 +177,8 @@ void PartUsagePanel::refresh() {
         totalBricks += count;
         const auto meta = lib_.metadata(key);
         const QString desc = meta ? descriptionFor(*meta) : QString();
-        const bool hasLimit = limits.contains(key);
-        const int limit = limits.value(key, -1);
+        const int limit = budget ? budget_->limit(key) : -1;
+        const bool hasLimit = limit >= 0;
         const int over = hasLimit ? std::max(0, count - limit) : 0;
         if (over > 0) ++overBudgetPartKinds;
 

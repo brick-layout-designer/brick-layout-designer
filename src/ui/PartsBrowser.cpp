@@ -1,4 +1,7 @@
 #include "PartsBrowser.h"
+#include "BudgetSession.h"
+
+#include "../core/Map.h"
 
 #include "../parts/PartsLibrary.h"
 
@@ -36,6 +39,8 @@ constexpr int kPartKeyRole  = Qt::UserRole + 1;
 constexpr int kCategoryRole = Qt::UserRole + 2;
 // A lowercased concatenation of everything searchable for fuzzy matching.
 constexpr int kFuzzyHayRole = Qt::UserRole + 3;
+// The caption without budget numbers.
+constexpr int kCaptionRole  = Qt::UserRole + 4;
 
 // Local QListWidget that supplies a custom MIME payload on drag so MapView
 // can identify a drop as a part-from-the-library rather than generic text.
@@ -238,6 +243,7 @@ QListWidgetItem* makePartItem(parts::PartsLibrary& lib,
                                       Qt::SmoothTransformation)));
     }
 
+    item->setData(kCaptionRole,  caption);
     item->setData(kPartKeyRole,  key);
     item->setData(kCategoryRole, cat);
     item->setData(kFuzzyHayRole, (key + QLatin1Char(' ') + desc).toLower());
@@ -274,7 +280,7 @@ void PartsBrowser::rebuild() {
     category_->blockSignals(false);
 
     grid_->sortItems(Qt::AscendingOrder);
-    applyFilter();
+    refreshBudget();
 }
 
 void PartsBrowser::addOne(const QString& key) {
@@ -309,8 +315,39 @@ void PartsBrowser::addOne(const QString& key) {
     if (auto* item = makePartItem(lib_, key, cat)) {
         grid_->addItem(item);
         grid_->sortItems(Qt::AscendingOrder);
-        applyFilter();
+        refreshBudget();
     }
+}
+
+void PartsBrowser::setBudget(BudgetSession* budget, std::function<const core::Map*()> map) {
+    budget_ = budget;
+    map_ = std::move(map);
+    connect(budget_, &BudgetSession::changed, this, &PartsBrowser::refreshBudget);
+    refreshBudget();
+}
+
+void PartsBrowser::refreshBudget() {
+    const bool numbers = budget_ && budget_->exists() && budget_->showBudgetNumbers();
+    const core::Map* map = map_ ? map_() : nullptr;
+    const auto usage = numbers && map ? edit::countPartUsage(*map) : QHash<QString, int>{};
+    grid_->setGridSize(QSize(kIconSize + 32, kIconSize + (numbers ? 68 : 52)));  // room for the numbers line
+    for (int i = 0; i < grid_->count(); ++i) {
+        auto* it = grid_->item(i);
+        const QString caption = it->data(kCaptionRole).toString();
+        if (!numbers) {
+            if (it->text() != caption) it->setText(caption);
+            it->setData(Qt::BackgroundRole, QVariant());
+            continue;
+        }
+        const QString key = it->data(kPartKeyRole).toString();
+        const int used = usage.value(key.toUpper(), 0);
+        const int limit = budget_->limit(key);
+        it->setText(QStringLiteral("%1\n%2/%3").arg(caption).arg(used)
+                        .arg(limit >= 0 ? QString::number(limit) : QStringLiteral("?")));
+        if (limit >= 0 && used > limit) it->setBackground(QColor(255, 120, 120));
+        else it->setData(Qt::BackgroundRole, QVariant());
+    }
+    applyFilter();
 }
 
 void PartsBrowser::applyFilter() {
@@ -328,6 +365,8 @@ void PartsBrowser::applyFilter() {
         if (!catOk) { it->setHidden(true); continue; }
         const int score = fuzzyScore(needle, it->data(kFuzzyHayRole).toString());
         if (score <= 0) { it->setHidden(true); continue; }
+        if (budget_ && budget_->exists() && budget_->showOnlyBudgetedParts()
+            && !budget_->isBudgeted(it->data(kPartKeyRole).toString())) { it->setHidden(true); continue; }
         it->setHidden(false);
         scored.emplace_back(score, it);
     }

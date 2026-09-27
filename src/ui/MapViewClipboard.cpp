@@ -4,6 +4,7 @@
 // declaration in MapView.h.
 
 #include "MapView.h"
+#include "BudgetSession.h"
 
 #include "../core/Brick.h"
 #include "../core/Ids.h"
@@ -78,7 +79,18 @@ void MapView::pasteClipboard() {
     QHash<QString, std::vector<core::Brick>> byLayer;
     QStringList layerOrder;
     QSet<QString> newGuids;
+    // With Use Budget Limitation, bricks beyond their budget are left out
+    // (as BlueBrick's duplicate does).
+    const bool limited = budget_ && budget_->exists() && budget_->useBudgetLimitation();
+    auto usage = limited ? edit::countPartUsage(*map_) : QHash<QString, int>{};
+    int refused = 0;
     for (const auto& src : clipboard_) {
+        if (limited) {
+            const QString id = src.brick.partNumber.toUpper();
+            const int limit = budget_->limit(src.brick.partNumber);
+            if (limit >= 0 && usage.value(id, 0) + 1 > limit) { ++refused; continue; }
+            ++usage[id];
+        }
         core::Brick b = src.brick;
         b.guid = core::newBbmId();
         newGuids.insert(b.guid);
@@ -102,6 +114,9 @@ void MapView::pasteClipboard() {
         map_->layers().push_back(std::move(L));
         return idx;
     };
+
+    if (refused > 0) reportBudgetRefusal();
+    if (layerOrder.isEmpty()) return;
 
     undoStack_->beginMacro(tr("Paste (%1 bricks across %2 layer(s))")
                                .arg(clipboard_.size()).arg(layerOrder.size()));
