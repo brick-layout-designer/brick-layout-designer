@@ -32,9 +32,7 @@
 #include <QUrl>
 #include <QVBoxLayout>
 
-#ifndef BLD_NO_QZIPREADER
-#  include <private/qzipreader_p.h>
-#endif
+#include "../import/zip/SafeZip.h"
 
 namespace bld::ui {
 
@@ -346,54 +344,42 @@ bool DownloadCenterDialog::downloadAndInstall(const Package& pkg, QString* error
         return false;
     }
 
-    QTemporaryFile tmp(QDir(QStandardPaths::writableLocation(
-        QStandardPaths::TempLocation)).filePath(
-            QStringLiteral("bld-dlcXXXXXX.zip")));
-    if (!tmp.open()) {
-        if (error) *error = tmp.errorString();
-        return false;
-    }
-    tmp.write(bytes);
-    tmp.flush();
-
-#ifdef BLD_NO_QZIPREADER
-    if (error) *error = tr("This build was compiled without ZIP support.");
-    return false;
-#else
     QDir().mkpath(libraryRoot_);
-    QZipReader z(tmp.fileName());
-    if (!z.isReadable()) {
+    const import::SafeZip zip(bytes);
+    if (!zip.isValid()) {
         if (error) *error = tr("Could not read the archive.");
         return false;
     }
-    // Not QZipReader::extractAll(): it trusts entry names ("../" escapes
-    // the library root) and recreates symlink entries. Package sources are
-    // user-configurable URLs, so treat every entry as hostile.
+    // Every entry is treated as hostile: package sources are user-
+    // configurable URLs. Names can't escape the library root ("../"),
+    // symlink entries aren't recreated, and sizes are bounded (SafeZip).
     const QDir root(libraryRoot_);
-    for (const auto& info : z.fileInfoList()) {
-        const QString abs = import::resolveArchiveEntryPath(root.absolutePath(), info.filePath);
-        if (abs.isEmpty() || info.isSymLink) {
-            if (error) *error = tr("Refusing unsafe archive entry: %1").arg(info.filePath);
+    for (const auto& entry : zip.entries()) {
+        const QString abs = import::resolveArchiveEntryPath(root.absolutePath(), entry.name);
+        if (abs.isEmpty() || entry.isSymLink) {
+            if (error) *error = tr("Refusing unsafe archive entry: %1").arg(entry.name);
             return false;
         }
-        if (info.isDir) {
+        if (entry.isDir) {
             if (!QDir().mkpath(abs)) {
                 if (error) *error = tr("Could not create %1").arg(abs);
                 return false;
             }
             continue;
         }
-        if (!info.isFile) continue;
+        const auto data = zip.read(entry);
+        if (!data) {
+            if (error) *error = tr("Damaged archive entry: %1").arg(entry.name);
+            return false;
+        }
         QDir().mkpath(QFileInfo(abs).absolutePath());
         QFile out(abs);
-        if (!out.open(QIODevice::WriteOnly | QIODevice::Truncate)
-            || out.write(z.fileData(info.filePath)) < 0) {
+        if (!out.open(QIODevice::WriteOnly | QIODevice::Truncate) || out.write(*data) < 0) {
             if (error) *error = tr("Could not extract files into %1").arg(libraryRoot_);
             return false;
         }
     }
     return true;
-#endif
 }
 
 void DownloadCenterDialog::onDownloadClicked() {

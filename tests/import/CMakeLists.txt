@@ -9,6 +9,7 @@ add_executable(bld_import_tests
     LDrawPaletteTest.cpp
     LifReaderTest.cpp
     MeshRasterizeTest.cpp
+    SafeZipTest.cpp
     StudioReaderTest.cpp
     LDDGeomReaderTest.cpp
     LDDLDrawMappingTest.cpp
@@ -39,6 +40,8 @@ if(BLD_QZIPREADER_INCLUDE_DIR)
     target_include_directories(bld_import_tests PRIVATE
         "${_qtcore_private_parent}")
 endif()
+
+target_compile_definitions(bld_import_tests PRIVATE BLD_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 
 gtest_discover_tests(bld_import_tests
     PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"

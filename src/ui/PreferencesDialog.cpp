@@ -32,9 +32,7 @@
 #include <QUrl>
 #include <QVBoxLayout>
 
-#ifndef BLD_NO_QZIPREADER
-#  include <private/qzipreader_p.h>
-#endif
+#include "../import/zip/SafeZip.h"
 
 namespace bld::ui {
 
@@ -405,32 +403,16 @@ QWidget* buildImportTab(QDialog* parent) {
         nam->deleteLater();
         if (bytes.isEmpty()) { dlg.close(); return; }
 
-        // Stage to a temp .zip on disk so QZipReader can mmap it.
-        QTemporaryFile tmp(QDir(QStandardPaths::writableLocation(
-            QStandardPaths::TempLocation)).filePath(
-                QStringLiteral("bld-ldraw-libXXXXXX.zip")));
-        if (!tmp.open()) {
-            dlg.close();
-            QMessageBox::warning(w, QObject::tr("Extract failed"),
-                QObject::tr("Couldn't open temp file: %1").arg(tmp.errorString()));
-            return;
-        }
-        tmp.write(bytes);
-        tmp.flush();
-
-#ifndef BLD_NO_QZIPREADER
-        // Per-file extract loop instead of QZipReader::extractAll() so
-        // the progress dialog stays alive and cancellable. The LDraw
-        // archive has ~20 000 entries; processing one file at a time
-        // gives smooth progress + ~30ms event pump per pass.
-        QZipReader z(tmp.fileName());
-        if (!z.isReadable()) {
+        // One file at a time so the progress dialog stays alive and
+        // cancellable: the LDraw archive has ~20 000 entries.
+        const import::SafeZip zip(bytes);
+        if (!zip.isValid()) {
             dlg.close();
             QMessageBox::warning(w, QObject::tr("Extract failed"),
                 QObject::tr("Couldn't read the LDraw archive."));
             return;
         }
-        const auto entries = z.fileInfoList();
+        const auto& entries = zip.entries();
         dlg.setRange(0, entries.size());
         dlg.setValue(0);
         dlg.setLabelText(QObject::tr("Extracting %1 files...").arg(entries.size()));
@@ -445,24 +427,20 @@ QWidget* buildImportTab(QDialog* parent) {
         int failed = 0;
         for (int i = 0; i < entries.size(); ++i) {
             if (cancelled) break;
-            const auto& info = entries[i];
+            const auto& entry = entries[i];
             // Drops "../" / absolute entries (zip-slip) and never recreates
             // symlink entries, which could redirect later writes.
-            const QString abs = import::resolveArchiveEntryPath(dst.absolutePath(), info.filePath);
-            if (abs.isEmpty() || info.isSymLink) {
+            const QString abs = import::resolveArchiveEntryPath(dst.absolutePath(), entry.name);
+            if (abs.isEmpty() || entry.isSymLink) {
                 ++failed;
-            } else if (info.isDir) {
+            } else if (entry.isDir) {
                 QDir().mkpath(abs);
-            } else if (info.isFile) {
+            } else {
+                const auto data = zip.read(entry);
                 QDir().mkpath(QFileInfo(abs).absolutePath());
                 QFile out(abs);
-                if (out.open(QIODevice::WriteOnly | QIODevice::Truncate)
-                    && out.write(z.fileData(info.filePath)) >= 0) {
-                    out.close();
-                    out.setPermissions(info.permissions);
-                } else {
+                if (!data || !out.open(QIODevice::WriteOnly | QIODevice::Truncate) || out.write(*data) < 0)
                     ++failed;
-                }
             }
             // Update + pump every ~64 files so the dialog stays
             // responsive without crawling the whole loop with
@@ -480,12 +458,6 @@ QWidget* buildImportTab(QDialog* parent) {
                     .arg(destRoot));
             return;
         }
-#else
-        dlg.close();
-        QMessageBox::warning(w, QObject::tr("Unsupported"),
-            QObject::tr("This build was compiled without ZIP support."));
-        return;
-#endif
         dlg.close();
 
         // The archive expands to <destRoot>/ldraw/parts, /p, LDConfig.ldr —

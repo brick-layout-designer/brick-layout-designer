@@ -6,9 +6,7 @@
 #include <QTextStream>
 #include <QXmlStreamReader>
 
-#ifndef BLD_NO_QZIPREADER
-#  include <private/qzipreader_p.h>
-#endif
+#include "../zip/SafeZip.h"
 
 namespace bld::import {
 
@@ -18,31 +16,27 @@ namespace {
 // archive root with the filename `LXFML` (no extension). Falls back to
 // any `.lxfml` file on mismatch.
 QByteArray extractLxfmlFromLxf(const QString& path, QString* err) {
-#ifdef BLD_NO_QZIPREADER
-    if (err) *err = QStringLiteral(
-        "This build was compiled without QZipReader; LDD .lxf import is "
-        "unavailable. Rebuild against a Qt install with private headers.");
-    return {};
-#else
-    QZipReader zr(path);
-    if (!zr.isReadable()) {
+    const auto zip = SafeZip::open(path);
+    if (!zip) {
         if (err) *err = QStringLiteral("Not a readable LDD .lxf archive: %1").arg(path);
         return {};
     }
-    const auto entries = zr.fileInfoList();
-    for (const auto& info : entries) {
-        if (!info.isFile) continue;
-        if (info.filePath.compare(QStringLiteral("LXFML"), Qt::CaseInsensitive) == 0)
-            return zr.fileData(info.filePath);
+    const SafeZip::Entry* entry = zip->find(QStringLiteral("LXFML"), Qt::CaseInsensitive);
+    if (!entry) {
+        for (const auto& e : zip->entries())
+            if (!e.isDir && e.name.endsWith(QStringLiteral(".lxfml"), Qt::CaseInsensitive)) { entry = &e; break; }
     }
-    for (const auto& info : entries) {
-        if (!info.isFile) continue;
-        if (info.filePath.endsWith(QStringLiteral(".lxfml"), Qt::CaseInsensitive))
-            return zr.fileData(info.filePath);
+    if (!entry) {
+        if (err) *err = QStringLiteral("No LXFML entry found inside %1").arg(path);
+        return {};
     }
-    if (err) *err = QStringLiteral("No LXFML entry found inside %1").arg(path);
-    return {};
-#endif
+    constexpr qint64 kMaxModelBytes = qint64(64) << 20;
+    auto data = zip->read(*entry, kMaxModelBytes);
+    if (!data) {
+        if (err) *err = QStringLiteral("The LXFML inside %1 is damaged").arg(path);
+        return {};
+    }
+    return *data;
 }
 
 // Parse an LDD transformation string. The 12 values serialize as

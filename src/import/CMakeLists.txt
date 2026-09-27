@@ -69,20 +69,18 @@ add_library(bld_import STATIC
 
     # Zip-slip guard shared by every archive extractor.
     ArchivePath.cpp
+    zip/SafeZip.cpp
+    zip/SafeZip.h
+    zip/puff.c
+    zip/puff.h
     ArchivePath.h
 )
 
 target_include_directories(bld_import PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
-# StudioReader uses QZipReader from Qt's private Core headers. The public
-# Qt6::Core target doesn't expose the private include path, so we pull it
-# in explicitly. Using private Qt APIs is a stability tradeoff — it can
-# break across Qt minor versions, but it spares us the external QuaZip /
-# miniz dep for a tiny feature.
 target_link_libraries(bld_import PUBLIC bld_core bld_geom bld_parts bld_edit bld_saveload Qt6::Core Qt6::Gui)
-# Qt 6 layout puts private headers under
-# <prefix>/include/QtCore/<version>/QtCore/private/. Locate the specific
-# directory that contains the header we need, then add its parent so
-# `#include <private/qzipreader_p.h>` resolves.
+# Tests and fuzz seeds write ZIPs with Qt's private QZipWriter. Qt 6 puts
+# private headers under <prefix>/include/QtCore/<version>/QtCore/private/;
+# locate that directory (its parent is added too, for qglobal_p.h etc.).
 find_path(BLD_QZIPREADER_INCLUDE_DIR
     NAMES private/qzipreader_p.h
     PATHS
@@ -110,17 +108,10 @@ if(NOT BLD_QZIPREADER_INCLUDE_DIR)
         endif()
     endforeach()
 endif()
+# ZIPs are read with zip/SafeZip; the private QZipWriter found above is
+# only for tests and fuzz seeds that write archives.
 if(BLD_QZIPREADER_INCLUDE_DIR)
-    target_include_directories(bld_import PRIVATE "${BLD_QZIPREADER_INCLUDE_DIR}")
-    # The private headers also reference <QtCore/private/qglobal_p.h>
-    # etc., which resolves via the version-parent (one directory up).
-    get_filename_component(_qtcore_version_parent
-        "${BLD_QZIPREADER_INCLUDE_DIR}" DIRECTORY)
-    target_include_directories(bld_import PRIVATE "${_qtcore_version_parent}")
-    message(STATUS "bld_import: QZipReader private headers at ${BLD_QZIPREADER_INCLUDE_DIR}")
+    message(STATUS "QZipWriter private headers at ${BLD_QZIPREADER_INCLUDE_DIR}")
 else()
-    message(WARNING
-        "bld_import: qzipreader_p.h not found — Studio .io import will be stubbed. "
-        "Install the Qt private headers package if you want this feature.")
-    target_compile_definitions(bld_import PRIVATE BLD_NO_QZIPREADER=1)
+    message(STATUS "Qt private headers not found: tests that write ZIP archives are skipped")
 endif()
