@@ -125,6 +125,8 @@ AI-assisted warning above and keep backups. What works today:
   Merge / Close / Save), *Show Only Budgeted Parts*, *Show Budget
   Numbers* in the parts library, *Use Budget Limitation*, and a
   status-bar readout. `.bbb` files are byte-identical to BlueBrick's.
+- Grid cell indices (A, B, C… / 1, 2, 3…), and moving their origin by
+  dragging the map with the grid layer selected, as in BlueBrick.
 - Flex track: double-click and drag a piece of a selected chain with
   hinged connections (PFS flex track, magnet couplings) to bend it,
   solved like BlueBrick's `FlexMove`.
@@ -202,8 +204,6 @@ AI-assisted warning above and keep backups. What works today:
   already; Flatpak is a follow-up if someone wants it.
 
 **Feature-parity gaps vs. BlueBrick 1.9.2**
-- Dragging the grid's cell-index origin on the map (`MoveGridOrigin`;
-  the value itself round-trips).
 - HTML part-list export (CSV and text are supported).
 - Help → Contents (BlueBrick ships a `.chm`).
 

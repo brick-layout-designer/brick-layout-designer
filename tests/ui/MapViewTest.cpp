@@ -9,6 +9,7 @@
 #include "parts/PartsLibrary.h"
 #include "saveload/BbmReader.h"
 #include "core/LayerBrick.h"
+#include "core/LayerGrid.h"
 #include "core/Map.h"
 
 #include <gtest/gtest.h>
@@ -183,6 +184,45 @@ TEST_F(MapViewTest, BudgetLimitationRefusesPartsOverTheirLimit) {
 
     budget.setUseBudgetLimitation(false);
     view_->setBudget(nullptr);
+}
+
+TEST_F(MapViewTest, DraggingEmptySpaceMovesTheGridOriginByCells) {
+    auto* map = view_->currentMap();
+    int gi = -1;
+    for (int i = 0; i < static_cast<int>(map->layers().size()); ++i)
+        if (map->layers()[i]->kind() == core::LayerKind::Grid) { gi = i; break; }
+    ASSERT_GE(gi, 0);
+    auto& grid = static_cast<core::LayerGrid&>(*map->layers()[gi]);
+    grid.displayCellIndex = true;
+    grid.visible = true;
+    map->selectedLayerIndex = gi;
+    const QPoint before = grid.cellIndexCorner;
+    const double px = 8.0, cell = grid.gridSizeInStud;
+    view_->resize(800, 600);
+    const QPointF start(-40.5 * cell, -40.5 * cell);  // far from any brick
+    view_->centerOn(start * px);
+    QWidget* vp = view_->viewport();
+
+    // Cancelled with the right button: nothing changes.
+    mouse(vp, QEvent::MouseButtonPress, view_->mapFromScene(start * px), Qt::LeftButton);
+    mouse(vp, QEvent::MouseMove, view_->mapFromScene((start + QPointF(cell, 0)) * px), Qt::LeftButton);
+    QMouseEvent right(QEvent::MouseButtonPress, QPointF(view_->mapFromScene(start * px)), QPointF(), Qt::RightButton,
+                      Qt::LeftButton | Qt::RightButton, Qt::NoModifier);
+    QApplication::sendEvent(vp, &right);
+    EXPECT_EQ(grid.cellIndexCorner, before);
+    mouse(vp, QEvent::MouseButtonRelease, view_->mapFromScene(start * px), Qt::NoButton);
+    EXPECT_EQ(view_->undoStack()->count(), 0);
+
+    // Two cells right, one down: one undo step.
+    mouse(vp, QEvent::MouseButtonPress, view_->mapFromScene(start * px), Qt::LeftButton);
+    mouse(vp, QEvent::MouseMove, view_->mapFromScene((start + QPointF(cell, 0)) * px), Qt::LeftButton);
+    mouse(vp, QEvent::MouseMove, view_->mapFromScene((start + QPointF(2 * cell, cell)) * px), Qt::LeftButton);
+    mouse(vp, QEvent::MouseButtonRelease, view_->mapFromScene((start + QPointF(2 * cell, cell)) * px), Qt::NoButton);
+    auto& after = static_cast<core::LayerGrid&>(*view_->currentMap()->layers()[gi]);
+    EXPECT_EQ(after.cellIndexCorner, before + QPoint(2, 1));
+    EXPECT_EQ(view_->undoStack()->count(), 1);
+    view_->undoStack()->undo();
+    EXPECT_EQ(static_cast<core::LayerGrid&>(*view_->currentMap()->layers()[gi]).cellIndexCorner, before);
 }
 
 int main(int argc, char** argv) {

@@ -18,7 +18,7 @@ class QGraphicsItem;
 class QGraphicsPixmapItem;
 class QUndoStack;
 
-namespace bld::core    { class Map; }
+namespace bld::core    { class Map; class LayerGrid; }
 namespace bld::edit    { class FlexMove; }
 namespace bld::parts   { class PartsLibrary; }
 namespace bld::rendering { class SceneBuilder; }
@@ -253,6 +253,15 @@ private:
     bool startFlexMove(QGraphicsItem* under, QPointF scenePos);
     void updateFlexItems();
     void finishFlexMove();
+    // BlueBrick's MoveGridOrigin: with the grid layer selected (showing
+    // cell indices), dragging empty space moves the index origin by cells.
+    bool gridOriginDragging_ = false;
+    int     gridLayer_ = -1;
+    QPoint  gridDragStartCell_, gridDragLastCell_, gridOriginBefore_;
+    QPoint  gridCellAt(QPointF scenePos) const;
+    void    drawCellIndices(class QPainter* painter, const QRectF& rect, const core::LayerGrid& grid);
+    void    setGridOrigin(QPoint corner);
+
     // Whether `quantity` more of `part` fit the budget; tells the user
     // when not (as BlueBrick, with an opt-out).
     bool budgetAllows(const QString& part, int quantity = 1);
