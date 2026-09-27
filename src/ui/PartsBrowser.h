@@ -53,6 +53,9 @@ signals:
     // grid.
     void partDeleted();
 
+    // "Re-import from Source" on an imported part.
+    void reimportRequested(const QString& key);
+
 private:
     void applyFilter();
     QString categoryForPath(const QString& absPath) const;

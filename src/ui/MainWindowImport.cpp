@@ -8,6 +8,7 @@
 #include "ImportPreviewDialog.h"
 #include "MapView.h"
 #include "../core/Map.h"
+#include "../parts/PartsLibrary.h"
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -106,6 +107,81 @@ void MainWindow::importModelFile(const QString& path) {
            result.connections.size())
             .arg(QFileInfo(path).fileName(), key)
             .arg(result.widthStuds).arg(result.heightStuds), 8000);
+}
+
+bool MainWindow::reimportPart(const QString& key, bool interactive) {
+    const auto meta = parts_.metadata(key);
+    if (!meta || !meta->importSource) return false;
+    const auto& src = *meta->importSource;
+    if (!QFileInfo::exists(src.path)) {
+        if (interactive)
+            QMessageBox::warning(this, tr("Re-import"), tr("The source %1 no longer exists.").arg(src.path));
+        return false;
+    }
+    const HeavyRunner runHeavy = [this](const QString& label, const std::function<void(CancelToken&)>& work) {
+        return runBackground(this, label, work);
+    };
+    PreparedPart part = prepareImport(src.path, currentImportSettings(), parts_, runHeavy);
+    if (!part.ok()) {
+        if (interactive && !part.cancelled) QMessageBox::warning(this, part.kindLabel, part.error);
+        return false;
+    }
+    applyImportEdits(part, src.quarterTurns, QVector<QPointF>(src.droppedConnections.cbegin(), src.droppedConnections.cend()));
+
+    // Same name, same folder, replacing the part.
+    const QFileInfo xml(meta->xmlFilePath);
+    const QString name = xml.completeBaseName();
+    const QString dir = xml.absolutePath();
+    if (interactive) {
+        const QString root = importedPartsRoot();
+        const QString category = QDir(dir).dirName();
+        ImportPreviewDialog dlg(std::move(part), importCategories(root), category,
+            [root](const QString& n, const QString& c) { return importedPartExists(root, n, c); }, this);
+        dlg.presetForReimport(name, category);
+        if (dlg.exec() != QDialog::Accepted) return false;
+        part = dlg.result();
+    }
+    const QString author = mapView_->currentMap() ? mapView_->currentMap()->author : QString();
+    QString err;
+    const QString written = writeImportedPart(part, name, dir, author, /*replaceExisting=*/true, &err);
+    if (written.isEmpty()) {
+        if (interactive) QMessageBox::warning(this, part.kindLabel, tr("Could not write library part: %1").arg(err));
+        return false;
+    }
+    registerImportedPart(QDir(dir).filePath(written + QStringLiteral(".xml")));
+    statusBar()->showMessage(tr("Re-imported %1 from %2").arg(written, QFileInfo(src.path).fileName()), 5000);
+    return true;
+}
+
+void MainWindow::onReimportChangedParts() {
+    QStringList changed;
+    for (const QString& key : parts_.keys()) {
+        const auto meta = parts_.metadata(key);
+        if (!meta || !meta->importSource) continue;
+        const QFileInfo fi(meta->importSource->path);
+        if (fi.exists() && (!meta->importSource->modified.isValid()
+                            || fi.lastModified() > meta->importSource->modified.addSecs(1)))
+            changed << key;
+    }
+    if (changed.isEmpty()) {
+        QMessageBox::information(this, tr("Re-import Changed Parts"),
+            tr("No imported part's source has changed since it was imported."));
+        return;
+    }
+    changed.sort();
+    QMessageBox ask(QMessageBox::Question, tr("Re-import Changed Parts"),
+                    tr("The sources of %n imported part(s) changed. Re-import them now?", nullptr, changed.size()),
+                    QMessageBox::Yes | QMessageBox::No, this);
+    ask.setDetailedText(changed.join(QLatin1Char('\n')));
+    if (ask.exec() != QMessageBox::Yes) return;
+    QStringList failed;
+    for (const QString& key : std::as_const(changed))
+        if (!reimportPart(key, false)) failed << key;
+    if (failed.isEmpty())
+        statusBar()->showMessage(tr("Re-imported %n part(s).", nullptr, changed.size()), 5000);
+    else
+        QMessageBox::warning(this, tr("Re-import Changed Parts"),
+            tr("These parts could not be re-imported:\n%1").arg(failed.join(QLatin1Char('\n'))));
 }
 
 void MainWindow::onBatchImport() {

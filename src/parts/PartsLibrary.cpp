@@ -213,6 +213,23 @@ bool parsePartXml(const QString& xmlPath, PartMetadata& out) {
                 readTrackDesigner(r, td);
                 if (td.defaultId != 0 || !td.registryIds.isEmpty()) out.trackDesigner = td;
             }
+            else if (n == QStringLiteral("ImportSource")) {
+                PartMetadata::ImportSource src;
+                while (r.readNextStartElement()) {
+                    const auto m = r.name();
+                    if (m == QStringLiteral("SourcePath")) src.path = r.readElementText().trimmed();
+                    else if (m == QStringLiteral("SourceModified"))
+                        src.modified = QDateTime::fromString(r.readElementText().trimmed(), Qt::ISODateWithMs);
+                    else if (m == QStringLiteral("QuarterTurns")) src.quarterTurns = r.readElementText().toInt();
+                    else if (m == QStringLiteral("DroppedConnection")) {
+                        src.droppedConnections << QPointF(r.attributes().value(QStringLiteral("x")).toDouble(),
+                                                          r.attributes().value(QStringLiteral("y")).toDouble());
+                        r.skipCurrentElement();
+                    }
+                    else r.skipCurrentElement();
+                }
+                if (!src.path.isEmpty()) out.importSource = src;
+            }
             else if (n == QStringLiteral("FourDBrix")) {
                 PartMetadata::FourDBrix fd;
                 readFourDBrix(r, fd);

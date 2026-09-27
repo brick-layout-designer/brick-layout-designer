@@ -26,6 +26,7 @@
 #include <QFileInfo>
 #include <QGraphicsPixmapItem>
 #include <QGraphicsScene>
+#include <QLineF>
 #include <QPainter>
 #include <QTransform>
 
@@ -289,14 +290,36 @@ void rotatePart(PreparedPart& part, int quarterTurns) {
         }
         c.angleDeg = std::remainder(c.angleDeg + 90.0 * turns, 360.0);
     }
+    for (auto& p : part.droppedConnections)
+        for (int i = 0; i < turns; ++i) p = QPointF(-p.y(), p.x());
+    part.quarterTurns = (part.quarterTurns + turns) % 4;
+}
+
+void applyImportEdits(PreparedPart& part, int quarterTurns, const QVector<QPointF>& dropped) {
+    rotatePart(part, quarterTurns);
+    for (const QPointF& d : dropped) {
+        for (int i = 0; i < part.connections.size(); ++i) {
+            const auto& c = part.connections[i];
+            if (QLineF(QPointF(c.xStuds, c.yStuds), d).length() <= 0.5) {
+                part.droppedConnections << QPointF(c.xStuds, c.yStuds);
+                part.connections.removeAt(i);
+                break;
+            }
+        }
+    }
 }
 
 QString writeImportedPart(const PreparedPart& part, const QString& name,
                           const QString& destDir, const QString& author,
                           bool replaceExisting, QString* error) {
+    import::ImportSource source;
+    source.path = QFileInfo(part.source).absoluteFilePath();
+    source.modified = QFileInfo(part.source).lastModified();
+    source.quarterTurns = part.quarterTurns;
+    source.droppedConnections = part.droppedConnections;
     return import::writeImportedModelAsLibraryPart(
         name, part.sprite, part.widthStuds, part.heightStuds, destDir, author,
-        part.connections, error, replaceExisting);
+        part.connections, error, replaceExisting, part.source.isEmpty() ? nullptr : &source);
 }
 
 }  // namespace bld::ui

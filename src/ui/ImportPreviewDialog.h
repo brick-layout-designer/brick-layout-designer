@@ -38,6 +38,9 @@ public:
                         std::function<bool(const QString&, const QString&)> partExists,
                         QWidget* parent = nullptr);
 
+    // Re-importing an existing part: its name and category, replacing it.
+    void presetForReimport(const QString& name, const QString& category);
+
     // Final values after exec() returns Accepted.
     PreparedPart result() const;   // rotated, unchecked connections removed
     QString partName() const;

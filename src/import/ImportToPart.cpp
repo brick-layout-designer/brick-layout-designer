@@ -65,7 +65,8 @@ QString writeImportedModelAsLibraryPart(
     const QString& authorName,
     const QVector<ImportedConnection>& connections,
     QString*       error,
-    bool           replaceExisting) {
+    bool           replaceExisting,
+    const ImportSource* source) {
 
     if (renderedSprite.isNull() || widthStuds <= 0 || heightStuds <= 0) {
         if (error) *error = QStringLiteral("Empty sprite or zero dimensions");
@@ -143,6 +144,23 @@ QString writeImportedModelAsLibraryPart(
     if (pxPerStud != 8) {
         w.writeTextElement(QStringLiteral("PixelsPerStud"),
                             QString::number(pxPerStud));
+    }
+
+    // Provenance for Re-import from Source. Element names avoid the ones
+    // BlueBrick reacts to while it skips unknown elements.
+    if (source && !source->path.isEmpty()) {
+        w.writeStartElement(QStringLiteral("ImportSource"));
+        w.writeTextElement(QStringLiteral("SourcePath"), source->path);
+        if (source->modified.isValid())
+            w.writeTextElement(QStringLiteral("SourceModified"), source->modified.toUTC().toString(Qt::ISODateWithMs));
+        if (source->quarterTurns % 4)
+            w.writeTextElement(QStringLiteral("QuarterTurns"), QString::number(((source->quarterTurns % 4) + 4) % 4));
+        for (const QPointF& p : source->droppedConnections) {
+            w.writeEmptyElement(QStringLiteral("DroppedConnection"));
+            w.writeAttribute(QStringLiteral("x"), QString::number(p.x(), 'f', 4));
+            w.writeAttribute(QStringLiteral("y"), QString::number(p.y(), 'f', 4));
+        }
+        w.writeEndElement();
     }
 
     // <ConnexionList> so the composite part snaps like a real track

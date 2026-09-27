@@ -168,4 +168,50 @@ TEST(ImportPreviewDialog, RotateAndDropConnection) {
     EXPECT_EQ(dlg.category(), QStringLiteral("Track"));
     EXPECT_EQ(dlg.partName(), QStringLiteral("sample"));
     EXPECT_FALSE(dlg.replaceExisting());  // offered, but not ticked
+    // Remembered for a re-import, in the final (rotated) frame.
+    EXPECT_EQ(r.quarterTurns, 1);
+    ASSERT_EQ(r.droppedConnections.size(), 1);
+    EXPECT_NEAR(r.droppedConnections[0].x(), 0.0, 1e-9);
+    EXPECT_NEAR(r.droppedConnections[0].y(), -2.0, 1e-9);
+}
+
+TEST(ImportPipeline, WriteRecordsTheSourceForReimport) {
+    QTemporaryDir out;
+    const QString source = out.filePath(QStringLiteral("model.ldr"));
+    writeFile(source, "0 model\n");
+    auto p = samplePart();
+    p.source = source;
+    ui::rotatePart(p, 3);
+    p.droppedConnections = { QPointF(1.5, -0.25) };
+    QString err;
+    const QString key = ui::writeImportedPart(p, QStringLiteral("model"), out.path(), {}, false, &err);
+    ASSERT_FALSE(key.isEmpty()) << err.toStdString();
+
+    parts::PartsLibrary lib;
+    lib.addSearchPath(out.path());
+    lib.scan();
+    const auto meta = lib.metadata(key);
+    ASSERT_TRUE(meta && meta->importSource);
+    EXPECT_EQ(meta->importSource->path, QFileInfo(source).absoluteFilePath());
+    EXPECT_EQ(meta->importSource->modified.toSecsSinceEpoch(), QFileInfo(source).lastModified().toSecsSinceEpoch());
+    EXPECT_EQ(meta->importSource->quarterTurns, 3);
+    ASSERT_EQ(meta->importSource->droppedConnections.size(), 1);
+    EXPECT_EQ(meta->importSource->droppedConnections[0], QPointF(1.5, -0.25));
+    EXPECT_EQ(meta->connections.size(), 2) << "the part itself is unchanged";
+}
+
+TEST(ImportPipeline, ApplyImportEditsRepeatsRotationAndDrops) {
+    auto p = samplePart();
+    // Earlier import: turned once, the (-2, 0) end (now at (0, -2)) removed.
+    ui::applyImportEdits(p, 1, { QPointF(0.1, -1.8) });
+    EXPECT_EQ(p.quarterTurns, 1);
+    EXPECT_EQ(p.widthStuds, 2);
+    ASSERT_EQ(p.connections.size(), 1);
+    EXPECT_NEAR(p.connections[0].yStuds, 2.0, 1e-9);
+    ASSERT_EQ(p.droppedConnections.size(), 1);
+    EXPECT_NEAR(p.droppedConnections[0].y(), -2.0, 1e-9);
+    // A point with nothing within half a stud drops nothing.
+    auto q = samplePart();
+    ui::applyImportEdits(q, 0, { QPointF(5, 5) });
+    EXPECT_EQ(q.connections.size(), 2);
 }
