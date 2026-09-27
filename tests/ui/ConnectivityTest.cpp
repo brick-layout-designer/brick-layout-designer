@@ -14,6 +14,8 @@
 #include <QHash>
 #include <QSet>
 
+#include <cmath>
+
 using namespace bld;
 
 namespace {
@@ -65,4 +67,26 @@ TEST(Connectivity, MatchesLinksSavedByBlueBrick) {
         EXPECT_EQ(ours.size(), vanilla.size());
         EXPECT_TRUE(ours == vanilla);
     }
+}
+
+TEST(Connectivity, FarAwayOrBrokenCoordinatesAreSafe) {
+    // Found by fuzzing a .tdl: a brick at 1e111 studs overflowed the
+    // spatial buckets (undefined behaviour); NaN must not either.
+    const QString root = QStringLiteral(BLD_SOURCE_DIR "/parts/BlueBrickParts/parts");
+    if (!QDir(root).exists()) GTEST_SKIP() << "BlueBrickParts submodule missing";
+    parts::PartsLibrary lib;
+    lib.addSearchPath(root);
+    lib.scan();
+    core::Map map;
+    auto layer = std::make_unique<core::LayerBrick>();
+    for (double x : { 1e111, -1e111, std::nan("") }) {
+        core::Brick b;
+        b.partNumber = QStringLiteral("2865.8");
+        b.displayArea = QRectF(x, x, 17, 8);
+        layer->bricks.push_back(b);
+    }
+    map.layers().push_back(std::move(layer));
+    edit::rebuildConnectivity(map, lib);  // the sanitizer job fails on the UB
+    for (const auto& b : static_cast<core::LayerBrick&>(*map.layers()[0]).bricks)
+        EXPECT_EQ(b.connections.size(), 2u);
 }

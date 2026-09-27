@@ -39,7 +39,14 @@ struct WorldConn {
 // BlueBrick's arePositionsEqual: within half a stud on each axis.
 constexpr double kTolStuds = 0.5;
 QPair<int, int> bucketOf(QPointF p) {
-    return { static_cast<int>(std::floor(p.x())), static_cast<int>(std::floor(p.y())) };
+    // Clamped: a corrupt file can put a brick anywhere (or at NaN), and
+    // converting an out-of-range double to int is undefined.
+    const auto cell = [](double v) {
+        if (!(v > -1e9)) return -1000000000;
+        if (!(v < 1e9)) return 1000000000;
+        return static_cast<int>(std::floor(v));
+    };
+    return { cell(p.x()), cell(p.y()) };
 }
 
 // BlueBrick's ConnectionPoint.ConnectionLink setter, when a link is made:

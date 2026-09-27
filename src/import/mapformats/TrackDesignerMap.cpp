@@ -286,10 +286,17 @@ bool writeTrackDesignerMap(const core::Map& map, const QString& path, parts::Par
     Writer w;
     // ---- header
     constexpr int margin = 5;
-    const int bx = static_cast<int>(std::round(bounds.x())) - margin;
-    const int by = static_cast<int>(std::round(bounds.y())) - margin;
-    const int bw = static_cast<int>(std::round(bounds.width())) + margin * 2;
-    const int bh = static_cast<int>(std::round(bounds.height())) + margin * 2;
+    // Clamped so bricks at absurd (or NaN) positions from a damaged file
+    // can't overflow the header's 32-bit fields.
+    const auto studs = [](double v) {
+        if (!(v > -1e8)) return -100000000;
+        if (!(v < 1e8)) return 100000000;
+        return static_cast<int>(std::round(v));
+    };
+    const int bx = studs(bounds.x()) - margin;
+    const int by = studs(bounds.y()) - margin;
+    const int bw = studs(bounds.width()) + margin * 2;
+    const int bh = studs(bounds.height()) + margin * 2;
     w.write<qint32>(-bx);
     w.write<qint32>(-by);
     w.write<qint32>(nbItems);
@@ -358,8 +365,8 @@ bool writeTrackDesignerMap(const core::Map& map, const QString& path, parts::Par
                     const double width = fpTd ? fpTd->size.width() : b.displayArea.width();
                     position -= parts::placement::rotated(QPointF(width / 2.0, 0.0), orientation);
                 }
-                while (orientation < 0.0) orientation += 360.0;
-                while (orientation >= 360.0) orientation -= 360.0;
+                orientation = std::fmod(orientation, 360.0);  // [0, 360); no loop on absurd angles
+                if (orientation < 0.0) orientation += 360.0;
                 w.writeDouble(orientation);
                 w.writeDouble(position.x());
                 w.writeDouble(position.y());
@@ -375,7 +382,9 @@ bool writeTrackDesignerMap(const core::Map& map, const QString& path, parts::Par
                         if (bbIndex < static_cast<int>(b.connections.size()))
                             linked = connectionOwner.value(b.connections[bbIndex].linkedToId, { nullptr, 0 });
                         // The down ramp doesn't exist in TD: step through it.
-                        while (linked.brick && linked.brick->partNumber.startsWith(QStringLiteral("2678."))) {
+                        // Bounded: damaged links can form a ring of down ramps.
+                        for (int hop = 0; linked.brick && linked.brick->partNumber.startsWith(QStringLiteral("2678.")); ++hop) {
+                            if (hop > nbItems) { linked = { nullptr, 0 }; break; }
                             const int next = linked.index == 0 ? 1 : 0;
                             if (next >= static_cast<int>(linked.brick->connections.size())) { linked = { nullptr, 0 }; break; }
                             linked = connectionOwner.value(linked.brick->connections[next].linkedToId, { nullptr, 0 });
