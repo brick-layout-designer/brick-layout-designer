@@ -61,6 +61,10 @@ QWidget* buildGeneralTab(QDialog* parent) {
     splashChk->setChecked(s.value(QStringLiteral("general/showSplash"), false).toBool());
     form->addRow(splashChk);
 
+    auto* updatesChk = new QCheckBox(QObject::tr("Check for updates at startup (at most once a day)"), w);
+    updatesChk->setChecked(s.value(QStringLiteral("updates/checkAtStartup"), true).toBool());
+    form->addRow(updatesChk);
+
     // BlueBrick's "default budget" choice: parts a budget doesn't list.
     auto* budgetInfiniteChk = new QCheckBox(QObject::tr("Parts without a budget are unlimited (otherwise: not allowed)"), w);
     budgetInfiniteChk->setChecked(s.value(QStringLiteral("budget/defaultInfinite"), true).toBool());
@@ -102,13 +106,14 @@ QWidget* buildGeneralTab(QDialog* parent) {
 
     // Save-on-accept: parent's accepted signal fires before exec() returns, so
     // we wire per-tab savers that the dialog's QDialogButtonBox can trigger.
-    QObject::connect(parent, &QDialog::accepted, w, [undoSpin, wheelSpin, reopenChk, splashChk, budgetInfiniteChk, tplEdit, langCombo]{
+    QObject::connect(parent, &QDialog::accepted, w, [undoSpin, wheelSpin, reopenChk, splashChk, budgetInfiniteChk, updatesChk, tplEdit, langCombo]{
         QSettings s;
         s.setValue(QStringLiteral("general/undoStackDepth"), undoSpin->value());
         s.setValue(QStringLiteral("general/wheelZoomFactor"), wheelSpin->value());
         s.setValue(QStringLiteral("general/reopenLastFile"), reopenChk->isChecked());
         s.setValue(QStringLiteral("general/showSplash"), splashChk->isChecked());
         s.setValue(QStringLiteral("budget/defaultInfinite"), budgetInfiniteChk->isChecked());
+        s.setValue(QStringLiteral("updates/checkAtStartup"), updatesChk->isChecked());
         s.setValue(QStringLiteral("general/newMapTemplate"), tplEdit->text());
         s.setValue(QStringLiteral("general/language"), langCombo->currentData().toString());
     });

@@ -2,6 +2,7 @@
 
 #include "LayerPanel.h"
 #include "BudgetSession.h"
+#include "UpdateCheck.h"
 #include "FindDialog.h"
 #include "LibraryPathsDialog.h"
 #include "PreferencesDialog.h"
@@ -79,6 +80,7 @@
 #include <QStandardPaths>
 #include <QStatusBar>
 #include <QTime>
+#include <QGuiApplication>
 #include <QTimer>
 #include <QHBoxLayout>
 #include <QToolBar>
@@ -112,6 +114,10 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
     rescanLibrary(allPaths);
 
     mapView_ = new MapView(parts_, this);
+    updates_ = new UpdateCheck(this);
+    // Once the window is up; not in headless runs (tests, CI smoke launches).
+    if (QGuiApplication::platformName() != QLatin1String("offscreen") && !qEnvironmentVariableIsSet("BLD_NO_UPDATE_CHECK"))
+        QTimer::singleShot(3000, updates_, &UpdateCheck::checkAtStartupIfDue);
     budget_ = new BudgetSession(parts_, this);
     mapView_->setBudget(budget_);
     // Reopen last session's budget once everything listening is connected.
