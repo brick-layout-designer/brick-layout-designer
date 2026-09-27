@@ -472,7 +472,6 @@ void MainWindow::setupMenus() {
         L.targetId = targetId;
         L.offset = offsetStuds;
         mapView_->undoStack()->push(new edit::AddAnchoredLabelCommand(*map, std::move(L)));
-        mapView_->rebuildScene();
     });
 
     edit->addSeparator();
