@@ -65,7 +65,8 @@ void UpdateCheck::checkNow() { check(true); }
 void UpdateCheck::checkAtStartupIfDue() {
     if (!checkAtStartupEnabled()) return;
     const QDateTime last = QSettings().value(kLastCheckKey).toDateTime();
-    if (last.isValid() && last.secsTo(QDateTime::currentDateTimeUtc()) < 24 * 3600) return;
+    constexpr qint64 kDaySeconds = qint64{ 24 } * 3600;
+    if (last.isValid() && last.secsTo(QDateTime::currentDateTimeUtc()) < kDaySeconds) return;
     check(false);
 }
 
