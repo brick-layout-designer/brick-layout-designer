@@ -6,6 +6,7 @@
 #include <QImage>
 #include <QtMath>
 #include <QPainter>
+#include <QSet>
 #include <QTransform>
 #include <QXmlStreamReader>
 
@@ -57,6 +58,7 @@ void readConnexionList(QXmlStreamReader& r, QList<PartConnectionPoint>& out) {
             else if (n == QStringLiteral("position")) c.position = readPositionBlock(r);
             else if (n == QStringLiteral("angle"))    c.angleDegrees = r.readElementText().toDouble();
             else if (n == QStringLiteral("electricPlug")) c.electricPlug = r.readElementText().toInt();
+            else if (n == QStringLiteral("nextConnexionPreference")) c.nextPreferredIndex = r.readElementText().toInt();
             else r.skipCurrentElement();
         }
         out.push_back(std::move(c));
@@ -98,6 +100,49 @@ void readHull(QXmlStreamReader& r, QList<QPointF>& out) {
         if (r.name() != QStringLiteral("point")) { r.skipCurrentElement(); continue; }
         // BlueBrick shifts hull points to the pixel centre.
         out << readPositionBlock(r) + QPointF(0.5, 0.5);
+    }
+}
+
+void readTrackDesigner(QXmlStreamReader& r, PartMetadata::TrackDesigner& td) {
+    const auto readId = [&]() {
+        const QString registry = r.attributes().value(QStringLiteral("registry")).toString();
+        const int id = r.readElementText().trimmed().toInt();
+        if (registry.isEmpty() || registry == QLatin1String("default")) {
+            td.defaultId = id;
+        } else {
+            td.registryIds.insert(registry, id);
+            if (td.defaultId == 0) td.defaultId = id;
+        }
+    };
+    while (r.readNextStartElement()) {
+        const auto n = r.name();
+        if (n == QStringLiteral("ID")) {
+            readId();
+        } else if (n == QStringLiteral("IDList")) {
+            while (r.readNextStartElement()) {
+                if (r.name() == QStringLiteral("ID")) readId();
+                else r.skipCurrentElement();
+            }
+        } else if (n == QStringLiteral("Flag")) {
+            td.flags = r.readElementText().trimmed().toInt();
+        } else if (n == QStringLiteral("HasSeveralGeometries")) {
+            td.hasSeveralPorts = r.readElementText().trimmed() == QLatin1String("true");
+        } else if (n == QStringLiteral("TDBitmapList")) {
+            while (r.readNextStartElement()) {
+                if (r.name() != QStringLiteral("TDBitmap")) { r.skipCurrentElement(); continue; }
+                PartMetadata::TrackDesignerPort port;
+                while (r.readNextStartElement()) {
+                    const auto m = r.name();
+                    if      (m == QStringLiteral("BBConnexionPointIndex")) port.bbConnectionIndex = r.readElementText().toInt();
+                    else if (m == QStringLiteral("Type"))                  port.type = r.readElementText().toInt();
+                    else if (m == QStringLiteral("AngleBetweenTDandBB"))   port.angleDifference = r.readElementText().toFloat();
+                    else r.skipCurrentElement();
+                }
+                td.ports << port;
+            }
+        } else {
+            r.skipCurrentElement();
+        }
     }
 }
 
@@ -146,6 +191,11 @@ bool parsePartXml(const QString& xmlPath, PartMetadata& out) {
             else if (n == QStringLiteral("LDraw"))         readLDrawRemap(r, out);
             else if (n == QStringLiteral("OldNameList"))   readOldNames(r, out.oldNames);
             else if (n == QStringLiteral("hull"))          readHull(r, out.xmlHullPx);
+            else if (n == QStringLiteral("TrackDesigner")) {
+                PartMetadata::TrackDesigner td;
+                readTrackDesigner(r, td);
+                if (td.defaultId != 0 || !td.registryIds.isEmpty()) out.trackDesigner = td;
+            }
             else if (n == QStringLiteral("PixelsPerStud")) {
                 bool ok = false;
                 const int v = r.readElementText().trimmed().toInt(&ok);
@@ -233,6 +283,11 @@ QString PartsLibrary::scanFile(const QString& xmlPath) {
         : QStringLiteral("%1.%2").arg(partNum, colorCode).toLower();
     if (index_.contains(key)) return {};
     for (const QString& old : meta.oldNames) renamed_.insert(old.toLower(), key);
+    if (meta.trackDesigner) {
+        QSet<int> ids{ meta.trackDesigner->defaultId };
+        for (int id : meta.trackDesigner->registryIds) ids.insert(id);
+        for (int id : ids) if (id != 0) trackDesignerIds_[id].append(key);
+    }
     index_.insert(key, meta);
     return key;
 }
@@ -295,6 +350,17 @@ std::optional<PartsLibrary::Footprint> PartsLibrary::footprint(const QString& ke
     fp.imageOffset = QPointF(ox, oy);
     fp.size = QSizeF((hull.maxX - hull.minX + 1.0f) / pxPerStud, (hull.maxY - hull.minY + 1.0f) / pxPerStud);
     return fp;
+}
+
+QString PartsLibrary::partForTrackDesignerId(int tdId, const QString& registry) const {
+    QString best, fallback, other;
+    for (const QString& key : trackDesignerIds_.value(tdId)) {
+        const auto& td = *index_.value(key).trackDesigner;
+        if (td.registryIds.value(registry, 0) == tdId) best = key;
+        else if (td.defaultId == tdId) fallback = key;
+        else other = key;
+    }
+    return !best.isEmpty() ? best : !fallback.isEmpty() ? fallback : other;
 }
 
 QString PartsLibrary::canonicalKey(const QString& key) const {
@@ -534,6 +600,7 @@ QPointF PartsLibrary::hullBboxOffsetStuds(const QString& key,
 
 void PartsLibrary::forget(const QString& key) {
     const QString lk = key.toLower();
+    for (auto& keys : trackDesignerIds_) keys.removeAll(lk);
     index_.remove(lk);
     pixmapCache_.remove(lk);
     hullCache_.remove(lk);
@@ -542,6 +609,7 @@ void PartsLibrary::forget(const QString& key) {
 void PartsLibrary::clear() {
     index_.clear();
     renamed_.clear();
+    trackDesignerIds_.clear();
     pixmapCache_.clear();
     hullCache_.clear();
 }
