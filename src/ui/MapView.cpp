@@ -12,6 +12,7 @@
 #include "../edit/AreaCommands.h"
 #include "../edit/Connectivity.h"
 #include "../edit/EditCommands.h"
+#include "../edit/FlexMove.h"
 #include "../edit/RulerCommands.h"
 #include "../edit/LabelCommands.h"
 #include "../edit/TextCommands.h"
@@ -241,6 +242,8 @@ void MapView::loadMap(std::unique_ptr<core::Map> map) {
     dragStart_.clear();
     rulerDragStart_.clear();
     labelDragStart_.clear();
+    flex_.reset();
+    flexItems_.clear();
     liveSnapActive_ = false;
     // Any drag-from-browser preview ghost lives in the scene and would
     // dangle after the SceneBuilder rebuild; clear it before the load.
@@ -295,6 +298,9 @@ void MapView::rebuildScene() {
     dragStart_.clear();
     rulerDragStart_.clear();
     labelDragStart_.clear();
+    // A flex move points into the bricks being rebuilt from.
+    flex_.reset();
+    flexItems_.clear();
     liveSnapActive_ = false;
     if (dragPreviewItem_) {
         scene()->removeItem(dragPreviewItem_);
@@ -395,6 +401,11 @@ void MapView::wheelEvent(QWheelEvent* e) {
 // ops live in MapViewClipboard.cpp.
 
 void MapView::mousePressEvent(QMouseEvent* e) {
+    if (e->button() == Qt::LeftButton && scene()) {
+        pressSelection_.clear();
+        for (QGraphicsItem* it : scene()->selectedItems())
+            if (isBrickItem(it)) pressSelection_.insert(it->data(kBrickDataGuid).toString());
+    }
     lastMouseScenePos_ = mapToScene(e->pos());
 
     // Endpoint-handle hit-test: if exactly one linear ruler is selected
@@ -548,6 +559,18 @@ void MapView::mousePressEvent(QMouseEvent* e) {
 void MapView::mouseMoveEvent(QMouseEvent* e) {
     lastMouseScenePos_ = mapToScene(e->pos());
 
+    if (flex_ && (e->buttons() & Qt::LeftButton)) {
+        const double px = rendering::SceneBuilder::kPixelsPerStud;
+        const auto snapped = flex_->moveTo(lastMouseScenePos_ / px, snapStepStuds_);
+        flexMoved_ = true;
+        updateFlexItems();
+        liveSnapActive_ = snapped.has_value();
+        if (snapped) liveSnapPointScene_ = *snapped * px;
+        viewport()->update();
+        e->accept();
+        return;
+    }
+
     // Live update of a ruler endpoint drag: mutate the model in-place so
     // the scene re-renders the line at the new position; commit a real
     // undoable command on release. We don't push a command per
@@ -670,6 +693,11 @@ void MapView::mouseMoveEvent(QMouseEvent* e) {
 }
 
 void MapView::mouseReleaseEvent(QMouseEvent* e) {
+    if (flex_ && e->button() == Qt::LeftButton) {
+        finishFlexMove();
+        e->accept();
+        return;
+    }
     if (e->button() == Qt::MiddleButton && panning_) {
         panning_ = false;
         unsetCursor();
@@ -1510,7 +1538,15 @@ void MapView::editSelectedTextContent() {
 }
 
 void MapView::mouseDoubleClickEvent(QMouseEvent* e) {
-    if (auto* under = itemAt(e->pos())) {
+    QGraphicsItem* under = itemAt(e->pos());
+    // Connection dots and hull outlines are children of their brick.
+    while (under && under->parentItem() && !isBrickItem(under)) under = under->parentItem();
+    if (under) {
+        if (e->button() == Qt::LeftButton && isBrickItem(under)
+            && startFlexMove(under, mapToScene(e->pos()))) {
+            e->accept();  // properties open on release if the mouse didn't move
+            return;
+        }
         scene()->clearSelection();
         under->setSelected(true);
         const int li = under->data(kBrickDataLayerIndex).toInt();
@@ -1554,6 +1590,91 @@ void MapView::mouseDoubleClickEvent(QMouseEvent* e) {
         }
     }
     QGraphicsView::mouseDoubleClickEvent(e);
+}
+
+bool MapView::startFlexMove(QGraphicsItem* under, QPointF scenePos) {
+    if (!map_) return false;
+    const int li = under->data(kBrickDataLayerIndex).toInt();
+    if (li < 0 || li >= static_cast<int>(map_->layers().size())) return false;
+    auto* L = map_->layers()[li].get();
+    if (!L || L->kind() != core::LayerKind::Brick) return false;
+    const QString grabbed = under->data(kBrickDataGuid).toString();
+    // The chain is the current selection (made by the double-click's first
+    // click, or before it), as in BlueBrick.
+    QSet<QString> selection{ grabbed };
+    for (QGraphicsItem* it : scene()->selectedItems())
+        if (isBrickItem(it) && it->data(kBrickDataLayerIndex).toInt() == li)
+            selection.insert(it->data(kBrickDataGuid).toString());
+    if (pressSelection_.contains(grabbed)) selection |= pressSelection_;  // other layers' guids never match
+    const double px = rendering::SceneBuilder::kPixelsPerStud;
+    auto flex = edit::FlexMove::start(static_cast<core::LayerBrick&>(*L), selection, grabbed,
+                                      scenePos / px, parts_);
+    if (!flex) return false;
+
+    flex_ = std::move(flex);
+    flexLayer_ = li;
+    flexGrabbed_ = grabbed;
+    flexMoved_ = false;
+    flexItems_.clear();
+    QSet<QString> chain;
+    for (const auto& s : flex_->initialState()) chain.insert(s.guid);
+    for (QGraphicsItem* it : scene()->items()) {
+        if (!isBrickItem(it) || it->data(kBrickDataLayerIndex).toInt() != li) continue;
+        const QString guid = it->data(kBrickDataGuid).toString();
+        if (chain.contains(guid)) flexItems_.insert(guid, it);
+    }
+    // Show which pieces bend.
+    scene()->clearSelection();
+    for (QGraphicsItem* it : std::as_const(flexItems_)) it->setSelected(true);
+    return true;
+}
+
+void MapView::updateFlexItems() {
+    if (!flex_) return;
+    const double px = rendering::SceneBuilder::kPixelsPerStud;
+    rendering::SceneBuilder::setSuppressItemSnap(true);
+    for (const auto& s : flex_->currentState()) {
+        QGraphicsItem* it = flexItems_.value(s.guid);
+        if (!it) continue;
+        core::Brick probe;
+        probe.guid = s.guid;
+        for (const auto& b : static_cast<core::LayerBrick&>(*map_->layers()[flexLayer_]).bricks)
+            if (b.guid == s.guid) { probe = b; break; }
+        it->setRotation(s.orientation);
+        const QPointF offset = parts_.imageOffset(probe.partNumber, s.orientation) * px;
+        it->setTransform(QTransform::fromTranslate(offset.x(), offset.y()));
+        it->setPos(s.area.center() * px);
+    }
+    rendering::SceneBuilder::setSuppressItemSnap(false);
+}
+
+void MapView::finishFlexMove() {
+    auto flex = std::move(flex_);
+    flexItems_.clear();
+    if (liveSnapActive_) { liveSnapActive_ = false; viewport()->update(); }
+    if (!flexMoved_) {
+        // A plain double-click: edit the brick, as BlueBrick does.
+        flex->restore();
+        editBrickDialog(this, *map_, flexLayer_, flexGrabbed_, parts_, *undoStack_);
+        return;
+    }
+    const auto after = flex->currentState();
+    flex->restore();
+    std::vector<edit::RotateBricksCommand::Entry> entries;
+    const auto& before = flex->initialState();
+    for (size_t i = 0; i < before.size() && i < after.size(); ++i) {
+        edit::RotateBricksCommand::Entry e;
+        e.ref.layerIndex = flexLayer_;
+        e.ref.guid = before[i].guid;
+        e.beforeOrientation = before[i].orientation;
+        e.beforeArea = before[i].area;
+        e.afterOrientation = after[i].orientation;
+        e.afterArea = after[i].area;
+        entries.push_back(e);
+    }
+    auto* cmd = new edit::RotateBricksCommand(*map_, std::move(entries));
+    cmd->setText(tr("Flex move"));
+    undoStack_->push(cmd);  // indexChanged handler relinks and rebuilds the scene
 }
 
 void MapView::addTextAtViewCenter(const QString& text) {

@@ -122,6 +122,9 @@ AI-assisted warning above and keep backups. What works today:
 - Localization scaffolding for 8 languages beyond English — fr, de, es,
   it, nl, pt, zh, ja (translations accept PRs).
 - Budget tracking with status-bar readout.
+- Flex track: double-click and drag a piece of a selected chain with
+  hinged connections (PFS flex track, magnet couplings) to bend it,
+  solved like BlueBrick's `FlexMove`.
 - Open and save LDraw (`.ldr` / `.mpd`), TrackDesigner (`.tdl`) and
   4DBrix nControl (`.ncp`) files as maps, the way BlueBrick does
   (checked against vanilla BlueBrick's own output in the tests).
@@ -196,7 +199,6 @@ AI-assisted warning above and keep backups. What works today:
   already; Flatpak is a follow-up if someone wants it.
 
 **Feature-parity gaps vs. BlueBrick 1.9.2**
-- Flex-track bending (BlueBrick's `FlexMove`).
 - Budget menu: *Show Only Budgeted Parts*, *Show Budget Numbers* in the
   parts library, *Use Budget Limitation* (block placing over-limit
   parts), *Import and Merge*.
