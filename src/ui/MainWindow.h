@@ -112,6 +112,7 @@ private:
     class VenueLibraryPanel* venueLibraryPanel_ = nullptr;
     class PartUsagePanel* partUsagePanel_ = nullptr;
     class BudgetSession* budget_ = nullptr;
+    class UpdateCheck* updates_ = nullptr;
 
     QString currentFilePath_;
     int     cleanUndoIndex_ = 0;   // index at which the stack is "clean"

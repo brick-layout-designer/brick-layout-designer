@@ -154,6 +154,9 @@ AI-assisted warning above and keep backups. What works today:
   Parts* rebuilds them after the model changes, with the same rotation
   and removed connection points.
 - Autosave on every edit (5 s throttled) + crash-recovery prompt.
+- Help → Check for Updates (and a quiet check at startup, at most daily,
+  off in Preferences): tells you about a newer release and links to it;
+  nothing is downloaded or installed automatically.
 - Cross-platform CI/CD: every PR builds, tests and packages Linux x86_64,
   Windows x64 and a universal (arm64 + x86_64) macOS bundle, smoke-launches
   each package, and runs the test suite under ASan + UBSan. Every package

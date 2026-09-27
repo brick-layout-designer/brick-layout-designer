@@ -3,6 +3,7 @@
 // multiple translation units — MOC only needs the header.
 
 #include "MainWindow.h"
+#include "UpdateCheck.h"
 
 #include "FindDialog.h"
 #include "LayerPanel.h"
@@ -602,6 +603,8 @@ void MainWindow::setupMenus() {
         QDesktopServices::openUrl(QUrl(QStringLiteral(
             "https://github.com/brick-layout-designer/brick-layout-designer/tree/main/help/en")));
     });
+    auto* updateAct = help->addAction(tr("Check for &Updates..."));
+    connect(updateAct, &QAction::triggered, this, [this]{ updates_->checkNow(); });
     help->addSeparator();
     auto* aboutAct = help->addAction(tr("&About BLD..."));
     connect(aboutAct, &QAction::triggered, this, &MainWindow::onAbout);

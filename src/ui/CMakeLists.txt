@@ -47,6 +47,8 @@ add_library(bld_ui STATIC
     BudgetDialog.cpp
     BudgetDialog.h
     BudgetSession.cpp
+    UpdateCheck.cpp
+    UpdateCheck.h
     BudgetSession.h
     VenueDialog.cpp
     VenueDialog.h
