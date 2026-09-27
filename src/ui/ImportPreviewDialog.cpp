@@ -277,9 +277,19 @@ PreparedPart ImportPreviewDialog::result() const {
     PreparedPart out = part_;
     out.connections.clear();
     for (int i = 0; i < part_.connections.size(); ++i) {
-        if (connList_->item(i)->checkState() == Qt::Checked) out.connections.append(part_.connections[i]);
+        const auto& c = part_.connections[i];
+        if (connList_->item(i)->checkState() == Qt::Checked) out.connections.append(c);
+        else out.droppedConnections.append(QPointF(c.xStuds, c.yStuds));
     }
     return out;
+}
+
+void ImportPreviewDialog::presetForReimport(const QString& name, const QString& category) {
+    nameEdit_->setText(name);
+    categoryBox_->setCurrentText(category);
+    replaceBox_->setChecked(true);
+    refreshReplace();
+    setWindowTitle(tr("Re-import %1").arg(name));
 }
 
 QString ImportPreviewDialog::partName() const { return nameEdit_->text().trimmed(); }

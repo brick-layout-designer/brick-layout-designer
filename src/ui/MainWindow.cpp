@@ -285,6 +285,9 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
     // gone, but the in-memory parts library still has the entry. Run
     // a full rescan against every configured library path so the
     // deleted part disappears from the grid + part-resolve lookups.
+    connect(partsBrowser_, &PartsBrowser::reimportRequested, this, [this](const QString& key){
+        reimportPart(key, true);
+    });
     connect(partsBrowser_, &PartsBrowser::partDeleted, this, [this]{
         QStringList paths;
         const QString vendored = defaultVendoredPartsRoot();

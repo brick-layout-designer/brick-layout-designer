@@ -67,6 +67,9 @@ void MainWindow::setupToolsMenu() {
     auto* batchAct = importMenu->addAction(tr("&Batch Import..."));
     batchAct->setToolTip(tr("Turn many LDraw / Studio / LDD files into library parts at once"));
     connect(batchAct, &QAction::triggered, this, &MainWindow::onBatchImport);
+    auto* reimportAct = importMenu->addAction(tr("&Re-import Changed Parts..."));
+    reimportAct->setToolTip(tr("Re-import every imported part whose source model changed since"));
+    connect(reimportAct, &QAction::triggered, this, &MainWindow::onReimportChangedParts);
 
     // Part list (BlueBrick's part usage export): HTML, text or CSV.
     auto* partListMenu = tools->addMenu(tr("&Part List"));

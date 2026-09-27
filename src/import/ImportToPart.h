@@ -1,6 +1,8 @@
 #pragma once
 
+#include <QDateTime>
 #include <QImage>
+#include <QPointF>
 #include <QString>
 #include <QVector>
 
@@ -32,6 +34,16 @@ struct ImportedConnection {
     double  angleDeg = 0.0;    // world-facing angle
 };
 
+// Where an imported part came from, so it can be re-imported when the
+// model changes: written into the part XML as <ImportSource> (a
+// fork-only element vanilla BlueBrick skips).
+struct ImportSource {
+    QString   path;                         // the model file
+    QDateTime modified;                     // its modification time when imported
+    int       quarterTurns = 0;             // clockwise turns applied in the preview
+    QVector<QPointF> droppedConnections;    // connection points the user removed (final frame)
+};
+
 // The part key (file stem) writeImportedModelAsLibraryPart derives from a
 // source path or user-entered name, before any -2/-3 suffix.
 QString importedPartKey(const QString& sourceFilePathOrName);
@@ -58,6 +70,7 @@ QString writeImportedModelAsLibraryPart(
     const QString& authorName,
     const QVector<ImportedConnection>& connections,
     QString*       error = nullptr,
-    bool           replaceExisting = false);
+    bool           replaceExisting = false,
+    const ImportSource* source = nullptr);
 
 }  // namespace bld::import

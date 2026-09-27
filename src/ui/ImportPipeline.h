@@ -3,6 +3,7 @@
 #include "../import/ImportToPart.h"
 
 #include <QImage>
+#include <QPointF>
 #include <QString>
 #include <QStringList>
 #include <QVector>
@@ -31,6 +32,8 @@ struct PreparedPart {
     int     widthStuds  = 0;
     int     heightStuds = 0;
     QVector<import::ImportedConnection> connections;  // relative to sprite centre
+    int quarterTurns = 0;                           // clockwise turns applied (rotatePart)
+    QVector<QPointF> droppedConnections;            // removed in the preview (current frame)
     ImportStats stats;
     QStringList warnings;
     QString     error;                             // non-empty: nothing to import
@@ -66,9 +69,15 @@ PreparedPart prepareImport(const QString& path, const ImportSettings& settings,
 // connection points together.
 void rotatePart(PreparedPart& part, int quarterTurns);
 
+// Repeat an earlier import's preview edits on a fresh preparation of the
+// same model: its rotation, and dropping connections within half a stud
+// of the ones removed then.
+void applyImportEdits(PreparedPart& part, int quarterTurns, const QVector<QPointF>& dropped);
+
 // Write `part` as <destDir>/<name>.{xml,png,gif}. With replaceExisting an
 // existing part of that name is overwritten; otherwise a -2, -3 ... suffix
-// keeps both. Returns the part key, or empty with *error set.
+// keeps both. The source and preview edits are recorded for Re-import from
+// Source. Returns the part key, or empty with *error set.
 QString writeImportedPart(const PreparedPart& part, const QString& name,
                           const QString& destDir, const QString& author,
                           bool replaceExisting, QString* error);

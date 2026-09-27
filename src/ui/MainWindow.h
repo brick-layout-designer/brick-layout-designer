@@ -63,6 +63,14 @@ protected:
     // place it at the view centre.
     void importModelFile(const QString& path);
 
+    // Re-run the import of an imported part from its recorded source file
+    // (with the same rotation and removed connection points), through the
+    // preview when `interactive`, replacing the part in place.
+    bool reimportPart(const QString& key, bool interactive);
+    // Tools > Import > Re-import Changed Parts: every imported part whose
+    // source file changed since it was imported.
+    void onReimportChangedParts();
+
 private slots:
     void onNew();
     void onOpen();

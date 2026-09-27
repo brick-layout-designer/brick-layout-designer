@@ -149,7 +149,10 @@ AI-assisted warning above and keep backups. What works today:
   placed with BlueBrick's own LDraw mapping, and their free ends become
   the part's connection points. The preview shows them and lets you
   rotate the part, drop connection points, pick a category and replace
-  an earlier import.
+  an earlier import. Imported parts remember their source: *Re-import
+  from Source* (parts panel) or *Tools → Import → Re-import Changed
+  Parts* rebuilds them after the model changes, with the same rotation
+  and removed connection points.
 - Autosave on every edit (5 s throttled) + crash-recovery prompt.
 - Cross-platform CI/CD: every PR builds, tests and packages Linux x86_64,
   Windows x64 and a universal (arm64 + x86_64) macOS bundle, smoke-launches

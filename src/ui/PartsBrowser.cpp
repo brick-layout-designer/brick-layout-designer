@@ -167,6 +167,15 @@ PartsBrowser::PartsBrowser(parts::PartsLibrary& lib, QWidget* parent)
         // this for vendored parts (read-only location) so users can't
         // accidentally delete BlueBrickParts entries.
         auto meta = lib_.metadata(key);
+        if (meta && meta->importSource) {
+            menu.addSeparator();
+            auto* again = menu.addAction(tr("Re-import from Source..."));
+            const bool there = QFileInfo::exists(meta->importSource->path);
+            again->setEnabled(there);
+            again->setToolTip(there ? meta->importSource->path
+                                    : tr("%1 no longer exists").arg(meta->importSource->path));
+            connect(again, &QAction::triggered, this, [this, key]{ emit reimportRequested(key); });
+        }
         if (meta && !meta->xmlFilePath.isEmpty()
             && meta->xmlFilePath.contains(QStringLiteral("/imports/"))) {
             menu.addSeparator();

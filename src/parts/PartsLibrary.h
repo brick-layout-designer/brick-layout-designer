@@ -4,6 +4,7 @@
 #include <QPixmap>
 #include <QPointF>
 #include <QPolygonF>
+#include <QDateTime>
 #include <QString>
 #include <QStringList>
 
@@ -99,6 +100,15 @@ struct PartMetadata {
     double   ldrawPreferredHeight = 0.0;  // LDU; used when saving at altitude 0
     QString  ldrawSleeper;   // "<part>.<colour>" LDraw sleeper added under rails on save
     QString  ldrawAlias;     // "<part>[.<colour>]" to write instead of this part
+
+    // Where an imported part came from (<ImportSource>, fork-only).
+    struct ImportSource {
+        QString   path;
+        QDateTime modified;
+        int       quarterTurns = 0;
+        QList<QPointF> droppedConnections;
+    };
+    std::optional<ImportSource> importSource;
 
     // Earlier part numbers (<OldNameList>); files using them load as this part.
     QStringList oldNames;
