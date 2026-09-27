@@ -12,6 +12,7 @@
 #include "../edit/AreaCommands.h"
 #include "../edit/Connectivity.h"
 #include "../edit/EditCommands.h"
+#include "../edit/LayerCommands.h"
 #include "BudgetSession.h"
 #include "../edit/FlexMove.h"
 #include "../edit/RulerCommands.h"
@@ -411,6 +412,33 @@ void MapView::mousePressEvent(QMouseEvent* e) {
     }
     lastMouseScenePos_ = mapToScene(e->pos());
 
+    if (gridOriginDragging_ && e->button() == Qt::RightButton) {
+        // Cancel, as BlueBrick does.
+        gridOriginDragging_ = false;
+        setGridOrigin(gridOriginBefore_);
+        unsetCursor();
+        e->accept();
+        return;
+    }
+    if (e->button() == Qt::LeftButton && map_ && tool_ == Tool::Select
+        && map_->selectedLayerIndex >= 0 && map_->selectedLayerIndex < static_cast<int>(map_->layers().size())) {
+        auto* L = map_->layers()[map_->selectedLayerIndex].get();
+        QGraphicsItem* under = itemAt(e->pos());
+        while (under && under->parentItem()) under = under->parentItem();
+        const bool onItem = under && (isBrickItem(under) || isTextItem(under) || isRulerItem(under)
+                                      || isLabelItem(under) || isVenueItem(under));
+        if (L && L->kind() == core::LayerKind::Grid && L->visible && !onItem
+            && static_cast<core::LayerGrid&>(*L).displayCellIndex) {
+            gridOriginDragging_ = true;
+            gridLayer_ = map_->selectedLayerIndex;
+            gridOriginBefore_ = static_cast<core::LayerGrid&>(*L).cellIndexCorner;
+            gridDragStartCell_ = gridDragLastCell_ = gridCellAt(lastMouseScenePos_);
+            setCursor(Qt::SizeAllCursor);
+            e->accept();
+            return;
+        }
+    }
+
     // Endpoint-handle hit-test: if exactly one linear ruler is selected
     // and the click lands on one of its 0.8-stud handles, capture the
     // drag and skip Qt's default selection / rubber-band path. Mirrors
@@ -562,6 +590,16 @@ void MapView::mousePressEvent(QMouseEvent* e) {
 void MapView::mouseMoveEvent(QMouseEvent* e) {
     lastMouseScenePos_ = mapToScene(e->pos());
 
+    if (gridOriginDragging_) {
+        const QPoint cell = gridCellAt(lastMouseScenePos_);
+        if (cell != gridDragLastCell_) {
+            gridDragLastCell_ = cell;
+            setGridOrigin(gridOriginBefore_ + (cell - gridDragStartCell_));
+        }
+        e->accept();
+        return;
+    }
+
     if (flex_ && (e->buttons() & Qt::LeftButton)) {
         const double px = rendering::SceneBuilder::kPixelsPerStud;
         const auto snapped = flex_->moveTo(lastMouseScenePos_ / px, snapStepStuds_);
@@ -696,6 +734,16 @@ void MapView::mouseMoveEvent(QMouseEvent* e) {
 }
 
 void MapView::mouseReleaseEvent(QMouseEvent* e) {
+    if (gridOriginDragging_ && e->button() == Qt::LeftButton) {
+        gridOriginDragging_ = false;
+        unsetCursor();
+        const QPoint delta = gridDragLastCell_ - gridDragStartCell_;
+        setGridOrigin(gridOriginBefore_);  // the command applies the move
+        if (!delta.isNull())
+            undoStack_->push(new edit::MoveGridOriginCommand(*map_, gridLayer_, delta.x(), delta.y()));
+        e->accept();
+        return;
+    }
     if (flex_ && e->button() == Qt::LeftButton) {
         finishFlexMove();
         e->accept();
@@ -1594,6 +1642,27 @@ void MapView::mouseDoubleClickEvent(QMouseEvent* e) {
         }
     }
     QGraphicsView::mouseDoubleClickEvent(e);
+}
+
+QPoint MapView::gridCellAt(QPointF scenePos) const {
+    // LayerGrid.computeGridCoordFromStudCoord: truncate, one less below zero.
+    const auto& grid = static_cast<const core::LayerGrid&>(*map_->layers()[gridLayer_]);
+    const double size = std::max(1, grid.gridSizeInStud);
+    const QPointF studs = scenePos / rendering::SceneBuilder::kPixelsPerStud;
+    QPoint cell(static_cast<int>(studs.x() / size), static_cast<int>(studs.y() / size));
+    if (studs.x() < 0) cell.rx() -= 1;
+    if (studs.y() < 0) cell.ry() -= 1;
+    return cell;
+}
+
+void MapView::setGridOrigin(QPoint corner) {
+    if (!map_ || gridLayer_ < 0 || gridLayer_ >= static_cast<int>(map_->layers().size())) return;
+    auto* L = map_->layers()[gridLayer_].get();
+    if (!L || L->kind() != core::LayerKind::Grid) return;
+    auto& grid = static_cast<core::LayerGrid&>(*L);
+    if (grid.cellIndexCorner == corner) return;
+    grid.cellIndexCorner = corner;
+    viewport()->update();  // indices are painted with the background
 }
 
 bool MapView::budgetAllows(const QString& part, int quantity) {

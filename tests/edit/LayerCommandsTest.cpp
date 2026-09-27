@@ -104,3 +104,30 @@ TEST(LayerCommands, BackgroundColorRoundTrip) {
     stack.undo();
     EXPECT_EQ(m.backgroundColor.color.rgba(), QColor(255, 255, 255).rgba());
 }
+
+TEST(LayerCommands, MoveGridOriginShiftsTheIndexCorner) {
+    core::Map m;
+    auto grid = std::make_unique<core::LayerGrid>();
+    grid->cellIndexCorner = QPoint(2, -1);
+    m.layers().push_back(std::move(grid));
+    QUndoStack stack;
+    stack.push(new edit::MoveGridOriginCommand(m, 0, 3, 4));
+    auto& g = static_cast<core::LayerGrid&>(*m.layers()[0]);
+    EXPECT_EQ(g.cellIndexCorner, QPoint(5, 3));
+    stack.undo();
+    EXPECT_EQ(g.cellIndexCorner, QPoint(2, -1));
+}
+
+TEST(LayerCommands, CellIndexLabelsLikeBlueBrick) {
+    using core::LayerGrid;
+    EXPECT_EQ(LayerGrid::cellIndexLabel(0, true), QString());
+    EXPECT_EQ(LayerGrid::cellIndexLabel(-3, false), QString());
+    EXPECT_EQ(LayerGrid::cellIndexLabel(1, true), QStringLiteral("A"));
+    EXPECT_EQ(LayerGrid::cellIndexLabel(26, true), QStringLiteral("Z"));
+    EXPECT_EQ(LayerGrid::cellIndexLabel(27, true), QStringLiteral("AA"));
+    EXPECT_EQ(LayerGrid::cellIndexLabel(52, true), QStringLiteral("AZ"));
+    EXPECT_EQ(LayerGrid::cellIndexLabel(53, true), QStringLiteral("BA"));
+    EXPECT_EQ(LayerGrid::cellIndexLabel(702, true), QStringLiteral("ZZ"));
+    EXPECT_EQ(LayerGrid::cellIndexLabel(703, true), QStringLiteral("AAA"));
+    EXPECT_EQ(LayerGrid::cellIndexLabel(12, false), QStringLiteral("12"));
+}

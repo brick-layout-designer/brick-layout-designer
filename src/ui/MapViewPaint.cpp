@@ -71,7 +71,7 @@ void MapView::drawBackground(QPainter* painter, const QRectF& rect) {
     for (const auto& layer : map_->layers()) {
         if (layer->kind() != core::LayerKind::Grid || !layer->visible) continue;
         const auto& g = static_cast<const core::LayerGrid&>(*layer);
-        if (!g.displayGrid && !g.displaySubGrid) continue;
+        if (!g.displayGrid && !g.displaySubGrid && !g.displayCellIndex) continue;
 
         const double gridPx = g.gridSizeInStud * rendering::SceneBuilder::kPixelsPerStud;
         const double subPx  = gridPx / std::max(g.subDivisionNumber, 2);
@@ -103,8 +103,41 @@ void MapView::drawBackground(QPainter* painter, const QRectF& rect) {
             for (double y = firstY; y < bottom; y += gridPx)
                 painter->drawLine(QPointF(left, y), QPointF(right, y));
         }
+        if (g.displayCellIndex) drawCellIndices(painter, rect, g);
         break;
     }
+}
+
+
+// LayerGrid.draw's cell indices: column labels along the origin cell's row
+// and row labels down its column, counting from the origin (which stays
+// blank).
+void MapView::drawCellIndices(QPainter* painter, const QRectF& rect, const core::LayerGrid& g) {
+    const double px = rendering::SceneBuilder::kPixelsPerStud;
+    const double cellPx = std::max(1, g.gridSizeInStud) * px;
+    QFont f(g.cellIndexFont.familyName);
+    f.setPixelSize(std::max(1, static_cast<int>(std::lround(g.cellIndexFont.sizePt * 4.0 / 3.0 * px))));
+    f.setBold(g.cellIndexFont.styleString.contains(QStringLiteral("Bold")));
+    f.setItalic(g.cellIndexFont.styleString.contains(QStringLiteral("Italic")));
+    painter->save();
+    painter->setFont(f);
+    painter->setPen(g.cellIndexColor.color);
+    const QPoint c = g.cellIndexCorner;
+    const auto label = [&](int cx, int cy, const QString& text) {
+        if (text.isEmpty()) return;
+        painter->drawText(QRectF(cx * cellPx, cy * cellPx, cellPx, cellPx), Qt::AlignCenter, text);
+    };
+    const int firstCol = std::max(c.x(), static_cast<int>(std::floor(rect.left() / cellPx)));
+    const int lastCol  = static_cast<int>(std::ceil(rect.right() / cellPx));
+    if ((c.y() + 1) * cellPx > rect.top() && c.y() * cellPx < rect.bottom())
+        for (int x = firstCol; x <= lastCol; ++x)
+            label(x, c.y(), core::LayerGrid::cellIndexLabel(x - c.x(), g.cellIndexColumnType == core::CellIndexType::Letters));
+    const int firstRow = std::max(c.y(), static_cast<int>(std::floor(rect.top() / cellPx)));
+    const int lastRow  = static_cast<int>(std::ceil(rect.bottom() / cellPx));
+    if ((c.x() + 1) * cellPx > rect.left() && c.x() * cellPx < rect.right())
+        for (int y = firstRow; y <= lastRow; ++y)
+            label(c.x(), y, core::LayerGrid::cellIndexLabel(y - c.y(), g.cellIndexRowType == core::CellIndexType::Letters));
+    painter->restore();
 }
 
 void MapView::drawForeground(QPainter* painter, const QRectF& rect) {

@@ -97,6 +97,20 @@ private:
 
 // ---------- Map-level metadata commands ----------
 
+// Shift a grid layer's cell-index origin by whole cells (BlueBrick's
+// MoveGridOrigin).
+class MoveGridOriginCommand : public QUndoCommand {
+public:
+    MoveGridOriginCommand(core::Map& map, int layerIndex, int dx, int dy, QUndoCommand* parent = nullptr);
+    void undo() override;
+    void redo() override;
+private:
+    void shift(int dx, int dy);
+    core::Map& map_;
+    int layerIndex_;
+    int dx_, dy_;
+};
+
 class ChangeBackgroundColorCommand : public QUndoCommand {
 public:
     ChangeBackgroundColorCommand(core::Map& map, const core::ColorSpec& newColor,

@@ -192,4 +192,21 @@ void ChangeGeneralInfoCommand::undo() {
     map_.comment = before_.comment;
 }
 
+// ----- MoveGridOriginCommand -----
+
+MoveGridOriginCommand::MoveGridOriginCommand(core::Map& map, int layerIndex, int dx, int dy, QUndoCommand* parent)
+    : QUndoCommand(parent), map_(map), layerIndex_(layerIndex), dx_(dx), dy_(dy) {
+    setText(QObject::tr("Move grid origin"));
+}
+
+void MoveGridOriginCommand::shift(int dx, int dy) {
+    if (layerIndex_ < 0 || layerIndex_ >= static_cast<int>(map_.layers().size())) return;
+    auto* L = map_.layers()[layerIndex_].get();
+    if (!L || L->kind() != core::LayerKind::Grid) return;
+    static_cast<core::LayerGrid&>(*L).cellIndexCorner += QPoint(dx, dy);
+}
+
+void MoveGridOriginCommand::redo() { shift(dx_, dy_); }
+void MoveGridOriginCommand::undo() { shift(-dx_, -dy_); }
+
 }
