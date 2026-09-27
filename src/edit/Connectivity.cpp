@@ -1,6 +1,7 @@
 #include "Connectivity.h"
 
 #include "../core/Brick.h"
+#include "../core/Ids.h"
 #include "../core/Layer.h"
 #include "../core/LayerBrick.h"
 #include "../core/Map.h"
@@ -67,6 +68,9 @@ void rebuildConnectivity(core::Map& map, parts::PartsLibrary& lib) {
                 brick.connections.push_back({});
             }
             for (int i = 0; i < n; ++i) {
+                // Every connection point needs its own id: <LinkedTo> in a
+                // .bbm names the partner's connection, not the partner brick.
+                if (brick.connections[i].guid.isEmpty()) brick.connections[i].guid = core::newBbmId();
                 brick.connections[i].linkedToId.clear();  // rebuild
                 const auto& c = meta->connections[i];
                 if (c.type.isEmpty()) continue;
@@ -128,8 +132,8 @@ void rebuildConnectivity(core::Map& map, parts::PartsLibrary& lib) {
         }
         if (bestJ >= 0) {
             const auto& b = all[bestJ];
-            a.brick->connections[a.connIdx].linkedToId = b.brick->guid;
-            b.brick->connections[b.connIdx].linkedToId = a.brick->guid;
+            a.brick->connections[a.connIdx].linkedToId = b.brick->connections[b.connIdx].guid;
+            b.brick->connections[b.connIdx].linkedToId = a.brick->connections[a.connIdx].guid;
         }
     }
 }
