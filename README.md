@@ -121,7 +121,10 @@ AI-assisted warning above and keep backups. What works today:
 - Find & Replace live updates as you type.
 - Localization scaffolding for 8 languages beyond English — fr, de, es,
   it, nl, pt, zh, ja (translations accept PRs).
-- Budget tracking with status-bar readout.
+- Budgets like BlueBrick's: the Budget menu (New / Open / Import and
+  Merge / Close / Save), *Show Only Budgeted Parts*, *Show Budget
+  Numbers* in the parts library, *Use Budget Limitation*, and a
+  status-bar readout. `.bbb` files are byte-identical to BlueBrick's.
 - Flex track: double-click and drag a piece of a selected chain with
   hinged connections (PFS flex track, magnet couplings) to bend it,
   solved like BlueBrick's `FlexMove`.
@@ -199,9 +202,6 @@ AI-assisted warning above and keep backups. What works today:
   already; Flatpak is a follow-up if someone wants it.
 
 **Feature-parity gaps vs. BlueBrick 1.9.2**
-- Budget menu: *Show Only Budgeted Parts*, *Show Budget Numbers* in the
-  parts library, *Use Budget Limitation* (block placing over-limit
-  parts), *Import and Merge*.
 - Dragging the grid's cell-index origin on the map (`MoveGridOrigin`;
   the value itself round-trips).
 - HTML part-list export (CSV and text are supported).

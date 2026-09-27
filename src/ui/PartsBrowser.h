@@ -3,14 +3,19 @@
 #include <QDockWidget>
 #include <QString>
 
+#include <functional>
+
 class QComboBox;
 class QLineEdit;
 class QListWidget;
 class QListWidgetItem;
 
+namespace bld::core  { class Map; }
 namespace bld::parts { class PartsLibrary; }
 
 namespace bld::ui {
+
+class BudgetSession;
 
 // Dock panel showing parts in a thumbnail grid (QListView::IconMode).
 // Top strip: category dropdown + live text filter. Double-click (or
@@ -32,6 +37,13 @@ public:
     // recognises the same string in its drop handler.
     static constexpr const char* kPartMimeType = "application/x-bld-part";
 
+    // Follow the budget: Show Only Budgeted Parts hides the rest, Show
+    // Budget Numbers adds "used/limit" under each part (red when over).
+    // `map` gives the layout the counts come from.
+    void setBudget(BudgetSession* budget, std::function<const core::Map*()> map);
+    // Recount after the layout changed.
+    void refreshBudget();
+
 signals:
     void partActivated(const QString& key);
 
@@ -46,6 +58,8 @@ private:
     QString categoryForPath(const QString& absPath) const;
 
     parts::PartsLibrary& lib_;
+    BudgetSession* budget_ = nullptr;
+    std::function<const core::Map*()> map_;
     QComboBox*    category_ = nullptr;
     QLineEdit*    filter_   = nullptr;
     QListWidget*  grid_     = nullptr;

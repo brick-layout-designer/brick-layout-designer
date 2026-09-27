@@ -3,6 +3,7 @@
 // selection (by layer + guid) instead of dropping it with the old items.
 
 #include "ui/MapView.h"
+#include "ui/BudgetSession.h"
 #include "ui/MapViewInternal.h"
 #include "edit/EditCommands.h"
 #include "parts/PartsLibrary.h"
@@ -18,6 +19,7 @@
 #include <QGraphicsItem>
 #include <QGraphicsScene>
 #include <QMouseEvent>
+#include <QSettings>
 #include <QUndoStack>
 
 using namespace bld;
@@ -157,6 +159,30 @@ TEST_F(MapViewTest, DoubleClickDragBendsFlexTrackInOneUndoStep) {
         EXPECT_EQ(bricks()[i].displayArea, before[i].displayArea);
         EXPECT_EQ(bricks()[i].orientation, before[i].orientation);
     }
+}
+
+TEST_F(MapViewTest, BudgetLimitationRefusesPartsOverTheirLimit) {
+    QSettings().setValue(QStringLiteral("general/warnBudgetLimitation"), false);  // no modal message
+    ui::BudgetSession budget(parts_);
+    view_->setBudget(&budget);
+    budget.create();
+    budget.setLimit(QStringLiteral("3001.1"), 1);
+    const int before = view_->undoStack()->count();
+
+    budget.setUseBudgetLimitation(false);
+    view_->addPartAtScenePos(QStringLiteral("3001.1"), QPointF(0, 0));
+    view_->addPartAtScenePos(QStringLiteral("3001.1"), QPointF(80, 0));
+    EXPECT_EQ(view_->undoStack()->count(), before + 2) << "no limitation: both placed";
+
+    budget.setUseBudgetLimitation(true);
+    view_->addPartAtScenePos(QStringLiteral("3001.1"), QPointF(160, 0));
+    EXPECT_EQ(view_->undoStack()->count(), before + 2) << "over the limit: refused";
+    budget.setLimit(QStringLiteral("3001.1"), 3);
+    view_->addPartAtScenePos(QStringLiteral("3001.1"), QPointF(160, 0));
+    EXPECT_EQ(view_->undoStack()->count(), before + 3) << "raised limit: placed";
+
+    budget.setUseBudgetLimitation(false);
+    view_->setBudget(nullptr);
 }
 
 int main(int argc, char** argv) {

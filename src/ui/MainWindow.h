@@ -88,6 +88,9 @@ private:
     void setupMenus();
     void setupMapMenu();           // in MainWindowMapMenu.cpp
     void setupToolsMenu();         // in MainWindowToolsMenu.cpp
+    void setupBudgetMenu();        // in MainWindowBudgetMenu.cpp
+    bool maybeSaveBudget();        // prompts on an unsaved budget
+    bool saveBudget(bool askForName);
     void updateTitle();
     bool maybeSave();              // prompts on dirty close
     bool writeMapTo(const QString& path);
@@ -100,6 +103,7 @@ private:
     class ModuleLibraryPanel* moduleLibraryPanel_ = nullptr;
     class VenueLibraryPanel* venueLibraryPanel_ = nullptr;
     class PartUsagePanel* partUsagePanel_ = nullptr;
+    class BudgetSession* budget_ = nullptr;
 
     QString currentFilePath_;
     int     cleanUndoIndex_ = 0;   // index at which the stack is "clean"

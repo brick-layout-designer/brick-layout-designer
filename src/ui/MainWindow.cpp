@@ -1,7 +1,7 @@
 #include "MainWindow.h"
 
 #include "LayerPanel.h"
-#include "BudgetDialog.h"
+#include "BudgetSession.h"
 #include "FindDialog.h"
 #include "LibraryPathsDialog.h"
 #include "PreferencesDialog.h"
@@ -112,6 +112,10 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
     rescanLibrary(allPaths);
 
     mapView_ = new MapView(parts_, this);
+    budget_ = new BudgetSession(parts_, this);
+    mapView_->setBudget(budget_);
+    // Reopen last session's budget once everything listening is connected.
+    QTimer::singleShot(0, budget_, &BudgetSession::restoreFromSettings);
     setCentralWidget(mapView_);
 
     layerPanel_ = new LayerPanel(this);
@@ -269,6 +273,12 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
 
     partsBrowser_ = new PartsBrowser(parts_, this);
     addDockWidget(Qt::LeftDockWidgetArea, partsBrowser_);
+    partsBrowser_->setBudget(budget_, [this]{ return static_cast<const core::Map*>(mapView_->currentMap()); });
+    const auto recountBudget = [this]{
+        if (budget_->exists() && budget_->showBudgetNumbers()) partsBrowser_->refreshBudget();
+    };
+    connect(mapView_->undoStack(), &QUndoStack::indexChanged, this, recountBudget);
+    connect(mapView_, &MapView::layersChanged, this, recountBudget);
     connect(partsBrowser_, &PartsBrowser::partActivated,
             mapView_, &MapView::addPartAtViewCenter);
     // After the user deletes an imported part the on-disk files are
@@ -293,6 +303,7 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
     partUsagePanel_ = new PartUsagePanel(parts_, this);
     addDockWidget(Qt::RightDockWidgetArea, partUsagePanel_);
     partUsagePanel_->bindMapView(mapView_);
+    partUsagePanel_->setBudget(budget_);
     connect(moduleLibraryPanel_, &ModuleLibraryPanel::moduleImportRequested,
             this, &MainWindow::onImportModuleFromLibraryPath);
     connect(venueLibraryPanel_, &VenueLibraryPanel::venueLoadRequested,
@@ -948,26 +959,18 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
             [refreshVenueStatus]{ refreshVenueStatus(); });
     QTimer::singleShot(0, this, refreshVenueStatus);
 
-    // Budget status readout — mirrors the venue one but sources from
-    // the last-loaded .bbb file (QSettings key budget/lastFile, set by
-    // BudgetDialog). Silent when no budget is active.
+    // Budget status readout — mirrors the venue one. Silent without a budget.
     QLabel* budgetLabel = new QLabel(this);
     statusBar()->addPermanentWidget(budgetLabel);
     auto refreshBudgetStatus = [this, budgetLabel]{
         auto* map = mapView_->currentMap();
-        const QString path = QSettings().value(QStringLiteral("budget/lastFile")).toString();
-        if (!map || path.isEmpty()) {
+        const auto* budget = budget_->budget();
+        if (!map || !budget) {
             budgetLabel->clear();
             budgetLabel->setToolTip({});
             return;
         }
-        const auto limits = edit::readBudgetFile(path);
-        if (limits.isEmpty()) {
-            budgetLabel->clear();
-            budgetLabel->setToolTip({});
-            return;
-        }
-        const auto violations = edit::checkBudget(*map, limits);
+        const auto violations = edit::checkBudget(*map, *budget);
         if (violations.isEmpty()) {
             budgetLabel->setText(tr("Budget: OK"));
             budgetLabel->setStyleSheet(QStringLiteral("color: #2a7d2a;"));
@@ -984,6 +987,7 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
             budgetLabel->setToolTip(lines.join(QChar('\n')));
         }
     };
+    connect(budget_, &BudgetSession::changed, this, refreshBudgetStatus);
     connect(mapView_->undoStack(), &QUndoStack::indexChanged,
             this, [refreshBudgetStatus](int){ refreshBudgetStatus(); });
     QTimer::singleShot(0, this, refreshBudgetStatus);
