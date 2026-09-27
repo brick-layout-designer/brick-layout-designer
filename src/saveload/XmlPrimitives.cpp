@@ -15,8 +15,11 @@ constexpr int kFloatPrecision  = 7;
 constexpr int kDoublePrecision = 15;
 
 QString formatInvariantDouble(double v, int precision) {
-    // C# "G" format trims trailing zeros; QString::number with 'g' does the same.
-    return QString::number(v, 'g', precision);
+    // C# "G" format trims trailing zeros; QString::number with 'g' does the
+    // same. .NET writes the exponent with an upper-case E ("-4.371139E-08").
+    QString s = QString::number(v, 'g', precision);
+    s.replace(QLatin1Char('e'), QLatin1Char('E'));
+    return s;
 }
 
 }
