@@ -1,9 +1,11 @@
 add_executable(bld_ui_tests
     MapViewTest.cpp
     ImportPipelineTest.cpp
+    ConnectivityTest.cpp
 )
 
 target_compile_definitions(bld_ui_tests PRIVATE
+    BLD_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
     BLD_BBM_CORPUS_DIR="${CMAKE_SOURCE_DIR}/fixtures/bbm-corpus"
     BLD_PARTS_LIBRARY_ROOT="${CMAKE_SOURCE_DIR}/parts/BlueBrickParts/parts"
 )

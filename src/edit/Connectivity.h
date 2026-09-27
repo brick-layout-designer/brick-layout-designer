@@ -18,6 +18,9 @@ namespace bld::edit {
 //   * re-link free-to-free pairs whose world positions DO coincide and
 //     whose types match
 //
+// A link is stored as the partner CONNECTION's id (like vanilla's
+// <LinkedTo>); connection points without an id get one.
+//
 // Tolerance is 0.5 studs (quarter of a brick unit).
 void rebuildConnectivity(core::Map& map, parts::PartsLibrary& lib);
 

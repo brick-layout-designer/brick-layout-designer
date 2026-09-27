@@ -92,6 +92,24 @@ void SceneBuilder::addElectricCircuits(const core::Map& map) {
     }
     if (entries.isEmpty()) return;
 
+    // <LinkedTo> names the partner's connection: map each connection id to
+    // (brick, index) so polarity flows into the right end of the partner.
+    struct ConnRef { QString brickGuid; int index = -1; };
+    QHash<QString, ConnRef> connOwner;
+    for (auto it = entries.cbegin(); it != entries.cend(); ++it) {
+        const auto& conns = it->brick->connections;
+        for (int i = 0; i < static_cast<int>(conns.size()); ++i) {
+            if (!conns[i].guid.isEmpty()) connOwner.insert(conns[i].guid, { it.key(), i });
+        }
+    }
+    const auto partnerOf = [&](const core::Brick& b, int idx) -> ConnRef {
+        if (idx < 0 || idx >= static_cast<int>(b.connections.size())) return {};
+        const ConnRef r = connOwner.value(b.connections[idx].linkedToId);
+        const auto e = entries.constFind(r.brickGuid);
+        if (e == entries.constEnd() || r.index < 0 || r.index >= e->state.size()) return {};
+        return r;
+    };
+
     // -------------------------------------------------------------------
     // 2. BFS to assign consistent polarity across connected bricks,
     //    matching ElectricCircuitChecker.cs logic.
@@ -114,12 +132,9 @@ void SceneBuilder::addElectricCircuits(const core::Map& map) {
         startEntry->state[seed1].polarity = stamp;
 
         // If it's already linked to another electric brick, seed the partner.
-        if (seed1 < static_cast<int>(startEntry->brick->connections.size())) {
-            const QString& partnerGuid = startEntry->brick->connections[seed1].linkedToId;
-            if (!partnerGuid.isEmpty() && entries.contains(partnerGuid)) {
-                entries[partnerGuid].state[seed1].polarity = (short)(-stamp);
-                toExplore.append(partnerGuid);
-            }
+        if (const ConnRef p = partnerOf(*startEntry->brick, seed1); p.index >= 0) {
+            entries[p.brickGuid].state[p.index].polarity = (short)(-stamp);
+            toExplore.append(p.brickGuid);
         }
 
         while (!toExplore.isEmpty()) {
@@ -162,17 +177,13 @@ void SceneBuilder::addElectricCircuits(const core::Map& map) {
                     }
 
                     // Propagate to linked neighbor brick.
-                    if (endIdx < static_cast<int>(entry->brick->connections.size())) {
-                        const QString& neighborGuid =
-                            entry->brick->connections[endIdx].linkedToId;
-                        if (!neighborGuid.isEmpty() && entries.contains(neighborGuid)) {
-                            ConnState& nState = entries[neighborGuid].state[endIdx];
-                            if (nState.polarity == end->polarity) {
-                                end->hasShortcut = true;
-                            } else if (nState.polarity != -(end->polarity)) {
-                                nState.polarity = (short)(-(end->polarity));
-                                toExplore.append(neighborGuid);
-                            }
+                    if (const ConnRef p = partnerOf(*entry->brick, endIdx); p.index >= 0) {
+                        ConnState& nState = entries[p.brickGuid].state[p.index];
+                        if (nState.polarity == end->polarity) {
+                            end->hasShortcut = true;
+                        } else if (nState.polarity != -(end->polarity)) {
+                            nState.polarity = (short)(-(end->polarity));
+                            toExplore.append(p.brickGuid);
                         }
                     }
                 }
