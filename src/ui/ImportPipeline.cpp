@@ -38,7 +38,8 @@ namespace bld::ui {
 
 namespace {
 
-QString tr(const char* s) { return QCoreApplication::translate("bld::ui::ImportPipeline", s); }
+// lupdate reads the context from Q_DECLARE_TR_FUNCTIONS; call Text::tr().
+struct Text { Q_DECLARE_TR_FUNCTIONS(bld::ui::ImportPipeline) };
 
 enum class Format { LDraw, Studio, LDD };
 
@@ -87,18 +88,18 @@ PreparedPart fromLDrawGeometry(PreparedPart out, const import::LDrawReadResult& 
     import::LDrawMeshLoader loader(lib, palette);
     import::BakedModel baked;
     import::RasterizeResult rast;
-    const bool finished = runHeavy(tr("Importing %1...").arg(QFileInfo(out.source).fileName()),
+    const bool finished = runHeavy(Text::tr("Importing %1...").arg(QFileInfo(out.source).fileName()),
         [&](CancelToken& cancel) {
             baked = import::bakeMeshFromLDraw(read, loader, palette);
             if (cancel.requested() || baked.mesh.tris.empty()) return;
             rast = import::rasterizeMeshTopDown(baked.mesh, geometryRasterOptions(settings.pxPerStud));
         });
-    if (!finished) { out.cancelled = true; out.error = tr("Import cancelled."); return out; }
+    if (!finished) { out.cancelled = true; out.error = Text::tr("Import cancelled."); return out; }
     out.warnings = baked.errors;
     out.stats.ldrawResolved = baked.resolvedRefs;
     out.stats.unresolved    = baked.unresolvedRefs;
     if (baked.mesh.tris.empty() || rast.image.isNull()) {
-        out.error = tr("The LDraw library at %1 has no geometry for any part in this model.")
+        out.error = Text::tr("The LDraw library at %1 has no geometry for any part in this model.")
                         .arg(settings.ldrawLibrary);
         return out;
     }
@@ -149,9 +150,9 @@ PreparedPart fromBlueBrickParts(PreparedPart out, const import::LDrawReadResult&
     }
     if (bounds.isEmpty()) {
         out.error = out.stats.unresolved > 0
-            ? tr("None of the %1 parts in this model are in the parts library. "
+            ? Text::tr("None of the %1 parts in this model are in the parts library. "
                  "Set an LDraw library in Preferences to render any part.").arg(out.stats.unresolved)
-            : tr("The model is empty.");
+            : Text::tr("The model is empty.");
         return out;
     }
 
@@ -183,7 +184,7 @@ PreparedPart fromLDDGeometry(PreparedPart out, const import::LDrawReadResult& re
     materials.loadFromBytes(assets.read(QStringLiteral("Materials.xml")));
     import::LDDLDrawBakedModel baked;
     import::RasterizeResult rast;
-    const bool finished = runHeavy(tr("Importing %1...").arg(QFileInfo(out.source).fileName()),
+    const bool finished = runHeavy(Text::tr("Importing %1...").arg(QFileInfo(out.source).fileName()),
         [&](CancelToken& cancel) {
             import::LDDMeshBuilder builder;
             builder.setAssets(&assets);
@@ -192,12 +193,12 @@ PreparedPart fromLDDGeometry(PreparedPart out, const import::LDrawReadResult& re
             if (cancel.requested() || baked.mesh.tris.empty()) return;
             rast = import::rasterizeMeshTopDown(baked.mesh, geometryRasterOptions(settings.pxPerStud));
         });
-    if (!finished) { out.cancelled = true; out.error = tr("Import cancelled."); return out; }
+    if (!finished) { out.cancelled = true; out.error = Text::tr("Import cancelled."); return out; }
     out.warnings = baked.errors;
     out.stats.lddRendered = baked.rendered;
     out.stats.unresolved  = baked.skipped;
     if (baked.mesh.tris.empty() || rast.image.isNull()) {
-        out.error = tr("LDD's brick database (%1) has no geometry for this model.").arg(assets.source());
+        out.error = Text::tr("LDD's brick database (%1) has no geometry for this model.").arg(assets.source());
         return out;
     }
     fillFromRaster(out, rast);
@@ -236,15 +237,15 @@ PreparedPart prepareImport(const QString& path, const ImportSettings& settings,
     PreparedPart out;
     out.source = path;
     const Format format = formatOf(path);
-    out.kindLabel = format == Format::Studio ? tr("Studio import")
-                  : format == Format::LDD    ? tr("LDD import")
-                                             : tr("LDraw import");
+    out.kindLabel = format == Format::Studio ? Text::tr("Studio import")
+                  : format == Format::LDD    ? Text::tr("LDD import")
+                                             : Text::tr("LDraw import");
 
     import::LDrawReadResult read = format == Format::Studio ? import::readStudioIo(path)
                                  : format == Format::LDD    ? import::readLDD(path)
                                                             : import::readLDraw(path);
     if (!read.ok) {
-        out.error = tr("Could not read %1: %2").arg(QFileInfo(path).fileName(), read.error);
+        out.error = Text::tr("Could not read %1: %2").arg(QFileInfo(path).fileName(), read.error);
         return out;
     }
 
