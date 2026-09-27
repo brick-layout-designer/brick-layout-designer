@@ -355,7 +355,9 @@ std::optional<PartsLibrary::Footprint> PartsLibrary::footprint(const QString& ke
 QString PartsLibrary::partForTrackDesignerId(int tdId, const QString& registry) const {
     QString best, fallback, other;
     for (const QString& key : trackDesignerIds_.value(tdId)) {
-        const auto& td = *index_.value(key).trackDesigner;
+        const auto it = index_.constFind(key);
+        if (it == index_.constEnd() || !it->trackDesigner) continue;
+        const auto& td = *it->trackDesigner;
         if (td.registryIds.value(registry, 0) == tdId) best = key;
         else if (td.defaultId == tdId) fallback = key;
         else other = key;
