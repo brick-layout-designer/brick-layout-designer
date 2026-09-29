@@ -32,8 +32,10 @@ StairMarks stairMarks(const QVector<QPointF>& poly, std::optional<double> upDegr
         u0 = std::min(u0, pu), u1 = std::max(u1, pu), w0 = std::min(w0, pw), w1 = std::max(w1, pw);
     }
     const auto at = [&](double uu, double ww) { return u * uu + w * ww; };
-    for (double uu = u0 + kTreadSpacingStuds; uu < u1 - 0.001; uu += kTreadSpacingStuds)
+    for (int i = 1; u0 + i * kTreadSpacingStuds < u1 - 0.001; ++i) {
+        const double uu = u0 + i * kTreadSpacingStuds;
         out.treads.append(QLineF(at(uu, w0), at(uu, w1)));
+    }
     const double len = u1 - u0, mid = (w0 + w1) / 2;
     const QPointF tail = at(u0 + len * 0.15, mid), tip = at(u1 - len * 0.15, mid);
     const double head = std::min(len * 0.2, (w1 - w0) * 0.3);
