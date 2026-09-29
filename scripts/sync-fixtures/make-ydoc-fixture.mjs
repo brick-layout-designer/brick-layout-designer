@@ -7,6 +7,9 @@
 //   node scripts/sync-fixtures/make-ydoc-fixture.mjs <web repo> <in.bbm> <out dir>
 //
 // Needs the web repo's packages built (pnpm -r build).
+//
+// Fixtures: tight-corner (fixtures/bbm-corpus) and layers (fixtures/sync/
+// layers.bbm: fordyce-2026 plus an area layer, so every layer kind is there).
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';

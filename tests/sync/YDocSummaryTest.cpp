@@ -3,7 +3,11 @@
 // document as the web code builds it (scripts/sync-fixtures), and
 // <name>.expected.json what it must contain.
 
+#include "DocJson.h"
+#include "WebModel.h"
 #include "YDocSummary.h"
+
+#include "core/Map.h"
 
 #include <gtest/gtest.h>
 
@@ -92,6 +96,7 @@ TEST(YDocSummary, SurvivesDamagedUpdates) {
         }
         QString err;
         (void)sync::summarizeDoc(data, &err);
+        if (const auto json = sync::docToJson(data, &err)) (void)sync::mapFromDocJson(*json, &err);
     }
     SUCCEED();
 }
