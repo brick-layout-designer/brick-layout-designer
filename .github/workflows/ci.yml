@@ -250,7 +250,12 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           version: '6.7.*'
+          modules: qtwebsockets
           cache: true
+
+      # The sync library (src/sync) is linted too, so it's in the build.
+      - name: Rust
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Compiler cache
         uses: hendrikmuhs/ccache-action@v1.2
@@ -267,7 +272,8 @@ jobs:
         run: |
           cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug \
             -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
-            -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DBLD_SYNC=ON
           cmake --build build --parallel
 
       - name: Lint

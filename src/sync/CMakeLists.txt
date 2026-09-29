@@ -15,7 +15,7 @@ FetchContent_MakeAvailable(Corrosion)
 
 # yffi builds only a C library (staticlib / cdylib), so it can't be a
 # dependency of a Rust crate of ours: build the published crate itself,
-# with the Cargo.lock it ships. libyrs.h (yrs/) is cbindgen's header for
+# with the Cargo.lock it ships. third_party/yrs/libyrs.h is cbindgen's header for
 # exactly this version: bump both together (scripts/sync-fixtures/regen-libyrs-header.sh).
 FetchContent_Declare(
     yffi
@@ -40,6 +40,6 @@ add_library(bld_sync STATIC
 )
 target_include_directories(bld_sync
     PUBLIC  ${CMAKE_CURRENT_SOURCE_DIR}
-    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/yrs)
+    PRIVATE ${CMAKE_SOURCE_DIR}/third_party/yrs)
 # `yrs` is yffi's library target (its [lib] name).
 target_link_libraries(bld_sync PUBLIC Qt6::Core Qt6::WebSockets PRIVATE yrs)
