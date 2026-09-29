@@ -9,6 +9,7 @@
 
 #include "SceneBuilder.h"
 #include "SceneBuilderInternal.h"
+#include "VenueDraw.h"
 
 #include "../core/AnchoredLabel.h"
 #include "../core/LayerBrick.h"
@@ -110,6 +111,7 @@ void SceneBuilder::addVenue(const core::Map& map) {
                 break;
         }
         item->setPen(pen);
+        if (edge.estimated) item->setOpacity(0.45); // not measured yet
         item->setFlag(QGraphicsItem::ItemIsSelectable, true);
         item->setData(kBrickDataLayerIndex, -1);
         item->setData(kBrickDataGuid,       QStringLiteral("venue"));
@@ -135,6 +137,7 @@ void SceneBuilder::addVenue(const core::Map& map) {
                 if (!edge.label.isEmpty()) {
                     txt = edge.label + QStringLiteral(" — ") + txt;
                 }
+                if (edge.estimated) txt = venuedraw::estimatedText(txt);
 
                 // Right-hand normal (positive 90° rotation of the
                 // segment direction). Users can reverse the polygon
@@ -175,20 +178,95 @@ void SceneBuilder::addVenue(const core::Map& map) {
             }
         }
     }
+    // Venue model v2 parts (VenueDraw.h): obstacles styled by kind,
+    // power points, measurements and notes.
+    const auto lines = [&](const QVector<QLineF>& segs, const QColor& color, double widthPx,
+                           Qt::PenStyle style = Qt::SolidLine) {
+        for (const QLineF& l : segs) {
+            auto* li = new QGraphicsLineItem(QLineF(l.p1() * kPx, l.p2() * kPx));
+            QPen pen(color);
+            pen.setCosmetic(true);
+            pen.setWidthF(widthPx);
+            pen.setStyle(style);
+            li->setPen(pen);
+            sink.add(li);
+        }
+    };
+    const int labelPx = std::max(10, QSettings().value(QStringLiteral("venue/labelPx"), 28).toInt());
+    const auto text = [&](const QString& s, QPointF studs, double px, const QColor& color, bool italic,
+                          double angle, bool centred) {
+        auto* t = new QGraphicsSimpleTextItem(s);
+        QFont f(QStringLiteral("Sans"));
+        f.setPixelSize(std::max(8, static_cast<int>(px)));
+        f.setItalic(italic);
+        t->setFont(f);
+        t->setBrush(color);
+        const QRectF tb = t->boundingRect();
+        QTransform tr;
+        tr.translate(studs.x() * kPx, studs.y() * kPx);
+        tr.rotate(angle);
+        if (centred) tr.translate(-tb.width() / 2.0, -tb.height() / 2.0);
+        else tr.translate(0, -tb.height() / 2.0);
+        t->setTransform(tr);
+        sink.add(t);
+    };
+
     for (const auto& ob : v.obstacles) {
         if (ob.polygon.size() < 3) continue;
         QPolygonF poly;
         for (const auto& p : ob.polygon) poly << p * kPx;
         auto* item = new QGraphicsPolygonItem(poly);
-        QPen pen(QColor(90, 90, 90));
-        pen.setWidthF(1.0);
+        const auto style = venuedraw::obstacleStyle(ob.kind);
+        QPen pen(style.stroke);
+        pen.setCosmetic(true);
+        pen.setWidthF(style.strokeWidthPx);
         item->setPen(pen);
-        item->setBrush(QBrush(QColor(120, 120, 120, 100), Qt::BDiagPattern));
+        if (ob.kind == core::ObstacleKind::Other)
+            item->setBrush(QBrush(QColor(120, 120, 120, 100), Qt::BDiagPattern));
+        else item->setBrush(style.fill ? QBrush(*style.fill) : QBrush(Qt::NoBrush));
         item->setFlag(QGraphicsItem::ItemIsSelectable, true);
         item->setData(kBrickDataLayerIndex, -1);
         item->setData(kBrickDataGuid,       QStringLiteral("venue"));
         item->setData(kBrickDataKind,       QStringLiteral("venue"));
         sink.add(item);
+        if (ob.kind == core::ObstacleKind::Stairs) {
+            const auto marks = venuedraw::stairMarks(ob.polygon, ob.upDegrees);
+            lines(marks.treads, style.stroke, 1.0);
+            lines(marks.arrow, QColor(30, 30, 30), 2.0);
+        } else if (ob.kind == core::ObstacleKind::Elevator) {
+            lines(venuedraw::elevatorCross(ob.polygon), style.stroke, 1.0);
+        }
+    }
+
+    for (const auto& d : v.dimensions) {
+        const auto g = venuedraw::dimensionGeometry(d.from, d.to);
+        if (!g) continue;
+        const QColor c = d.estimated ? venuedraw::estimateColor() : venuedraw::dimensionColor();
+        lines({ g->line }, c, 1.5, d.estimated ? Qt::DashLine : Qt::SolidLine);
+        lines({ g->ticks[0], g->ticks[1] }, c, 1.5);
+        if (!d.label.isEmpty())
+            text(d.estimated ? venuedraw::estimatedText(d.label) : d.label, g->label, labelPx * 0.8, c, false,
+                 g->angleDeg, true);
+    }
+
+    for (const auto& p : v.power) {
+        const double r = venuedraw::kPowerRadiusStuds * kPx;
+        auto* dot = new QGraphicsEllipseItem(QRectF(p.pos * kPx - QPointF(r, r), QSizeF(2 * r, 2 * r)));
+        QPen pen(venuedraw::powerColor());
+        pen.setCosmetic(true);
+        pen.setWidthF(2.0);
+        dot->setPen(pen);
+        dot->setBrush(p.floor ? venuedraw::powerColor() : QColor(Qt::white));
+        sink.add(dot);
+        const QString t = venuedraw::powerText(p);
+        if (!t.isEmpty())
+            text(t, p.pos + QPointF(venuedraw::kPowerRadiusStuds * 1.4, 0), labelPx * 0.6,
+                 venuedraw::powerColor(), false, 0, false);
+    }
+
+    for (const auto& n : v.notes) {
+        text(n.estimated ? venuedraw::estimatedText(n.text) : n.text, n.pos, labelPx * 0.8,
+             n.estimated ? venuedraw::estimateColor() : QColor(30, 30, 30), n.estimated, 0, false);
     }
 }
 
