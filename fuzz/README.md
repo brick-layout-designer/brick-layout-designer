@@ -17,6 +17,7 @@ AddressSanitizer and UndefinedBehaviorSanitizer:
 | `lxfml` | LDD models |
 | `studio` | Studio `.io` archives |
 | `ydoc` | live-sync documents (Yjs updates, `sync::summarizeDoc`); only with `-DBLD_SYNC=ON`, seed `fixtures/sync/*.ydoc` |
+| `sync_message` | y-websocket messages from the server (`sync::protocol::decode`); only with `-DBLD_SYNC=ON` |
 
 Run them all (60 s each by default):
 

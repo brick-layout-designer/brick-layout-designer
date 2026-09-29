@@ -29,6 +29,9 @@ public:
     // The whole document as a v1 update, and its state vector.
     QByteArray encodeState() const;
     QByteArray stateVector() const;
+    // What a peer with state vector `sv` is missing, as a v1 update (sync
+    // step 2). An unreadable state vector gets the whole document.
+    QByteArray diffSince(const QByteArray& sv) const;
 
     // Root types as JSON (see DocJson.h).
     QJsonObject toJson() const;
