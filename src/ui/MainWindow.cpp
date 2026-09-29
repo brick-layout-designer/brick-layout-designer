@@ -324,6 +324,8 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
         mapView_->undoStack()->push(new edit::SetVenueCommand(*m, std::make_optional(v)));
         statusBar()->showMessage(tr("Loaded venue \"%1\"").arg(v.name), 3000);
     });
+    connect(venueLibraryPanel_, &VenueLibraryPanel::newLayoutRequested,
+            this, [this](const core::Venue& v){ startLayoutFromVenue(v); });
     connect(venueLibraryPanel_, &VenueLibraryPanel::venueSaveRequested,
             this, [this]{
         auto* m = mapView_->currentMap();

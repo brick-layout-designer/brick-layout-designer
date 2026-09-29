@@ -8,6 +8,7 @@
 #include "BudgetSession.h"
 
 #include "../edit/PartList.h"
+#include "../edit/VenueCommands.h"
 #include "../import/mapformats/LDrawMap.h"
 #include "../import/mapformats/FourDBrixMap.h"
 #include "../import/mapformats/TrackDesignerMap.h"
@@ -298,7 +299,11 @@ void MainWindow::ensureDocument() {
 }
 
 void MainWindow::onNew() {
-    if (!maybeSave()) return;
+    newDocument();
+}
+
+bool MainWindow::newDocument() {
+    if (!maybeSave()) return false;
 
     // If the user configured a "new map template" file in Preferences
     // (general/newMapTemplate), load that as the starting point — vanilla
@@ -316,7 +321,7 @@ void MainWindow::onNew() {
             mapView_->undoStack()->setClean();
             updateTitle();
             statusBar()->showMessage(tr("New layout from template %1").arg(templatePath), 3000);
-            return;
+            return true;
         }
     }
 
@@ -346,6 +351,21 @@ void MainWindow::onNew() {
     mapView_->undoStack()->setClean();
     updateTitle();
     statusBar()->showMessage(tr("New layout"), 3000);
+    return true;
+}
+
+void MainWindow::startLayoutFromVenue(const core::Venue& venue) {
+    if (!newDocument()) return;
+    auto* m = mapView_->currentMap();
+    if (!m) return;
+    core::Venue v = venue;
+    v.enabled = true;
+    // The venue is part of the new layout's starting point, like the
+    // template, so it isn't an undo step and the layout starts clean.
+    mapView_->undoStack()->push(new edit::SetVenueCommand(*m, std::make_optional(v)));
+    mapView_->undoStack()->clear();
+    mapView_->undoStack()->setClean();
+    statusBar()->showMessage(tr("New layout from venue \"%1\"").arg(v.name), 3000);
 }
 
 // ---------- Part-list export / About --------------------------------------

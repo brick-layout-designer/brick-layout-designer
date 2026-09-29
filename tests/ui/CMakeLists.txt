@@ -7,6 +7,7 @@ add_executable(bld_ui_tests
     FlexMoveTest.cpp
     UpdateCheckTest.cpp
     FuzzRegressionTest.cpp
+    VenueLibraryPanelTest.cpp
 )
 
 target_compile_definitions(bld_ui_tests PRIVATE
