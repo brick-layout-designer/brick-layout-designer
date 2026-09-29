@@ -62,8 +62,10 @@ void MainWindow::onConnectToServer() {
     sync::ServerApi api;
     sync::KeychainTokenStore tokens;
     sync::ConnectDialog dialog(api, tokens, [](const QUrl& u) { QDesktopServices::openUrl(u); }, this);
-    if (dialog.exec() != QDialog::Accepted || !dialog.result()) return;
-    const auto r = *dialog.result();
+    if (dialog.exec() != QDialog::Accepted) return;
+    const auto chosen = dialog.result();
+    if (!chosen) return;
+    const sync::ConnectResult& r = *chosen;
     if (live_->active()) live_->close();
     api.setBase(r.server);
     currentFilePath_.clear();
