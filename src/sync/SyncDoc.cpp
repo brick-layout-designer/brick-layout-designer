@@ -182,8 +182,12 @@ QByteArray takeBinary(char* data, uint32_t len) {
 
 }  // namespace
 
+// Transactions from this desktop's own edits; only these are undoable.
+constexpr char kLocalOrigin[] = "bld-local";
+
 struct SyncDoc::Impl {
     YDoc* doc = nullptr;
+    YUndoManager* undo = nullptr;
     Branch* meta = nullptr;
     Branch* layers = nullptr;
     Branch* layerData = nullptr;
@@ -282,9 +286,18 @@ SyncDoc::SyncDoc() : d_(std::make_unique<Impl>()) {
     d_->layers = yarray(d_->doc, "layers");
     d_->layerData = ymap(d_->doc, "layerData");
     for (const char* extra : { "labels", "modules", "venue" }) ymap(d_->doc, extra);
+
+    // No capture window: every writeMap is its own undo step.
+    const YUndoManagerOptions opts{ 0 };
+    d_->undo = yundo_manager(&opts);
+    for (const Branch* root : { d_->meta, d_->layers, d_->layerData }) yundo_manager_add_scope(d_->undo, d_->doc, root);
+    yundo_manager_add_origin(d_->undo, sizeof(kLocalOrigin) - 1, kLocalOrigin);
 }
 
-SyncDoc::~SyncDoc() { ydoc_destroy(d_->doc); }
+SyncDoc::~SyncDoc() {
+    yundo_manager_destroy(d_->undo);
+    ydoc_destroy(d_->doc);
+}
 
 bool SyncDoc::applyUpdate(const QByteArray& update, QString* error) {
     YTransaction* txn = ydoc_write_transaction(d_->doc, 0, nullptr);
@@ -328,7 +341,7 @@ QByteArray SyncDoc::writeMap(const core::Map& map) {
 
     Impl& d = *d_;
     d.ops = 0;
-    d.txn = ydoc_write_transaction(d.doc, 0, nullptr);
+    d.txn = ydoc_write_transaction(d.doc, sizeof(kLocalOrigin) - 1, kLocalOrigin);
     d.setFields(d.meta, cur.value(QLatin1String("meta")).toObject(), want.value(QLatin1String("meta")).toObject(), false);
 
     const QJsonArray order = want.value(QLatin1String("layers")).toArray();
@@ -362,6 +375,7 @@ QByteArray SyncDoc::writeMap(const core::Map& map) {
     ytransaction_commit(d.txn);
     d.txn = nullptr;
     d.arena = Arena();
+    yundo_manager_stop(d.undo);  // seal this write as one step
 
     YTransaction* read = ydoc_read_transaction(d.doc);
     uint32_t len = 0;
@@ -371,5 +385,20 @@ QByteArray SyncDoc::writeMap(const core::Map& map) {
     // Deletions don't move the state vector, so count what was done instead.
     return d.ops == 0 ? QByteArray() : update;
 }
+
+QByteArray SyncDoc::undo() {
+    const QByteArray before = stateVector();
+    if (!yundo_manager_undo(d_->undo)) return {};
+    return diffSince(before);
+}
+
+QByteArray SyncDoc::redo() {
+    const QByteArray before = stateVector();
+    if (!yundo_manager_redo(d_->undo)) return {};
+    return diffSince(before);
+}
+
+bool SyncDoc::canUndo() const { return yundo_manager_undo_stack_len(d_->undo) > 0; }
+bool SyncDoc::canRedo() const { return yundo_manager_redo_stack_len(d_->undo) > 0; }
 
 }  // namespace bld::sync

@@ -45,6 +45,15 @@ public:
     // document already matched.
     QByteArray writeMap(const core::Map& map);
 
+    // Undo / redo this desktop's own writeMap changes only: other people's
+    // edits (applied with applyUpdate) are never undone, and undoing a
+    // change keeps what others did since. Each writeMap is one step. The
+    // result is the update to send, empty when there was nothing to undo.
+    QByteArray undo();
+    QByteArray redo();
+    bool canUndo() const;
+    bool canRedo() const;
+
 private:
     struct Impl;
     std::unique_ptr<Impl> d_;
