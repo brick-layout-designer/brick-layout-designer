@@ -90,7 +90,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgl1-mesa-dev libxkbcommon-dev libcups2-dev
+          sudo apt-get install -y libgl1-mesa-dev libxkbcommon-dev libcups2-dev libsecret-1-dev
 
       - name: Configure
         run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBLD_SYNC=ON
@@ -266,7 +266,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgl1-mesa-dev libxkbcommon-dev libcups2-dev ninja-build clang clang-tidy clang-format
+          sudo apt-get install -y libgl1-mesa-dev libxkbcommon-dev libcups2-dev libsecret-1-dev ninja-build clang clang-tidy clang-format
 
       - name: Build (clang, for the compile database)
         run: |

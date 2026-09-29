@@ -1,0 +1,266 @@
+#include "ConnectDialog.h"
+
+#include "TokenStore.h"
+
+#include <QCoreApplication>
+#include <QDialogButtonBox>
+#include <QHBoxLayout>
+#include <QHeaderView>
+#include <QLabel>
+#include <QLineEdit>
+#include <QLocale>
+#include <QPushButton>
+#include <QSettings>
+#include <QStackedWidget>
+#include <QTreeWidget>
+#include <QVBoxLayout>
+
+namespace bld::sync {
+
+namespace {
+const char* kAddressKey = "sync/serverAddress";
+enum Page { AddressPage, CodePage, LayoutsPage };
+enum Column { TitleCol, OwnerCol, AccessCol, UpdatedCol };
+
+// Sorts the Updated column by date, not by its text.
+class LayoutItem : public QTreeWidgetItem {
+public:
+    using QTreeWidgetItem::QTreeWidgetItem;
+    bool operator<(const QTreeWidgetItem& other) const override {
+        const int c = treeWidget() ? treeWidget()->sortColumn() : TitleCol;
+        if (c == UpdatedCol)
+            return data(UpdatedCol, Qt::UserRole).toDateTime()
+                   < other.data(UpdatedCol, Qt::UserRole).toDateTime();
+        return text(c).localeAwareCompare(other.text(c)) < 0;
+    }
+};
+} // namespace
+
+ConnectDialog::ConnectDialog(ServerApi& api, TokenStore& tokens, std::function<void(const QUrl&)> openUrl,
+                             QWidget* parent)
+    : QDialog(parent), api_(api), tokens_(tokens), openUrl_(std::move(openUrl)) {
+    setWindowTitle(tr("Connect to Server"));
+    resize(560, 420);
+    auto* col = new QVBoxLayout(this);
+    pages_ = new QStackedWidget(this);
+    col->addWidget(pages_, 1);
+
+    // Address
+    auto* addressPage = new QWidget(pages_);
+    auto* a = new QVBoxLayout(addressPage);
+    a->addWidget(new QLabel(tr("Server address:"), addressPage));
+    auto* row = new QHBoxLayout();
+    address_ = new QLineEdit(addressPage);
+    address_->setObjectName(QStringLiteral("serverAddress"));
+    address_->setPlaceholderText(QStringLiteral("layouts.example.org"));
+    address_->setText(QSettings().value(QLatin1String(kAddressKey)).toString());
+    connectBtn_ = new QPushButton(tr("Connect"), addressPage);
+    connectBtn_->setObjectName(QStringLiteral("connect"));
+    connectBtn_->setDefault(true);
+    row->addWidget(address_, 1);
+    row->addWidget(connectBtn_);
+    a->addLayout(row);
+    a->addStretch(1);
+    pages_->addWidget(addressPage);
+
+    // Sign-in code
+    auto* codePage = new QWidget(pages_);
+    auto* c = new QVBoxLayout(codePage);
+    codeHint_ = new QLabel(codePage);
+    codeHint_->setWordWrap(true);
+    codeHint_->setOpenExternalLinks(true);
+    code_ = new QLabel(codePage);
+    code_->setObjectName(QStringLiteral("userCode"));
+    code_->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    QFont big = code_->font();
+    big.setPointSizeF(big.pointSizeF() * 2.2);
+    big.setBold(true);
+    code_->setFont(big);
+    code_->setAlignment(Qt::AlignCenter);
+    c->addStretch(1);
+    c->addWidget(codeHint_);
+    c->addWidget(code_);
+    c->addWidget(new QLabel(tr("Waiting for you to approve it in the browser…"), codePage));
+    c->addStretch(1);
+    pages_->addWidget(codePage);
+
+    // Layouts
+    auto* layoutsPage = new QWidget(pages_);
+    auto* l = new QVBoxLayout(layoutsPage);
+    filter_ = new QLineEdit(layoutsPage);
+    filter_->setPlaceholderText(tr("Filter layouts"));
+    filter_->setClearButtonEnabled(true);
+    layouts_ = new QTreeWidget(layoutsPage);
+    layouts_->setObjectName(QStringLiteral("layouts"));
+    layouts_->setRootIsDecorated(false);
+    layouts_->setHeaderLabels({ tr("Layout"), tr("Owner"), tr("Access"), tr("Updated") });
+    layouts_->header()->setSectionResizeMode(TitleCol, QHeaderView::Stretch);
+    layouts_->setSortingEnabled(true);
+    layouts_->sortByColumn(UpdatedCol, Qt::DescendingOrder);
+    auto* bottom = new QHBoxLayout();
+    auto* signOut = new QPushButton(tr("Sign Out"), layoutsPage);
+    openBtn_ = new QPushButton(tr("Open"), layoutsPage);
+    openBtn_->setObjectName(QStringLiteral("open"));
+    openBtn_->setEnabled(false);
+    bottom->addWidget(signOut);
+    bottom->addStretch(1);
+    bottom->addWidget(openBtn_);
+    l->addWidget(filter_);
+    l->addWidget(layouts_, 1);
+    l->addLayout(bottom);
+    pages_->addWidget(layoutsPage);
+
+    message_ = new QLabel(this);
+    message_->setObjectName(QStringLiteral("message"));
+    message_->setWordWrap(true);
+    col->addWidget(message_);
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Cancel, this);
+    col->addWidget(buttons);
+
+    connect(connectBtn_, &QPushButton::clicked, this, &ConnectDialog::connectToServer);
+    connect(address_, &QLineEdit::returnPressed, this, &ConnectDialog::connectToServer);
+    connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    connect(signOut, &QPushButton::clicked, this, &ConnectDialog::signOut);
+    connect(openBtn_, &QPushButton::clicked, this, &ConnectDialog::openSelected);
+    connect(layouts_, &QTreeWidget::itemActivated, this, &ConnectDialog::openSelected);
+    connect(layouts_, &QTreeWidget::itemSelectionChanged, this,
+            [this] { openBtn_->setEnabled(!layouts_->selectedItems().isEmpty()); });
+    connect(filter_, &QLineEdit::textChanged, this, &ConnectDialog::filterLayouts);
+
+    connect(&api_, &ServerApi::versionReady, this, &ConnectDialog::onVersion);
+    connect(&api_, &ServerApi::requestFailed, this, &ConnectDialog::onFailed);
+    connect(&api_, &ServerApi::layoutsReady, this, &ConnectDialog::showLayouts);
+    connect(&api_, &ServerApi::signInCode, this, [this](const DeviceCode& dc) {
+        codeHint_->setText(tr("Your browser should open the sign-in page. If it doesn't, go to <a "
+                              "href=\"%1\">%1</a> and enter this code:")
+                               .arg(dc.verificationUri.toString().toHtmlEscaped()));
+        code_->setText(dc.userCode);
+        pages_->setCurrentIndex(CodePage);
+        showMessage({});
+        openUrl_(dc.verificationUriComplete.isValid() ? dc.verificationUriComplete : dc.verificationUri);
+    });
+    connect(&api_, &ServerApi::signedIn, this, [this](const QString& token) {
+        tokens_.save(server_, token);
+        haveToken(token);
+    });
+    connect(&api_, &ServerApi::signInFailed, this, [this](const QString& reason) {
+        pages_->setCurrentIndex(AddressPage);
+        connectBtn_->setEnabled(true);
+        if (reason == QLatin1String("access_denied")) showMessage(tr("Sign-in was declined in the browser."));
+        else if (reason == QLatin1String("expired_token"))
+            showMessage(tr("The sign-in code expired. Connect again for a new one."));
+        else showMessage(tr("Could not sign in: %1").arg(reason));
+    });
+}
+
+void ConnectDialog::setAddress(const QString& address) {
+    address_->setText(address);
+}
+
+void ConnectDialog::showMessage(const QString& text) {
+    message_->setText(text);
+}
+
+void ConnectDialog::connectToServer() {
+    QString error;
+    const auto base = ServerApi::normalizeBase(address_->text(), &error);
+    if (!base) {
+        showMessage(error);
+        return;
+    }
+    server_ = *base;
+    api_.setBase(server_);
+    connectBtn_->setEnabled(false);
+    showMessage(tr("Connecting to %1…").arg(server_.host()));
+    api_.fetchVersion();
+}
+
+void ConnectDialog::onVersion(const ServerInfo& info) {
+    if (!info.compatible()) {
+        connectBtn_->setEnabled(true);
+        showMessage(tr("This server (version %1) needs a newer Brick Layout Designer.").arg(info.version));
+        return;
+    }
+    QSettings().setValue(QLatin1String(kAddressKey), address_->text().trimmed());
+    tokens_.load(server_, [this](const QString& token) {
+        if (token.isEmpty()) {
+            api_.startSignIn(
+                tr("Brick Layout Designer %1").arg(QCoreApplication::applicationVersion()).trimmed());
+            return;
+        }
+        haveToken(token);
+    });
+}
+
+void ConnectDialog::haveToken(const QString& token) {
+    token_ = token;
+    api_.setToken(token);
+    showMessage(tr("Loading layouts…"));
+    api_.fetchLayouts();
+}
+
+void ConnectDialog::onFailed(const QString& what, const QString& message, bool unauthorized) {
+    if (what == QLatin1String("layouts") && unauthorized) {
+        // Revoked or expired: sign in again.
+        tokens_.remove(server_);
+        api_.startSignIn(
+            tr("Brick Layout Designer %1").arg(QCoreApplication::applicationVersion()).trimmed());
+        return;
+    }
+    if (what != QLatin1String("version") && what != QLatin1String("layouts")) return;
+    connectBtn_->setEnabled(true);
+    pages_->setCurrentIndex(AddressPage);
+    showMessage(what == QLatin1String("version") ? tr("Could not reach %1: %2").arg(server_.host(), message)
+                                                 : tr("Could not load the layouts: %1").arg(message));
+}
+
+void ConnectDialog::showLayouts(const QList<LayoutEntry>& layouts) {
+    layouts_->setSortingEnabled(false);
+    layouts_->clear();
+    for (const auto& e : layouts) {
+        auto* item = new LayoutItem(layouts_);
+        item->setText(TitleCol, e.title);
+        item->setText(OwnerCol, e.ownerOrgName.isEmpty() ? tr("You") : e.ownerOrgName);
+        item->setText(AccessCol, e.role == QLatin1String("viewer")  ? tr("View only")
+                                 : e.role == QLatin1String("owner") ? tr("Owner")
+                                                                    : tr("Edit"));
+        item->setText(UpdatedCol, QLocale().toString(e.updatedAt.toLocalTime(), QLocale::ShortFormat));
+        item->setData(TitleCol, Qt::UserRole, e.id);
+        item->setData(AccessCol, Qt::UserRole, e.role == QLatin1String("viewer"));
+        item->setData(UpdatedCol, Qt::UserRole, e.updatedAt);
+    }
+    layouts_->setSortingEnabled(true);
+    filterLayouts(filter_->text());
+    pages_->setCurrentIndex(LayoutsPage);
+    showMessage(layouts.isEmpty() ? tr("No layouts yet. Create one on the web, or publish one from here.")
+                                  : QString());
+}
+
+void ConnectDialog::filterLayouts(const QString& text) {
+    for (int i = 0; i < layouts_->topLevelItemCount(); ++i) {
+        auto* item = layouts_->topLevelItem(i);
+        item->setHidden(!text.isEmpty() && !item->text(TitleCol).contains(text, Qt::CaseInsensitive)
+                        && !item->text(OwnerCol).contains(text, Qt::CaseInsensitive));
+    }
+}
+
+void ConnectDialog::openSelected() {
+    const auto items = layouts_->selectedItems();
+    if (items.isEmpty()) return;
+    const auto* item = items.first();
+    result_ = ConnectResult{ server_, token_, item->data(TitleCol, Qt::UserRole).toString(),
+                             item->text(TitleCol), item->data(AccessCol, Qt::UserRole).toBool() };
+    accept();
+}
+
+void ConnectDialog::signOut() {
+    tokens_.remove(server_);
+    token_.clear();
+    api_.setToken({});
+    layouts_->clear();
+    pages_->setCurrentIndex(AddressPage);
+    connectBtn_->setEnabled(true);
+    showMessage(tr("Signed out of %1.").arg(server_.host()));
+}
+
+} // namespace bld::sync

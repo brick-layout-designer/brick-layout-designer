@@ -32,7 +32,24 @@ corrosion_import_crate(
     PROFILE release
 )
 
-find_package(Qt6 6.7 REQUIRED COMPONENTS WebSockets)
+find_package(Qt6 6.7 REQUIRED COMPONENTS WebSockets Widgets)
+
+# QtKeychain keeps the server sign-in token in the OS keychain (macOS
+# Keychain, Windows Credential Store, Secret Service on Linux). Built
+# static from the pinned release; on Linux it needs libsecret-1.
+set(BUILD_WITH_QT6 ON CACHE BOOL "" FORCE)
+set(BUILD_TRANSLATIONS OFF CACHE BOOL "" FORCE)
+set(BUILD_TEST_APPLICATION OFF CACHE BOOL "" FORCE)
+set(_bld_shared ${BUILD_SHARED_LIBS})
+set(BUILD_SHARED_LIBS OFF)
+FetchContent_Declare(
+    qtkeychain
+    URL      https://github.com/frankosterfeld/qtkeychain/archive/refs/tags/0.15.0.tar.gz
+    URL_HASH SHA256=f4254dc8f0933b06d90672d683eab08ef770acd8336e44dfa030ce041dc2ca22
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+)
+FetchContent_MakeAvailable(qtkeychain)
+set(BUILD_SHARED_LIBS ${_bld_shared})
 
 add_library(bld_sync STATIC
     YDocSummary.h
@@ -54,9 +71,19 @@ add_library(bld_sync STATIC
     ServerApi.cpp
     SyncSession.h
     SyncSession.cpp
+    TokenStore.h
+    TokenStore.cpp
 )
 target_include_directories(bld_sync
     PUBLIC  ${CMAKE_CURRENT_SOURCE_DIR}
     PRIVATE ${CMAKE_SOURCE_DIR}/third_party/yrs)
 # `yrs` is yffi's library target (its [lib] name).
-target_link_libraries(bld_sync PUBLIC bld_core Qt6::Core Qt6::Gui Qt6::Network Qt6::WebSockets PRIVATE yrs)
+target_link_libraries(bld_sync PUBLIC bld_core Qt6::Core Qt6::Gui Qt6::Network Qt6::WebSockets PRIVATE yrs qt6keychain)
+
+# "Connect to Server…" and the other sync screens (Qt Widgets).
+add_library(bld_sync_ui STATIC
+    ui/ConnectDialog.h
+    ui/ConnectDialog.cpp
+)
+target_include_directories(bld_sync_ui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/ui)
+target_link_libraries(bld_sync_ui PUBLIC bld_sync Qt6::Widgets)
