@@ -76,3 +76,11 @@ target_link_libraries(bld_ui
 
 # Help > Contents falls back to the source tree's help/ in development builds.
 target_compile_definitions(bld_ui PRIVATE BLD_HELP_SOURCE_DIR="${CMAKE_SOURCE_DIR}/help")
+
+# Live layouts on a collaborative server (File › Connect to Server…), only
+# with -DBLD_SYNC=ON.
+if(BLD_SYNC)
+    target_sources(bld_ui PRIVATE LiveLayout.cpp LiveLayout.h MainWindowLive.cpp)
+    target_link_libraries(bld_ui PUBLIC bld_sync_ui)
+    target_compile_definitions(bld_ui PUBLIC BLD_SYNC=1)
+endif()
