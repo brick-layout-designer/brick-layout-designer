@@ -1,0 +1,101 @@
+{
+  "source": "tight-corner.bbm",
+  "schemaVersion": 1,
+  "layers": [
+    {
+      "id": "3",
+      "type": "grid",
+      "name": "Layer 1"
+    },
+    {
+      "id": "211",
+      "type": "brick",
+      "name": "Tables",
+      "bricks": 4,
+      "firstBrick": {
+        "id": "222",
+        "partNumber": "TABLE96X190",
+        "displayArea": {
+          "x": 288,
+          "y": 192,
+          "width": 190.5,
+          "height": 95.25
+        },
+        "orientation": 0
+      }
+    },
+    {
+      "id": "2103",
+      "type": "brick",
+      "name": "Buildings",
+      "bricks": 29,
+      "firstBrick": {
+        "id": "3227",
+        "partNumber": "3811.1",
+        "displayArea": {
+          "x": 336,
+          "y": 208,
+          "width": 32,
+          "height": 32
+        },
+        "orientation": 0
+      }
+    },
+    {
+      "id": "2106",
+      "type": "brick",
+      "name": "Roads",
+      "bricks": 35,
+      "firstBrick": {
+        "id": "2109",
+        "partNumber": "69958P01.8",
+        "displayArea": {
+          "x": 416,
+          "y": 128,
+          "width": 16,
+          "height": 16
+        },
+        "orientation": 0
+      }
+    },
+    {
+      "id": "4",
+      "type": "brick",
+      "name": "Tracks",
+      "bricks": 174,
+      "firstBrick": {
+        "id": "155",
+        "partNumber": "3811.10",
+        "displayArea": {
+          "x": 448,
+          "y": 96,
+          "width": 32,
+          "height": 32
+        },
+        "orientation": 0
+      }
+    },
+    {
+      "id": "1394",
+      "type": "brick",
+      "name": "Monorail",
+      "bricks": 62,
+      "firstBrick": {
+        "id": "1412",
+        "partNumber": "2672.7",
+        "displayArea": {
+          "x": 436,
+          "y": 110,
+          "width": 30,
+          "height": 30
+        },
+        "orientation": 0
+      }
+    },
+    {
+      "id": "3144",
+      "type": "text",
+      "name": "Building labels"
+    }
+  ]
+}

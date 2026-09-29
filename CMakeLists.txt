@@ -66,6 +66,9 @@ if(WIN32 OR APPLE)
     option(BLD_DEPLOY_QT "Bundle the Qt runtime into the install tree" ON)
 endif()
 option(BLD_INSTALL_PARTS "Install the vendored BlueBrickParts library" ON)
+# Live sync with the collaborative web server (src/sync): yrs through its
+# C API, built with cargo. Off until the sync work is ready (phase P2 spike).
+option(BLD_SYNC "Build the live-sync library (needs Rust / cargo)" OFF)
 
 # compile_commands.json for clang-tidy and editors.
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
