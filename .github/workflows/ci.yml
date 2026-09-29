@@ -99,7 +99,7 @@ jobs:
         run: cmake --build build --config Release --target bld_sync_tests --parallel
 
       - name: Test
-        run: ctest --test-dir build --build-config Release --output-on-failure -R YDocSummary
+        run: ctest --test-dir build --build-config Release --output-on-failure -L sync
 
   sanitizers:
     # Whole test suite under AddressSanitizer + UndefinedBehaviorSanitizer.
