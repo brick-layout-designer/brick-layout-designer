@@ -1,5 +1,5 @@
 #!/bin/sh
-# Regenerates src/sync/yrs/libyrs.h, yffi's C header, for the yffi version
+# Regenerates third_party/yrs/libyrs.h, yffi's C header, for the yffi version
 # src/sync/CMakeLists.txt pins. Run after bumping that version (and its
 # URL_HASH). Needs cargo and cbindgen (cargo install cbindgen).
 #
@@ -11,5 +11,5 @@ TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 curl -sSfL "https://static.crates.io/crates/yffi/yffi-$VERSION.crate" | tar -xz -C "$TMP"
 cd "$TMP/yffi-$VERSION"
-cbindgen --config cbindgen.toml --crate yffi --output "$ROOT/src/sync/yrs/libyrs.h"
-echo "wrote src/sync/yrs/libyrs.h for yffi $VERSION"
+cbindgen --config cbindgen.toml --crate yffi --output "$ROOT/third_party/yrs/libyrs.h"
+echo "wrote third_party/yrs/libyrs.h for yffi $VERSION"
