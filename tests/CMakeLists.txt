@@ -21,6 +21,9 @@ add_subdirectory(parts)
 add_subdirectory(rendering)
 add_subdirectory(edit)
 add_subdirectory(import)
+if(BLD_SYNC)
+    add_subdirectory(sync)
+endif()
 add_subdirectory(ui)
 
 # ----- End-to-end binaries ------------------------------------------------------

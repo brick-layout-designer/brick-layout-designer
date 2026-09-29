@@ -237,6 +237,11 @@ Run the test suite:
 ctest --test-dir build
 ```
 
+Live sync with a collaborative web server is being built behind
+`-DBLD_SYNC=ON` (off by default). It needs a current stable Rust
+toolchain: `src/sync` links [yrs](https://github.com/y-crdt/y-crdt), the
+Rust port of Yjs, through its C API.
+
 Build a self-contained install tree (what CI packages):
 
 ```sh
