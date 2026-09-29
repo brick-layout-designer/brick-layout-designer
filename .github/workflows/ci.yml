@@ -51,6 +51,56 @@ jobs:
   build:
     uses: ./.github/workflows/build.yml
 
+  sync:
+    # Live-sync spike (sync phase P2): yrs, Rust Yjs, through its C API,
+    # plus Qt WebSockets, built and tested on every platform. Native arch
+    # only; universal macOS builds come when sync ships.
+    name: Sync (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-22.04, name: linux }
+          - { os: windows-2022, name: windows }
+          - { os: macos-14, name: macos }
+    runs-on: ${{ matrix.os }}
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.7.*'
+          modules: qtwebsockets
+          cache: true
+
+      - name: Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Ninja
+        uses: seanmiddleditch/gha-setup-ninja@v6
+
+      - name: MSVC environment (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1-mesa-dev libxkbcommon-dev libcups2-dev
+
+      - name: Configure
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBLD_SYNC=ON
+
+      - name: Build
+        run: cmake --build build --config Release --target bld_sync_tests --parallel
+
+      - name: Test
+        run: ctest --test-dir build --build-config Release --output-on-failure -R YDocSummary
+
   sanitizers:
     # Whole test suite under AddressSanitizer + UndefinedBehaviorSanitizer.
     # UB is made fatal so a report fails the job instead of scrolling past.
