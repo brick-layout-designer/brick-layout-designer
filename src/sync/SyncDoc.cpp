@@ -302,6 +302,15 @@ QByteArray SyncDoc::encodeState() const {
     return takeBinary(data, len);
 }
 
+QByteArray SyncDoc::diffSince(const QByteArray& sv) const {
+    YTransaction* txn = ydoc_read_transaction(d_->doc);
+    uint32_t len = 0;
+    char* data = ytransaction_state_diff_v1(txn, sv.constData(), static_cast<uint32_t>(sv.size()), &len);
+    ytransaction_commit(txn);
+    if (!data) return encodeState();
+    return takeBinary(data, len);
+}
+
 QByteArray SyncDoc::stateVector() const {
     YTransaction* txn = ydoc_read_transaction(d_->doc);
     uint32_t len = 0;
