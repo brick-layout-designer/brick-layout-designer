@@ -44,6 +44,12 @@ public slots:
     // dialog and writes the file.
     void saveVenue(const std::optional<core::Venue>& venue);
 
+public:
+    // Adds a downloaded .bld-venue file under `name` without replacing an
+    // existing one ("Hall (2)" instead). Returns the file written, or an
+    // empty string on failure.
+    QString addVenueFile(const QString& name, const QByteArray& bytes);
+
 private slots:
     void onChooseFolder();
     void onLoad();

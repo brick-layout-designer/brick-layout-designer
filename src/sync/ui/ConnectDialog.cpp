@@ -37,9 +37,10 @@ public:
 } // namespace
 
 ConnectDialog::ConnectDialog(ServerApi& api, TokenStore& tokens, std::function<void(const QUrl&)> openUrl,
-                             QWidget* parent)
-    : QDialog(parent), api_(api), tokens_(tokens), openUrl_(std::move(openUrl)) {
-    setWindowTitle(tr("Connect to Server"));
+                             QWidget* parent, Purpose purpose)
+    : QDialog(parent), api_(api), tokens_(tokens), openUrl_(std::move(openUrl)), purpose_(purpose) {
+    const bool venues = purpose_ == Purpose::DownloadVenues;
+    setWindowTitle(venues ? tr("Download Venues from Server") : tr("Connect to Server"));
     resize(560, 420);
     auto* col = new QVBoxLayout(this);
     pages_ = new QStackedWidget(this);
@@ -97,9 +98,15 @@ ConnectDialog::ConnectDialog(ServerApi& api, TokenStore& tokens, std::function<v
     layouts_->header()->setSectionResizeMode(TitleCol, QHeaderView::Stretch);
     layouts_->setSortingEnabled(true);
     layouts_->sortByColumn(UpdatedCol, Qt::DescendingOrder);
+    if (venues) {
+        filter_->setPlaceholderText(tr("Filter venues"));
+        layouts_->setHeaderLabels({ tr("Venue"), tr("Owner") });
+        layouts_->setSelectionMode(QAbstractItemView::ExtendedSelection);
+        layouts_->sortByColumn(TitleCol, Qt::AscendingOrder);
+    }
     auto* bottom = new QHBoxLayout();
     auto* signOut = new QPushButton(tr("Sign Out"), layoutsPage);
-    openBtn_ = new QPushButton(tr("Open"), layoutsPage);
+    openBtn_ = new QPushButton(venues ? tr("Download") : tr("Open"), layoutsPage);
     openBtn_->setObjectName(QStringLiteral("open"));
     openBtn_->setEnabled(false);
     bottom->addWidget(signOut);
@@ -122,7 +129,7 @@ ConnectDialog::ConnectDialog(ServerApi& api, TokenStore& tokens, std::function<v
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
     connect(signOut, &QPushButton::clicked, this, &ConnectDialog::signOut);
     connect(openBtn_, &QPushButton::clicked, this, &ConnectDialog::openSelected);
-    connect(layouts_, &QTreeWidget::itemActivated, this, &ConnectDialog::openSelected);
+    if (!venues) connect(layouts_, &QTreeWidget::itemActivated, this, &ConnectDialog::openSelected);
     connect(layouts_, &QTreeWidget::itemSelectionChanged, this,
             [this] { openBtn_->setEnabled(!layouts_->selectedItems().isEmpty()); });
     connect(filter_, &QLineEdit::textChanged, this, &ConnectDialog::filterLayouts);
@@ -130,6 +137,13 @@ ConnectDialog::ConnectDialog(ServerApi& api, TokenStore& tokens, std::function<v
     connect(&api_, &ServerApi::versionReady, this, &ConnectDialog::onVersion);
     connect(&api_, &ServerApi::requestFailed, this, &ConnectDialog::onFailed);
     connect(&api_, &ServerApi::layoutsReady, this, &ConnectDialog::showLayouts);
+    connect(&api_, &ServerApi::venuesReady, this, &ConnectDialog::showVenues);
+    connect(&api_, &ServerApi::venueReady, this,
+            [this](const QString&, const QString& name, const QByteArray& file) {
+                if (venuesPending_ <= 0) return;
+                venues_ << DownloadedVenue{ name, file };
+                if (--venuesPending_ == 0) accept();
+            });
     connect(&api_, &ServerApi::signInCode, this, [this](const DeviceCode& dc) {
         codeHint_->setText(tr("Your browser should open the sign-in page. If it doesn't, go to <a "
                               "href=\"%1\">%1</a> and enter this code:")
@@ -195,23 +209,57 @@ void ConnectDialog::onVersion(const ServerInfo& info) {
 void ConnectDialog::haveToken(const QString& token) {
     token_ = token;
     api_.setToken(token);
+    if (purpose_ == Purpose::DownloadVenues) {
+        showMessage(tr("Loading venues…"));
+        api_.fetchVenues();
+        return;
+    }
     showMessage(tr("Loading layouts…"));
     api_.fetchLayouts();
 }
 
+void ConnectDialog::signInAgain() {
+    tokens_.remove(server_);
+    api_.startSignIn(tr("Brick Layout Designer %1").arg(QCoreApplication::applicationVersion()).trimmed());
+}
+
 void ConnectDialog::onFailed(const QString& what, const QString& message, bool unauthorized) {
-    if (what == QLatin1String("layouts") && unauthorized) {
-        // Revoked or expired: sign in again.
-        tokens_.remove(server_);
-        api_.startSignIn(
-            tr("Brick Layout Designer %1").arg(QCoreApplication::applicationVersion()).trimmed());
+    const bool list = what == QLatin1String("layouts") || what == QLatin1String("venues");
+    if (list && unauthorized) {
+        // Revoked or expired, or (venues) signed in before this app could
+        // ask for the venue library: sign in again.
+        signInAgain();
         return;
     }
-    if (what != QLatin1String("version") && what != QLatin1String("layouts")) return;
+    if (what == QLatin1String("venue")) {
+        // A download failed: stay on the list.
+        venuesPending_ = 0;
+        venues_.clear();
+        openBtn_->setEnabled(true);
+        showMessage(tr("Could not download the venue: %1").arg(message));
+        return;
+    }
+    if (what != QLatin1String("version") && !list) return;
     connectBtn_->setEnabled(true);
     pages_->setCurrentIndex(AddressPage);
-    showMessage(what == QLatin1String("version") ? tr("Could not reach %1: %2").arg(server_.host(), message)
-                                                 : tr("Could not load the layouts: %1").arg(message));
+    showMessage(what == QLatin1String("version")  ? tr("Could not reach %1: %2").arg(server_.host(), message)
+                : what == QLatin1String("venues") ? tr("Could not load the venues: %1").arg(message)
+                                                  : tr("Could not load the layouts: %1").arg(message));
+}
+
+void ConnectDialog::showVenues(const QList<VenueEntry>& venues) {
+    layouts_->setSortingEnabled(false);
+    layouts_->clear();
+    for (const auto& v : venues) {
+        auto* item = new LayoutItem(layouts_);
+        item->setText(TitleCol, v.name);
+        item->setText(OwnerCol, v.ownerOrgId.isEmpty() ? tr("You") : tr("Organisation"));
+        item->setData(TitleCol, Qt::UserRole, v.id);
+    }
+    layouts_->setSortingEnabled(true);
+    filterLayouts(filter_->text());
+    pages_->setCurrentIndex(LayoutsPage);
+    showMessage(venues.isEmpty() ? tr("No saved venues on this server yet.") : QString());
 }
 
 void ConnectDialog::showLayouts(const QList<LayoutEntry>& layouts) {
@@ -247,6 +295,15 @@ void ConnectDialog::filterLayouts(const QString& text) {
 void ConnectDialog::openSelected() {
     const auto items = layouts_->selectedItems();
     if (items.isEmpty()) return;
+    if (purpose_ == Purpose::DownloadVenues) {
+        if (venuesPending_ > 0) return;
+        venues_.clear();
+        venuesPending_ = static_cast<int>(items.size());
+        openBtn_->setEnabled(false);
+        showMessage(tr("Downloading %n venue(s)…", nullptr, venuesPending_));
+        for (const auto* item : items) api_.fetchVenue(item->data(TitleCol, Qt::UserRole).toString());
+        return;
+    }
     const auto* item = items.first();
     result_ = ConnectResult{ server_, token_, item->data(TitleCol, Qt::UserRole).toString(),
                              item->text(TitleCol), item->data(AccessCol, Qt::UserRole).toBool() };

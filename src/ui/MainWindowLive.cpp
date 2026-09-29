@@ -7,6 +7,7 @@
 #include "LiveLayout.h"
 #include "MapView.h"
 #include "ModulesPanel.h"
+#include "VenueLibraryPanel.h"
 
 #include "ConnectDialog.h"
 #include "ServerApi.h"
@@ -34,6 +35,8 @@ void MainWindow::setupLiveMenu(QMenu* file) {
     disconnectAct_ = file->addAction(tr("&Disconnect"));
     disconnectAct_->setEnabled(false);
     connect(disconnectAct_, &QAction::triggered, this, &MainWindow::onDisconnect);
+    auto* venuesAct = file->addAction(tr("Download &Venues from Server..."));
+    connect(venuesAct, &QAction::triggered, this, &MainWindow::onDownloadVenues);
 
     // While live, Undo / Redo revert this desktop's own edits on the server.
     liveUndoAct_ = new QAction(tr("&Undo"), this);
@@ -71,6 +74,30 @@ void MainWindow::onConnectToServer() {
     currentFilePath_.clear();
     live_->open(api.layoutSocketUrl(r.layoutId), r.token, r.readOnly, r.title);
     updateLiveUi();
+}
+
+void MainWindow::onDownloadVenues() {
+    sync::ServerApi api;
+    sync::KeychainTokenStore tokens;
+    sync::ConnectDialog dialog(
+        api, tokens, [](const QUrl& u) { QDesktopServices::openUrl(u); }, this,
+        sync::ConnectDialog::Purpose::DownloadVenues);
+    if (dialog.exec() != QDialog::Accepted) return;
+    QStringList saved, failed;
+    for (const auto& v : dialog.venues()) {
+        if (venueLibraryPanel_->addVenueFile(v.name, v.file).isEmpty()) failed << v.name;
+        else saved << v.name;
+    }
+    venueLibraryPanel_->show();
+    venueLibraryPanel_->raise();
+    if (!failed.isEmpty()) {
+        QMessageBox::warning(this, tr("Download venues"),
+                             tr("Could not save %1 in the venue library folder %2.")
+                                 .arg(failed.join(QStringLiteral(", ")), venueLibraryPanel_->libraryPath()));
+    }
+    if (!saved.isEmpty())
+        statusBar()->showMessage(
+            tr("Added %n venue(s) to the Venue Library", nullptr, static_cast<int>(saved.size())), 5000);
 }
 
 void MainWindow::onDisconnect() {

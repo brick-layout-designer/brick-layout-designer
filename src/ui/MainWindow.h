@@ -133,6 +133,7 @@ private:
     void setupLiveMenu(QMenu* file);
     void onConnectToServer();
     void onDisconnect();
+    void onDownloadVenues();
     void onLiveReloaded();
     void updateLiveUi();
     class LiveLayout* live_ = nullptr;

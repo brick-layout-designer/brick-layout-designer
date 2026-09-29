@@ -4,6 +4,10 @@
 // that it speaks our protocol, device sign-in when there is no saved token
 // (the code is shown and the browser opened), then a layout picker. The
 // token goes to the TokenStore; the chosen layout is result().
+//
+// The same steps serve File › Download Venues from Server…: then the list
+// is the server's venue library, several can be picked, and they are
+// downloaded as .bld-venue files (venues()).
 
 #include "ServerApi.h"
 
@@ -31,14 +35,22 @@ struct ConnectResult {
     bool readOnly = false; // view-only access
 };
 
+struct DownloadedVenue {
+    QString name;
+    QByteArray file; // .bld-venue bytes
+};
+
 class ConnectDialog : public QDialog {
     Q_OBJECT
 public:
     // `openUrl` opens the sign-in page (QDesktopServices in the app).
+    enum class Purpose { OpenLayout, DownloadVenues };
+
     ConnectDialog(ServerApi& api, TokenStore& tokens, std::function<void(const QUrl&)> openUrl,
-                  QWidget* parent = nullptr);
+                  QWidget* parent = nullptr, Purpose purpose = Purpose::OpenLayout);
 
     std::optional<ConnectResult> result() const { return result_; }
+    QList<DownloadedVenue> venues() const { return venues_; }
 
     void setAddress(const QString& address);
     // The same as clicking Connect.
@@ -52,6 +64,8 @@ private:
     void haveToken(const QString& token);
     void onFailed(const QString& what, const QString& message, bool unauthorized);
     void showLayouts(const QList<LayoutEntry>& layouts);
+    void showVenues(const QList<VenueEntry>& venues);
+    void signInAgain();
     void openSelected();
     void filterLayouts(const QString& text);
 
@@ -61,6 +75,9 @@ private:
     QUrl server_;
     QString token_;
     std::optional<ConnectResult> result_;
+    Purpose purpose_;
+    QList<DownloadedVenue> venues_;
+    int venuesPending_ = 0;
 
     QStackedWidget* pages_ = nullptr;
     QLineEdit* address_ = nullptr;
