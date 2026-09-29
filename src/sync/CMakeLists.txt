@@ -37,9 +37,13 @@ find_package(Qt6 6.7 REQUIRED COMPONENTS WebSockets)
 add_library(bld_sync STATIC
     YDocSummary.h
     YDocSummary.cpp
+    DocJson.h
+    DocJson.cpp
+    WebModel.h
+    WebModel.cpp
 )
 target_include_directories(bld_sync
     PUBLIC  ${CMAKE_CURRENT_SOURCE_DIR}
     PRIVATE ${CMAKE_SOURCE_DIR}/third_party/yrs)
 # `yrs` is yffi's library target (its [lib] name).
-target_link_libraries(bld_sync PUBLIC Qt6::Core Qt6::WebSockets PRIVATE yrs)
+target_link_libraries(bld_sync PUBLIC bld_core Qt6::Core Qt6::Gui Qt6::WebSockets PRIVATE yrs)

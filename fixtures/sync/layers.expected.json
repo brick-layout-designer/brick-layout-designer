@@ -1,0 +1,60 @@
+{
+  "source": "layers.bbm",
+  "schemaVersion": 1,
+  "layers": [
+    {
+      "id": "1",
+      "type": "grid",
+      "name": "Layer 1"
+    },
+    {
+      "id": "2",
+      "type": "brick",
+      "name": "Tables",
+      "bricks": 23,
+      "firstBrick": {
+        "id": "5",
+        "partNumber": "TABLE96X190",
+        "displayArea": {
+          "x": 160,
+          "y": 160,
+          "width": 190.5,
+          "height": 95.25
+        },
+        "orientation": 0
+      }
+    },
+    {
+      "id": "42",
+      "type": "brick",
+      "name": "Tracks",
+      "bricks": 917,
+      "firstBrick": {
+        "id": "6352",
+        "partNumber": "3857.0",
+        "displayArea": {
+          "x": 1248,
+          "y": 672,
+          "width": 32,
+          "height": 16
+        },
+        "orientation": 0
+      }
+    },
+    {
+      "id": "6369",
+      "type": "text",
+      "name": "labels"
+    },
+    {
+      "id": "552",
+      "type": "ruler",
+      "name": "rulers"
+    },
+    {
+      "id": "990001",
+      "type": "area",
+      "name": "Zones"
+    }
+  ]
+}
