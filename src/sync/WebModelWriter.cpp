@@ -1,5 +1,7 @@
 #include "WebModelWriter.h"
 
+#include "saveload/SidecarIO.h"
+
 #include "core/LayerArea.h"
 #include "core/LayerBrick.h"
 #include "core/LayerGrid.h"
@@ -210,6 +212,21 @@ QJsonObject docJsonFromMap(const core::Map& map) {
         data.insert(l->guid, layer(*l));
     }
     return { { QStringLiteral("meta"), meta }, { QStringLiteral("layers"), order }, { QStringLiteral("layerData"), data } };
+}
+
+QJsonObject mergeSidecarCache(const QJsonObject& current, const core::Sidecar& sidecar) {
+    const QJsonObject mine = saveload::sidecarToJson(sidecar);
+    QJsonObject out = current;
+    for (const char* key : { "anchoredLabels", "modules" }) {
+        const QString k = QString::fromLatin1(key);
+        const QJsonArray list = mine.value(k).toArray();
+        if (!list.isEmpty()) out.insert(k, list);
+        else if (!out.value(k).toArray().isEmpty()) out.insert(k, QJsonArray{});
+    }
+    if (mine.contains(QLatin1String("venue")))
+        out.insert(QStringLiteral("venue"), mine.value(QLatin1String("venue")));
+    else out.remove(QStringLiteral("venue"));
+    return out;
 }
 
 }  // namespace bld::sync

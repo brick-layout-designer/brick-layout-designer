@@ -78,7 +78,7 @@ target_include_directories(bld_sync
     PUBLIC  ${CMAKE_CURRENT_SOURCE_DIR}
     PRIVATE ${CMAKE_SOURCE_DIR}/third_party/yrs)
 # `yrs` is yffi's library target (its [lib] name).
-target_link_libraries(bld_sync PUBLIC bld_core Qt6::Core Qt6::Gui Qt6::Network Qt6::WebSockets PRIVATE yrs qt6keychain)
+target_link_libraries(bld_sync PUBLIC bld_core bld_saveload Qt6::Core Qt6::Gui Qt6::Network Qt6::WebSockets PRIVATE yrs qt6keychain)
 
 # "Connect to Server…" and the other sync screens (Qt Widgets).
 add_library(bld_sync_ui STATIC

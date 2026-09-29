@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QByteArray>
+#include <QJsonObject>
 #include <QString>
 
 namespace bld::core { struct Sidecar; }
@@ -29,6 +30,11 @@ bool writeSidecar(const QString& cldPath,
                   const QByteArray& bbmBytes,
                   const core::Sidecar& sidecar,
                   QString* error = nullptr);
+
+// The sidecar as JSON and back, without the file or its hash: the same
+// shape the web keeps in a live layout's shared document (meta.cache).
+QJsonObject sidecarToJson(const core::Sidecar& sidecar);
+void sidecarFromJson(const QJsonObject& root, core::Sidecar& out);
 
 // Compute SHA-256 of the bytes (hex-encoded lowercase).
 QByteArray sha256Hex(const QByteArray& bytes);
