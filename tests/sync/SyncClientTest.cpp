@@ -150,7 +150,8 @@ TEST(SyncClient, EditsMadeWhileOfflineArriveOnReconnect) {
     client.sendLocal(local.writeMap(*map));
     // The retry reconnects, and the handshake delivers the offline edit.
     ASSERT_TRUE(waitFor([&] { return firstBrickArea(server.doc) == firstBrick(*map).displayArea; }));
-    EXPECT_EQ(client.status(), sync::SyncClient::Status::Synced);
+    // The server may get our answer before we get its: Synced follows shortly.
+    EXPECT_TRUE(waitFor([&] { return client.status() == sync::SyncClient::Status::Synced; }));
     EXPECT_EQ(server.authHeaders.size(), 2u);
 }
 
