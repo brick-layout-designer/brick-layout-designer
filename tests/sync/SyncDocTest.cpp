@@ -5,6 +5,7 @@
 
 #include "SyncDoc.h"
 #include "WebModel.h"
+#include "WebModelWriter.h"
 
 #include "core/LayerArea.h"
 #include "core/LayerBrick.h"
@@ -12,11 +13,13 @@
 #include "core/LayerText.h"
 #include "core/Map.h"
 #include "saveload/BbmWriter.h"
+#include "saveload/SidecarIO.h"
 
 #include <gtest/gtest.h>
 
 #include <QBuffer>
 #include <QFile>
+#include <QJsonArray>
 
 #include <QDir>
 #include <QSaveFile>
@@ -253,4 +256,73 @@ TEST(SyncDocUndo, EachWriteIsOneStepUndoneInReverse) {
     ASSERT_FALSE(desktop.undo().isEmpty());
     EXPECT_EQ(mapOf(desktop)->layers()[1]->name, name);
     EXPECT_FALSE(desktop.canUndo());
+}
+
+// The sidecar (anchored labels, modules, venue) rides in meta.cache, where
+// the web editor keeps it.
+TEST(SyncDocSidecar, VenueAndLabelsTravelInTheWebsSidecarCache) {
+    sync::SyncDoc doc;
+    ASSERT_TRUE(doc.applyUpdate(serverDoc()));
+    auto map = mapOf(doc);
+    EXPECT_FALSE(map->sidecar.venue);
+
+    core::Venue hall;
+    hall.name = QStringLiteral("Grand Lobby");
+    hall.edges.push_back(
+        { { QPointF(0, 0), QPointF(160, 0) }, core::EdgeKind::Open, 0.0, QStringLiteral("to the Lobby") });
+    hall.obstacles.push_back({ { QPointF(1, 1), QPointF(9, 1), QPointF(9, 9) }, QStringLiteral("stairs") });
+    map->sidecar.venue = hall;
+    core::AnchoredLabel label;
+    label.id = QStringLiteral("lbl-1");
+    label.text = QStringLiteral("Power here");
+    map->sidecar.anchoredLabels.push_back(label);
+    const QByteArray update = doc.writeMap(*map);
+    ASSERT_FALSE(update.isEmpty());
+
+    // The same shape the sidecar file has, under meta.cache.
+    const QJsonObject cache =
+        doc.toJson().value(QLatin1String("meta")).toObject().value(QLatin1String("cache")).toObject();
+    EXPECT_EQ(cache.value(QLatin1String("venue")),
+              saveload::sidecarToJson(map->sidecar).value(QLatin1String("venue")));
+    EXPECT_EQ(cache.value(QLatin1String("anchoredLabels")).toArray().size(), 1);
+
+    // Another copy of the document reads it back.
+    sync::SyncDoc other;
+    ASSERT_TRUE(other.applyUpdate(serverDoc()));
+    ASSERT_TRUE(other.applyUpdate(update));
+    const auto back = mapOf(other);
+    ASSERT_TRUE(back->sidecar.venue);
+    EXPECT_EQ(back->sidecar.venue->name, QStringLiteral("Grand Lobby"));
+    ASSERT_EQ(back->sidecar.venue->edges.size(), 1);
+    EXPECT_EQ(back->sidecar.venue->edges[0].kind, core::EdgeKind::Open);
+    ASSERT_EQ(back->sidecar.venue->obstacles.size(), 1);
+    EXPECT_EQ(back->sidecar.venue->obstacles[0].label, QStringLiteral("stairs"));
+    ASSERT_EQ(back->sidecar.anchoredLabels.size(), 1u);
+    EXPECT_EQ(back->sidecar.anchoredLabels[0].text, QStringLiteral("Power here"));
+
+    // Nothing more to write, and clearing the venue removes it.
+    EXPECT_TRUE(doc.writeMap(*mapOf(doc)).isEmpty());
+    map->sidecar.venue.reset();
+    ASSERT_FALSE(doc.writeMap(*map).isEmpty());
+    EXPECT_FALSE(mapOf(doc)->sidecar.venue);
+}
+
+TEST(SyncDocSidecar, KeepsWhatTheDesktopDoesntHandle) {
+    const QJsonObject webBackground{ { QStringLiteral("url"),
+                                       QStringLiteral("/api/layouts/L1/background-image") },
+                                     { QStringLiteral("opacity"), 0.4 } };
+    const QJsonObject current{ { QStringLiteral("backgroundImage"), webBackground },
+                               { QStringLiteral("webOnly"), 1 },
+                               { QStringLiteral("anchoredLabels"),
+                                 QJsonArray{ QJsonObject{ { QStringLiteral("id"), QStringLiteral("x") } } } },
+                               { QStringLiteral("venue"),
+                                 QJsonObject{ { QStringLiteral("name"), QStringLiteral("Old") } } } };
+    core::Sidecar mine; // the desktop removed the label and the venue
+    const QJsonObject merged = sync::mergeSidecarCache(current, mine);
+    EXPECT_EQ(merged.value(QLatin1String("backgroundImage")).toObject(), webBackground);
+    EXPECT_EQ(merged.value(QLatin1String("webOnly")).toInt(), 1);
+    EXPECT_EQ(merged.value(QLatin1String("anchoredLabels")).toArray().size(), 0);
+    EXPECT_FALSE(merged.contains(QLatin1String("venue")));
+    // No sidecar on either side: nothing is added.
+    EXPECT_TRUE(sync::mergeSidecarCache({}, mine).isEmpty());
 }

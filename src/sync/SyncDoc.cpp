@@ -3,6 +3,8 @@
 #include "DocJsonDetail.h"
 #include "WebModelWriter.h"
 
+#include "core/Map.h"
+
 extern "C" {
 #include "libyrs.h"
 }
@@ -342,7 +344,13 @@ QByteArray SyncDoc::writeMap(const core::Map& map) {
     Impl& d = *d_;
     d.ops = 0;
     d.txn = ydoc_write_transaction(d.doc, sizeof(kLocalOrigin) - 1, kLocalOrigin);
-    d.setFields(d.meta, cur.value(QLatin1String("meta")).toObject(), want.value(QLatin1String("meta")).toObject(), false);
+    const QJsonObject curMeta = cur.value(QLatin1String("meta")).toObject();
+    QJsonObject wantMeta = want.value(QLatin1String("meta")).toObject();
+    const QJsonObject cache =
+        mergeSidecarCache(curMeta.value(QLatin1String("cache")).toObject(), map.sidecar);
+    if (curMeta.contains(QLatin1String("cache")) || !cache.isEmpty())
+        wantMeta.insert(QStringLiteral("cache"), cache);
+    d.setFields(d.meta, curMeta, wantMeta, false);
 
     const QJsonArray order = want.value(QLatin1String("layers")).toArray();
     if (!same(cur.value(QLatin1String("layers")), order)) {

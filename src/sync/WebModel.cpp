@@ -1,5 +1,7 @@
 #include "WebModel.h"
 
+#include "saveload/SidecarIO.h"
+
 #include "core/LayerArea.h"
 #include "core/LayerBrick.h"
 #include "core/LayerGrid.h"
@@ -221,6 +223,9 @@ std::unique_ptr<core::Map> mapFromDocJson(const QJsonObject& doc, QString* error
     map->exportInfo.electricCircuit = boolean(ex, "exportElectricCircuit");
     map->exportInfo.connectionPoints = boolean(ex, "exportConnectionPoints");
     map->selectedLayerIndex = integer(meta, "selectedLayerIndex");
+    // Anchored labels, modules and the venue: the web keeps the sidecar in
+    // meta.cache.
+    saveload::sidecarFromJson(obj(meta, "cache"), map->sidecar);
 
     const QJsonObject data = obj(doc, "layerData");
     for (const auto& id : arr(doc, "layers")) {
