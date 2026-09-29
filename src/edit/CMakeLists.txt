@@ -17,6 +17,12 @@ add_library(bld_edit STATIC
     VenueCommands.h
     VenueValidator.cpp
     VenueValidator.h
+    venue/VenueUnits.cpp
+    venue/VenueUnits.h
+    venue/VenueDesign.cpp
+    venue/VenueDesign.h
+    venue/VenueDesignerState.cpp
+    venue/VenueDesignerState.h
     Connectivity.cpp
     PartList.cpp
     PartList.h
