@@ -50,6 +50,8 @@ add_library(bld_sync STATIC
     SyncProtocol.cpp
     SyncClient.h
     SyncClient.cpp
+    ServerApi.h
+    ServerApi.cpp
 )
 target_include_directories(bld_sync
     PUBLIC  ${CMAKE_CURRENT_SOURCE_DIR}
