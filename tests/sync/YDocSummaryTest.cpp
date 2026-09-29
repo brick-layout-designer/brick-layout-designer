@@ -4,6 +4,7 @@
 // <name>.expected.json what it must contain.
 
 #include "DocJson.h"
+#include "SyncDoc.h"
 #include "WebModel.h"
 #include "YDocSummary.h"
 
@@ -96,7 +97,9 @@ TEST(YDocSummary, SurvivesDamagedUpdates) {
         }
         QString err;
         (void)sync::summarizeDoc(data, &err);
-        if (const auto json = sync::docToJson(data, &err)) (void)sync::mapFromDocJson(*json, &err);
+        sync::SyncDoc doc;
+        if (!doc.applyUpdate(data, &err)) continue;
+        if (const auto map = sync::mapFromDocJson(doc.toJson(), &err)) (void)doc.writeMap(*map);
     }
     SUCCEED();
 }

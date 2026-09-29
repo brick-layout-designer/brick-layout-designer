@@ -41,6 +41,11 @@ add_library(bld_sync STATIC
     DocJson.cpp
     WebModel.h
     WebModel.cpp
+    WebModelWriter.h
+    WebModelWriter.cpp
+    DocJsonDetail.h
+    SyncDoc.h
+    SyncDoc.cpp
 )
 target_include_directories(bld_sync
     PUBLIC  ${CMAKE_CURRENT_SOURCE_DIR}

@@ -1,5 +1,8 @@
 #include "DocJson.h"
 
+#include "DocJsonDetail.h"
+#include "SyncDoc.h"
+
 extern "C" {
 #include "libyrs.h"
 }
@@ -13,7 +16,6 @@ namespace bld::sync {
 
 namespace {
 
-struct DocDeleter { void operator()(YDoc* d) const { if (d) ydoc_destroy(d); } };
 struct OutputDeleter { void operator()(YOutput* o) const { if (o) youtput_destroy(o); } };
 struct MapIterDeleter { void operator()(YMapIter* i) const { if (i) ymap_iter_destroy(i); } };
 struct EntryDeleter { void operator()(YMapEntry* e) const { if (e) ymap_entry_destroy(e); } };
@@ -67,28 +69,29 @@ QJsonValue toJson(const YOutput* o, const YTransaction* txn, int depth) {
 
 }  // namespace
 
-std::optional<QJsonObject> docToJson(const QByteArray& update, QString* error) {
-    std::unique_ptr<YDoc, DocDeleter> doc(ydoc_new());
-    // Root types must be declared before they can be read.
+namespace detail {
+
+QJsonObject rootsToJson(YDoc* doc) {
+    // Declaring an existing root type returns it.
     const char* maps[] = { "meta", "layerData", "labels", "modules", "venue" };
     Branch* rootMaps[std::size(maps)];
-    for (size_t i = 0; i < std::size(maps); ++i) rootMaps[i] = ymap(doc.get(), maps[i]);
-    Branch* layers = yarray(doc.get(), "layers");
-
-    YTransaction* write = ydoc_write_transaction(doc.get(), 0, nullptr);
-    const uint8_t rc = ytransaction_apply(write, update.constData(), static_cast<uint32_t>(update.size()));
-    ytransaction_commit(write);
-    if (rc != 0) {
-        if (error) *error = QStringLiteral("could not apply the document update (yrs error %1)").arg(rc);
-        return std::nullopt;
-    }
-    YTransaction* txn = ydoc_read_transaction(doc.get());
+    for (size_t i = 0; i < std::size(maps); ++i) rootMaps[i] = ymap(doc, maps[i]);
+    Branch* layers = yarray(doc, "layers");
+    YTransaction* txn = ydoc_read_transaction(doc);
     QJsonObject out;
     for (size_t i = 0; i < std::size(maps); ++i)
         out.insert(QString::fromLatin1(maps[i]), mapToJson(rootMaps[i], txn, 0));
     out.insert(QStringLiteral("layers"), arrayToJson(layers, txn, 0));
     ytransaction_commit(txn);
     return out;
+}
+
+}  // namespace detail
+
+std::optional<QJsonObject> docToJson(const QByteArray& update, QString* error) {
+    SyncDoc doc;
+    if (!doc.applyUpdate(update, error)) return std::nullopt;
+    return doc.toJson();
 }
 
 }  // namespace bld::sync
