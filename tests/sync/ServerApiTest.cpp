@@ -4,16 +4,20 @@
 // layout list with the token in the Authorization header.
 
 #include "ServerApi.h"
+#include "saveload/VenueIO.h"
 
 #include <gtest/gtest.h>
 
 #include <QCoreApplication>
+#include <QDir>
+#include <QFile>
 #include <QElapsedTimer>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QTcpServer>
 #include <QTcpSocket>
+#include <QTemporaryDir>
 #include <QTimeZone>
 
 #include <deque>
@@ -224,5 +228,83 @@ TEST(ServerApi, ListsLayoutsWithTheTokenAndReportsAnExpiredOne) {
     api.setBase(other.base());
     api.fetchLayouts();
     ASSERT_TRUE(waitFor([&] { return got; }));
+    EXPECT_TRUE(unauthorized);
+}
+
+TEST(ServerApi, PullsVenuesAsFilesTheVenueLibraryReads) {
+    FakeHttp http;
+    ServerApi api;
+    api.setBase(http.base());
+    api.setToken(QStringLiteral("bld_pat_abc"));
+    QList<VenueEntry> venues;
+    QString gotId, gotName;
+    QByteArray file;
+    QString failedWhat;
+    bool unauthorized = false;
+    QObject::connect(&api, &ServerApi::venuesReady, [&](const QList<VenueEntry>& v) { venues = v; });
+    QObject::connect(&api, &ServerApi::venueReady, [&](const QString& id, const QString& name, const QByteArray& f) {
+        gotId = id;
+        gotName = name;
+        file = f;
+    });
+    QObject::connect(&api, &ServerApi::requestFailed, [&](const QString& w, const QString&, bool u) {
+        failedWhat = w;
+        unauthorized = u;
+    });
+
+    http.reply("/api/venues", 200, { { QStringLiteral("venues"), QJsonArray{
+        QJsonObject{ { QStringLiteral("id"), QStringLiteral("v1") }, { QStringLiteral("name"), QStringLiteral("Grand Lobby") },
+                     { QStringLiteral("ownerOrgId"), QStringLiteral("org1") } },
+        QJsonObject{ { QStringLiteral("id"), QStringLiteral("v2") }, { QStringLiteral("name"), QStringLiteral("Garage") },
+                     { QStringLiteral("ownerOrgId"), QJsonValue::Null } } } } });
+    api.fetchVenues();
+    ASSERT_TRUE(waitFor([&] { return venues.size() == 2; }));
+    EXPECT_EQ(venues[0].name, QStringLiteral("Grand Lobby"));
+    EXPECT_EQ(venues[0].ownerOrgId, QStringLiteral("org1"));
+    EXPECT_TRUE(venues[1].ownerOrgId.isEmpty());
+    EXPECT_EQ(http.requests.back().authorization, QByteArray("Bearer bld_pat_abc"));
+
+    // The web stores the venue without the file's schema tag.
+    const QJsonObject data{
+        { QStringLiteral("name"), QStringLiteral("Grand Lobby") }, { QStringLiteral("enabled"), true },
+        { QStringLiteral("minWalkwayStuds"), 30 },
+        { QStringLiteral("bounds"), QJsonObject{ { QStringLiteral("x"), 0 }, { QStringLiteral("y"), 0 }, { QStringLiteral("w"), 0 }, { QStringLiteral("h"), 0 } } },
+        { QStringLiteral("edges"), QJsonArray{ QJsonObject{
+            { QStringLiteral("kind"), 2 }, { QStringLiteral("doorWidthStuds"), 0 }, { QStringLiteral("label"), QStringLiteral("to the Lobby") },
+            { QStringLiteral("poly"), QJsonArray{ QJsonObject{ { QStringLiteral("x"), 0 }, { QStringLiteral("y"), 0 } },
+                                                  QJsonObject{ { QStringLiteral("x"), 100 }, { QStringLiteral("y"), 0 } } } } } } },
+        { QStringLiteral("obstacles"), QJsonArray{ QJsonObject{
+            { QStringLiteral("label"), QStringLiteral("stairs") },
+            { QStringLiteral("poly"), QJsonArray{ QJsonObject{ { QStringLiteral("x"), 1 }, { QStringLiteral("y"), 1 } },
+                                                  QJsonObject{ { QStringLiteral("x"), 2 }, { QStringLiteral("y"), 2 } } } } } } } };
+    http.reply("/api/venues/v1", 200, { { QStringLiteral("id"), QStringLiteral("v1") }, { QStringLiteral("name"), QStringLiteral("Grand Lobby") },
+                                        { QStringLiteral("data"), data } });
+    api.fetchVenue(QStringLiteral("v1"));
+    ASSERT_TRUE(waitFor([&] { return !file.isEmpty(); }));
+    EXPECT_EQ(gotId, QStringLiteral("v1"));
+    EXPECT_EQ(gotName, QStringLiteral("Grand Lobby"));
+    EXPECT_EQ(QJsonDocument::fromJson(file).object().value(QLatin1String("schema")).toString(), QStringLiteral("bld-venue/1"));
+    QTemporaryDir dir;
+    const QString path = QDir(dir.path()).filePath(QStringLiteral("Grand Lobby.bld-venue"));
+    {
+        QFile f(path);
+        ASSERT_TRUE(f.open(QIODevice::WriteOnly));
+        f.write(file);
+    }
+    const auto v = bld::saveload::readVenueFile(path);
+    ASSERT_TRUE(v);
+    EXPECT_EQ(v->name, QStringLiteral("Grand Lobby"));
+    EXPECT_DOUBLE_EQ(v->minWalkwayStuds, 30.0);
+    ASSERT_EQ(v->edges.size(), 1);
+    EXPECT_EQ(v->edges[0].kind, bld::core::EdgeKind::Open);
+    EXPECT_EQ(v->edges[0].polyline.size(), 2);
+    ASSERT_EQ(v->obstacles.size(), 1);
+    EXPECT_EQ(v->obstacles[0].label, QStringLiteral("stairs"));
+
+    // A token without venues:read gets 403: sign in again with that scope.
+    http.reply("/api/venues/v2", 403, { { QStringLiteral("error"), QStringLiteral("insufficient_scope") } });
+    api.fetchVenue(QStringLiteral("v2"));
+    ASSERT_TRUE(waitFor([&] { return !failedWhat.isEmpty(); }));
+    EXPECT_EQ(failedWhat, QStringLiteral("venue"));
     EXPECT_TRUE(unauthorized);
 }
