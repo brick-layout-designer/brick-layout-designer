@@ -5,6 +5,7 @@ add_executable(bld_sync_tests
     SyncProtocolTest.cpp
     SyncClientTest.cpp
     ServerApiTest.cpp
+    SyncSessionTest.cpp
     SyncTestMain.cpp
 )
 target_compile_definitions(bld_sync_tests PRIVATE BLD_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
