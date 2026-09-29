@@ -6,6 +6,8 @@
 #include <memory>
 
 class QAction;
+class QLabel;
+class QMenu;
 class QComboBox;
 
 namespace bld::core { struct Venue; }
@@ -125,6 +127,20 @@ private:
     QAction* redoAct_ = nullptr;
 
     class QMenu* recentMenu_ = nullptr;
+
+#ifdef BLD_SYNC
+    // Live layouts on a collaborative server (MainWindowLive.cpp).
+    void setupLiveMenu(QMenu* file);
+    void onConnectToServer();
+    void onDisconnect();
+    void onLiveReloaded();
+    void updateLiveUi();
+    class LiveLayout* live_ = nullptr;
+    QLabel* liveStatus_ = nullptr;
+    QAction* disconnectAct_ = nullptr;
+    QAction* liveUndoAct_ = nullptr;
+    QAction* liveRedoAct_ = nullptr;
+#endif
 
     // Auto-save: flushes the current map to a sidecar file every N seconds if
     // the undo stack is dirty. On startup, if an autosave file is newer than

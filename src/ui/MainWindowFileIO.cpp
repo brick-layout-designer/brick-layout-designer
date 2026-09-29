@@ -15,6 +15,9 @@
 
 #include "LayerPanel.h"
 #include "MapView.h"
+#ifdef BLD_SYNC
+#include "LiveLayout.h"
+#endif
 #include "ModulesPanel.h"
 #include "PartsBrowser.h"
 
@@ -66,10 +69,15 @@ constexpr qint64 kAutosaveThrottleMs = 5000;
 // ---------- Title -----------------------------------------------------------
 
 void MainWindow::updateTitle() {
-    const QString name = currentFilePath_.isEmpty()
-        ? tr("[untitled]")
-        : QFileInfo(currentFilePath_).fileName();
-    const bool dirty = !mapView_->undoStack()->isClean();
+    QString name = currentFilePath_.isEmpty() ? tr("[untitled]") : QFileInfo(currentFilePath_).fileName();
+    bool dirty = !mapView_->undoStack()->isClean();
+#ifdef BLD_SYNC
+    // Live: the server keeps it saved.
+    if (live_ && live_->active()) {
+        name = tr("%1 — Live").arg(live_->title());
+        dirty = false;
+    }
+#endif
     // As BlueBrick, the open budget follows the map name.
     QString budget;
     if (budget_ && budget_->exists())
@@ -109,6 +117,13 @@ const char* kSaveFilter = QT_TRANSLATE_NOOP("bld::ui::MainWindow",
 
 bool MainWindow::openFile(const QString& path) {
     if (!maybeSave()) return false;
+#ifdef BLD_SYNC
+    // Another layout replaces the live one: leave the server session.
+    if (live_ && live_->active()) {
+        live_->close();
+        updateLiveUi();
+    }
+#endif
     if (isOtherMapFormat(path)) {
         auto ldraw = isTrackDesignerMap(path) ? import::readTrackDesignerMap(path, parts_)
                    : isFourDBrixMap(path)     ? import::readFourDBrixMap(path, parts_)
@@ -304,6 +319,13 @@ void MainWindow::onNew() {
 
 bool MainWindow::newDocument() {
     if (!maybeSave()) return false;
+#ifdef BLD_SYNC
+    // Another layout replaces the live one: leave the server session.
+    if (live_ && live_->active()) {
+        live_->close();
+        updateLiveUi();
+    }
+#endif
 
     // If the user configured a "new map template" file in Preferences
     // (general/newMapTemplate), load that as the starting point — vanilla

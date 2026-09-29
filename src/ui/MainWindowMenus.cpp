@@ -88,6 +88,9 @@ void MainWindow::setupMenus() {
 
     recentMenu_ = file->addMenu(tr("Open &Recent"));
     rebuildRecentMenu();
+#ifdef BLD_SYNC
+    setupLiveMenu(file);
+#endif
 
     file->addSeparator();
     auto* saveAct = file->addAction(tr("&Save"));
@@ -332,6 +335,11 @@ void MainWindow::setupMenus() {
     redoAct_ = mapView_->undoStack()->createRedoAction(this, tr("&Redo"));
     redoAct_->setShortcut(QKeySequence::Redo);
     edit->addAction(redoAct_);
+#ifdef BLD_SYNC
+    // Shown instead of the two above while a live layout is open.
+    edit->addAction(liveUndoAct_);
+    edit->addAction(liveRedoAct_);
+#endif
 
     edit->addSeparator();
     auto* cutAct = edit->addAction(tr("Cu&t"));
