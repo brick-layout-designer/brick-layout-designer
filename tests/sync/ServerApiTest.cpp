@@ -147,7 +147,8 @@ TEST(ServerApi, DeviceSignInPollsUntilApproved) {
         { QStringLiteral("verification_uri_complete"), QStringLiteral("https://x.org/device?user_code=BCDF-GHJK") },
         { QStringLiteral("expires_in"), 600 }, { QStringLiteral("interval"), 1 } });
     http.reply("/api/auth/device/token", 400, { { QStringLiteral("error"), QStringLiteral("authorization_pending") } });
-    http.reply("/api/auth/device/token", 400, { { QStringLiteral("error"), QStringLiteral("slow_down") }, { QStringLiteral("interval"), 6 } });
+    http.reply("/api/auth/device/token", 400, { { QStringLiteral("error"), QStringLiteral("slow_down") } });
+    http.reply("/api/auth/device/token", 400, { { QStringLiteral("error"), QStringLiteral("slow_down") }, { QStringLiteral("interval"), 20 } });
     http.reply("/api/auth/device/token", 200, { { QStringLiteral("access_token"), QStringLiteral("bld_pat_abc") }, { QStringLiteral("token_type"), QStringLiteral("Bearer") } });
 
     api.startSignIn(QStringLiteral("Brick Layout Designer (test)"));
@@ -169,10 +170,12 @@ TEST(ServerApi, DeviceSignInPollsUntilApproved) {
         EXPECT_EQ(b.value(QLatin1String("device_code")).toString(), QStringLiteral("dev-123"));
         EXPECT_EQ(b.value(QLatin1String("grant_type")).toString(), QStringLiteral("urn:ietf:params:oauth:grant-type:device_code"));
     }
-    EXPECT_EQ(polls, 3);
-    // slow_down stretches the wait before the next poll (6 "seconds" = 30 ms here).
-    ASSERT_EQ(at.size(), 3u);
+    EXPECT_EQ(polls, 4);
+    // slow_down adds 5 s to the wait (1 + 5 = 6 "seconds" = 30 ms here), or
+    // takes the server's interval when that is longer (20 = 100 ms).
+    ASSERT_EQ(at.size(), 4u);
     EXPECT_GE(at[2] - at[1], 25);
+    EXPECT_GE(at[3] - at[2], 95);
 }
 
 TEST(ServerApi, DeviceSignInStopsWhenDeniedOrExpired) {
