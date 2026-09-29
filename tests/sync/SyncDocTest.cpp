@@ -183,3 +183,74 @@ TEST(SyncDoc, ExportsAnUpdateForTheWebCheck) {
     save(QStringLiteral("desktop-update.bin"), update);
     save(QStringLiteral("desktop-expected.bbm"), bbm(*map));
 }
+
+namespace {
+
+core::Brick& brickAt(core::Map& m, size_t i) { return layerOf<core::LayerBrick>(m, core::LayerKind::Brick).bricks[i]; }
+
+}  // namespace
+
+TEST(SyncDocUndo, UndoesOnlyThisDesktopsChanges) {
+    sync::SyncDoc desktop, other;
+    ASSERT_TRUE(desktop.applyUpdate(serverDoc()));
+    ASSERT_TRUE(other.applyUpdate(serverDoc()));
+    const QRectF start0 = brickAt(*mapOf(desktop), 0).displayArea;
+
+    // The desktop moves brick 0; then someone else moves brick 1.
+    auto mine = mapOf(desktop);
+    brickAt(*mine, 0).displayArea.translate(16, 0);
+    ASSERT_TRUE(other.applyUpdate(desktop.writeMap(*mine)));
+    auto theirs = mapOf(other);
+    brickAt(*theirs, 1).displayArea.translate(0, 32);
+    const QRectF moved1 = brickAt(*theirs, 1).displayArea;
+    ASSERT_TRUE(desktop.applyUpdate(other.writeMap(*theirs)));
+
+    // Undo reverts the desktop's move and keeps the other one.
+    ASSERT_TRUE(desktop.canUndo());
+    const QByteArray undo = desktop.undo();
+    ASSERT_FALSE(undo.isEmpty());
+    auto after = mapOf(desktop);
+    EXPECT_EQ(brickAt(*after, 0).displayArea, start0);
+    EXPECT_EQ(brickAt(*after, 1).displayArea, moved1);
+    // Sent on, it brings the other copy along.
+    ASSERT_TRUE(other.applyUpdate(undo));
+    EXPECT_EQ(bbm(*mapOf(other)), bbm(*after));
+    EXPECT_FALSE(desktop.canUndo());
+
+    // Redo puts the move back.
+    ASSERT_TRUE(desktop.canRedo());
+    ASSERT_FALSE(desktop.redo().isEmpty());
+    EXPECT_EQ(brickAt(*mapOf(desktop), 0).displayArea, start0.translated(16, 0));
+}
+
+TEST(SyncDocUndo, OtherPeoplesChangesAloneLeaveNothingToUndo) {
+    sync::SyncDoc desktop, other;
+    ASSERT_TRUE(desktop.applyUpdate(serverDoc()));
+    ASSERT_TRUE(other.applyUpdate(serverDoc()));
+    auto theirs = mapOf(other);
+    brickAt(*theirs, 0).orientation = 90.0f;
+    ASSERT_TRUE(desktop.applyUpdate(other.writeMap(*theirs)));
+    EXPECT_FALSE(desktop.canUndo());
+    EXPECT_TRUE(desktop.undo().isEmpty());
+    EXPECT_EQ(brickAt(*mapOf(desktop), 0).orientation, 90.0f);
+}
+
+TEST(SyncDocUndo, EachWriteIsOneStepUndoneInReverse) {
+    sync::SyncDoc desktop;
+    ASSERT_TRUE(desktop.applyUpdate(serverDoc()));
+    auto m = mapOf(desktop);
+    const QString name = m->layers()[1]->name;
+    const QString author = m->author;
+    m->layers()[1]->name = QStringLiteral("First");
+    desktop.writeMap(*m);
+    m->author = QStringLiteral("Second");
+    desktop.writeMap(*m);
+
+    ASSERT_FALSE(desktop.undo().isEmpty());
+    auto a = mapOf(desktop);
+    EXPECT_EQ(a->author, author);
+    EXPECT_EQ(a->layers()[1]->name, QStringLiteral("First"));
+    ASSERT_FALSE(desktop.undo().isEmpty());
+    EXPECT_EQ(mapOf(desktop)->layers()[1]->name, name);
+    EXPECT_FALSE(desktop.canUndo());
+}
