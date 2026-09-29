@@ -94,15 +94,10 @@ void ServerApi::fetchLayouts() {
     QNetworkReply* r = get(QStringLiteral("/api/layouts"));
     connect(r, &QNetworkReply::finished, this, [this, r] {
         r->deleteLater();
-        const int status = r->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-        if (status != 200) {
-            const bool unauthorized = status == 401 || status == 403;
-            emit requestFailed(QStringLiteral("layouts"),
-                               status == 0 ? r->errorString() : tr("The server answered %1").arg(status), unauthorized);
-            return;
-        }
+        const auto o = okJson(r, QStringLiteral("layouts"));
+        if (!o) return;
         QList<LayoutEntry> out;
-        for (const auto& v : jsonOf(r).value(QLatin1String("layouts")).toArray()) {
+        for (const auto& v : o->value(QLatin1String("layouts")).toArray()) {
             const QJsonObject l = v.toObject();
             LayoutEntry e;
             e.id = l.value(QLatin1String("id")).toString();
@@ -115,6 +110,47 @@ void ServerApi::fetchLayouts() {
             out << e;
         }
         emit layoutsReady(out);
+    });
+}
+
+std::optional<QJsonObject> ServerApi::okJson(QNetworkReply* r, const QString& what) {
+    const int status = r->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    if (status != 200) {
+        // 403 is a token without the scope this needs (or one revoked since).
+        const bool unauthorized = status == 401 || status == 403;
+        emit requestFailed(what, status == 0 ? r->errorString() : tr("The server answered %1").arg(status), unauthorized);
+        return std::nullopt;
+    }
+    return jsonOf(r);
+}
+
+void ServerApi::fetchVenues() {
+    QNetworkReply* r = get(QStringLiteral("/api/venues"));
+    connect(r, &QNetworkReply::finished, this, [this, r] {
+        r->deleteLater();
+        const auto o = okJson(r, QStringLiteral("venues"));
+        if (!o) return;
+        QList<VenueEntry> out;
+        for (const auto& v : o->value(QLatin1String("venues")).toArray()) {
+            const QJsonObject e = v.toObject();
+            out << VenueEntry{ e.value(QLatin1String("id")).toString(), e.value(QLatin1String("name")).toString(),
+                               e.value(QLatin1String("ownerOrgId")).toString() };
+        }
+        emit venuesReady(out);
+    });
+}
+
+void ServerApi::fetchVenue(const QString& id) {
+    QNetworkReply* r = get(QStringLiteral("/api/venues/") + QString::fromLatin1(QUrl::toPercentEncoding(id)));
+    connect(r, &QNetworkReply::finished, this, [this, r, id] {
+        r->deleteLater();
+        const auto o = okJson(r, QStringLiteral("venue"));
+        if (!o) return;
+        // The server keeps the venue as the web wrote it: a .bld-venue file
+        // without its schema tag (saveload/VenueIO.cpp reads either way).
+        QJsonObject file = o->value(QLatin1String("data")).toObject();
+        file.insert(QStringLiteral("schema"), QStringLiteral("bld-venue/1"));
+        emit venueReady(id, o->value(QLatin1String("name")).toString(), QJsonDocument(file).toJson(QJsonDocument::Indented));
     });
 }
 

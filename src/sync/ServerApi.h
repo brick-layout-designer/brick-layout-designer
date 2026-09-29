@@ -48,6 +48,12 @@ struct LayoutEntry {
     QDateTime updatedAt;
 };
 
+struct VenueEntry {
+    QString id;
+    QString name;
+    QString ownerOrgId;  // empty for personal venues
+};
+
 class ServerApi : public QObject {
     Q_OBJECT
 public:
@@ -67,6 +73,11 @@ public:
 
     void fetchVersion();
     void fetchLayouts();
+    // The venue library (token scope venues:read): the list, then one
+    // venue as a .bld-venue file's bytes, ready to save into the local
+    // Venue Library folder.
+    void fetchVenues();
+    void fetchVenue(const QString& id);
 
     // Device sign-in: signInCode once the server issued a code, then polls
     // until signedIn(token) or signInFailed(reason).
@@ -79,11 +90,14 @@ public:
 signals:
     void versionReady(const bld::sync::ServerInfo& info);
     void layoutsReady(const QList<bld::sync::LayoutEntry>& layouts);
+    void venuesReady(const QList<bld::sync::VenueEntry>& venues);
+    void venueReady(const QString& id, const QString& name, const QByteArray& venueFile);
     void signInCode(const bld::sync::DeviceCode& code);
     void signedIn(const QString& token);
     // access_denied, expired_token, or a network / server error.
     void signInFailed(const QString& reason);
-    // A request failed: `what` is "version" or "layouts"; unauthorized is
+    // A request failed: `what` is "version", "layouts", "venues" or
+    // "venue"; unauthorized is
     // true for a missing, revoked or expired token (sign in again).
     void requestFailed(const QString& what, const QString& message, bool unauthorized);
 
@@ -91,6 +105,8 @@ private:
     QNetworkReply* get(const QString& path);
     QNetworkReply* post(const QString& path, const QJsonObject& body);
     void pollToken();
+    // The reply's JSON when it is a 200; otherwise emits requestFailed(what).
+    std::optional<QJsonObject> okJson(QNetworkReply* r, const QString& what);
 
     QNetworkAccessManager net_;
     QUrl base_;
