@@ -206,6 +206,20 @@ void VenueLibraryPanel::saveVenue(const std::optional<core::Venue>& venue) {
     }
 }
 
+QString VenueLibraryPanel::addVenueFile(const QString& name, const QByteArray& bytes) {
+    QDir().mkpath(path_);
+    QString base = sanitize(name.trimmed());
+    if (base.isEmpty()) base = tr("Venue");
+    QString target = QDir(path_).filePath(base + QStringLiteral(".bld-venue"));
+    for (int n = 2; QFile::exists(target); ++n)
+        target = QDir(path_).filePath(QStringLiteral("%1 (%2).bld-venue").arg(base).arg(n));
+    QFile f(target);
+    if (!f.open(QIODevice::WriteOnly) || f.write(bytes) != bytes.size()) return {};
+    f.close();
+    refresh();
+    return target;
+}
+
 void VenueLibraryPanel::onChooseFolder() {
     const QString dir = QFileDialog::getExistingDirectory(
         this, tr("Venue library folder"), path_,

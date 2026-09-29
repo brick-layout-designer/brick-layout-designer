@@ -8,6 +8,7 @@
 #include <gtest/gtest.h>
 
 #include <QDir>
+#include <QFileInfo>
 #include <QListWidget>
 #include <QPushButton>
 #include <QTemporaryDir>
@@ -49,4 +50,26 @@ TEST(VenueLibraryPanel, StartLayoutAsksForANewLayoutFromTheSelectedVenue) {
     EXPECT_EQ(v.obstacles[0].label, QStringLiteral("stairs"));
     ASSERT_EQ(v.edges.size(), 1);
     EXPECT_EQ(v.edges[0].kind, core::EdgeKind::Open);
+}
+
+TEST(VenueLibraryPanel, AddsDownloadedVenuesWithoutReplacingOnes) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    ui::VenueLibraryPanel panel;
+    panel.setLibraryPath(dir.path());
+    auto* list = panel.findChild<QListWidget*>();
+    const QByteArray file = R"({"schema":"bld-venue/1","name":"Grand Lobby","edges":[],"obstacles":[]})";
+
+    const QString first = panel.addVenueFile(QStringLiteral("Grand Lobby"), file);
+    const QString second = panel.addVenueFile(QStringLiteral("Grand Lobby"), file);
+    EXPECT_EQ(QFileInfo(first).fileName(), QStringLiteral("Grand Lobby.bld-venue"));
+    EXPECT_EQ(QFileInfo(second).fileName(), QStringLiteral("Grand Lobby (2).bld-venue"));
+    // Names that aren't safe file names still land in the library folder.
+    const QString odd = panel.addVenueFile(QStringLiteral("../Hall: A/B"), file);
+    ASSERT_FALSE(odd.isEmpty());
+    EXPECT_EQ(QFileInfo(odd).absolutePath(), QDir(dir.path()).absolutePath());
+    EXPECT_EQ(list->count(), 3);
+    const auto v = saveload::readVenueFile(second);
+    ASSERT_TRUE(v);
+    EXPECT_EQ(v->name, QStringLiteral("Grand Lobby"));
 }

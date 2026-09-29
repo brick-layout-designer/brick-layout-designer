@@ -55,9 +55,10 @@ struct Harness {
     ServerApi api;
     MemoryTokenStore tokens;
     QList<QUrl> opened;
-    ConnectDialog dialog{ api, tokens, [this](const QUrl& u) { opened << u; } };
+    ConnectDialog dialog;
 
-    Harness() {
+    explicit Harness(ConnectDialog::Purpose purpose = ConnectDialog::Purpose::OpenLayout)
+        : dialog(api, tokens, [this](const QUrl& u) { opened << u; }, nullptr, purpose) {
         api.setPollIntervalScale(5);
         http.reply("/api/version", 200, version());
         dialog.setAddress(http.base().toString());
@@ -176,4 +177,65 @@ TEST(ConnectDialog, SignOutForgetsTheToken) {
     h.dialog.signOut();
     EXPECT_TRUE(h.tokens.tokens.isEmpty());
     EXPECT_EQ(h.page(), 0);
+}
+
+TEST(ConnectDialog, DownloadsThePickedVenuesAndSignsInAgainForTheVenueLibrary) {
+    Harness h(ConnectDialog::Purpose::DownloadVenues);
+    // Signed in before the venue library was reachable: the token lacks
+    // venues:read, so the list is refused and sign-in starts again.
+    h.tokens.save(h.http.base(), QStringLiteral("bld_pat_old"));
+    h.http.reply("/api/venues", 403, { { QStringLiteral("error"), QStringLiteral("insufficient_scope") } });
+    h.http.reply("/api/venues", 200,
+                 { { QStringLiteral("venues"),
+                     QJsonArray{ QJsonObject{ { QStringLiteral("id"), QStringLiteral("v1") },
+                                              { QStringLiteral("name"), QStringLiteral("Grand Lobby") },
+                                              { QStringLiteral("ownerOrgId"), QStringLiteral("org1") } },
+                                 QJsonObject{ { QStringLiteral("id"), QStringLiteral("v2") },
+                                              { QStringLiteral("name"), QStringLiteral("Garage") },
+                                              { QStringLiteral("ownerOrgId"), QJsonValue::Null } } } } });
+    h.http.reply("/api/auth/device/code", 200,
+                 { { QStringLiteral("device_code"), QStringLiteral("dev") },
+                   { QStringLiteral("user_code"), QStringLiteral("BCDF-GHJK") },
+                   { QStringLiteral("verification_uri"), QStringLiteral("https://x.org/device") },
+                   { QStringLiteral("expires_in"), 600 },
+                   { QStringLiteral("interval"), 1 } });
+    h.http.reply("/api/auth/device/token", 200,
+                 { { QStringLiteral("access_token"), QStringLiteral("bld_pat_new") } });
+    const QJsonObject hall{ { QStringLiteral("name"), QStringLiteral("Grand Lobby") },
+                            { QStringLiteral("edges"), QJsonArray{} } };
+    const QJsonObject garage{ { QStringLiteral("name"), QStringLiteral("Garage") },
+                              { QStringLiteral("edges"), QJsonArray{} } };
+    h.http.reply("/api/venues/v1", 200,
+                 { { QStringLiteral("id"), QStringLiteral("v1") },
+                   { QStringLiteral("name"), QStringLiteral("Grand Lobby") },
+                   { QStringLiteral("data"), hall } });
+    h.http.reply("/api/venues/v2", 200,
+                 { { QStringLiteral("id"), QStringLiteral("v2") },
+                   { QStringLiteral("name"), QStringLiteral("Garage") },
+                   { QStringLiteral("data"), garage } });
+
+    h.dialog.connectToServer();
+    ASSERT_TRUE(waitFor([&] { return !h.opened.isEmpty(); }));
+    ASSERT_TRUE(waitFor([&] { return h.listed(); }));
+    EXPECT_EQ(h.tokens.tokens.value(TokenStore::keyFor(h.http.base())), QStringLiteral("bld_pat_new"));
+    ASSERT_EQ(h.list()->topLevelItemCount(), 2);
+    auto* lobby = h.list()->findItems(QStringLiteral("Grand Lobby"), Qt::MatchExactly).value(0);
+    ASSERT_TRUE(lobby);
+    EXPECT_EQ(lobby->text(1), QStringLiteral("Organisation"));
+
+    // Both picked: both downloaded, then the dialog closes.
+    h.list()->selectAll();
+    h.dialog.findChild<QPushButton*>(QStringLiteral("open"))->click();
+    ASSERT_TRUE(waitFor([&] { return h.dialog.QDialog::result() == QDialog::Accepted; }));
+    const auto got = h.dialog.venues();
+    ASSERT_EQ(got.size(), 2);
+    QStringList names;
+    for (const auto& v : got) {
+        names << v.name;
+        EXPECT_EQ(QJsonDocument::fromJson(v.file).object().value(QLatin1String("schema")).toString(),
+                  QStringLiteral("bld-venue/1"));
+    }
+    names.sort();
+    EXPECT_EQ(names, (QStringList{ QStringLiteral("Garage"), QStringLiteral("Grand Lobby") }));
+    EXPECT_FALSE(h.dialog.ConnectDialog::result().has_value());
 }
