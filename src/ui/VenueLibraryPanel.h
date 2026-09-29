@@ -33,6 +33,8 @@ public:
 signals:
     // Emitted when the user activates an entry; caller applies it.
     void venueLoadRequested(const core::Venue& venue);
+    // Emitted by "Start Layout": the caller starts a new layout with it.
+    void newLayoutRequested(const core::Venue& venue);
     // Emitted when the user clicks "Save Current Venue"; caller must respond
     // by calling saveVenue() with the project's current venue.
     void venueSaveRequested();
@@ -45,6 +47,7 @@ public slots:
 private slots:
     void onChooseFolder();
     void onLoad();
+    void onStartLayout();
     void onDelete();
     void onRename();
     void onSelectionChanged();
@@ -52,10 +55,13 @@ private slots:
 private:
     void updateButtons();
     QString selectedPath() const;
+    // Reads the selected venue file, warning (with `title`) when it can't.
+    std::optional<core::Venue> readSelected(const QString& title);
 
     QLabel*      pathLabel_  = nullptr;
     QListWidget* list_       = nullptr;
     QPushButton* loadBtn_    = nullptr;
+    QPushButton* startBtn_   = nullptr;
     QPushButton* saveBtn_    = nullptr;
     QPushButton* deleteBtn_  = nullptr;
     QPushButton* renameBtn_  = nullptr;

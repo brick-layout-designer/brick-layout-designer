@@ -89,10 +89,14 @@ VenueLibraryPanel::VenueLibraryPanel(QWidget* parent)
     // Action buttons
     auto* btnRow = new QHBoxLayout();
     loadBtn_   = new QPushButton(tr("Load into Project"), host);
+    startBtn_  = new QPushButton(tr("Start Layout"), host);
+    startBtn_->setObjectName(QStringLiteral("venueStartLayout"));
+    startBtn_->setToolTip(tr("Start a new layout with this venue"));
     saveBtn_   = new QPushButton(tr("Save Current Venue"), host);
     deleteBtn_ = new QPushButton(tr("Delete"), host);
     renameBtn_ = new QPushButton(tr("Rename…"), host);
     btnRow->addWidget(loadBtn_);
+    btnRow->addWidget(startBtn_);
     btnRow->addWidget(saveBtn_);
     btnRow->addWidget(renameBtn_);
     btnRow->addWidget(deleteBtn_);
@@ -108,6 +112,7 @@ VenueLibraryPanel::VenueLibraryPanel(QWidget* parent)
     connect(folderBtn,  &QPushButton::clicked, this, &VenueLibraryPanel::onChooseFolder);
     connect(refreshBtn, &QPushButton::clicked, this, &VenueLibraryPanel::refresh);
     connect(loadBtn_,   &QPushButton::clicked, this, &VenueLibraryPanel::onLoad);
+    connect(startBtn_,  &QPushButton::clicked, this, &VenueLibraryPanel::onStartLayout);
     connect(saveBtn_,   &QPushButton::clicked, this, [this]{ emit venueSaveRequested(); });
     connect(deleteBtn_, &QPushButton::clicked, this, &VenueLibraryPanel::onDelete);
     connect(renameBtn_, &QPushButton::clicked, this, &VenueLibraryPanel::onRename);
@@ -208,17 +213,24 @@ void VenueLibraryPanel::onChooseFolder() {
     if (!dir.isEmpty()) setLibraryPath(dir);
 }
 
-void VenueLibraryPanel::onLoad() {
+std::optional<core::Venue> VenueLibraryPanel::readSelected(const QString& title) {
     const QString p = selectedPath();
-    if (p.isEmpty()) return;
+    if (p.isEmpty()) return std::nullopt;
     QString err;
     auto v = saveload::readVenueFile(p, &err);
     if (!v) {
-        QMessageBox::warning(this, tr("Load venue"),
+        QMessageBox::warning(this, title,
             tr("Could not read %1: %2").arg(QFileInfo(p).fileName(), err));
-        return;
     }
-    emit venueLoadRequested(*v);
+    return v;
+}
+
+void VenueLibraryPanel::onLoad() {
+    if (auto v = readSelected(tr("Load venue"))) emit venueLoadRequested(*v);
+}
+
+void VenueLibraryPanel::onStartLayout() {
+    if (auto v = readSelected(tr("Start layout"))) emit newLayoutRequested(*v);
 }
 
 void VenueLibraryPanel::onDelete() {
@@ -279,6 +291,7 @@ void VenueLibraryPanel::onSelectionChanged() {
 void VenueLibraryPanel::updateButtons() {
     const bool has = !selectedPath().isEmpty();
     loadBtn_->setEnabled(has);
+    startBtn_->setEnabled(has);
     deleteBtn_->setEnabled(has);
     renameBtn_->setEnabled(has);
 }

@@ -8,6 +8,7 @@
 class QAction;
 class QComboBox;
 
+namespace bld::core { struct Venue; }
 namespace bld::parts { class PartsLibrary; }
 
 namespace bld::ui {
@@ -101,6 +102,10 @@ private:
     bool saveBudget(bool askForName);
     void updateTitle();
     bool maybeSave();              // prompts on dirty close
+    bool newDocument();            // File > New; false when the user cancels the save prompt
+    // Venue Library "Start Layout": a new layout (after the usual unsaved-
+    // changes prompt) with that venue in place.
+    void startLayoutFromVenue(const core::Venue& venue);
     bool writeMapTo(const QString& path);
 
     parts::PartsLibrary& parts_;
