@@ -3,10 +3,12 @@ add_executable(bld_saveload_tests
     RealFixtureTest.cpp
     SidecarTest.cpp
     SetIOTest.cpp
+    VenueJsonTest.cpp
 )
 
 target_compile_definitions(bld_saveload_tests PRIVATE
     BLD_BBM_CORPUS_DIR="${CMAKE_SOURCE_DIR}/fixtures/bbm-corpus"
+    BLD_VENUE_FIXTURE="${CMAKE_SOURCE_DIR}/fixtures/venues/grand-lobby.bld-venue"
 )
 
 target_link_libraries(bld_saveload_tests

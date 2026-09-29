@@ -1,4 +1,5 @@
 #include "SidecarIO.h"
+#include "VenueJson.h"
 
 #include "../core/Sidecar.h"
 
@@ -122,80 +123,6 @@ core::Module decodeModule(const QJsonObject& o) {
     if (!at.isEmpty()) m.importedAt = QDateTime::fromString(at, Qt::ISODate);
     return m;
 }
-
-QJsonObject encodeVenue(const core::Venue& v) {
-    QJsonObject o;
-    o[QStringLiteral("name")] = v.name;
-    o[QStringLiteral("enabled")] = v.enabled;
-    o[QStringLiteral("minWalkwayStuds")] = v.minWalkwayStuds;
-    QJsonObject bounds;
-    bounds[QStringLiteral("x")] = v.layoutBoundsStuds.x();
-    bounds[QStringLiteral("y")] = v.layoutBoundsStuds.y();
-    bounds[QStringLiteral("w")] = v.layoutBoundsStuds.width();
-    bounds[QStringLiteral("h")] = v.layoutBoundsStuds.height();
-    o[QStringLiteral("bounds")] = bounds;
-
-    QJsonArray edges;
-    for (const auto& e : v.edges) {
-        QJsonObject eo;
-        eo[QStringLiteral("kind")] = static_cast<int>(e.kind);
-        eo[QStringLiteral("doorWidthStuds")] = e.doorWidthStuds;
-        eo[QStringLiteral("label")] = e.label;
-        QJsonArray pts;
-        for (const auto& p : e.polyline) pts.append(encodePoint(p));
-        eo[QStringLiteral("poly")] = pts;
-        edges.append(eo);
-    }
-    o[QStringLiteral("edges")] = edges;
-
-    QJsonArray obstacles;
-    for (const auto& ob : v.obstacles) {
-        QJsonObject oo;
-        oo[QStringLiteral("label")] = ob.label;
-        QJsonArray pts;
-        for (const auto& p : ob.polygon) pts.append(encodePoint(p));
-        oo[QStringLiteral("poly")] = pts;
-        obstacles.append(oo);
-    }
-    o[QStringLiteral("obstacles")] = obstacles;
-
-    return o;
-}
-
-core::Venue decodeVenue(const QJsonObject& o) {
-    core::Venue v;
-    v.name = o.value(QStringLiteral("name")).toString();
-    v.enabled = o.value(QStringLiteral("enabled")).toBool(true);
-    v.minWalkwayStuds = o.value(QStringLiteral("minWalkwayStuds")).toDouble(v.minWalkwayStuds);
-    auto bounds = o.value(QStringLiteral("bounds")).toObject();
-    v.layoutBoundsStuds = QRectF(
-        bounds.value(QStringLiteral("x")).toDouble(),
-        bounds.value(QStringLiteral("y")).toDouble(),
-        bounds.value(QStringLiteral("w")).toDouble(),
-        bounds.value(QStringLiteral("h")).toDouble());
-    for (const auto& v2 : o.value(QStringLiteral("edges")).toArray()) {
-        const auto eo = v2.toObject();
-        core::VenueEdge e;
-        e.kind = static_cast<core::EdgeKind>(eo.value(QStringLiteral("kind")).toInt());
-        e.doorWidthStuds = eo.value(QStringLiteral("doorWidthStuds")).toDouble();
-        e.label = eo.value(QStringLiteral("label")).toString();
-        for (const auto& p : eo.value(QStringLiteral("poly")).toArray()) {
-            e.polyline.append(decodePoint(p.toObject()));
-        }
-        v.edges.append(e);
-    }
-    for (const auto& v2 : o.value(QStringLiteral("obstacles")).toArray()) {
-        const auto oo = v2.toObject();
-        core::VenueObstacle ob;
-        ob.label = oo.value(QStringLiteral("label")).toString();
-        for (const auto& p : oo.value(QStringLiteral("poly")).toArray()) {
-            ob.polygon.append(decodePoint(p.toObject()));
-        }
-        v.obstacles.append(ob);
-    }
-    return v;
-}
-
 }
 
 QString sidecarPathFor(const QString& bbmPath) {
@@ -241,7 +168,7 @@ QJsonObject sidecarToJson(const core::Sidecar& sidecar) {
     for (const auto& m : sidecar.modules) modules.append(encodeModule(m));
     root[QStringLiteral("modules")] = modules;
 
-    if (sidecar.venue) { root[QStringLiteral("venue")] = encodeVenue(*sidecar.venue); }
+    if (sidecar.venue) { root[QStringLiteral("venue")] = venueToJson(*sidecar.venue); }
 
     if (!sidecar.backgroundImagePath.isEmpty()) {
         QJsonObject bg;
@@ -270,7 +197,7 @@ void sidecarFromJson(const QJsonObject& root, core::Sidecar& out) {
     }
     out.venue.reset();
     if (root.contains(QStringLiteral("venue"))) {
-        out.venue = decodeVenue(root.value(QStringLiteral("venue")).toObject());
+        out.venue = venueFromJson(root.value(QStringLiteral("venue")).toObject());
     }
 
     out.backgroundImagePath.clear();
