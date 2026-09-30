@@ -4,6 +4,7 @@
 // reconnect, and sessions the server ends for good.
 
 #include "FakeSyncServer.h"
+#include "ServerApi.h"
 #include "SyncClient.h"
 
 #include <gtest/gtest.h>
@@ -26,6 +27,7 @@ TEST(SyncClient, SyncsBothWaysOverTheServerProtocol) {
     EXPECT_GT(remoteChanges, 0);
     ASSERT_EQ(server.authHeaders.size(), 1u);
     EXPECT_EQ(server.authHeaders[0], QStringLiteral("Bearer bld_pat_test"));
+    EXPECT_EQ(server.userAgents[0].toUtf8(), sync::userAgent());
 
     // A desktop edit reaches the server.
     auto map = sync::mapFromDocJson(local.toJson());

@@ -1,5 +1,7 @@
 #include "SyncClient.h"
 
+#include "ServerApi.h"
+
 #include "SyncDoc.h"
 #include "SyncProtocol.h"
 
@@ -47,6 +49,7 @@ void SyncClient::connectSocket() {
     if (!wantOpen_) return;
     setStatus(Status::Connecting);
     QNetworkRequest req(url_);
+    req.setHeader(QNetworkRequest::UserAgentHeader, userAgent());
     // Tokens only ever travel in the header (the server ignores query tokens).
     if (!token_.isEmpty()) req.setRawHeader("Authorization", "Bearer " + token_.toUtf8());
     socket_.open(req);

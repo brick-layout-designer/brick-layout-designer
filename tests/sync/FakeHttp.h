@@ -20,7 +20,7 @@
 namespace bld::synctest {
 
 struct Request {
-    QByteArray method, path, authorization, body;
+    QByteArray method, path, authorization, userAgent, body;
     qint64 atMs = 0; // when it arrived
 };
 
@@ -67,6 +67,7 @@ private:
             const QByteArray name = l.left(colon).trimmed().toLower(), value = l.mid(colon + 1).trimmed();
             if (name == "content-length") length = value.toLongLong();
             if (name == "authorization") req.authorization = value;
+            if (name == "user-agent") req.userAgent = value;
         }
         if (buf.size() < headerEnd + 4 + length) return;
         req.body = buf.mid(headerEnd + 4, length);

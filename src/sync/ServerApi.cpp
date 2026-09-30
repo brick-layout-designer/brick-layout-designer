@@ -1,5 +1,6 @@
 #include "ServerApi.h"
 
+#include <QCoreApplication>
 #include <QHostAddress>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -8,6 +9,14 @@
 #include <QNetworkRequest>
 
 namespace bld::sync {
+
+QByteArray userAgent() {
+    const QString version = QCoreApplication::applicationVersion();
+    return QStringLiteral("BrickLayoutDesigner/%1 (desktop)")
+        .arg(version.isEmpty() ? QStringLiteral("dev") : version)
+        .toUtf8();
+}
+
 
 namespace {
 
@@ -56,6 +65,7 @@ QNetworkReply* ServerApi::get(const QString& path) {
     QUrl url = base_;
     url.setPath(path);
     QNetworkRequest req(url);
+    req.setHeader(QNetworkRequest::UserAgentHeader, userAgent());
     if (!token_.isEmpty()) req.setRawHeader("Authorization", "Bearer " + token_.toUtf8());
     return net_.get(req);
 }
@@ -64,6 +74,7 @@ QNetworkReply* ServerApi::post(const QString& path, const QJsonObject& body) {
     QUrl url = base_;
     url.setPath(path);
     QNetworkRequest req(url);
+    req.setHeader(QNetworkRequest::UserAgentHeader, userAgent());
     req.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
     if (!token_.isEmpty()) req.setRawHeader("Authorization", "Bearer " + token_.toUtf8());
     return net_.post(req, QJsonDocument(body).toJson(QJsonDocument::Compact));

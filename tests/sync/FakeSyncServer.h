@@ -52,6 +52,7 @@ public:
         connect(&server_, &QWebSocketServer::newConnection, this, [this] {
             QWebSocket* ws = server_.nextPendingConnection();
             authHeaders.push_back(QString::fromUtf8(ws->request().rawHeader("Authorization")));
+            userAgents.push_back(QString::fromUtf8(ws->request().rawHeader("User-Agent")));
             peers.push_back(ws);
             connect(ws, &QWebSocket::binaryMessageReceived, this, [this, ws](const QByteArray& m) { onMessage(ws, m); });
             connect(ws, &QWebSocket::disconnected, this, [this, ws] {
@@ -100,6 +101,7 @@ public:
     sync::SyncDoc doc;
     std::vector<QWebSocket*> peers;
     std::vector<QString> authHeaders;
+    std::vector<QString> userAgents;
     // The server's awareness: each client id's clock and state, and which
     // connection set which ids.
     QHash<quint32, sync::awareness::Entry> presence;
