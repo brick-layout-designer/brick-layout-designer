@@ -81,7 +81,9 @@ private:
     QString key_;
     theme::PrefsStore& store_;
     QPointer<QWidget> target_;
-    QPointer<QAction> visibilityAction_;
+    // Owned by the toolbar; cleared when it goes (a plain pointer: the
+    // analyzer misreads QPointer's weak reference here).
+    QAction* visibilityAction_ = nullptr;
     QPointer<QLabel> tip_;
     QPointer<HelpPopover> popover_;
     bool hovered_ = false;
