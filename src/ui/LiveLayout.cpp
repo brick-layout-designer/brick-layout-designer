@@ -96,13 +96,14 @@ void LiveLayout::drawPeers() {
             add(outline);
         }
         if (!peer.cursor) continue;
+        const QPointF cursor = *peer.cursor;
         // The web's pointer arrow and name pill, the same size at any zoom.
         auto* arrow = new QGraphicsPolygonItem(
             QPolygonF({ { 0, 0 }, { 0, 16 }, { 4, 12 }, { 9, 22 }, { 11, 21 }, { 7, 11 }, { 12, 11 } }));
         arrow->setBrush(color);
         arrow->setPen(QPen(Qt::black, 0.5));
         arrow->setFlag(QGraphicsItem::ItemIgnoresTransformations);
-        arrow->setPos(*peer.cursor * px);
+        arrow->setPos(cursor * px);
         add(arrow);
         auto* name = new QGraphicsSimpleTextItem(sync::presence::label(peer.name), arrow);
         QFont f = name->font();
