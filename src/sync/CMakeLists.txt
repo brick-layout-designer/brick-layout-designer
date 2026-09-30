@@ -81,6 +81,8 @@ add_library(bld_sync STATIC
     PartsSync.cpp
     TokenStore.h
     TokenStore.cpp
+    LayoutMerge.h
+    LayoutMerge.cpp
 )
 target_include_directories(bld_sync
     PUBLIC  ${CMAKE_CURRENT_SOURCE_DIR}
