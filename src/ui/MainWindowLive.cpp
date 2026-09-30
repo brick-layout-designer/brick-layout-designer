@@ -15,6 +15,7 @@
 
 #include "ConnectDialog.h"
 #include "PartsUpload.h"
+#include "PartsSync.h"
 #include "ServerApi.h"
 #include "TokenStore.h"
 #include "UploadPartsDialog.h"
@@ -27,6 +28,7 @@
 #include <QLabel>
 #include <QMenu>
 #include <QMessageBox>
+#include <QStandardPaths>
 #include <QStatusBar>
 #include <QUndoStack>
 
@@ -176,6 +178,7 @@ void MainWindow::openLive(const sync::ConnectResult& r) {
             });
     connect(who, &sync::ServerApi::requestFailed, who, &QObject::deleteLater);
     who->fetchCurrentUser();
+    syncServerParts(r.server, r.token);
     updateLiveUi();
 }
 
@@ -201,6 +204,39 @@ void MainWindow::onDownloadVenues() {
     if (!saved.isEmpty())
         statusBar()->showMessage(
             tr("Added %n venue(s) to the Venue Library", nullptr, static_cast<int>(saved.size())), 5000);
+}
+
+void MainWindow::syncServerParts(const QUrl& server, const QString& token) {
+    const QString root = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
+                         + QStringLiteral("/server-parts/")
+                         + QString(server.host()).replace(QLatin1Char(':'), QLatin1Char('_'));
+    auto* job = new sync::PartsSync(server, token, root, this);
+    connect(job, &sync::PartsSync::progress, this, [this](int done, int total) {
+        statusBar()->showMessage(tr("Downloading server parts: %1 of %2").arg(done).arg(total), 2000);
+    });
+    connect(job, &sync::PartsSync::failed, this, [this, job](const QString& message, bool) {
+        statusBar()->showMessage(tr("Could not read the server's parts: %1").arg(message), 6000);
+        job->deleteLater();
+    });
+    connect(job, &sync::PartsSync::finished, this, [this, job, root](const sync::PartsSyncResult& r) {
+        job->deleteLater();
+        // The server's folder joins the library paths once, then the library reloads when anything came in.
+        QStringList paths = loadUserLibraryPaths();
+        const bool added = !paths.contains(root);
+        if (added) {
+            paths << root;
+            saveUserLibraryPaths(paths);
+        }
+        if (added || r.downloaded > 0 || r.removed > 0) onReloadLibrary();
+        statusBar()->showMessage(
+            r.failed.isEmpty() ? tr("Server parts up to date (%n file(s) downloaded)", nullptr, r.downloaded)
+                               : tr("Server parts: %1 downloaded, %2 failed (%3)")
+                                     .arg(r.downloaded)
+                                     .arg(r.failed.size())
+                                     .arg(r.failed.first()),
+            6000);
+    });
+    job->start();
 }
 
 void MainWindow::onDisconnect() {
