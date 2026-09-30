@@ -21,6 +21,8 @@
 
 #include <memory>
 
+class QTimer;
+
 namespace bld::core { class Map; }
 
 namespace bld::sync {
@@ -77,10 +79,12 @@ private:
     void remoteArrived();
 
     void sendPresence();
+    void dropStalePeers();
 
     quint32 clientId_;
     quint32 presenceClock_ = 0;
     std::optional<QJsonObject> presence_;
+    QTimer* renew_ = nullptr;
     awareness::Peers peers_;
     SyncDoc doc_;
     SyncClient client_;
