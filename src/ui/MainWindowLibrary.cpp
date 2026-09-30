@@ -99,7 +99,8 @@ QString MainWindow::registerImportedPart(const QString& xmlAbsPath) {
 
     // A re-import that replaced an existing part: drop the stale entry
     // and cached sprite, and redraw copies already on the map.
-    const QString stem = QFileInfo(xmlAbsPath).completeBaseName();
+    QString stem = QFileInfo(xmlAbsPath).completeBaseName();
+    if (stem.endsWith(QLatin1String(".set"), Qt::CaseInsensitive)) stem.chop(4);  // a set's key
     const bool replaced = parts_.metadata(stem).has_value();
     if (replaced) parts_.forget(stem);
 

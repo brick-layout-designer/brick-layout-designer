@@ -463,3 +463,85 @@ TEST(LayoutFile, ReadsTheSharedFixtureWithParts) {
     EXPECT_EQ(read.partFiles.value(QStringLiteral("CLDTEST.1.xml")), leafXml("Brick Layout Designer tests"));
     EXPECT_EQ(QImage::fromData(read.partFiles.value(QStringLiteral("CLDTEST.1.png"))).size(), QSize(32, 16));
 }
+
+namespace {
+
+QByteArray fileBytes(const QString& path) {
+    QFile f(path);
+    return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
+}
+
+}  // namespace
+
+TEST(LayoutFile, UsingTheLayoutsPartBacksUpMineFirst) {
+    TwoLibraries libs;
+    // The layout's MINE.1: other XML and only a .png.
+    const QMap<QString, QByteArray> files{ { QStringLiteral("MINE.1.xml"), leafXml("Someone else") },
+                                           { QStringLiteral("MINE.1.png"), QByteArray("\x89PNG-theirs") },
+                                           { QStringLiteral("OTHER.1.xml"), leafXml("x") } };
+    const auto theirs = filesOfPart(files, QStringLiteral("MINE.1"));
+    EXPECT_EQ(theirs.keys(), (QStringList{ QStringLiteral("MINE.1.png"), QStringLiteral("MINE.1.xml") }));
+
+    const QString backup = libs.dir.filePath(QStringLiteral("replaced/20260930-120000"));
+    QString error;
+    ASSERT_TRUE(replaceLocalPart(libs.mine + QStringLiteral("/MINE.1.xml"), theirs, backup, &error))
+        << error.toStdString();
+    EXPECT_EQ(fileBytes(backup + QStringLiteral("/MINE.1.xml")), leafXml("Me"));
+    EXPECT_EQ(fileBytes(backup + QStringLiteral("/MINE.1.png")), QByteArray("\x89PNG-mine"));
+    EXPECT_EQ(fileBytes(backup + QStringLiteral("/MINE.1.gif")), QByteArray("GIF89a-mine"));
+    EXPECT_EQ(fileBytes(libs.mine + QStringLiteral("/MINE.1.xml")), leafXml("Someone else"));
+    EXPECT_EQ(fileBytes(libs.mine + QStringLiteral("/MINE.1.png")), QByteArray("\x89PNG-theirs"));
+    // Their part has no .gif, so mine goes rather than mixing the two.
+    EXPECT_FALSE(QFile::exists(libs.mine + QStringLiteral("/MINE.1.gif")));
+    EXPECT_FALSE(QFile::exists(libs.mine + QStringLiteral("/OTHER.1.xml")));
+    // Other parts are left alone.
+    EXPECT_EQ(fileBytes(libs.mine + QStringLiteral("/sub/SUB.1.xml")), leafXml("Me"));
+    EXPECT_FALSE(QFile::exists(backup + QStringLiteral("/SUB.1.xml")));
+}
+
+TEST(LayoutFile, KeepingBothAddsTheLayoutsPartUnderTheNextFreeNumber) {
+    TwoLibraries libs;
+    EXPECT_EQ(unusedPartKey(QStringLiteral("MINE.1"), libs.library), QStringLiteral("MINE-2.1"));
+    writeFile(libs.mine + QStringLiteral("/MINE-2.1.xml"), leafXml("Me"));
+    libs.library.scanFile(libs.mine + QStringLiteral("/MINE-2.1.xml"));
+    EXPECT_EQ(unusedPartKey(QStringLiteral("MINE.1"), libs.library), QStringLiteral("MINE-3.1"));
+    EXPECT_EQ(unusedPartKey(QStringLiteral("KIT.1"), libs.library), QStringLiteral("KIT-2.1"));
+
+    const QMap<QString, QByteArray> files{ { QStringLiteral("MINE.1.xml"), leafXml("Someone else") },
+                                           { QStringLiteral("MINE.1.png"), QByteArray("\x89PNG-theirs") },
+                                           { QStringLiteral("KIT.1.set.xml"), setXml({ QStringLiteral("STD.1") }) },
+                                           { QStringLiteral("SUB.1.xml"), leafXml("x") } };
+    const QString dir = libs.dir.filePath(QStringLiteral("layout-parts"));
+    EXPECT_EQ(installPartAs(files, QStringLiteral("MINE.1"), QStringLiteral("MINE-3.1"), dir),
+              dir + QStringLiteral("/MINE-3.1.xml"));
+    EXPECT_EQ(fileBytes(dir + QStringLiteral("/MINE-3.1.xml")), leafXml("Someone else"));
+    EXPECT_EQ(fileBytes(dir + QStringLiteral("/MINE-3.1.png")), QByteArray("\x89PNG-theirs"));
+    EXPECT_EQ(installPartAs(files, QStringLiteral("KIT.1.set"), QStringLiteral("KIT-2.1.set"), dir),
+              dir + QStringLiteral("/KIT-2.1.set.xml"));
+    EXPECT_EQ(QDir(dir).entryList(QDir::Files),
+              (QStringList{ QStringLiteral("KIT-2.1.set.xml"), QStringLiteral("MINE-3.1.png"),
+                            QStringLiteral("MINE-3.1.xml") }));
+    // Taken in, the set is a part of its own.
+    EXPECT_EQ(libs.library.scanFile(dir + QStringLiteral("/KIT-2.1.set.xml")).toUpper(), QStringLiteral("KIT-2.1"));
+    EXPECT_TRUE(libs.library.metadata(QStringLiteral("KIT.1")).has_value());
+}
+
+TEST(LayoutFile, RenamingAPartTouchesOnlyThatPart) {
+    auto map = mapUsing({ QStringLiteral("MINE.1"), QStringLiteral("STD.1"), QStringLiteral("mine.1") },
+                        QStringLiteral("MINE.1"));
+    auto& layer = static_cast<core::LayerBrick&>(*map->layers().front());
+    core::Group user;  // a group of the user's own has no part number
+    layer.groups.push_back(user);
+    core::Group kit;
+    kit.partNumber = QStringLiteral("KIT.1");
+    layer.groups.push_back(kit);
+
+    EXPECT_EQ(renamePartInMap(*map, QStringLiteral("MINE.1"), QStringLiteral("MINE-2.1")), 3);
+    EXPECT_EQ(layer.bricks[0].partNumber, QStringLiteral("MINE-2.1"));
+    EXPECT_EQ(layer.bricks[1].partNumber, QStringLiteral("STD.1"));
+    EXPECT_EQ(layer.bricks[2].partNumber, QStringLiteral("MINE-2.1"));
+    EXPECT_EQ(layer.groups[0].partNumber, QStringLiteral("MINE-2.1"));
+    EXPECT_TRUE(layer.groups[1].partNumber.isEmpty());
+    EXPECT_EQ(layer.groups[2].partNumber, QStringLiteral("KIT.1"));
+    EXPECT_EQ(renamePartInMap(*map, QStringLiteral("NONE.1"), QStringLiteral("X.1")), 0);
+}

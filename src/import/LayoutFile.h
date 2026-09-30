@@ -60,7 +60,7 @@ bool isLayoutPartFileName(const QString& name);
 
 struct LayoutPartsInstall {
     QStringList newParts;   // XML paths written to `dir`, for the library to take in
-    QStringList differing;  // part keys the library already has with other XML: the library's are kept
+    QStringList differing;  // part keys the library already has with other XML: nothing is written for them
     QStringList failed;     // file names that couldn't be written
 };
 
@@ -68,5 +68,35 @@ struct LayoutPartsInstall {
 // the library already has keeps the library's definition.
 LayoutPartsInstall installLayoutParts(const QMap<QString, QByteArray>& files, const QString& dir,
                                       const parts::PartsLibrary& library);
+
+// One part's files in `files` (a layout's parts, by file name): the XML and
+// sprites named <key> or, for a set, <key>.set.
+QMap<QString, QByteArray> filesOfPart(const QMap<QString, QByteArray>& files, const QString& key);
+
+// The library's files for `key`: its XML and the sprites beside it, by file name.
+QMap<QString, QByteArray> libraryFilesOfPart(const parts::PartsLibrary& library, const QString& key);
+
+// "Use the layout's": copies the part at `localXmlPath` (the XML and its
+// sprites) into `backupDir`, then writes the layout's `files` for that part
+// in its place under the same names. Sprites of the old part that the
+// layout's lacks are removed (they're in the backup). False, with `error`
+// set, when a file couldn't be backed up or written; nothing is removed
+// before the backup is complete.
+bool replaceLocalPart(const QString& localXmlPath, const QMap<QString, QByteArray>& files,
+                      const QString& backupDir, QString* error = nullptr);
+
+// A part key like `key` the library doesn't have: <PartNumber>-2.<Color>,
+// then -3 and on.
+QString unusedPartKey(const QString& key, const parts::PartsLibrary& library);
+
+// "Keep both": writes the files in `files` named <stem>.* to `dir` as
+// <newStem>.*. For a set, `stem` and `newStem` end in ".set". Returns the
+// XML path written, or empty when nothing could be.
+QString installPartAs(const QMap<QString, QByteArray>& files, const QString& stem, const QString& newStem,
+                      const QString& dir);
+
+// Points the bricks and library groups of part `from` at `to` (keys match
+// without case). Returns how many changed.
+int renamePartInMap(core::Map& map, const QString& from, const QString& to);
 
 }  // namespace bld::import

@@ -2,6 +2,8 @@
 
 #include "ui/LibraryPathsDialog.h"
 #include "ui/MainWindow.h"
+#include "ui/MapView.h"
+#include "ui/PartDifferencesDialog.h"
 #include "ui/UpdateCheck.h"
 
 #include "core/LayerBrick.h"
@@ -16,6 +18,7 @@
 #include <gtest/gtest.h>
 
 #include <QAction>
+#include <QComboBox>
 #include <QApplication>
 #include <QBuffer>
 #include <QDir>
@@ -286,4 +289,116 @@ TEST_F(MainWindowFile, OpeningALayoutAddsThePartsItCarries) {
     s.setValue(ui::LibraryPathsDialog::kSettingsKey, paths);
     s.endGroup();
     QDir(layoutPartsDir()).removeRecursively();
+}
+
+namespace {
+
+// Answers the part differences dialog: `choice` for every row, then Apply.
+std::function<void(QWidget*)> chooseForEachPart(const QString& choice) {
+    return [choice](QWidget* w) {
+        auto* dialog = qobject_cast<ui::PartDifferencesDialog*>(w);
+        ASSERT_NE(dialog, nullptr);
+        for (auto* combo : dialog->findChildren<QComboBox*>()) combo->setCurrentText(choice);
+        for (auto* b : dialog->findChildren<QPushButton*>())
+            if (b->text() == QStringLiteral("Apply")) b->click();
+    };
+}
+
+QByteArray theirXml() {
+    return QByteArrayLiteral("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<part>\n\t<Author>Someone else</Author>\n"
+                             "\t<Description>\n\t\t<en>Their part</en>\n\t</Description>\n</part>\n");
+}
+
+QByteArray readBytes(const QString& path) {
+    QFile f(path);
+    return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
+}
+
+}  // namespace
+
+// The user's own MYPART.1, and a layout carrying a different MYPART.1.
+class MainWindowPartDifferences : public MainWindowFile {
+protected:
+    void SetUp() override {
+        MainWindowFile::SetUp();
+        QDir(layoutPartsDir()).removeRecursively();
+        QDir(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + QStringLiteral("/replaced-parts"))
+            .removeRecursively();
+        mine_ = dir_.filePath(QStringLiteral("mine"));
+        QDir().mkpath(mine_);
+        QFile xml(mine_ + QStringLiteral("/MYPART.1.xml"));
+        ASSERT_TRUE(xml.open(QIODevice::WriteOnly));
+        xml.write(partXml());
+        xml.close();
+        parts_.addSearchPath(mine_);
+        parts_.scan();
+        ASSERT_TRUE(parts_.metadata(QStringLiteral("MYPART.1")));
+        QString error;
+        file_ = dir_.filePath(QStringLiteral("theirs.bld-layout"));
+        ASSERT_TRUE(import::writeLayoutFile(*oneBrickOf(QStringLiteral("MYPART.1")), file_, &error, nullptr,
+                                            { { QStringLiteral("MYPART.1.xml"), theirXml() },
+                                              { QStringLiteral("MYPART.1.png"), partGif() } }));
+    }
+    void TearDown() override {
+        QSettings s;
+        s.beginGroup(ui::LibraryPathsDialog::kSettingsGroup);
+        QStringList paths = s.value(ui::LibraryPathsDialog::kSettingsKey).toStringList();
+        paths.removeAll(layoutPartsDir());
+        s.setValue(ui::LibraryPathsDialog::kSettingsKey, paths);
+        s.endGroup();
+        QDir(layoutPartsDir()).removeRecursively();
+        QDir(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + QStringLiteral("/replaced-parts"))
+            .removeRecursively();
+        MainWindowFile::TearDown();
+    }
+    QString brickPart() {
+        const auto* map = window_->findChild<ui::MapView*>()->currentMap();
+        return static_cast<const core::LayerBrick&>(*map->layers().front()).bricks.front().partNumber;
+    }
+
+    QString mine_, file_;
+};
+
+TEST_F(MainWindowPartDifferences, UsingTheLayoutsPartReplacesMine) {
+    Answers answers{ { chooseForEachPart(QStringLiteral("Use the layout's")) } };
+    bool opened = false;
+    answers.during([&] { opened = window_->openFile(file_); });
+    ASSERT_TRUE(opened);
+    EXPECT_EQ(answers.unexpected, 0);
+    const auto meta = parts_.metadata(QStringLiteral("MYPART.1"));
+    ASSERT_TRUE(meta);
+    EXPECT_EQ(meta->author, QStringLiteral("Someone else"));
+    EXPECT_EQ(readBytes(mine_ + QStringLiteral("/MYPART.1.xml")), theirXml());
+    EXPECT_FALSE(meta->gifFilePath.isEmpty());
+    // The old one is in replaced-parts/<time>/.
+    QDir backups(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + QStringLiteral("/replaced-parts"));
+    const QStringList stamps = backups.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+    ASSERT_EQ(stamps.size(), 1);
+    EXPECT_EQ(readBytes(backups.filePath(stamps.front() + QStringLiteral("/MYPART.1.xml"))), partXml());
+    EXPECT_EQ(brickPart(), QStringLiteral("MYPART.1"));
+}
+
+TEST_F(MainWindowPartDifferences, KeepingBothSwitchesTheLayoutToTheNewNumber) {
+    Answers answers{ { chooseForEachPart(QStringLiteral("Keep both")) } };
+    answers.during([&] { ASSERT_TRUE(window_->openFile(file_)); });
+    EXPECT_EQ(answers.unexpected, 0);
+    EXPECT_EQ(parts_.metadata(QStringLiteral("MYPART.1"))->author, QStringLiteral("Me"));
+    const auto added = parts_.metadata(QStringLiteral("MYPART-2.1"));
+    ASSERT_TRUE(added);
+    EXPECT_EQ(added->author, QStringLiteral("Someone else"));
+    EXPECT_TRUE(added->xmlFilePath.startsWith(layoutPartsDir()));
+    EXPECT_EQ(brickPart(), QStringLiteral("MYPART-2.1"));
+}
+
+TEST_F(MainWindowPartDifferences, KeepAllMineChangesNothing) {
+    Answers answers{ { [](QWidget* w) {
+        auto* dialog = qobject_cast<ui::PartDifferencesDialog*>(w);
+        ASSERT_NE(dialog, nullptr);
+        dialog->reject();
+    } } };
+    answers.during([&] { ASSERT_TRUE(window_->openFile(file_)); });
+    EXPECT_EQ(parts_.metadata(QStringLiteral("MYPART.1"))->author, QStringLiteral("Me"));
+    EXPECT_EQ(readBytes(mine_ + QStringLiteral("/MYPART.1.xml")), partXml());
+    EXPECT_FALSE(parts_.metadata(QStringLiteral("MYPART-2.1")));
+    EXPECT_EQ(brickPart(), QStringLiteral("MYPART.1"));
 }
