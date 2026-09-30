@@ -15,7 +15,9 @@
 #include <QComboBox>
 #include <QCoreApplication>
 #include <QElapsedTimer>
+#include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QListWidget>
@@ -180,6 +182,49 @@ TEST(PartsToOffer, NeverOffersBundledParts) {
                     localPart(QStringLiteral("MY.1")) },
         {}, bundled);
     EXPECT_EQ(keysOf(offered), QStringList{ QStringLiteral("MY.1") });
+}
+
+TEST(PartsToOffer, RecognisesBundledPartsWhateverTheRootsSpelling) {
+    // Windows hands paths over with '\\', a trailing separator, and the
+    // drive / folder names in whatever case: the bundled root and the parts
+    // found under it must still match.
+    const auto map = mapUsing({ QStringLiteral("3001.8"), QStringLiteral("3002.8"), QStringLiteral("MY.1") });
+    const QString root = QStringLiteral("/Opt/BLD/parts\\BlueBrickParts\\parts\\");
+    const auto offered = partsToOffer(
+        *map, {},
+        { localPart(QStringLiteral("3001.8"), QStringLiteral("/opt/bld/parts/BlueBrickParts/parts/Brick")),
+          localPart(QStringLiteral("3002.8"), QStringLiteral("\\opt\\bld\\parts\\BlueBrickParts/parts\\Plate")),
+          localPart(QStringLiteral("MY.1")) },
+        {}, root);
+    EXPECT_EQ(keysOf(offered), QStringList{ QStringLiteral("MY.1") });
+}
+
+TEST(PartsToOffer, BundledRootIsAFolderNotAPrefix) {
+    // "parts2" isn't inside "parts".
+    const auto map = mapUsing({ QStringLiteral("MY.1") });
+    const auto offered = partsToOffer(*map, {}, { localPart(QStringLiteral("MY.1"), QStringLiteral("/opt/bld/parts2")) },
+                                      {}, QStringLiteral("/opt/bld/parts"));
+    EXPECT_EQ(keysOf(offered), QStringList{ QStringLiteral("MY.1") });
+}
+
+TEST(PartsToOffer, RecognisesBundledPartsThroughALinkedRoot) {
+#ifdef Q_OS_WIN
+    GTEST_SKIP() << "QFile::link makes a .lnk shortcut on Windows, not a folder link";
+#else
+    // The installed library reached through a link (or, on Windows, an
+    // 8.3 short name): the parts, listed by their real path, are still in it.
+    QTemporaryDir dir;
+    ASSERT_TRUE(QDir(dir.path()).mkpath(QStringLiteral("real/parts/Brick")));
+    write(dir.filePath(QStringLiteral("real/parts/Brick/3001.8.xml")), "<part/>");
+    ASSERT_TRUE(QFile::link(dir.filePath(QStringLiteral("real/parts")), dir.filePath(QStringLiteral("linked"))));
+    const auto map = mapUsing({ QStringLiteral("3001.8"), QStringLiteral("MY.1") });
+    const auto offered = partsToOffer(
+        *map, {},
+        { localPart(QStringLiteral("3001.8"), QFileInfo(dir.filePath(QStringLiteral("real/parts/Brick"))).canonicalFilePath()),
+          localPart(QStringLiteral("MY.1")) },
+        {}, dir.filePath(QStringLiteral("linked")));
+    EXPECT_EQ(keysOf(offered), QStringList{ QStringLiteral("MY.1") });
+#endif
 }
 
 TEST(PartsToOffer, SkipsPartsTheServerKnowsIgnoringCase) {

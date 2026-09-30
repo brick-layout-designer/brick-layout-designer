@@ -38,6 +38,47 @@ QString englishDescription(const QByteArray& xml) {
     return {};
 }
 
+// A path in one comparable spelling: '/' separators (Windows paths may
+// arrive with '\\'), cleaned, absolute, and, for the part that exists on
+// disk, the real (canonical) spelling, so a symlinked or 8.3-style root and
+// the files found under it agree. Both sides of a comparison go through
+// this same function: mixing QDir::absolutePath (which leaves a drive-less
+// "/opt/..." alone on Windows) with QFileInfo::absoluteFilePath (which
+// gives it the current drive, "C:/opt/...") is what hid bundled parts there.
+QString comparablePath(const QString& path) {
+    if (path.isEmpty()) return {};
+    const QString slashed = QDir::fromNativeSeparators(path).replace(QLatin1Char('\\'), QLatin1Char('/'));
+    const QString abs = QDir::cleanPath(QFileInfo(slashed).absoluteFilePath());
+    // Canonicalise the deepest part that exists and keep the rest as written.
+    QString head = abs, tail;
+    for (;;) {
+        const QString real = QFileInfo(head).canonicalFilePath();
+        if (!real.isEmpty()) {
+            if (tail.isEmpty()) return real;
+            return real.endsWith(QLatin1Char('/')) ? real + tail : real + QLatin1Char('/') + tail;
+        }
+        const qsizetype slash = head.lastIndexOf(QLatin1Char('/'));
+        if (slash < 0) break;
+        // Stop at the root, "/" or "C:/".
+        const bool atRoot = slash == 0 || (slash == 2 && head.at(1) == QLatin1Char(':'));
+        const QString parent = atRoot ? head.left(slash + 1) : head.left(slash);
+        if (parent == head) break;
+        const QString name = head.mid(slash + 1);
+        tail = tail.isEmpty() ? name : name + QLatin1Char('/') + tail;
+        head = parent;
+    }
+    return abs;
+}
+
+// Whether `path` lies below the folder `root`. Case-insensitive: Windows and
+// macOS file systems are, and the drive letter's case varies on Windows.
+bool isPathUnder(const QString& path, const QString& root) {
+    const QString r = comparablePath(root), p = comparablePath(path);
+    if (r.isEmpty() || p.isEmpty()) return false;
+    const QString prefix = r.endsWith(QLatin1Char('/')) ? r : r + QLatin1Char('/');
+    return p.startsWith(prefix, Qt::CaseInsensitive);
+}
+
 } // namespace
 
 PartsUpload::PartsUpload(QUrl server, QString token, QObject* parent)
@@ -170,8 +211,6 @@ QList<LocalPart> partsToOffer(const core::Map& map, const QSet<QString>& serverK
                               const QList<LocalPart>& local, const QSet<QString>& alreadyAsked,
                               const QString& bundledRoot) {
     const QSet<QString> used = partNumbersIn(map);
-    const QString bundled =
-        bundledRoot.isEmpty() ? QString() : QDir::cleanPath(QDir(bundledRoot).absolutePath()) + QLatin1Char('/');
     QList<LocalPart> out;
     QSet<QString> offered;
     for (const auto& p : local) {
@@ -179,9 +218,7 @@ QList<LocalPart> partsToOffer(const core::Map& map, const QSet<QString>& serverK
         if (!used.contains(key) || serverKnown.contains(key) || alreadyAsked.contains(key)
             || offered.contains(key))
             continue;
-        if (!bundled.isEmpty()
-            && QDir::cleanPath(QFileInfo(p.xmlPath).absoluteFilePath()).startsWith(bundled, Qt::CaseInsensitive))
-            continue;
+        if (!bundledRoot.isEmpty() && isPathUnder(p.xmlPath, bundledRoot)) continue;
         offered.insert(key);
         out << p;
     }
