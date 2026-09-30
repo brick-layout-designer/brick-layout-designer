@@ -1,5 +1,7 @@
 #include "../parts/PartsLibrary.h"
 #include "../ui/MainWindow.h"
+#include "../ui/theme/AppPrefs.h"
+#include "../ui/theme/ThemeManager.h"
 
 #include <QApplication>
 #include <QCommandLineParser>
@@ -94,6 +96,11 @@ int main(int argc, char** argv) {
             QCoreApplication::installTranslator(&qtTranslator);
         }
     }
+
+    // The look (Edit > Settings...): light / dark / match my computer, the
+    // colour and bigger text, with the embedded fonts.
+    bld::ui::theme::ThemeManager theme(bld::ui::theme::PrefsStore::instance());
+    theme.apply();
 
     bld::parts::PartsLibrary lib;
     bld::ui::MainWindow window(lib);

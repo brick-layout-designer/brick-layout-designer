@@ -56,7 +56,7 @@ QString detailText(const bld::core::Venue& v) {
 }  // namespace
 
 VenueLibraryPanel::VenueLibraryPanel(QWidget* parent)
-    : QDockWidget(tr("Venue Library"), parent) {
+    : QDockWidget(tr("Room Library"), parent) {
     auto* host = new QWidget(this);
     auto* col  = new QVBoxLayout(host);
     col->setContentsMargins(4, 4, 4, 4);
@@ -93,14 +93,14 @@ VenueLibraryPanel::VenueLibraryPanel(QWidget* parent)
     loadBtn_   = new QPushButton(tr("Load into Project"), host);
     startBtn_  = new QPushButton(tr("Start Layout"), host);
     startBtn_->setObjectName(QStringLiteral("venueStartLayout"));
-    startBtn_->setToolTip(tr("Start a new layout with this venue"));
-    newBtn_ = new QPushButton(tr("New Venue…"), host);
+    startBtn_->setToolTip(tr("Start a new layout in this room"));
+    newBtn_ = new QPushButton(tr("New Room…"), host);
     newBtn_->setObjectName(QStringLiteral("venueNew"));
-    newBtn_->setToolTip(tr("Design a new venue in the Venue Designer"));
+    newBtn_->setToolTip(tr("Design a new room"));
     designBtn_ = new QPushButton(tr("Design…"), host);
     designBtn_->setObjectName(QStringLiteral("venueDesign"));
-    designBtn_->setToolTip(tr("Open this venue in the Venue Designer"));
-    saveBtn_   = new QPushButton(tr("Save Current Venue"), host);
+    designBtn_->setToolTip(tr("Open this room in the designer"));
+    saveBtn_   = new QPushButton(tr("Save Current Room"), host);
     deleteBtn_ = new QPushButton(tr("Delete"), host);
     renameBtn_ = new QPushButton(tr("Rename…"), host);
     btnRow->addWidget(loadBtn_);
@@ -170,7 +170,7 @@ void VenueLibraryPanel::refresh() {
     }
 
     if (files.isEmpty()) {
-        auto* e = new QListWidgetItem(tr("(no saved venues)"));
+        auto* e = new QListWidgetItem(tr("(no saved rooms)"));
         e->setFlags(Qt::NoItemFlags);
         list_->addItem(e);
     }

@@ -127,6 +127,7 @@ void MainWindow::setupMapMenu() {
         mapView_->viewport()->update();
     });
     auto* infoAct = mapMenu->addAction(tr("General &Info..."));
+    generalInfoAct_ = infoAct;
     connect(infoAct, &QAction::triggered, this, [this]{
         auto* m = mapView_->currentMap();
         if (!m) return;
@@ -157,8 +158,8 @@ void MainWindow::setupMapMenu() {
     });
 
     mapMenu->addSeparator();
-    auto* venueMenu = mapMenu->addMenu(tr("&Venue"));
-    auto* designerAct = venueMenu->addAction(tr("Open Venue &Designer..."));
+    auto* venueMenu = mapMenu->addMenu(tr("&Room"));
+    auto* designerAct = venueMenu->addAction(tr("Open Room &Designer..."));
     designerAct->setToolTip(
         tr("Design this layout's venue: walls, doors, openings, columns, stairs, power, measurements."));
     connect(designerAct, &QAction::triggered, this, [this] {
@@ -231,7 +232,7 @@ void MainWindow::setupMapMenu() {
             8000);
     });
     venueMenu->addSeparator();
-    auto* editVenueAct = venueMenu->addAction(tr("&Edit Venue Properties..."));
+    auto* editVenueAct = venueMenu->addAction(tr("&Edit Room Properties..."));
     connect(editVenueAct, &QAction::triggered, this, [this]{
         auto* m = mapView_->currentMap();
         if (!m) return;
@@ -243,7 +244,7 @@ void MainWindow::setupMapMenu() {
             mapView_->undoStack()->push(new edit::SetVenueCommand(*m, dlg.result()));
         }
     });
-    auto* clearVenueAct = venueMenu->addAction(tr("&Clear Venue"));
+    auto* clearVenueAct = venueMenu->addAction(tr("&Clear Room"));
     connect(clearVenueAct, &QAction::triggered, this, [this]{
         auto* m = mapView_->currentMap();
         if (!m || !m->sidecar.venue) return;
@@ -255,14 +256,14 @@ void MainWindow::setupMapMenu() {
 
     venueMenu->addSeparator();
 
-    auto* showLibraryAct = venueMenu->addAction(tr("Venue &Library..."));
-    showLibraryAct->setToolTip(tr("Open the Venue Library panel to browse, load, or save venues."));
+    auto* showLibraryAct = venueMenu->addAction(tr("Room &Library..."));
+    showLibraryAct->setToolTip(tr("Open the Room Library panel to browse, load, or save rooms."));
     connect(showLibraryAct, &QAction::triggered, this, [this]{
         venueLibraryPanel_->show();
         venueLibraryPanel_->raise();
     });
 
-    auto* loadVenueFileAct = venueMenu->addAction(tr("Load Venue from &File..."));
+    auto* loadVenueFileAct = venueMenu->addAction(tr("Load Room from &File..."));
     connect(loadVenueFileAct, &QAction::triggered, this, [this]{
         auto* m = mapView_->currentMap();
         if (!m) return;

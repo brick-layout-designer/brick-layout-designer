@@ -11,6 +11,8 @@ add_executable(bld_ui_tests
     VenueDesignerDialogTest.cpp
     PartDifferencesDialogTest.cpp
     MainWindowFileTest.cpp
+    ThemeTest.cpp
+    SettingsDialogTest.cpp
 )
 
 target_compile_definitions(bld_ui_tests PRIVATE

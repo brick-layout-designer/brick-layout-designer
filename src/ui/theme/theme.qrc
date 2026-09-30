@@ -1,0 +1,17 @@
+<!DOCTYPE RCC>
+<RCC version="1.0">
+    <!-- Figtree (github.com/erikdkennedy/figtree) and Bricolage Grotesque
+         (github.com/ateliertriay/bricolage), both SIL Open Font License 1.1;
+         the licence texts sit beside them. Embedded so the app never
+         fetches fonts. -->
+    <qresource prefix="/bld">
+        <file>fonts/Figtree-Regular.ttf</file>
+        <file>fonts/Figtree-Medium.ttf</file>
+        <file>fonts/Figtree-SemiBold.ttf</file>
+        <file>fonts/Figtree-Bold.ttf</file>
+        <file>fonts/BricolageGrotesque-Medium.ttf</file>
+        <file>fonts/BricolageGrotesque-Bold.ttf</file>
+        <file>fonts/OFL-Figtree.txt</file>
+        <file>fonts/OFL-BricolageGrotesque.txt</file>
+    </qresource>
+</RCC>

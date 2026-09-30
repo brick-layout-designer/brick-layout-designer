@@ -62,6 +62,20 @@ add_library(bld_ui STATIC
     venue/VenueDesignerDialog.h
     venue/VenueDesignerView.cpp
     venue/VenueDesignerView.h
+    MainWindowShell.cpp
+    SettingsDialog.cpp
+    SettingsDialog.h
+    theme/Tokens.cpp
+    theme/Tokens.h
+    theme/AppPrefs.cpp
+    theme/AppPrefs.h
+    theme/ThemeManager.cpp
+    theme/ThemeManager.h
+    theme/Icons.cpp
+    theme/Icons.h
+    theme/PanelHeader.cpp
+    theme/PanelHeader.h
+    theme/theme.qrc
 )
 
 target_link_libraries(bld_ui
@@ -86,7 +100,7 @@ target_compile_definitions(bld_ui PRIVATE BLD_HELP_SOURCE_DIR="${CMAKE_SOURCE_DI
 # Live layouts on a collaborative server (File › Connect to Server…), only
 # with -DBLD_SYNC=ON.
 if(BLD_SYNC)
-    target_sources(bld_ui PRIVATE LiveLayout.cpp LiveLayout.h MainWindowLive.cpp)
+    target_sources(bld_ui PRIVATE LiveLayout.cpp LiveLayout.h MainWindowLive.cpp PrefsSync.cpp PrefsSync.h)
     target_link_libraries(bld_ui PUBLIC bld_sync_ui)
     target_compile_definitions(bld_ui PUBLIC BLD_SYNC=1)
 endif()
