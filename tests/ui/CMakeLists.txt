@@ -1,3 +1,6 @@
+# QTest drives the help buttons (keyboard focus, clicks, Esc).
+find_package(Qt6 6.8 REQUIRED COMPONENTS Test)
+
 add_executable(bld_ui_tests
     MapViewTest.cpp
     ImportPipelineTest.cpp
@@ -13,6 +16,8 @@ add_executable(bld_ui_tests
     MainWindowFileTest.cpp
     ThemeTest.cpp
     SettingsDialogTest.cpp
+    HelpButtonTest.cpp
+    HelpTextsTest.cpp
 )
 
 target_compile_definitions(bld_ui_tests PRIVATE
@@ -33,6 +38,7 @@ target_link_libraries(bld_ui_tests
         Qt6::Core
         Qt6::Gui
         Qt6::Widgets
+        Qt6::Test
 )
 
 gtest_discover_tests(bld_ui_tests

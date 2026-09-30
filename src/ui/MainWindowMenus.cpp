@@ -16,6 +16,10 @@
 #include "PreferencesDialog.h"
 #include "VenueDialog.h"
 #include "VenueDimensionsDialog.h"
+#include "help/HelpButton.h"
+#include "help/HelpPages.h"
+#include "help/ShortcutsDialog.h"
+#include "theme/AppPrefs.h"
 #include "../core/AnchoredLabel.h"
 #include "../core/ColorSpec.h"
 #include "../core/Ids.h"
@@ -122,6 +126,7 @@ void MainWindow::setupMenus() {
         QDialog dlg(this);
         dlg.setWindowTitle(tr("Export image"));
         auto* form = new QFormLayout(&dlg);
+        form->addRow(help::headingWithHelp(tr("Export image"), QStringLiteral("dialog.exportImage"), &dlg));
         auto* pathEdit = new QLineEdit(
             currentFilePath_.isEmpty()
                 ? s.value(QStringLiteral("export/path")).toString()
@@ -598,30 +603,54 @@ void MainWindow::setupMenus() {
     connect(saveSetAct, &QAction::triggered, this, &MainWindow::onSaveSelectionAsSet);
 
     auto* help = menuBar()->addMenu(tr("&Help"));
+    helpMenu_ = help;
+    auto* startAct = help->addAction(tr("&Getting Started"));
+    startAct->setObjectName(QStringLiteral("help.gettingStarted"));
+    connect(startAct, &QAction::triggered, this, [] {
+        // The short page, then the manual, then the manual online.
+        for (const QString& page : { QString::fromLatin1(help::kGettingStartedPage), QStringLiteral("index.html") }) {
+            const QString path = help::helpPagePath(page);
+            if (!path.isEmpty()) {
+                help::openHelpPage(QUrl::fromLocalFile(path));
+                return;
+            }
+        }
+        help::openHelpPage(QUrl(QStringLiteral(
+            "https://github.com/brick-layout-designer/brick-layout-designer/tree/main/help/en")));
+    });
     auto* contentsAct = help->addAction(tr("&Contents"));
     helpContentsAct_ = contentsAct;
     contentsAct->setShortcut(QKeySequence::HelpContents);
-    connect(contentsAct, &QAction::triggered, this, [this]{
+    connect(contentsAct, &QAction::triggered, this, [] {
         // BlueBrick's manual as offline HTML, in the UI language if there
         // is one, else English; the online copy if it wasn't installed.
-        const QString exeDir = QCoreApplication::applicationDirPath();
-        const QString lang = QSettings().value(QStringLiteral("general/language")).toString().left(2);
-        QStringList roots;
-        for (const char* rel : { "/../Resources/help", "/../share/brick-layout-designer/help", "/help" })
-            roots << exeDir + QLatin1String(rel);
-        roots << QStringLiteral(BLD_HELP_SOURCE_DIR);
-        for (const QString& root : std::as_const(roots)) {
-            for (const QString& l : { lang, QStringLiteral("en") }) {
-                const QString index = QDir(root).filePath(l + QStringLiteral("/index.html"));
-                if (!l.isEmpty() && QFileInfo::exists(index)) {
-                    QDesktopServices::openUrl(QUrl::fromLocalFile(QFileInfo(index).absoluteFilePath()));
-                    return;
-                }
-            }
-        }
-        QDesktopServices::openUrl(QUrl(QStringLiteral(
-            "https://github.com/brick-layout-designer/brick-layout-designer/tree/main/help/en")));
+        const QString index = help::helpPagePath(QStringLiteral("index.html"));
+        help::openHelpPage(index.isEmpty() ? QUrl(QStringLiteral(
+            "https://github.com/brick-layout-designer/brick-layout-designer/tree/main/help/en"))
+                                           : QUrl::fromLocalFile(index));
     });
+    auto* keysAct = help->addAction(tr("&Keyboard Shortcuts"));
+    keysAct->setObjectName(QStringLiteral("help.shortcuts"));
+    connect(keysAct, &QAction::triggered, this, [this] {
+        help::ShortcutsDialog dialog(help::collectShortcuts(menuBar()), this);
+        dialog.exec();
+    });
+    // "Turn help buttons off" / "on", following the setting wherever it changes.
+    auto* toggleHelpAct = help->addAction(QString());
+    toggleHelpAct->setObjectName(QStringLiteral("help.toggleButtons"));
+    const auto labelToggle = [toggleHelpAct] {
+        toggleHelpAct->setText(theme::PrefsStore::instance().prefs().helpIcons ? tr("Turn Help Buttons &Off")
+                                                                               : tr("Turn Help Buttons &On"));
+    };
+    labelToggle();
+    connect(&theme::PrefsStore::instance(), &theme::PrefsStore::changed, toggleHelpAct, labelToggle);
+    connect(toggleHelpAct, &QAction::triggered, this, [] {
+        auto& store = theme::PrefsStore::instance();
+        theme::AppPrefs p = store.prefs();
+        p.helpIcons = !p.helpIcons;
+        store.update(p);
+    });
+    help->addSeparator();
     auto* updateAct = help->addAction(tr("Check for &Updates..."));
     connect(updateAct, &QAction::triggered, this, [this]{ updates_->checkNow(); });
     help->addSeparator();

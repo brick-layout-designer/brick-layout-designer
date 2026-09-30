@@ -1,4 +1,5 @@
 #include "UploadPartsDialog.h"
+#include "ui/help/HelpButton.h"
 
 #include "ServerApi.h"
 
@@ -18,8 +19,10 @@ UploadPartsDialog::UploadPartsDialog(ServerApi& api, PartsUpload& upload, const 
     setWindowTitle(tr("Upload Parts to Server"));
     resize(520, 440);
     auto* col = new QVBoxLayout(this);
-    col->addWidget(new QLabel(
-        tr("These parts of yours aren't on the server yet. Upload the ones layouts there will need:"), this));
+    auto* intro = new QLabel(
+        tr("These parts of yours aren't on the server yet. Upload the ones layouts there will need:"), this);
+    intro->setWordWrap(true);
+    col->addWidget(bld::ui::help::withHelp(intro, QStringLiteral("upload.parts"), this));
     list_ = new QListWidget(this);
     list_->setObjectName(QStringLiteral("parts"));
     for (const auto& p : missing_) {
@@ -33,7 +36,7 @@ UploadPartsDialog::UploadPartsDialog(ServerApi& api, PartsUpload& upload, const 
     owner_ = new QComboBox(this);
     owner_->setObjectName(QStringLiteral("owner"));
     owner_->addItem(tr("You (personal)"), QString());
-    form->addRow(tr("Owner"), owner_);
+    form->addRow(tr("Owner"), bld::ui::help::withHelp(owner_, QStringLiteral("publish.owner"), this));
     col->addLayout(form);
     message_ = new QLabel(this);
     message_->setObjectName(QStringLiteral("message"));

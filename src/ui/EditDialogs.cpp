@@ -1,4 +1,5 @@
 #include "EditDialogs.h"
+#include "help/HelpButton.h"
 
 #include "../core/Layer.h"
 #include "../core/LayerBrick.h"
@@ -170,6 +171,7 @@ bool editRulerDialog(QWidget* parent, core::Map& map, int layerIndex,
     QDialog dlg(parent);
     dlg.setWindowTitle(QObject::tr("Edit ruler"));
     auto* form = new QFormLayout(&dlg);
+    form->addRow(help::headingWithHelp(QObject::tr("Measure"), QStringLiteral("dialog.measure"), &dlg));
 
     QColor lineColor = base->color.color;
     auto* lineColorBtn = makeColorButton(&dlg, &lineColor);

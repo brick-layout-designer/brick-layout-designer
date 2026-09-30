@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Getting started</title>
+<!-- The short help page: Help › Getting started, and the "Learn more"
+     links in the "?" popovers (the sections match the web app's /help). -->
+<style>
+  :root { --bg: #F6F4EF; --panel: #FFFFFF; --line: #E4E0D8; --ink: #1E2124; --muted: #5B6168; --soft: #F1EEE8; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #16181B; --panel: #1F2226; --line: #30343A; --ink: #ECEDEF; --muted: #A3A9B0; --soft: #2A2E33; }
+  }
+  body { margin: 0; padding: 32px 16px; background: var(--bg); color: var(--ink);
+         font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 46rem; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+  h1 { font-size: 1.9rem; margin: 0; }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 22px 24px; scroll-margin-top: 24px; }
+  h2 { font-size: 1.25rem; margin: 0 0 10px; }
+  p { margin: 0 0 8px; } p:last-child { margin-bottom: 0; }
+  ol { margin: 0; padding-left: 1.3em; } li { margin: 4px 0; }
+  kbd { border: 1px solid var(--line); background: var(--soft); border-radius: 6px; padding: 1px 6px; font: 600 13px system-ui, sans-serif; }
+  .muted { color: var(--muted); font-size: 14px; }
+  a { color: inherit; }
+</style>
+</head>
+<body>
+<main>
+<h1>Help</h1>
+
+<section id="getting-started">
+<h2>Getting started</h2>
+<ol>
+<li>Drag a part from the Parts panel onto the map, or double-click it to drop it in the middle.</li>
+<li>Ends of track snap together when they meet. Press <kbd>R</kbd> to turn the selected piece.</li>
+<li>Sheets keep things apart: track on one, buildings on another.</li>
+<li>The Room button holds the hall or room the layout has to fit in.</li>
+<li><kbd>Ctrl+Z</kbd> undoes what you just did, and Edit › Redo brings it back. Save with <kbd>Ctrl+S</kbd>.</li>
+</ol>
+</section>
+
+<section id="sheets">
+<h2>Sheets</h2>
+<p>Sheets are like see-through pages stacked on the map. Put track on one, buildings on another, and scenery on a third.</p>
+<p>Hide a sheet to see what is under it, or lock it so nothing on it moves by accident. New parts always go on the sheet that is picked.</p>
+</section>
+
+<section id="room">
+<h2>The room</h2>
+<p>The room is the hall your layout goes in: its walls, doors, columns and power points. Draw it once, save it, and use it again for every layout.</p>
+<p>With a room under the layout, the status bar tells you if everything fits and leaves space to walk around.</p>
+</section>
+
+<section id="sharing">
+<h2>Working together</h2>
+<p>If your club runs a layout server, File › Connect to Server opens its layouts here, and File › Publish to Server puts this one there.</p>
+<p>Everyone working on a server layout sees each other’s changes as they happen. Editors can change the layout; viewers can only look.</p>
+</section>
+
+<section id="files">
+<h2>Saving a copy</h2>
+<p>Save as a layout file (.bld-layout): it holds everything, including the room, labels, modules and background picture, and opens in this app and the web app.</p>
+<p>Export a BlueBrick map (.bbm) only for people who use the old BlueBrick program. It leaves out the room, labels, modules and background picture.</p>
+</section>
+
+<section id="shortcuts">
+<h2>Keyboard shortcuts</h2>
+<p>Help › Keyboard Shortcuts lists every shortcut the app has.</p>
+<p class="muted">On a Mac, use ⌘ instead of Ctrl.</p>
+</section>
+
+<p class="muted">Want the full manual? Open Help › Contents.</p>
+</main>
+</body>
+</html>

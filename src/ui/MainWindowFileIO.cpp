@@ -5,6 +5,7 @@
 // bodies across translation units.
 
 #include "MainWindow.h"
+#include "help/HelpButton.h"
 #include "BudgetSession.h"
 
 #include "../edit/PartList.h"
@@ -410,6 +411,7 @@ bool MainWindow::chooseSaveFormat() {
     QPushButton* keepBtn = box.addButton(tr("Keep %1").arg(info.suffix().toLower().prepend(QLatin1Char('.'))),
                                   QMessageBox::DestructiveRole);
     box.setDefaultButton(switchBtn);
+    help::addToMessageBox(&box, QStringLiteral("download.formats"));
     box.exec();
     if (box.clickedButton() == keepBtn) {
         saveFormatChosen_ = true;
@@ -440,12 +442,14 @@ void MainWindow::onExportBbm() {
     if (!map->sidecar.modules.empty()) lost << tr("modules");
     if (map->sidecar.venue) lost << tr("the venue");
     if (!map->sidecar.backgroundImagePath.isEmpty()) lost << tr("the background image");
-    if (!lost.isEmpty()
-        && QMessageBox::question(this, tr("Export BlueBrick map"),
-               tr("BlueBrick can't hold %1, so the .bbm leaves them out. "
-                  "Your layout keeps them.\n\nExport anyway?").arg(lost.join(QStringLiteral(", "))))
-               != QMessageBox::Yes)
-        return;
+    if (!lost.isEmpty()) {
+        QMessageBox box(QMessageBox::Question, tr("Export BlueBrick map"),
+                        tr("BlueBrick can't hold %1, so the .bbm leaves them out. "
+                           "Your layout keeps them.\n\nExport anyway?").arg(lost.join(QStringLiteral(", "))),
+                        QMessageBox::Yes | QMessageBox::No, this);
+        help::addToMessageBox(&box, QStringLiteral("download.bbm"));
+        if (box.exec() != QMessageBox::Yes) return;
+    }
     const auto res = saveload::writeBbm(*map, path);
     if (!res.ok) {
         QMessageBox::warning(this, tr("Export failed"), res.error);

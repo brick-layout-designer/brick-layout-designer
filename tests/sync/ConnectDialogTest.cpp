@@ -6,6 +6,8 @@
 #include "ConnectDialog.h"
 #include "FakeHttp.h"
 #include "TokenStore.h"
+#include "ui/help/HelpButton.h"
+#include "ui/help/HelpTexts.h"
 
 #include <gtest/gtest.h>
 
@@ -293,4 +295,19 @@ TEST(ConnectDialog, PublishingWithAnOldSignInSignsInAgain) {
     // The sign-in request carries no dead token.
     for (const auto& r : h.http.requests)
         if (r.path == "/api/auth/device/code") EXPECT_TRUE(r.authorization.isEmpty());
+}
+
+// The "?"s: the server address, and the owner when publishing.
+TEST(ConnectDialog, HasHelpForTheAddressAndTheOwner) {
+    Harness h(ConnectDialog::Purpose::Publish);
+    QStringList keys;
+    bld::ui::help::HelpButton* server = nullptr;
+    for (auto* b : h.dialog.findChildren<bld::ui::help::HelpButton*>()) {
+        keys << b->key();
+        EXPECT_TRUE(bld::ui::help::helpEntry(b->key())) << b->key().toStdString();
+        if (b->key() == QLatin1String("connect.server")) server = b;
+    }
+    EXPECT_TRUE(keys.contains(QStringLiteral("publish.owner")));
+    ASSERT_NE(server, nullptr);
+    EXPECT_EQ(server->target(), h.dialog.findChild<QLineEdit*>(QStringLiteral("serverAddress")));
 }

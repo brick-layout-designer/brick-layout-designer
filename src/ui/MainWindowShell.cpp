@@ -15,6 +15,7 @@
 #include "PartsBrowser.h"
 #include "SettingsDialog.h"
 #include "VenueLibraryPanel.h"
+#include "help/HelpButton.h"
 #include "theme/AppPrefs.h"
 #include "theme/Icons.h"
 #include "theme/PanelHeader.h"
@@ -78,25 +79,17 @@ private:
 void MainWindow::setupShell() {
     auto& prefs = theme::PrefsStore::instance();
 
-    // Panels: plain names and the same header everywhere. The "?" text is
-    // the web's (PanelHost.tsx); longer help comes in phase (b).
+    // Panels: plain names and the same header everywhere, each with its
+    // "?" (the web's panel help keys).
     layerPanel_->setWindowTitle(tr("Sheets"));
     venueLibraryPanel_->setWindowTitle(tr("Room Library"));
     partUsagePanel_->setWindowTitle(tr("Parts list"));
-    theme::PanelHeader::install(partsBrowser_,
-        tr("Parts are the pieces you build with. Drag one onto the map, or double-click it to drop it in the middle."),
-        prefs);
-    theme::PanelHeader::install(layerPanel_,
-        tr("Sheets are like see-through pages stacked on the map: track on one, buildings on another. "
-           "Hide a sheet to work on the rest."),
-        prefs);
-    theme::PanelHeader::install(partUsagePanel_, tr("Every part this layout uses, with how many of each."), prefs);
-    theme::PanelHeader::install(modulesPanel_,
-        tr("Groups of pieces kept together, so you can move or reuse them as one."), prefs);
-    theme::PanelHeader::install(moduleLibraryPanel_,
-        tr("Modules saved on this computer, ready to drop into this layout."), prefs);
-    theme::PanelHeader::install(venueLibraryPanel_,
-        tr("Rooms and halls saved on this computer. Put one under the layout to check that it fits."), prefs);
+    theme::PanelHeader::install(partsBrowser_, QStringLiteral("panel.parts"), prefs);
+    theme::PanelHeader::install(layerPanel_, QStringLiteral("panel.sheets"), prefs);
+    theme::PanelHeader::install(partUsagePanel_, QStringLiteral("panel.partsList"), prefs);
+    theme::PanelHeader::install(modulesPanel_, QStringLiteral("panel.modules"), prefs);
+    theme::PanelHeader::install(moduleLibraryPanel_, QStringLiteral("panel.moduleLibrary"), prefs);
+    theme::PanelHeader::install(venueLibraryPanel_, QStringLiteral("panel.roomLibrary"), prefs);
 
     // ----- Toolbar: labelled everyday tools, the task tabs in the middle,
     // Help on the right. Cut / Copy / Paste and the stacking order live in
@@ -171,6 +164,9 @@ void MainWindow::setupShell() {
         a->setChecked(e.tool == MapView::Tool::Select);
         tools->addAction(a);
     }
+    // Measure and Circle leave rulers on the map.
+    help::HelpButton::addTo(toolbar, QStringLiteral("dialog.measure"),
+                            toolbar->widgetForAction(findChild<QAction*>(QStringLiteral("tool.measure"))));
 
     // The paint colour, one click away.
     auto* colour = toolbar->addAction(tr("Colour"));
@@ -205,6 +201,7 @@ void MainWindow::setupShell() {
         s.beginGroup(QStringLiteral("editing"));
         s.setValue(QStringLiteral("paintColor"), c.name(QColor::HexArgb));
     });
+    help::HelpButton::addTo(toolbar, QStringLiteral("toolbar.paintColour"), toolbar->widgetForAction(colour));
     toolbar->addSeparator();
 
     addTool(QStringLiteral("turnLeft"), tr("Turn left"), tr("Turn the selected pieces anticlockwise"), [this] {
@@ -257,6 +254,7 @@ void MainWindow::setupShell() {
         s.setValue(QStringLiteral("snapStepStuds"), v);
     });
     shellIcons_.append({ toolbar->addWidget(snapBtn), QStringLiteral("snap") });
+    help::HelpButton::addTo(toolbar, QStringLiteral("toolbar.snap"), snapBtn);
 
     // How far Turn left / right turns.
     auto* rotBtn = new QToolButton(this);
@@ -283,6 +281,7 @@ void MainWindow::setupShell() {
     }
     rotBtn->setMenu(rotMenu);
     shellIcons_.append({ toolbar->addWidget(rotBtn), QStringLiteral("angle") });
+    help::HelpButton::addTo(toolbar, QStringLiteral("toolbar.rotateStep"), rotBtn);
 
     // The steps saved last time.
     {
@@ -335,6 +334,7 @@ void MainWindow::setupShell() {
     }
     if (auto* build = tabs->findChild<QToolButton*>(QStringLiteral("task.build"))) build->setChecked(true);
     toolbar->addWidget(tabs);
+    help::HelpButton::addTo(toolbar, QStringLiteral("topbar.tasks"), tabs);
     spacer();
 
     auto* help = new QToolButton(toolbar);
@@ -343,9 +343,10 @@ void MainWindow::setupShell() {
     help->setToolTip(tr("Help"));
     help->setAccessibleName(tr("Help"));
     help->setToolButtonStyle(Qt::ToolButtonTextOnly);
-    connect(help, &QToolButton::clicked, this, [this] {
-        if (helpContentsAct_) helpContentsAct_->trigger();
-    });
+    // The Help menu: Getting started, Keyboard shortcuts, help buttons
+    // on or off, and the rest.
+    help->setPopupMode(QToolButton::InstantPopup);
+    help->setMenu(helpMenu_);
     toolbar->addWidget(help);
 
     // ----- Status bar: pieces and the current sheet on the left of the
@@ -354,9 +355,17 @@ void MainWindow::setupShell() {
     auto* pieces = new QLabel(this);
     pieces->setObjectName(QStringLiteral("PiecesLabel"));
     statusBar()->addPermanentWidget(pieces);
-    auto* sheet = new QLabel(this);
+    // The current sheet, with its "?"; both hide while there is no sheet.
+    auto* sheetItem = new QWidget(this);
+    sheetItem->setObjectName(QStringLiteral("SheetItem"));
+    auto* sheetRow = new QHBoxLayout(sheetItem);
+    sheetRow->setContentsMargins(0, 0, 0, 0);
+    sheetRow->setSpacing(0);
+    auto* sheet = new QLabel(sheetItem);
     sheet->setObjectName(QStringLiteral("SheetLabel"));
-    statusBar()->addPermanentWidget(sheet);
+    sheetRow->addWidget(sheet);
+    sheetRow->addWidget(new help::HelpButton(QStringLiteral("status.sheet"), sheetItem, sheet));
+    statusBar()->addPermanentWidget(sheetItem);
     const auto refresh = [this, pieces, sheet] {
         const core::Map* map = mapView_->currentMap();
         int count = 0;
@@ -371,7 +380,7 @@ void MainWindow::setupShell() {
         }
         pieces->setText(count == 1 ? tr("1 piece") : tr("%1 pieces").arg(count));
         sheet->setText(sheetName.isEmpty() ? QString() : tr("Sheet: %1").arg(sheetName));
-        sheet->setVisible(!sheetName.isEmpty());
+        sheet->parentWidget()->setVisible(!sheetName.isEmpty());
     };
     connect(mapView_->undoStack(), &QUndoStack::indexChanged, this, refresh);
     connect(mapView_, &MapView::layersChanged, this, refresh);
