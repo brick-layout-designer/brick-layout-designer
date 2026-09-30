@@ -35,8 +35,18 @@ the part extensions. Readers skip any other name and warn.
   bundled library: imported parts, your own folders and server parts.
 - **Opening.** It writes the parts its library lacks to `layout-parts/` in its
   app data folder, which joins the library paths, before the map loads.
-  Where it already has a part of that number with different XML, it keeps its
-  own and says so in the status bar.
+  Where it already has a part of that number with different XML, it shows
+  both before the map loads: each sprite, description and author side by
+  side, with a choice for each part.
+  - **Keep mine** (the default) leaves the library as it is.
+  - **Use the layout's** copies your part's files to
+    `replaced-parts/<yyyyMMdd-HHmmss>/` in the app data folder, then writes
+    the layout's in their place.
+  - **Keep both** adds the layout's under the next free number,
+    `<PartNumber>-2.<Color>` (then `-3` and on), in `layout-parts/`. The
+    opened layout's bricks and groups switch to that number.
+  - **Keep All Mine** closes the window with nothing changed. The status bar
+    says what was done.
 - **The web app** carries the custom parts a layout uses. When it opens a
   file, it uploads the parts the server lacks as custom parts.
 

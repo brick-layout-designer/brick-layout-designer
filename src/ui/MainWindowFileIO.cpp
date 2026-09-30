@@ -20,6 +20,7 @@
 #include "LiveLayout.h"
 #endif
 #include "ModulesPanel.h"
+#include "PartDifferencesDialog.h"
 #include "PartsBrowser.h"
 
 #include "../core/ColorSpec.h"
@@ -162,8 +163,10 @@ bool MainWindow::openFile(const QString& path) {
             return false;
         }
         // Before the map, so its bricks find their parts.
-        const QStringList partNotes = takeInLayoutParts(layout.partFiles);
-        showLoadedMap(std::move(layout.map), path, layout.warnings + partNotes);
+        auto taken = takeInLayoutParts(layout.partFiles);
+        if (!taken.differing.isEmpty())
+            taken.notes << resolvePartDifferences(taken.differing, layout.partFiles, *layout.map);
+        showLoadedMap(std::move(layout.map), path, layout.warnings + taken.notes);
         return true;
     }
     auto result = saveload::readBbm(path);
@@ -299,28 +302,89 @@ QMap<QString, QByteArray> MainWindow::partsToEmbed() const {
     return map ? import::layoutPartFiles(*map, parts_, defaultVendoredPartsRoot()) : QMap<QString, QByteArray>();
 }
 
-QStringList MainWindow::takeInLayoutParts(const QMap<QString, QByteArray>& files) {
+QString MainWindow::layoutPartsFolder() {
+    const QString dir =
+        QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + QStringLiteral("/layout-parts");
+    // The folder joins the library paths once, so its parts stay after a restart.
+    QStringList paths = loadUserLibraryPaths();
+    if (!paths.contains(dir)) {
+        paths << dir;
+        saveUserLibraryPaths(paths);
+    }
+    return dir;
+}
+
+MainWindow::LayoutPartsTaken MainWindow::takeInLayoutParts(const QMap<QString, QByteArray>& files) {
     if (files.isEmpty()) return {};
     const QString dir =
         QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + QStringLiteral("/layout-parts");
     const auto installed = import::installLayoutParts(files, dir, parts_);
     if (!installed.newParts.isEmpty()) {
-        // The folder joins the library paths once, so the parts stay after a restart.
-        QStringList paths = loadUserLibraryPaths();
-        if (!paths.contains(dir)) {
-            paths << dir;
-            saveUserLibraryPaths(paths);
-        }
+        layoutPartsFolder();
         for (const auto& xml : installed.newParts) registerImportedPart(xml);
     }
-    QStringList notes;
+    LayoutPartsTaken taken;
+    taken.differing = installed.differing;
     if (!installed.newParts.isEmpty())
-        notes << tr("%n part(s) from the layout added to your library", nullptr,
-                    static_cast<int>(installed.newParts.size()));
-    if (!installed.differing.isEmpty())
-        notes << tr("your own %1 kept, which differ from the layout's").arg(installed.differing.join(QStringLiteral(", ")));
+        taken.notes << tr("%n part(s) from the layout added to your library", nullptr,
+                          static_cast<int>(installed.newParts.size()));
     if (!installed.failed.isEmpty())
-        notes << tr("could not save %1").arg(installed.failed.join(QStringLiteral(", ")));
+        taken.notes << tr("could not save %1").arg(installed.failed.join(QStringLiteral(", ")));
+    return taken;
+}
+
+QStringList MainWindow::resolvePartDifferences(const QStringList& keys, const QMap<QString, QByteArray>& files,
+                                               core::Map& map) {
+    QList<PartDifferencesDialog::Row> rows;
+    for (const auto& key : keys)
+        rows.append({ key, import::libraryFilesOfPart(parts_, key), import::filesOfPart(files, key) });
+    PartDifferencesDialog dialog(rows, this);
+    if (dialog.exec() != QDialog::Accepted)
+        return { tr("your own %1 kept, which differ from the layout's").arg(keys.join(QStringLiteral(", "))) };
+
+    const auto choices = dialog.choices();
+    const QString stamp = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
+        + QStringLiteral("/replaced-parts/") + QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-HHmmss"));
+    QString backupDir = stamp;
+    for (int n = 2; QFileInfo::exists(backupDir); ++n) backupDir = stamp + QLatin1Char('-') + QString::number(n);
+    QStringList kept, replaced, added, failed;
+    for (const auto& key : keys) {
+        const auto choice = choices.value(key, PartDifferencesDialog::Choice::KeepMine);
+        const auto theirs = import::filesOfPart(files, key);
+        if (choice == PartDifferencesDialog::Choice::UseLayouts) {
+            const auto meta = parts_.metadata(key);
+            QString error;
+            if (!meta || !import::replaceLocalPart(meta->xmlFilePath, theirs, backupDir, &error)) {
+                failed << key;
+                continue;
+            }
+            registerImportedPart(meta->xmlFilePath);
+            replaced << key;
+        } else if (choice == PartDifferencesDialog::Choice::KeepBoth) {
+            QString stem;
+            for (auto it = theirs.constBegin(); it != theirs.constEnd(); ++it)
+                if (it.key().endsWith(QLatin1String(".xml"), Qt::CaseInsensitive)) stem = QFileInfo(it.key()).completeBaseName();
+            const bool set = stem.endsWith(QLatin1String(".set"), Qt::CaseInsensitive);
+            const QString newKey = import::unusedPartKey(key, parts_);
+            const QString xml = stem.isEmpty() ? QString()
+                : import::installPartAs(theirs, stem, newKey + (set ? QStringLiteral(".set") : QString()),
+                                        layoutPartsFolder());
+            if (xml.isEmpty() || registerImportedPart(xml).isEmpty()) {
+                failed << key;
+                continue;
+            }
+            import::renamePartInMap(map, key, newKey);
+            added << tr("%1 as %2").arg(key, newKey);
+        } else {
+            kept << key;
+        }
+    }
+    QStringList notes;
+    if (!replaced.isEmpty())
+        notes << tr("the layout's %1 replaced yours (backed up in %2)").arg(replaced.join(QStringLiteral(", ")), backupDir);
+    if (!added.isEmpty()) notes << tr("the layout's %1 added").arg(added.join(QStringLiteral(", ")));
+    if (!kept.isEmpty()) notes << tr("your own %1 kept").arg(kept.join(QStringLiteral(", ")));
+    if (!failed.isEmpty()) notes << tr("could not take the layout's %1").arg(failed.join(QStringLiteral(", ")));
     return notes;
 }
 

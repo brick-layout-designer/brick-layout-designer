@@ -209,6 +209,110 @@ LayoutPartsInstall installLayoutParts(const QMap<QString, QByteArray>& files, co
     return r;
 }
 
+QMap<QString, QByteArray> filesOfPart(const QMap<QString, QByteArray>& files, const QString& key) {
+    QMap<QString, QByteArray> out;
+    const QString set = key + QStringLiteral(".set");
+    for (auto it = files.constBegin(); it != files.constEnd(); ++it) {
+        const QString base = QFileInfo(it.key()).completeBaseName();
+        if (base.compare(key, Qt::CaseInsensitive) == 0 || base.compare(set, Qt::CaseInsensitive) == 0)
+            out.insert(it.key(), it.value());
+    }
+    return out;
+}
+
+QMap<QString, QByteArray> libraryFilesOfPart(const parts::PartsLibrary& library, const QString& key) {
+    QMap<QString, QByteArray> out;
+    const auto meta = library.metadata(key);
+    if (!meta) return out;
+    const QFileInfo xml(meta->xmlFilePath);
+    out.insert(xml.fileName(), readAll(xml.filePath()));
+    for (const auto& suffix : kSpriteSuffixes) {
+        const QFileInfo sprite(xml.dir().filePath(xml.completeBaseName() + QLatin1Char('.') + suffix));
+        if (sprite.exists()) out.insert(sprite.fileName(), readAll(sprite.filePath()));
+    }
+    return out;
+}
+
+bool replaceLocalPart(const QString& localXmlPath, const QMap<QString, QByteArray>& files,
+                      const QString& backupDir, QString* error) {
+    const QFileInfo xml(localXmlPath);
+    const QDir dir = xml.dir();
+    const QString stem = xml.completeBaseName();
+    QStringList old{ xml.fileName() };
+    for (const auto& suffix : kSpriteSuffixes) {
+        const QString name = stem + QLatin1Char('.') + suffix;
+        if (dir.exists(name)) old << name;
+    }
+    // The backup first: nothing of the old part goes before it's safe.
+    QDir().mkpath(backupDir);
+    for (const auto& name : old) {
+        if (!writeAll(QDir(backupDir).filePath(name), readAll(dir.filePath(name)))) {
+            if (error) *error = tr("Could not back up %1.").arg(dir.filePath(name));
+            return false;
+        }
+    }
+    // The layout's files under this part's names (its case may differ).
+    QMap<QString, QByteArray> incoming;
+    for (auto it = files.constBegin(); it != files.constEnd(); ++it) {
+        const QString suffix = QFileInfo(it.key()).suffix().toLower();
+        incoming.insert(suffix == QLatin1String("xml") ? xml.fileName() : stem + QLatin1Char('.') + suffix, it.value());
+    }
+    for (const auto& name : old)
+        if (!incoming.contains(name)) QFile::remove(dir.filePath(name));
+    for (auto it = incoming.constBegin(); it != incoming.constEnd(); ++it) {
+        if (!writeAll(dir.filePath(it.key()), it.value())) {
+            if (error) *error = tr("Could not write %1.").arg(dir.filePath(it.key()));
+            return false;
+        }
+    }
+    return true;
+}
+
+QString unusedPartKey(const QString& key, const parts::PartsLibrary& library) {
+    const int dot = key.lastIndexOf(QLatin1Char('.'));
+    const bool hasColor = dot > 0 && dot < key.size() - 1;
+    const QString number = hasColor ? key.left(dot) : key;
+    const QString color = hasColor ? key.mid(dot) : QString();
+    for (int n = 2;; ++n) {
+        const QString candidate = number + QLatin1Char('-') + QString::number(n) + color;
+        if (!library.metadata(candidate)) return candidate;
+    }
+}
+
+QString installPartAs(const QMap<QString, QByteArray>& files, const QString& stem, const QString& newStem,
+                      const QString& dir) {
+    QDir().mkpath(dir);
+    QString xmlPath;
+    for (auto it = files.constBegin(); it != files.constEnd(); ++it) {
+        const QFileInfo f(it.key());
+        if (f.completeBaseName().compare(stem, Qt::CaseInsensitive) != 0) continue;
+        const QString suffix = f.suffix().toLower();
+        const QString path = QDir(dir).filePath(newStem + QLatin1Char('.') + suffix);
+        if (!writeAll(path, it.value())) return {};
+        if (suffix == QLatin1String("xml")) xmlPath = path;
+    }
+    return xmlPath;
+}
+
+int renamePartInMap(core::Map& map, const QString& from, const QString& to) {
+    int changed = 0;
+    for (auto& layer : map.layers()) {
+        if (!layer || layer->kind() != core::LayerKind::Brick) continue;
+        auto& bricks = static_cast<core::LayerBrick&>(*layer);
+        for (auto& b : bricks.bricks) {
+            if (b.partNumber.compare(from, Qt::CaseInsensitive) != 0) continue;
+            b.partNumber = to;
+            ++changed;
+        }
+        for (auto& g : bricks.groups) {
+            if (g.partNumber.isEmpty() || g.partNumber.compare(from, Qt::CaseInsensitive) != 0) continue;
+            g.partNumber = to;
+            ++changed;
+        }
+    }
+    return changed;
+}
+
 QByteArray layoutFileBytes(const core::Map& map, QString* error, QStringList* warnings,
                            const QMap<QString, QByteArray>& partFiles) {
     QBuffer bbm;

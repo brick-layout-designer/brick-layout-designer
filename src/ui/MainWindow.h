@@ -121,8 +121,18 @@ private:
     void showLoadedMap(std::unique_ptr<core::Map> map, const QString& path, const QStringList& warnings);
     // Parts a .bld-layout carries that the library lacks: written to the
     // layout-parts folder, which joins the library paths. Returns what to
-    // tell the user.
-    QStringList takeInLayoutParts(const QMap<QString, QByteArray>& files);
+    // tell the user, and the parts the library has with other definitions.
+    struct LayoutPartsTaken {
+        QStringList notes;
+        QStringList differing;  // part keys
+    };
+    LayoutPartsTaken takeInLayoutParts(const QMap<QString, QByteArray>& files);
+    // Shows the differing parts side by side and applies what the user
+    // picks: the layout's replaces yours (backed up first), or is added under
+    // a new number that `map`'s bricks switch to. Returns what to tell the user.
+    QStringList resolvePartDifferences(const QStringList& keys, const QMap<QString, QByteArray>& files,
+                                       core::Map& map);
+    QString layoutPartsFolder();  // AppDataLocation/layout-parts, kept in the library paths
     // The parts to put in a .bld-layout: the ones outside the bundled library.
     QMap<QString, QByteArray> partsToEmbed() const;
     // Save on a file that isn't a .bld-layout asks once whether to switch.
