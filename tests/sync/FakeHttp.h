@@ -14,6 +14,7 @@
 #include <QUrl>
 
 #include <deque>
+#include <functional>
 #include <utility>
 #include <vector>
 
@@ -49,9 +50,17 @@ public:
     }
 
     std::vector<Request> requests;
+    // When set, WebSocket upgrade requests are handed over (e.g. to
+    // FakeServer::take), so one base URL serves the API and the live socket.
+    std::function<void(QTcpSocket*)> upgrade;
 
 private:
     void onData(QTcpSocket* s) {
+        if (upgrade && !pending_.contains(s) && s->peek(4096).toLower().contains("upgrade: websocket")) {
+            QObject::disconnect(s, nullptr, nullptr, nullptr);
+            upgrade(s);
+            return;
+        }
         QByteArray& buf = pending_[s];
         buf += s->readAll();
         const qsizetype headerEnd = buf.indexOf("\r\n\r\n");

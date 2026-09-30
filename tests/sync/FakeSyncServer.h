@@ -84,6 +84,10 @@ public:
         });
     }
 
+    // A connection accepted elsewhere (FakeHttp::upgrade) whose handshake
+    // this server should answer.
+    void take(QTcpSocket* socket) { server_.handleConnection(socket); }
+
     QUrl url() const { return QUrl(QStringLiteral("ws://127.0.0.1:%1/ws/layout/L1").arg(server_.serverPort())); }
 
     // An edit made on the server side (another user), relayed to clients.
