@@ -6,6 +6,10 @@
 #include "LayerPanel.h"
 #include "LiveLayout.h"
 #include "MapView.h"
+
+#include "../core/Map.h"
+#include "../saveload/BbmWriter.h"
+#include "../saveload/SidecarIO.h"
 #include "ModulesPanel.h"
 #include "VenueLibraryPanel.h"
 
@@ -14,7 +18,10 @@
 #include "TokenStore.h"
 
 #include <QAction>
+#include <QBuffer>
 #include <QDesktopServices>
+#include <QFileInfo>
+#include <QJsonDocument>
 #include <QLabel>
 #include <QMenu>
 #include <QMessageBox>
@@ -35,6 +42,10 @@ void MainWindow::setupLiveMenu(QMenu* file) {
     disconnectAct_ = file->addAction(tr("&Disconnect"));
     disconnectAct_->setEnabled(false);
     connect(disconnectAct_, &QAction::triggered, this, &MainWindow::onDisconnect);
+    auto* publishAct = file->addAction(tr("&Publish to Server..."));
+    publishAct->setToolTip(
+        tr("Put this layout on a server, yours or an organisation's, and keep editing it live"));
+    connect(publishAct, &QAction::triggered, this, &MainWindow::onPublishToServer);
     auto* venuesAct = file->addAction(tr("Download &Venues from Server..."));
     connect(venuesAct, &QAction::triggered, this, &MainWindow::onDownloadVenues);
 
@@ -68,7 +79,46 @@ void MainWindow::onConnectToServer() {
     if (dialog.exec() != QDialog::Accepted) return;
     const auto chosen = dialog.result();
     if (!chosen) return;
-    const sync::ConnectResult& r = *chosen;
+    openLive(*chosen);
+}
+
+void MainWindow::onPublishToServer() {
+    auto* m = mapView_->currentMap();
+    if (!m) return;
+    if (live_->active()) {
+        QMessageBox::information(this, tr("Publish to Server"),
+                                 tr("This layout is already live on a server."));
+        return;
+    }
+    QBuffer bbm;
+    bbm.open(QIODevice::WriteOnly);
+    if (!saveload::writeBbm(*m, bbm).ok) {
+        QMessageBox::warning(this, tr("Publish to Server"), tr("Could not write the layout to publish it."));
+        return;
+    }
+    const QByteArray sidecar =
+        m->sidecar.isEmpty()
+            ? QByteArray()
+            : QJsonDocument(saveload::sidecarToJson(m->sidecar)).toJson(QJsonDocument::Compact);
+    const QString title = currentFilePath_.isEmpty() ? (m->event.isEmpty() ? tr("Untitled Layout") : m->event)
+                                                     : QFileInfo(currentFilePath_).completeBaseName();
+    sync::ServerApi api;
+    sync::KeychainTokenStore tokens;
+    sync::ConnectDialog dialog(
+        api, tokens, [](const QUrl& u) { QDesktopServices::openUrl(u); }, this,
+        sync::ConnectDialog::Purpose::Publish);
+    dialog.setPublishContent(bbm.data(), sidecar, title);
+    if (dialog.exec() != QDialog::Accepted) return;
+    const auto published = dialog.result();
+    if (!published) return;
+    // The published layout is now the live one; the local file stays as it was.
+    openLive(*published);
+    statusBar()->showMessage(tr("Published \"%1\" to %2").arg(published->title, published->server.host()),
+                             5000);
+}
+
+void MainWindow::openLive(const sync::ConnectResult& r) {
+    sync::ServerApi api;
     if (live_->active()) live_->close();
     api.setBase(r.server);
     currentFilePath_.clear();

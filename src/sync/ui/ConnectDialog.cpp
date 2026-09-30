@@ -2,8 +2,10 @@
 
 #include "TokenStore.h"
 
+#include <QComboBox>
 #include <QCoreApplication>
 #include <QDialogButtonBox>
+#include <QFormLayout>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QLabel>
@@ -19,7 +21,7 @@ namespace bld::sync {
 
 namespace {
 const char* kAddressKey = "sync/serverAddress";
-enum Page { AddressPage, CodePage, LayoutsPage };
+enum Page { AddressPage, CodePage, LayoutsPage, PublishPage };
 enum Column { TitleCol, OwnerCol, AccessCol, UpdatedCol };
 
 // Sorts the Updated column by date, not by its text.
@@ -117,6 +119,22 @@ ConnectDialog::ConnectDialog(ServerApi& api, TokenStore& tokens, std::function<v
     l->addLayout(bottom);
     pages_->addWidget(layoutsPage);
 
+    // Publish: title and owner
+    auto* publishPage = new QWidget(pages_);
+    auto* pf = new QFormLayout(publishPage);
+    publishTitle_ = new QLineEdit(publishPage);
+    publishTitle_->setObjectName(QStringLiteral("publishTitle"));
+    owner_ = new QComboBox(publishPage);
+    owner_->setObjectName(QStringLiteral("publishOwner"));
+    publishBtn_ = new QPushButton(tr("Publish"), publishPage);
+    publishBtn_->setObjectName(QStringLiteral("publish"));
+    pf->addRow(tr("Title"), publishTitle_);
+    pf->addRow(tr("Owner"), owner_);
+    pf->addRow(QString(), publishBtn_);
+    pages_->addWidget(publishPage);
+    connect(publishBtn_, &QPushButton::clicked, this, &ConnectDialog::publishNow);
+    if (purpose_ == Purpose::Publish) setWindowTitle(tr("Publish to Server"));
+
     message_ = new QLabel(this);
     message_->setObjectName(QStringLiteral("message"));
     message_->setWordWrap(true);
@@ -138,6 +156,12 @@ ConnectDialog::ConnectDialog(ServerApi& api, TokenStore& tokens, std::function<v
     connect(&api_, &ServerApi::requestFailed, this, &ConnectDialog::onFailed);
     connect(&api_, &ServerApi::layoutsReady, this, &ConnectDialog::showLayouts);
     connect(&api_, &ServerApi::venuesReady, this, &ConnectDialog::showVenues);
+    connect(&api_, &ServerApi::orgsReady, this, &ConnectDialog::showOrgs);
+    connect(&api_, &ServerApi::published, this, [this](const QString& id, const QString& title) {
+        if (purpose_ != Purpose::Publish) return;
+        result_ = ConnectResult{ server_, token_, id, title, false };
+        accept();
+    });
     connect(&api_, &ServerApi::venueReady, this,
             [this](const QString&, const QString& name, const QByteArray& file) {
                 if (venuesPending_ <= 0) return;
@@ -209,6 +233,11 @@ void ConnectDialog::onVersion(const ServerInfo& info) {
 void ConnectDialog::haveToken(const QString& token) {
     token_ = token;
     api_.setToken(token);
+    if (purpose_ == Purpose::Publish) {
+        showMessage(tr("Loading your organisations…"));
+        api_.fetchOrgs();
+        return;
+    }
     if (purpose_ == Purpose::DownloadVenues) {
         showMessage(tr("Loading venues…"));
         api_.fetchVenues();
@@ -224,7 +253,18 @@ void ConnectDialog::signInAgain() {
 }
 
 void ConnectDialog::onFailed(const QString& what, const QString& message, bool unauthorized) {
-    const bool list = what == QLatin1String("layouts") || what == QLatin1String("venues");
+    if (what == QLatin1String("publish")) {
+        publishBtn_->setEnabled(true);
+        if (unauthorized) {
+            // Signed in before this app could publish: sign in again.
+            signInAgain();
+            return;
+        }
+        showMessage(tr("Could not publish: %1").arg(message));
+        return;
+    }
+    const bool list =
+        what == QLatin1String("layouts") || what == QLatin1String("venues") || what == QLatin1String("orgs");
     if (list && unauthorized) {
         // Revoked or expired, or (venues) signed in before this app could
         // ask for the venue library: sign in again.
@@ -244,7 +284,33 @@ void ConnectDialog::onFailed(const QString& what, const QString& message, bool u
     pages_->setCurrentIndex(AddressPage);
     showMessage(what == QLatin1String("version")  ? tr("Could not reach %1: %2").arg(server_.host(), message)
                 : what == QLatin1String("venues") ? tr("Could not load the venues: %1").arg(message)
+                : what == QLatin1String("orgs")   ? tr("Could not load your organisations: %1").arg(message)
                                                   : tr("Could not load the layouts: %1").arg(message));
+}
+
+void ConnectDialog::setPublishContent(const QByteArray& bbm, const QByteArray& sidecarJson,
+                                      const QString& title) {
+    publishBbm_ = bbm;
+    publishSidecar_ = sidecarJson;
+    publishTitle_->setText(title);
+}
+
+void ConnectDialog::showOrgs(const QList<OrgEntry>& orgs) {
+    owner_->clear();
+    owner_->addItem(tr("You (personal)"), QString());
+    for (const auto& o : orgs) owner_->addItem(o.name, o.slug);
+    publishBtn_->setEnabled(true);
+    pages_->setCurrentIndex(PublishPage);
+    showMessage({});
+}
+
+void ConnectDialog::publishNow() {
+    if (publishBbm_.isEmpty()) return;
+    const QString title = publishTitle_->text().trimmed();
+    publishBtn_->setEnabled(false);
+    showMessage(tr("Publishing…"));
+    api_.publishLayout(title.isEmpty() ? tr("Untitled Layout") : title, publishBbm_, publishSidecar_,
+                       owner_->currentData().toString());
 }
 
 void ConnectDialog::showVenues(const QList<VenueEntry>& venues) {

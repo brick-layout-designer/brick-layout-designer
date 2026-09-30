@@ -9,9 +9,11 @@
 
 #include <gtest/gtest.h>
 
+#include <QComboBox>
 #include <QCoreApplication>
 #include <QElapsedTimer>
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
@@ -238,4 +240,57 @@ TEST(ConnectDialog, DownloadsThePickedVenuesAndSignsInAgainForTheVenueLibrary) {
     names.sort();
     EXPECT_EQ(names, (QStringList{ QStringLiteral("Garage"), QStringLiteral("Grand Lobby") }));
     EXPECT_FALSE(h.dialog.ConnectDialog::result().has_value());
+}
+
+TEST(ConnectDialog, PublishesALayoutPersonallyOrToAnOrganisation) {
+    Harness h(ConnectDialog::Purpose::Publish);
+    h.tokens.save(h.http.base(), QStringLiteral("bld_pat_saved"));
+    h.http.reply("/api/orgs", 200,
+                 { { QStringLiteral("orgs"),
+                     QJsonArray{ QJsonObject{ { QStringLiteral("slug"), QStringLiteral("club") },
+                                              { QStringLiteral("name"), QStringLiteral("Train Club") },
+                                              { QStringLiteral("myRole"), QStringLiteral("member") } } } } });
+    h.http.reply("/api/layouts", 201,
+                 { { QStringLiteral("id"), QStringLiteral("L9") },
+                   { QStringLiteral("title"), QStringLiteral("Show 2027") } });
+    h.dialog.setPublishContent(QByteArrayLiteral("<Map/>"), QByteArrayLiteral("{\"schemaVersion\":1}"),
+                               QStringLiteral("Show 2027"));
+    h.dialog.connectToServer();
+    auto* owner = h.dialog.findChild<QComboBox*>(QStringLiteral("publishOwner"));
+    ASSERT_TRUE(waitFor([&] { return owner->count() == 2; }));
+    EXPECT_EQ(owner->itemText(1), QStringLiteral("Train Club"));
+    owner->setCurrentIndex(1);
+    h.dialog.findChild<QPushButton*>(QStringLiteral("publish"))->click();
+    ASSERT_TRUE(waitFor([&] { return h.dialog.QDialog::result() == QDialog::Accepted; }));
+    const auto body = QJsonDocument::fromJson(h.http.requests.back().body).object();
+    EXPECT_EQ(h.http.requests.back().path, QByteArray("/api/layouts"));
+    EXPECT_EQ(h.http.requests.back().authorization, QByteArray("Bearer bld_pat_saved"));
+    EXPECT_EQ(body.value(QLatin1String("orgSlug")).toString(), QStringLiteral("club"));
+    EXPECT_EQ(body.value(QLatin1String("bbm")).toString(), QStringLiteral("<Map/>"));
+    EXPECT_EQ(body.value(QLatin1String("sidecar")).toString(), QStringLiteral("{\"schemaVersion\":1}"));
+    ASSERT_TRUE(h.dialog.ConnectDialog::result());
+    EXPECT_EQ(h.dialog.ConnectDialog::result()->layoutId, QStringLiteral("L9"));
+    EXPECT_FALSE(h.dialog.ConnectDialog::result()->readOnly);
+}
+
+TEST(ConnectDialog, PublishingWithAnOldSignInSignsInAgain) {
+    Harness h(ConnectDialog::Purpose::Publish);
+    h.tokens.save(h.http.base(), QStringLiteral("bld_pat_old"));
+    h.http.reply("/api/orgs", 200, { { QStringLiteral("orgs"), QJsonArray{} } });
+    h.http.reply("/api/layouts", 403, { { QStringLiteral("error"), QStringLiteral("insufficient_scope") } });
+    h.http.reply("/api/auth/device/code", 200,
+                 { { QStringLiteral("device_code"), QStringLiteral("dev") },
+                   { QStringLiteral("user_code"), QStringLiteral("BCDF-GHJK") },
+                   { QStringLiteral("verification_uri"), QStringLiteral("https://x.org/device") },
+                   { QStringLiteral("expires_in"), 600 },
+                   { QStringLiteral("interval"), 1 } });
+    h.dialog.setPublishContent(QByteArrayLiteral("<Map/>"), {}, QStringLiteral("x"));
+    h.dialog.connectToServer();
+    ASSERT_TRUE(waitFor([&] { return h.page() == 3; }));
+    h.dialog.publishNow();
+    ASSERT_TRUE(waitFor([&] { return !h.opened.isEmpty(); }));
+    EXPECT_TRUE(h.tokens.tokens.isEmpty());
+    // The sign-in request carries no dead token.
+    for (const auto& r : h.http.requests)
+        if (r.path == "/api/auth/device/code") EXPECT_TRUE(r.authorization.isEmpty());
 }

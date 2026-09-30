@@ -65,6 +65,7 @@ QNetworkReply* ServerApi::post(const QString& path, const QJsonObject& body) {
     url.setPath(path);
     QNetworkRequest req(url);
     req.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
+    if (!token_.isEmpty()) req.setRawHeader("Authorization", "Bearer " + token_.toUtf8());
     return net_.post(req, QJsonDocument(body).toJson(QJsonDocument::Compact));
 }
 
@@ -136,6 +137,47 @@ void ServerApi::fetchCurrentUser() {
     });
 }
 
+void ServerApi::fetchOrgs() {
+    QNetworkReply* r = get(QStringLiteral("/api/orgs"));
+    connect(r, &QNetworkReply::finished, this, [this, r] {
+        r->deleteLater();
+        const auto o = okJson(r, QStringLiteral("orgs"));
+        if (!o) return;
+        QList<OrgEntry> out;
+        for (const auto& v : o->value(QLatin1String("orgs")).toArray()) {
+            const QJsonObject e = v.toObject();
+            out << OrgEntry{ e.value(QLatin1String("slug")).toString(),
+                             e.value(QLatin1String("name")).toString(),
+                             e.value(QLatin1String("myRole")).toString() };
+        }
+        emit orgsReady(out);
+    });
+}
+
+void ServerApi::publishLayout(const QString& title, const QByteArray& bbm, const QByteArray& sidecarJson,
+                              const QString& orgSlug) {
+    QJsonObject body{ { QStringLiteral("title"), title }, { QStringLiteral("bbm"), QString::fromUtf8(bbm) } };
+    if (!sidecarJson.isEmpty()) body.insert(QStringLiteral("sidecar"), QString::fromUtf8(sidecarJson));
+    if (!orgSlug.isEmpty()) body.insert(QStringLiteral("orgSlug"), orgSlug);
+    QNetworkReply* r = post(QStringLiteral("/api/layouts"), body);
+    connect(r, &QNetworkReply::finished, this, [this, r, title] {
+        r->deleteLater();
+        const int status = r->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        const QJsonObject o = jsonOf(r);
+        if (status != 201 && status != 200) {
+            const QString err = o.value(QLatin1String("error")).toString();
+            emit requestFailed(
+                QStringLiteral("publish"),
+                err.isEmpty() ? (status == 0 ? r->errorString() : tr("The server answered %1").arg(status))
+                              : err,
+                status == 401 || status == 403);
+            return;
+        }
+        emit published(o.value(QLatin1String("id")).toString(),
+                       o.value(QLatin1String("title")).toString(title));
+    });
+}
+
 void ServerApi::fetchVenues() {
     QNetworkReply* r = get(QStringLiteral("/api/venues"));
     connect(r, &QNetworkReply::finished, this, [this, r] {
@@ -168,6 +210,8 @@ void ServerApi::fetchVenue(const QString& id) {
 
 void ServerApi::startSignIn(const QString& clientName) {
     cancelSignIn();
+    // Signing in again: a dead token must not ride along (the device routes refuse tokens).
+    token_.clear();
     QNetworkReply* r = post(QStringLiteral("/api/auth/device/code"),
                             QJsonObject{ { QStringLiteral("client_name"), clientName } });
     connect(r, &QNetworkReply::finished, this, [this, r] {
