@@ -170,8 +170,11 @@ private:
     void onDisconnect();
     void onDownloadVenues();
     void onPublishToServer();
-    // Open a server layout live in this window.
+protected:
+    // Open a server layout live in this window. Protected so tests can open
+    // one without the connect dialog.
     void openLive(const bld::sync::ConnectResult& r);
+private:
     // Offer to upload the user's parts the live server lacks; `quiet`: say
     // nothing when there are none (after publishing).
     void offerPartsUpload(bool quiet);
