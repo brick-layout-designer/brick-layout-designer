@@ -4,7 +4,9 @@
 #include "import/zip/SafeZip.h"
 #include "import/zip/ZipWriter.h"
 
+#include "core/LayerBrick.h"
 #include "core/Map.h"
+#include "parts/PartsLibrary.h"
 #include "saveload/BbmReader.h"
 #include "saveload/BbmWriter.h"
 #include "saveload/SidecarIO.h"
@@ -14,7 +16,9 @@
 
 #include <QBuffer>
 #include <QColor>
+#include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QImage>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -281,4 +285,181 @@ TEST(LayoutFile, ReadsTheWebMadeFixture) {
     ASSERT_TRUE(a.open(QIODevice::ReadOnly));
     ASSERT_TRUE(b.open(QIODevice::ReadOnly));
     EXPECT_EQ(a.readAll(), b.readAll());
+}
+
+namespace {
+
+void writeFile(const QString& path, const QByteArray& data) {
+    QDir().mkpath(QFileInfo(path).absolutePath());
+    QFile f(path);
+    ASSERT_TRUE(f.open(QIODevice::WriteOnly));
+    f.write(data);
+}
+
+QByteArray leafXml(const char* author) {
+    return QByteArray("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<part>\n\t<Author>") + author
+         + "</Author>\n\t<Description>\n\t\t<en>Test part</en>\n\t</Description>\n</part>\n";
+}
+
+QByteArray setXml(const QStringList& parts) {
+    QByteArray x = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<group>\n\t<Author>Me</Author>\n\t<SubPartList>\n";
+    for (const auto& p : parts)
+        x += "\t\t<SubPart id=\"" + p.toUtf8()
+           + "\">\n\t\t\t<position>\n\t\t\t\t<x>0</x>\n\t\t\t\t<y>0</y>\n\t\t\t</position>\n\t\t\t<angle>0</angle>\n\t\t</SubPart>\n";
+    return x + "\t</SubPartList>\n</group>\n";
+}
+
+// A bundled library (std) with STD.1 and a user library (mine) with MINE.1
+// (a .png and a .gif), SUB.1 and the set KIT.1 (KIT.1.set.xml) of STD.1 and SUB.1.
+struct TwoLibraries {
+    QTemporaryDir dir;
+    QString std = dir.filePath(QStringLiteral("std"));
+    QString mine = dir.filePath(QStringLiteral("mine"));
+    parts::PartsLibrary library;
+    TwoLibraries() {
+        writeFile(std + QStringLiteral("/Track/STD.1.xml"), leafXml("Bundled"));
+        writeFile(std + QStringLiteral("/Track/STD.1.gif"), QByteArray("GIF89a-std"));
+        writeFile(mine + QStringLiteral("/MINE.1.xml"), leafXml("Me"));
+        writeFile(mine + QStringLiteral("/MINE.1.png"), QByteArray("\x89PNG-mine"));
+        writeFile(mine + QStringLiteral("/MINE.1.gif"), QByteArray("GIF89a-mine"));
+        writeFile(mine + QStringLiteral("/sub/SUB.1.xml"), leafXml("Me"));
+        writeFile(mine + QStringLiteral("/sub/SUB.1.gif"), QByteArray("GIF89a-sub"));
+        writeFile(mine + QStringLiteral("/KIT.1.set.xml"), setXml({ QStringLiteral("STD.1"), QStringLiteral("SUB.1") }));
+        library.addSearchPath(std);
+        library.addSearchPath(mine);
+        library.scan();
+    }
+};
+
+std::unique_ptr<core::Map> mapUsing(const QStringList& bricks, const QString& group = {}) {
+    auto map = std::make_unique<core::Map>();
+    auto layer = std::make_unique<core::LayerBrick>();
+    for (const auto& p : bricks) {
+        core::Brick b;
+        b.partNumber = p;
+        layer->bricks.push_back(b);
+    }
+    if (!group.isEmpty()) {
+        core::Group g;
+        g.partNumber = group;
+        layer->groups.push_back(g);
+    }
+    map->layers().push_back(std::move(layer));
+    return map;
+}
+
+}  // namespace
+
+TEST(LayoutFile, CarriesThePartsOutsideTheBundledLibrary) {
+    TwoLibraries libs;
+    ASSERT_TRUE(libs.library.metadata(QStringLiteral("KIT.1")).has_value());
+    const auto map = mapUsing({ QStringLiteral("STD.1"), QStringLiteral("MINE.1"), QStringLiteral("MINE.1") },
+                              QStringLiteral("KIT.1"));
+    const auto files = layoutPartFiles(*map, libs.library, libs.std);
+    EXPECT_EQ(files.keys(), (QStringList{ QStringLiteral("KIT.1.set.xml"), QStringLiteral("MINE.1.gif"),
+                                          QStringLiteral("MINE.1.png"), QStringLiteral("MINE.1.xml"),
+                                          QStringLiteral("SUB.1.gif"), QStringLiteral("SUB.1.xml") }));
+    EXPECT_EQ(files.value(QStringLiteral("MINE.1.png")), QByteArray("\x89PNG-mine"));
+
+    QString error;
+    const QByteArray bytes = layoutFileBytes(*map, &error, nullptr, files);
+    const SafeZip zip(bytes);
+    ASSERT_NE(zip.find(QStringLiteral("parts/MINE.1.xml")), nullptr);
+    EXPECT_EQ(zip.find(QStringLiteral("parts/MINE.1.png"))->method, 0);  // images stored
+    const auto read = readLayoutFileBytes(bytes, libs.dir.filePath(QStringLiteral("assets")));
+    ASSERT_TRUE(read.ok());
+    EXPECT_EQ(read.partFiles, files);
+}
+
+TEST(LayoutFile, OpeningTakesInOnlyThePartsTheLibraryLacks) {
+    TwoLibraries source;
+    const auto map = mapUsing({ QStringLiteral("MINE.1") }, QStringLiteral("KIT.1"));
+    auto files = layoutPartFiles(*map, source.library, source.std);
+
+    // Another machine: the bundled part, and its own SUB.1 that differs.
+    QTemporaryDir other;
+    writeFile(other.filePath(QStringLiteral("std/STD.1.xml")), leafXml("Bundled"));
+    writeFile(other.filePath(QStringLiteral("own/SUB.1.xml")), leafXml("Someone else"));
+    parts::PartsLibrary library;
+    library.addSearchPath(other.filePath(QStringLiteral("std")));
+    library.addSearchPath(other.filePath(QStringLiteral("own")));
+    library.scan();
+
+    const QString dir = other.filePath(QStringLiteral("layout-parts"));
+    const auto installed = installLayoutParts(files, dir, library);
+    EXPECT_EQ(installed.newParts, (QStringList{ dir + QStringLiteral("/KIT.1.set.xml"), dir + QStringLiteral("/MINE.1.xml") }));
+    EXPECT_EQ(installed.differing, QStringList{ QStringLiteral("SUB.1") });
+    EXPECT_TRUE(installed.failed.isEmpty());
+    EXPECT_TRUE(QFile::exists(dir + QStringLiteral("/MINE.1.png")));
+    EXPECT_TRUE(QFile::exists(dir + QStringLiteral("/MINE.1.gif")));
+    EXPECT_FALSE(QFile::exists(dir + QStringLiteral("/SUB.1.xml")));  // theirs is kept
+
+    // Taken in, the parts are the library's: opening again adds nothing.
+    for (const auto& xml : installed.newParts) library.scanFile(xml);
+    ASSERT_TRUE(library.metadata(QStringLiteral("MINE.1")).has_value());
+    EXPECT_FALSE(library.metadata(QStringLiteral("MINE.1"))->gifFilePath.isEmpty());
+    const auto again = installLayoutParts(files, dir, library);
+    EXPECT_TRUE(again.newParts.isEmpty());
+    EXPECT_EQ(again.differing, QStringList{ QStringLiteral("SUB.1") });
+}
+
+TEST(LayoutFile, PartFileNamesStayInTheirFolder) {
+    for (const char* ok : { "MINE.1.xml", "3001.1.gif", "KIT.set.xml", "Track 18 #2.8.png", "x.JPEG" })
+        EXPECT_TRUE(isLayoutPartFileName(QString::fromUtf8(ok))) << ok;
+    for (const char* bad : { "../evil.xml", "sub/MINE.1.xml", "sub\\MINE.1.xml", ".hidden.xml", "C:evil.xml",
+                             "MINE.1.exe", "MINE.1.xml.sh", "" })
+        EXPECT_FALSE(isLayoutPartFileName(QString::fromUtf8(bad))) << bad;
+
+    // A file carrying such a name: read without it, with a warning; nothing written.
+    QTemporaryDir dir;
+    auto map = mapUsing({});
+    QBuffer bbm;
+    bbm.open(QIODevice::WriteOnly);
+    ASSERT_TRUE(saveload::writeBbm(*map, bbm).ok);
+    ZipWriter w;
+    w.add(QStringLiteral("manifest.json"), R"({"format":"bld-layout","version":1})");
+    w.add(QStringLiteral("layout.bbm"), bbm.data());
+    w.add(QStringLiteral("parts/../../evil.xml"), leafXml("x"));
+    w.add(QStringLiteral("parts/GOOD.1.xml"), leafXml("x"));
+    const auto r = readLayoutFileBytes(w.finish(), dir.path());
+    ASSERT_TRUE(r.ok());
+    EXPECT_EQ(r.partFiles.keys(), QStringList{ QStringLiteral("GOOD.1.xml") });
+    EXPECT_EQ(r.warnings.size(), 1);
+}
+
+// fixtures/layouts/with-parts.bld-layout, which the web app opens too: one
+// brick of CLDTEST.1, a part of the user's own that the file carries.
+// BLD_UPDATE_FIXTURES=1 writes it again.
+TEST(LayoutFile, ReadsTheSharedFixtureWithParts) {
+    const QString fixture = kSource + QStringLiteral("/fixtures/layouts/with-parts.bld-layout");
+    QTemporaryDir dir;
+    const QString mine = dir.filePath(QStringLiteral("mine"));
+    QImage sprite(32, 16, QImage::Format_ARGB32);
+    sprite.fill(QColor(0xcc, 0x33, 0x33));
+    writeFile(mine + QStringLiteral("/CLDTEST.1.xml"), leafXml("Brick Layout Designer tests"));
+    ASSERT_TRUE(sprite.save(mine + QStringLiteral("/CLDTEST.1.png")));
+    parts::PartsLibrary library;
+    library.addSearchPath(mine);
+    library.scan();
+    const auto map = mapUsing({ QStringLiteral("CLDTEST.1") });
+    auto& layer = static_cast<core::LayerBrick&>(*map->layers().front());
+    layer.guid = QStringLiteral("11111111-1111-1111-1111-111111111111");
+    layer.name = QStringLiteral("Layer 1");
+    layer.bricks.front().guid = QStringLiteral("22222222-2222-2222-2222-222222222222");
+    layer.bricks.front().displayArea = QRectF(0, 0, 4, 2);
+    map->nbItems = 1;
+    if (qEnvironmentVariableIsSet("BLD_UPDATE_FIXTURES")) {
+        QString error;
+        ASSERT_TRUE(writeLayoutFile(*map, fixture, &error, nullptr, layoutPartFiles(*map, library, {})))
+            << error.toStdString();
+    }
+    const auto read = readLayoutFile(fixture, dir.filePath(QStringLiteral("assets")));
+    ASSERT_TRUE(read.ok()) << read.error.toStdString();
+    ASSERT_EQ(read.map->layers().size(), 1u);
+    const auto& bricks = static_cast<const core::LayerBrick&>(*read.map->layers().front()).bricks;
+    ASSERT_EQ(bricks.size(), 1u);
+    EXPECT_EQ(bricks.front().partNumber, QStringLiteral("CLDTEST.1"));
+    EXPECT_EQ(read.partFiles.keys(), (QStringList{ QStringLiteral("CLDTEST.1.png"), QStringLiteral("CLDTEST.1.xml") }));
+    EXPECT_EQ(read.partFiles.value(QStringLiteral("CLDTEST.1.xml")), leafXml("Brick Layout Designer tests"));
+    EXPECT_EQ(QImage::fromData(read.partFiles.value(QStringLiteral("CLDTEST.1.png"))).size(), QSize(32, 16));
 }

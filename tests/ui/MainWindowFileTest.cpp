@@ -1,8 +1,10 @@
 // File › Save / Save As / Export BlueBrick Map with the native layout file.
 
+#include "ui/LibraryPathsDialog.h"
 #include "ui/MainWindow.h"
 #include "ui/UpdateCheck.h"
 
+#include "core/LayerBrick.h"
 #include "core/Map.h"
 #include "import/LayoutFile.h"
 #include "parts/PartsLibrary.h"
@@ -15,6 +17,10 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QBuffer>
+#include <QDir>
+#include <QImage>
+#include <QSettings>
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -194,4 +200,90 @@ TEST_F(MainWindowFile, ExportingABbmLeavesOutWhatBlueBrickCannotHold) {
     // The layout is still the .bld-layout, venue and all.
     EXPECT_TRUE(window_->windowTitle().startsWith(QStringLiteral("lobby.bld-layout")))
         << window_->windowTitle().toStdString();
+}
+
+namespace {
+
+QByteArray partXml() {
+    return QByteArrayLiteral("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<part>\n\t<Author>Me</Author>\n"
+                             "\t<Description>\n\t\t<en>My part</en>\n\t</Description>\n</part>\n");
+}
+
+QByteArray partGif() {
+    QImage image(16, 8, QImage::Format_ARGB32);
+    image.fill(Qt::red);
+    QBuffer b;
+    b.open(QIODevice::WriteOnly);
+    image.save(&b, "PNG");
+    return b.data();
+}
+
+// A layout of one MYPART.1 brick.
+std::unique_ptr<core::Map> oneBrickOf(const QString& part) {
+    auto map = std::make_unique<core::Map>();
+    auto layer = std::make_unique<core::LayerBrick>();
+    core::Brick b;
+    b.partNumber = part;
+    layer->bricks.push_back(b);
+    map->layers().push_back(std::move(layer));
+    return map;
+}
+
+QString layoutPartsDir() {
+    return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + QStringLiteral("/layout-parts");
+}
+
+}  // namespace
+
+TEST_F(MainWindowFile, SavingALayoutCarriesTheUsersOwnParts) {
+    // A part of the user's own, outside the bundled library.
+    const QString mine = dir_.filePath(QStringLiteral("mine"));
+    QDir().mkpath(mine);
+    QFile xml(mine + QStringLiteral("/MYPART.1.xml")), png(mine + QStringLiteral("/MYPART.1.png"));
+    ASSERT_TRUE(xml.open(QIODevice::WriteOnly) && png.open(QIODevice::WriteOnly));
+    xml.write(partXml());
+    png.write(partGif());
+    xml.close();
+    png.close();
+    parts_.addSearchPath(mine);
+    parts_.scan();
+    ASSERT_TRUE(parts_.metadata(QStringLiteral("MYPART.1")));
+
+    QString error;
+    const QString source = dir_.filePath(QStringLiteral("source.bld-layout"));
+    ASSERT_TRUE(import::writeLayoutFile(*oneBrickOf(QStringLiteral("MYPART.1")), source, &error));
+    ASSERT_TRUE(window_->openFile(source));
+    const QString saved = dir_.filePath(QStringLiteral("saved.bld-layout"));
+    QAction* saveAs = action(*window_, QStringLiteral("Save &As..."));
+    ASSERT_NE(saveAs, nullptr);
+    Answers answers{ { chooseFile(saved) } };
+    answers.during([&] { saveAs->trigger(); });
+    const auto read = import::readLayoutFile(saved, dir_.path());
+    ASSERT_TRUE(read.ok());
+    EXPECT_EQ(read.partFiles.keys(), (QStringList{ QStringLiteral("MYPART.1.png"), QStringLiteral("MYPART.1.xml") }));
+    EXPECT_EQ(read.partFiles.value(QStringLiteral("MYPART.1.xml")), partXml());
+}
+
+TEST_F(MainWindowFile, OpeningALayoutAddsThePartsItCarries) {
+    QDir(layoutPartsDir()).removeRecursively();
+    ASSERT_FALSE(parts_.metadata(QStringLiteral("THEIRPART.1")));
+    QString error;
+    const QString file = dir_.filePath(QStringLiteral("theirs.bld-layout"));
+    ASSERT_TRUE(import::writeLayoutFile(*oneBrickOf(QStringLiteral("THEIRPART.1")), file, &error, nullptr,
+                                        { { QStringLiteral("THEIRPART.1.xml"), partXml() },
+                                          { QStringLiteral("THEIRPART.1.png"), partGif() } }));
+    ASSERT_TRUE(window_->openFile(file));
+    const auto meta = parts_.metadata(QStringLiteral("THEIRPART.1"));
+    ASSERT_TRUE(meta);
+    EXPECT_TRUE(meta->xmlFilePath.startsWith(layoutPartsDir())) << meta->xmlFilePath.toStdString();
+    EXPECT_FALSE(meta->gifFilePath.isEmpty());
+    // The folder stays in the library after a restart.
+    QSettings s;
+    s.beginGroup(ui::LibraryPathsDialog::kSettingsGroup);
+    QStringList paths = s.value(ui::LibraryPathsDialog::kSettingsKey).toStringList();
+    EXPECT_TRUE(paths.contains(layoutPartsDir()));
+    paths.removeAll(layoutPartsDir());
+    s.setValue(ui::LibraryPathsDialog::kSettingsKey, paths);
+    s.endGroup();
+    QDir(layoutPartsDir()).removeRecursively();
 }
