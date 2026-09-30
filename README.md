@@ -98,9 +98,11 @@ skin on top.
     (wall / door / open), obstacles (pillars), walkway buffer, with
     non-blocking validation warnings.
 
-Forward-compatibility with vanilla BlueBrick 1.9.2 is maintained via a
-sidecar `.bbm.bld` file for the fork-only metadata — vanilla BlueBrick
-reads the `.bbm` normally and ignores the sidecar.
+Layouts save as one `.bld-layout` file that holds everything, labels,
+modules, venue and background image included ([docs/layout-file.md](docs/layout-file.md)).
+File › Export as BlueBrick Map writes a `.bbm` for vanilla BlueBrick 1.9.2
+with what it supports. `.bbm` files, and their `.bbm.bld` sidecars from
+earlier versions, still open and can still be saved as they are.
 
 ## Status
 

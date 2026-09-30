@@ -998,7 +998,7 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
         layerPanel_->setMap(mapView_->currentMap(), mapView_->builder());
     });
 
-    // Auto-save: 60s tick, writes to AppDataLocation/autosave.bbm whenever
+    // Auto-save: 60s tick, writes to AppDataLocation/autosave.bld-layout whenever
     // the undo stack is dirty. Cheap enough to run unconditionally; the
     // writeMapTo path is the same used for manual saves.
     autosaveTimer_ = new QTimer(this);

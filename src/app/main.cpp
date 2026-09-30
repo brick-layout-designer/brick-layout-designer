@@ -68,7 +68,7 @@ int main(int argc, char** argv) {
     parser.addHelpOption();
     parser.addVersionOption();
     parser.addPositionalArgument(QStringLiteral("file"),
-                                 QStringLiteral("BlueBrick map (.bbm) to open."),
+                                 QStringLiteral("Layout (.bld-layout) or BlueBrick map (.bbm) to open."),
                                  QStringLiteral("[file]"));
     parser.process(app);
 

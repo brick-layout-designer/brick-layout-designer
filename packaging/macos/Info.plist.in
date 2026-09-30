@@ -31,10 +31,24 @@
     <true/>
     <key>NSSupportsAutomaticGraphicsSwitching</key>
     <true/>
-    <!-- .bbm documents open via Finder double-click / "Open With"; main.cpp
+    <!-- .bld-layout and .bbm documents open via Finder double-click / "Open With"; main.cpp
          handles the resulting QFileOpenEvent. -->
     <key>CFBundleDocumentTypes</key>
     <array>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>Brick Layout Designer Layout</string>
+            <key>CFBundleTypeRole</key>
+            <string>Editor</string>
+            <key>LSHandlerRank</key>
+            <string>Owner</string>
+            <key>CFBundleTypeExtensions</key>
+            <array>
+                <string>bld-layout</string>
+            </array>
+            <key>CFBundleTypeIconFile</key>
+            <string>${MACOSX_BUNDLE_ICON_FILE}</string>
+        </dict>
         <dict>
             <key>CFBundleTypeName</key>
             <string>BlueBrick Map</string>

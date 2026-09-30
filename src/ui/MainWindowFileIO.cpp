@@ -9,6 +9,7 @@
 
 #include "../edit/PartList.h"
 #include "../edit/VenueCommands.h"
+#include "../import/LayoutFile.h"
 #include "../import/mapformats/LDrawMap.h"
 #include "../import/mapformats/FourDBrixMap.h"
 #include "../import/mapformats/TrackDesignerMap.h"
@@ -45,6 +46,7 @@
 #include <QHash>
 #include <QMenu>
 #include <QMessageBox>
+#include <QPushButton>
 #include <QSettings>
 #include <QStandardPaths>
 #include <QStatusBar>
@@ -107,11 +109,17 @@ bool isOtherMapFormat(const QString& path) {
 }
 
 const char* kOpenFilter = QT_TRANSLATE_NOOP("bld::ui::MainWindow",
-    "All supported maps (*.bbm *.ldr *.mpd *.tdl *.ncp);;BlueBrick map (*.bbm);;"
+    "All supported maps (*.bld-layout *.bbm *.ldr *.mpd *.tdl *.ncp);;Brick Layout Designer layout (*.bld-layout);;"
+    "BlueBrick map (*.bbm);;"
     "LDraw (*.ldr);;LDraw multi-part (*.mpd);;TrackDesigner (*.tdl);;4DBrix nControl (*.ncp);;All files (*)");
 const char* kSaveFilter = QT_TRANSLATE_NOOP("bld::ui::MainWindow",
-    "BlueBrick map (*.bbm);;LDraw (*.ldr);;LDraw multi-part (*.mpd);;TrackDesigner (*.tdl);;"
+    "Brick Layout Designer layout (*.bld-layout);;BlueBrick map (*.bbm);;LDraw (*.ldr);;LDraw multi-part (*.mpd);;TrackDesigner (*.tdl);;"
     "4DBrix nControl (*.ncp)");
+
+// Where background images inside .bld-layout files are unpacked to.
+QString layoutAssetDir() {
+    return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + QStringLiteral("/layout-assets");
+}
 
 }  // namespace
 
@@ -147,6 +155,15 @@ bool MainWindow::openFile(const QString& path) {
         pushRecentFile(path);
         return true;
     }
+    if (import::isLayoutFile(path)) {
+        auto layout = import::readLayoutFile(path, layoutAssetDir());
+        if (!layout.ok()) {
+            QMessageBox::warning(this, tr("Open failed"), tr("%1\n\n%2").arg(path, layout.error));
+            return false;
+        }
+        showLoadedMap(std::move(layout.map), path, layout.warnings);
+        return true;
+    }
     auto result = saveload::readBbm(path);
     if (!result.ok()) {
         QMessageBox::warning(this, tr("Open failed"),
@@ -173,20 +190,27 @@ bool MainWindow::openFile(const QString& path) {
         }
     }
 
-    const int layerCount = static_cast<int>(result.map->layers().size());
-    const int nbItems = result.map->nbItems;
-    mapView_->loadMap(std::move(result.map));
+    showLoadedMap(std::move(result.map), path, {});
+    return true;
+}
+
+void MainWindow::showLoadedMap(std::unique_ptr<core::Map> map, const QString& path, const QStringList& warnings) {
+    const int layerCount = static_cast<int>(map->layers().size());
+    const int nbItems = map->nbItems;
+    mapView_->loadMap(std::move(map));
     layerPanel_->setMap(mapView_->currentMap(), mapView_->builder());
     modulesPanel_->setMap(mapView_->currentMap());
     currentFilePath_ = path;
+    saveFormatChosen_ = false;
     mapView_->undoStack()->setClean();
     cleanUndoIndex_ = 0;
     updateTitle();
-    statusBar()->showMessage(tr("Opened %1 — %2 layers, %3 items")
-                                 .arg(path).arg(layerCount).arg(nbItems));
+    const QString opened = tr("Opened %1 — %2 layers, %3 items").arg(path).arg(layerCount).arg(nbItems);
+    statusBar()->showMessage(warnings.isEmpty()
+                                 ? opened
+                                 : QStringLiteral("%1 (%2)").arg(opened, warnings.join(QStringLiteral("; "))));
     QSettings().setValue(QString::fromLatin1(kLastFileKey), path);
     pushRecentFile(path);
-    return true;
 }
 
 void MainWindow::onOpen() {
@@ -207,6 +231,24 @@ bool MainWindow::writeMapTo(const QString& path) {
             QMessageBox::warning(this, tr("Save failed"), err);
             return false;
         }
+        currentFilePath_ = path;
+        mapView_->undoStack()->setClean();
+        updateTitle();
+        statusBar()->showMessage(tr("Saved %1").arg(path), 3000);
+        QSettings().setValue(QString::fromLatin1(kLastFileKey), path);
+        pushRecentFile(path);
+        QFile::remove(autosavePath());
+        return true;
+    }
+    if (import::isLayoutFile(path)) {
+        QString err;
+        QStringList warnings;
+        if (!import::writeLayoutFile(*map, path, &err, &warnings)) {
+            QMessageBox::warning(this, tr("Save failed"), err);
+            return false;
+        }
+        if (!warnings.isEmpty())
+            QMessageBox::warning(this, tr("Saved with a problem"), warnings.join(QStringLiteral("\n")));
         currentFilePath_ = path;
         mapView_->undoStack()->setClean();
         updateTitle();
@@ -253,25 +295,92 @@ bool MainWindow::writeMapTo(const QString& path) {
 bool MainWindow::onSave() {
     if (!mapView_->currentMap()) return false;
     if (currentFilePath_.isEmpty()) return onSaveAs();
+    if (!import::isLayoutFile(currentFilePath_) && !saveFormatChosen_) return chooseSaveFormat();
     return writeMapTo(currentFilePath_);
+}
+
+bool MainWindow::chooseSaveFormat() {
+    const QFileInfo info(currentFilePath_);
+    const QString native = info.dir().filePath(info.completeBaseName() + QStringLiteral(".bld-layout"));
+    QMessageBox box(QMessageBox::Question, tr("Save layout"),
+        tr("%1 is a %2 file.\n\n"
+           "Save it as a Brick Layout Designer layout (%3) to keep everything in one file: "
+           "labels, modules, the venue and the background image included.\n\n"
+           "Keep it as %2 if you still open it in another program; File › Export › BlueBrick Map "
+           "can make a .bbm copy at any time.")
+            .arg(info.fileName(), info.suffix().toLower().prepend(QLatin1Char('.')), QFileInfo(native).fileName()),
+        QMessageBox::Cancel, this);
+    QPushButton* switchBtn = box.addButton(tr("Save as .bld-layout"), QMessageBox::AcceptRole);
+    QPushButton* keepBtn = box.addButton(tr("Keep %1").arg(info.suffix().toLower().prepend(QLatin1Char('.'))),
+                                  QMessageBox::DestructiveRole);
+    box.setDefaultButton(switchBtn);
+    box.exec();
+    if (box.clickedButton() == keepBtn) {
+        saveFormatChosen_ = true;
+        return writeMapTo(currentFilePath_);
+    }
+    if (box.clickedButton() != switchBtn) return false;
+    if (QFile::exists(native)
+        && QMessageBox::question(this, tr("Save layout"), tr("%1 already exists. Replace it?").arg(native))
+               != QMessageBox::Yes)
+        return false;
+    return writeMapTo(native);
+}
+
+void MainWindow::onExportBbm() {
+    auto* map = mapView_->currentMap();
+    if (!map) return;
+    const QFileInfo info(currentFilePath_);
+    const QString suggested = currentFilePath_.isEmpty()
+        ? QStringLiteral("layout.bbm")
+        : info.dir().filePath(info.completeBaseName() + QStringLiteral(".bbm"));
+    QString path = QFileDialog::getSaveFileName(this, tr("Export BlueBrick map"), suggested,
+                                                tr("BlueBrick map (*.bbm)"));
+    if (path.isEmpty()) return;
+    if (!path.endsWith(QStringLiteral(".bbm"), Qt::CaseInsensitive)) path += QStringLiteral(".bbm");
+    // BlueBrick has no labels, modules, venues or background images.
+    QStringList lost;
+    if (!map->sidecar.anchoredLabels.empty()) lost << tr("anchored labels");
+    if (!map->sidecar.modules.empty()) lost << tr("modules");
+    if (map->sidecar.venue) lost << tr("the venue");
+    if (!map->sidecar.backgroundImagePath.isEmpty()) lost << tr("the background image");
+    if (!lost.isEmpty()
+        && QMessageBox::question(this, tr("Export BlueBrick map"),
+               tr("BlueBrick can't hold %1, so the .bbm leaves them out. "
+                  "Your layout keeps them.\n\nExport anyway?").arg(lost.join(QStringLiteral(", "))))
+               != QMessageBox::Yes)
+        return;
+    const auto res = saveload::writeBbm(*map, path);
+    if (!res.ok) {
+        QMessageBox::warning(this, tr("Export failed"), res.error);
+        return;
+    }
+    statusBar()->showMessage(tr("Exported %1").arg(path), 4000);
 }
 
 bool MainWindow::onSaveAs() {
     if (!mapView_->currentMap()) return false;
     QString selectedFilter;
+    // Offer the native format first, even for a file opened as something else.
+    const QFileInfo current(currentFilePath_);
+    const QString suggested = currentFilePath_.isEmpty()
+        ? QString()
+        : current.dir().filePath(current.completeBaseName() + QStringLiteral(".bld-layout"));
     QString path = QFileDialog::getSaveFileName(
-        this, tr("Save map"), currentFilePath_, tr(kSaveFilter), &selectedFilter);
+        this, tr("Save map"), suggested, tr(kSaveFilter), &selectedFilter);
     if (path.isEmpty()) return false;
     if (QFileInfo(path).suffix().isEmpty()) {
         path += selectedFilter.contains(QStringLiteral("*.mpd")) ? QStringLiteral(".mpd")
               : selectedFilter.contains(QStringLiteral("*.ldr")) ? QStringLiteral(".ldr")
               : selectedFilter.contains(QStringLiteral("*.tdl")) ? QStringLiteral(".tdl")
               : selectedFilter.contains(QStringLiteral("*.ncp")) ? QStringLiteral(".ncp")
-                                                                  : QStringLiteral(".bbm");
+              : selectedFilter.contains(QStringLiteral("*.bbm")) ? QStringLiteral(".bbm")
+                                                                  : QStringLiteral(".bld-layout");
     }
     // As in BlueBrick: other formats can't hold everything a .bbm does.
     const QString warnKey = QStringLiteral("general/warnNonBbmSave");
-    if (!path.endsWith(QStringLiteral(".bbm"), Qt::CaseInsensitive) && QSettings().value(warnKey, true).toBool()) {
+    if (!path.endsWith(QStringLiteral(".bbm"), Qt::CaseInsensitive) && !import::isLayoutFile(path)
+        && QSettings().value(warnKey, true).toBool()) {
         QMessageBox box(QMessageBox::Question, tr("Save as %1").arg(QFileInfo(path).suffix().toUpper()),
             tr("This format can't store everything in the map: text, area and grid layers, "
                "module / label / venue data and parts the format has no equivalent for are lost, "
@@ -283,6 +392,7 @@ bool MainWindow::onSaveAs() {
         if (dontAsk->isChecked()) QSettings().setValue(warnKey, false);
         if (answer != QMessageBox::Yes) return false;
     }
+    saveFormatChosen_ = true;  // picked here
     return writeMapTo(path);
 }
 
@@ -498,14 +608,14 @@ void MainWindow::pushRecentFile(const QString& path) {
 QString MainWindow::autosavePath() {
     const QString dir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
     QDir().mkpath(dir);
-    return dir + QStringLiteral("/autosave.bbm");
+    return dir + QStringLiteral("/autosave.bld-layout");
 }
 
 void MainWindow::performAutosave() {
     if (!mapView_->currentMap() || mapView_->undoStack()->isClean()) return;
     const QString path = autosavePath();
-    auto res = saveload::writeBbm(*mapView_->currentMap(), path);
-    if (res.ok) {
+    QString error;
+    if (import::writeLayoutFile(*mapView_->currentMap(), path, &error)) {
         // Record the original file alongside so the startup prompt can
         // mention the source filename.
         QSettings().setValue(QStringLiteral("autosave/sourceFile"), currentFilePath_);
@@ -546,22 +656,12 @@ bool MainWindow::restoreAutosaveIfAny(const QString& lastFile) {
     // autosave file itself — we want the title / Ctrl+S target / Recent
     // Files entry to all reflect the ORIGINAL file, but with the
     // autosave's unsaved content on top.
-    auto result = saveload::readBbm(path);
+    // The autosave is a whole layout file: labels, modules and venue included.
+    auto result = import::readLayoutFile(path, layoutAssetDir());
     if (!result.ok()) {
         QMessageBox::warning(this, tr("Restore failed"),
             tr("Couldn't read the autosave: %1").arg(result.error));
         return false;
-    }
-    // Merge the ORIGINAL file's sidecar (if any) rather than the autosave's,
-    // so anchored labels / modules / venues are preserved.
-    if (!source.isEmpty()) {
-        const QString sidecarPath = saveload::sidecarPathFor(source);
-        if (QFile::exists(sidecarPath)) {
-            QFile bf(source);
-            QByteArray bbmBytes;
-            if (bf.open(QIODevice::ReadOnly)) bbmBytes = bf.readAll();
-            (void)saveload::readSidecar(sidecarPath, bbmBytes, result.map->sidecar);
-        }
     }
 
     mapView_->loadMap(std::move(result.map));
@@ -573,6 +673,7 @@ bool MainWindow::restoreAutosaveIfAny(const QString& lastFile) {
     // asterisk — the user must know the recovered content still needs
     // a save to persist to the original file.
     currentFilePath_ = source;
+    saveFormatChosen_ = false;
     if (!source.isEmpty()) pushRecentFile(source);
     updateTitle();
 
