@@ -54,6 +54,9 @@ private slots:
     void onChooseFolder();
     void onLoad();
     void onStartLayout();
+    // Open the Venue Designer on a new venue, or on the selected one.
+    void onNewVenue();
+    void onDesign();
     void onDelete();
     void onRename();
     void onSelectionChanged();
@@ -63,11 +66,15 @@ private:
     QString selectedPath() const;
     // Reads the selected venue file, warning (with `title`) when it can't.
     std::optional<core::Venue> readSelected(const QString& title);
+    // Runs the designer; saves go to `path` (a new venue: a new file named after it).
+    void design(core::Venue venue, QString path);
 
     QLabel*      pathLabel_  = nullptr;
     QListWidget* list_       = nullptr;
     QPushButton* loadBtn_    = nullptr;
     QPushButton* startBtn_   = nullptr;
+    QPushButton* newBtn_ = nullptr;
+    QPushButton* designBtn_ = nullptr;
     QPushButton* saveBtn_    = nullptr;
     QPushButton* deleteBtn_  = nullptr;
     QPushButton* renameBtn_  = nullptr;
