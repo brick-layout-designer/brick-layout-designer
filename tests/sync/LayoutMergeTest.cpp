@@ -224,16 +224,56 @@ TEST(LayoutMerge, SaysWhatEachChangeIs) {
     Case c;
     QStringList lines;
     for (const auto& ch : c.changes) lines << describe(ch);
-    EXPECT_TRUE(lines.contains(QStringLiteral("Brick %1: you changed it, the server changed it")
-                                   .arg(brick(*c.base, QStringLiteral("224"))->partNumber)));
+    // Bricks of one part tell apart by where they are and their layer.
+    EXPECT_TRUE(lines.contains(
+        QStringLiteral("Brick TABLE96X190 at (296, 96) on \"Tables\": you changed it, the server changed it")));
+    EXPECT_TRUE(lines.contains(QStringLiteral("Brick TABLE96X190 at (288, 192) on \"Tables\": you changed it")));
+    EXPECT_TRUE(lines.contains(QStringLiteral("Brick TABLE96X190 at (96, 192) on \"Tables\": you deleted it")));
+    EXPECT_TRUE(
+        lines.contains(QStringLiteral("Brick TABLE96X190 at (96, 112) on \"Tables\": you and the server both changed it")));
+    EXPECT_TRUE(lines.contains(QStringLiteral("Brick 3811.1 at (176, 208) on \"Buildings\": the server deleted it")));
+    EXPECT_TRUE(lines.contains(
+        QStringLiteral("Text \"Edited offline\" at (332.6, 212.1) on \"Building labels\": you changed it")));
     EXPECT_TRUE(lines.contains(QStringLiteral("Label \"Added offline\": you added it")));
     EXPECT_TRUE(lines.contains(QStringLiteral("Venue: the server added it")));
-    EXPECT_TRUE(lines.contains(QStringLiteral("Brick %1: you and the server both changed it")
-                                   .arg(brick(*c.base, QStringLiteral("225"))->partNumber)));
     for (const auto& ch : c.changes) {
         const bool copyable = ch.kind == QLatin1String("brick") || ch.kind == QLatin1String("text")
                            || ch.kind == QLatin1String("label") || ch.kind == QLatin1String("module");
         EXPECT_EQ(ch.allowsBoth(), copyable && !ch.mineValue.isUndefined() && !ch.serverValue.isUndefined())
             << ch.key.toStdString();
     }
+}
+
+// Where the item is comes from mine, else the server's, else base; a group
+// says its part; no layer name, no "on".
+TEST(LayoutMerge, SaysWhereFromWhicheverSideHasIt) {
+    const auto brickAt = [](double x, double y) {
+        return QJsonObject{ { QStringLiteral("partNumber"), QStringLiteral("3001") },
+                            { QStringLiteral("displayArea"),
+                              QJsonObject{ { QStringLiteral("x"), x }, { QStringLiteral("y"), y } } } };
+    };
+    ItemChange c;
+    c.kind = QStringLiteral("brick");
+    c.layerName = QStringLiteral("Track");
+    c.base = brickAt(1, 2);
+    c.serverValue = brickAt(-3.04, 4.25);
+    c.mine = Side::Deleted;
+    EXPECT_EQ(describe(c).toStdString(), std::string("Brick 3001 at (-3, 4.3) on \"Track\": you deleted it"));
+    c.mineValue = brickAt(7, 8);
+    c.mine = Side::Edited;
+    EXPECT_EQ(describe(c).toStdString(), std::string("Brick 3001 at (7, 8) on \"Track\": you changed it"));
+    c.mineValue = QJsonValue(QJsonValue::Undefined);
+    c.serverValue = QJsonValue(QJsonValue::Undefined);
+    c.mine = Side::Deleted;
+    c.layerName.clear();
+    EXPECT_EQ(describe(c).toStdString(), std::string("Brick 3001 at (1, 2): you deleted it"));
+
+    ItemChange g;
+    g.kind = QStringLiteral("group");
+    g.layerName = QStringLiteral("Track");
+    g.mineValue = QJsonObject{ { QStringLiteral("partNumber"), QStringLiteral("SET-1") } };
+    g.mine = Side::Added;
+    EXPECT_EQ(describe(g).toStdString(), std::string("Group SET-1 on \"Track\": you added it"));
+    g.mineValue = QJsonObject{};
+    EXPECT_EQ(describe(g).toStdString(), std::string("Group on \"Track\": you added it"));
 }

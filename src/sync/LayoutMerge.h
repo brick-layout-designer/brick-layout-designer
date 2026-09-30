@@ -51,6 +51,7 @@ struct ItemChange {
     QString key;
     QString kind;     // map, layer, brick, group, text, area, ruler, label, module, venue, background
     QString layerId;  // for layer items
+    QString layerName;  // that layer's name, from mine, else the server's, else base
     Status status = Status::Mine;
     Side mine = Side::Unchanged;
     Side server = Side::Unchanged;
