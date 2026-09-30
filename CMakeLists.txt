@@ -18,8 +18,8 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt6 6.7 REQUIRED COMPONENTS Core Gui Widgets Network PrintSupport)
-find_package(Qt6 6.7 QUIET COMPONENTS LinguistTools)
+find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Widgets Network PrintSupport)
+find_package(Qt6 6.8 QUIET COMPONENTS LinguistTools)
 qt_standard_project_setup()
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
