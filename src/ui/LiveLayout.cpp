@@ -96,7 +96,7 @@ void LiveLayout::drawPeers() {
             add(outline);
         }
         if (!peer.cursor) continue;
-        const QPointF cursor = *peer.cursor;
+        const QPointF cursor = peer.cursor.value_or(QPointF());
         // The web's pointer arrow and name pill, the same size at any zoom.
         auto* arrow = new QGraphicsPolygonItem(
             QPolygonF({ { 0, 0 }, { 0, 16 }, { 4, 12 }, { 9, 22 }, { 11, 21 }, { 7, 11 }, { 12, 11 } }));
