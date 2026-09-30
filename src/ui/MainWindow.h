@@ -2,6 +2,7 @@
 
 #include <QMainWindow>
 #include <QString>
+#include <QUrl>
 
 #include <memory>
 
@@ -140,6 +141,12 @@ private:
     void onPublishToServer();
     // Open a server layout live in this window.
     void openLive(const bld::sync::ConnectResult& r);
+    // Offer to upload the user's parts the live server lacks; `quiet`: say
+    // nothing when there are none (after publishing).
+    void offerPartsUpload(bool quiet);
+    QUrl liveServer_;
+    QString liveToken_;
+    QAction* uploadPartsAct_ = nullptr;
     void onLiveReloaded();
     void updateLiveUi();
     class LiveLayout* live_ = nullptr;
