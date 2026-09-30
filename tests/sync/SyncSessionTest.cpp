@@ -6,6 +6,8 @@
 
 #include <gtest/gtest.h>
 
+#include <QJsonObject>
+
 using namespace bld;
 using namespace bld::synctest;
 using namespace std::chrono_literals;
@@ -142,4 +144,33 @@ TEST(SyncSession, TellsTheEditorWhenTheServerEndsIt) {
     server.dropAll(QWebSocketProtocol::CloseCodePolicyViolated, QStringLiteral("access_revoked"));
     ASSERT_TRUE(waitFor([&] { return code != 0; }));
     EXPECT_EQ(code, static_cast<int>(QWebSocketProtocol::CloseCodePolicyViolated));
+}
+
+TEST(SyncSession, SharesPresenceWithEveryoneElseOnTheLayout) {
+    FakeServer server;
+    sync::SyncSession a, b;
+    a.client().setReconnectDelays(50ms, 200ms);
+    int changes = 0;
+    QObject::connect(&b, &sync::SyncSession::peersChanged, [&] { ++changes; });
+    a.open(server.url(), {}, false);
+    b.open(server.url(), {}, false);
+    ASSERT_TRUE(waitFor([&] { return a.status() == Status::Synced && b.status() == Status::Synced; }));
+    EXPECT_NE(a.clientId(), b.clientId());
+
+    const QJsonObject alice{ { QStringLiteral("user"), QJsonObject{ { QStringLiteral("name"), QStringLiteral("Alice") } } },
+                             { QStringLiteral("cursor"), QJsonObject{ { QStringLiteral("x"), 10 }, { QStringLiteral("y"), 20 } } } };
+    a.setPresence(alice);
+    ASSERT_TRUE(waitFor([&] { return b.peers().contains(a.clientId()); }));
+    EXPECT_EQ(b.peers().value(a.clientId()), alice);
+    EXPECT_TRUE(a.peers().isEmpty());  // not our own
+    EXPECT_GT(changes, 0);
+
+    // After a dropped connection A says where it is again.
+    server.dropAll(QWebSocketProtocol::CloseCodeGoingAway);
+    ASSERT_TRUE(waitFor([&] { return b.peers().isEmpty(); }));  // B went offline too: nobody shown
+    ASSERT_TRUE(waitFor([&] { return b.peers().contains(a.clientId()); }, 8000));
+
+    // Leaving takes A off B's map.
+    a.setPresence(std::nullopt);
+    ASSERT_TRUE(waitFor([&] { return b.peers().isEmpty(); }));
 }

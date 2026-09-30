@@ -4,6 +4,7 @@
 // collaborative server's y-websocket protocol, and small map accessors.
 
 #include "SyncDoc.h"
+#include "Awareness.h"
 #include "SyncProtocol.h"
 #include "WebModel.h"
 
@@ -53,8 +54,20 @@ public:
             authHeaders.push_back(QString::fromUtf8(ws->request().rawHeader("Authorization")));
             peers.push_back(ws);
             connect(ws, &QWebSocket::binaryMessageReceived, this, [this, ws](const QByteArray& m) { onMessage(ws, m); });
-            connect(ws, &QWebSocket::disconnected, this, [this, ws] { std::erase(peers, ws); ws->deleteLater(); });
+            connect(ws, &QWebSocket::disconnected, this, [this, ws] {
+                std::erase(peers, ws);
+                // Like the server: the client's presence goes, and everyone is told.
+                if (const auto last = presence.take(ws); !last.isEmpty())
+                    if (const auto entries = sync::awareness::decode(last); entries && !entries->isEmpty()) {
+                        const auto& e = entries->first();
+                        const QByteArray gone = protocol::encode(Kind::Awareness, sync::awareness::encode({ { e.clientId, e.clock + 1, std::nullopt } }));
+                        for (QWebSocket* p : peers) p->sendBinaryMessage(gone);
+                    }
+                ws->deleteLater();
+            });
             ws->sendBinaryMessage(protocol::encode(Kind::SyncStep1, doc.stateVector()));
+            // Like the server: a new client hears everyone's current presence.
+            for (const QByteArray& p : presence) ws->sendBinaryMessage(protocol::encode(Kind::Awareness, p));
         });
     }
 
@@ -75,6 +88,7 @@ public:
     sync::SyncDoc doc;
     std::vector<QWebSocket*> peers;
     std::vector<QString> authHeaders;
+    QHash<QWebSocket*, QByteArray> presence;  // each client's last awareness update
 
 private:
     void onMessage(QWebSocket* from, const QByteArray& message) {
@@ -82,7 +96,12 @@ private:
         if (!m) return;
         if (m->kind == Kind::SyncStep1) {
             from->sendBinaryMessage(protocol::encode(Kind::SyncStep2, doc.diffSince(m->payload)));
-        } else if (m->kind != Kind::Awareness) {
+        } else if (m->kind == Kind::Awareness) {
+            // Presence is relayed to everyone else, as the server does.
+            presence.insert(from, m->payload);
+            for (QWebSocket* p : peers)
+                if (p != from) p->sendBinaryMessage(message);
+        } else {
             doc.applyUpdate(m->payload);
             for (QWebSocket* p : peers)
                 if (p != from) p->sendBinaryMessage(protocol::encode(Kind::Update, m->payload));
