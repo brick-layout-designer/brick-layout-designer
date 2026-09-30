@@ -8,9 +8,14 @@
 #include <QList>
 #include <QNetworkAccessManager>
 #include <QObject>
+#include <QSet>
 #include <QString>
 #include <QStringList>
 #include <QUrl>
+
+#include <functional>
+
+namespace bld::core { class Map; }
 
 namespace bld::sync {
 
@@ -31,15 +36,19 @@ public:
 
     // Which of `local` the server's catalog (GET /api/parts/catalog) lacks.
     void findMissing(const QList<LocalPart>& local);
+    // The catalog's keys and part numbers, upper-cased, for catalogReady().
+    void fetchCatalog();
     // Upload `parts` as custom parts, personal or in the org `orgSlug`.
     void upload(const QList<LocalPart>& parts, const QString& orgSlug);
 
 signals:
     void missingReady(const QList<bld::sync::LocalPart>& missing);
+    void catalogReady(const QSet<QString>& known);
     void uploaded(int count, const QStringList& failed);
     void failed(const QString& message, bool unauthorized);
 
 private:
+    void getCatalog(std::function<void(const QSet<QString>&)> done);
     void uploadNext();
 
     QNetworkAccessManager net_;
@@ -50,5 +59,17 @@ private:
     int done_ = 0;
     QStringList failures_;
 };
+
+// The part numbers `map` uses, upper-cased: bricks, and set / group parts.
+QSet<QString> partNumbersIn(const core::Map& map);
+
+// The user's own parts that `map` uses (bricks, and set / group parts)
+// which the server doesn't know and weren't offered yet: the ones to offer
+// for upload after an edit. `serverKnown` and `alreadyAsked` hold
+// upper-cased part numbers; parts under `bundledRoot` (the ones shipped
+// with the app) are never offered.
+QList<LocalPart> partsToOffer(const core::Map& map, const QSet<QString>& serverKnown,
+                              const QList<LocalPart>& local, const QSet<QString>& alreadyAsked,
+                              const QString& bundledRoot = {});
 
 } // namespace bld::sync

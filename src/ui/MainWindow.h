@@ -9,6 +9,11 @@
 
 #include <memory>
 
+#ifdef BLD_SYNC
+#include "PartsUpload.h"
+#include <QSet>
+#endif
+
 class QAction;
 class QLabel;
 class QMenu;
@@ -173,6 +178,17 @@ private:
     QUrl liveServer_;
     QString liveToken_;
     QAction* uploadPartsAct_ = nullptr;
+    // Your own parts you place while live that the server lacks: each is
+    // offered for upload once per session. The catalog is fetched on open
+    // and after uploads, not per edit.
+    void loadLivePartsCatalog();
+    void offerPlacedParts();
+    QList<bld::sync::LocalPart> liveLocalParts_;
+    QSet<QString> liveServerParts_; // upper-cased keys and part numbers
+    bool liveCatalogReady_ = false;
+    QSet<QString> liveAskedParts_;  // offered already, or in the layout as opened
+    bool liveLayoutSeen_ = false;
+    bool liveOfferOpen_ = false;
     // Bring this server's parts into the library (in the background):
     // missing or changed ones are downloaded to a folder named after it.
     void syncServerParts(const QUrl& server, const QString& token);

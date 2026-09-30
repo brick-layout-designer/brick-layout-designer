@@ -1,5 +1,9 @@
 #include "PartsUpload.h"
 
+#include "core/LayerBrick.h"
+#include "core/Map.h"
+
+#include <QDir>
 #include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
@@ -62,13 +66,13 @@ QList<LocalPart> PartsUpload::scanFolder(const QString& dir) {
     return out;
 }
 
-void PartsUpload::findMissing(const QList<LocalPart>& local) {
+void PartsUpload::getCatalog(std::function<void(const QSet<QString>&)> done) {
     QUrl url = server_;
     url.setPath(QStringLiteral("/api/parts/catalog"));
     QNetworkRequest req(url);
     req.setRawHeader("Authorization", "Bearer " + token_.toUtf8());
     QNetworkReply* r = net_.get(req);
-    connect(r, &QNetworkReply::finished, this, [this, r, local] {
+    connect(r, &QNetworkReply::finished, this, [this, r, done = std::move(done)] {
         r->deleteLater();
         const int status = r->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         if (status != 200) {
@@ -83,11 +87,21 @@ void PartsUpload::findMissing(const QList<LocalPart>& local) {
             known.insert(p.value(QLatin1String("key")).toString().toUpper());
             known.insert(p.value(QLatin1String("partNumber")).toString().toUpper());
         }
+        done(known);
+    });
+}
+
+void PartsUpload::findMissing(const QList<LocalPart>& local) {
+    getCatalog([this, local](const QSet<QString>& known) {
         QList<LocalPart> missing;
         for (const auto& p : local)
             if (!known.contains(p.key.toUpper())) missing << p;
         emit missingReady(missing);
     });
+}
+
+void PartsUpload::fetchCatalog() {
+    getCatalog([this](const QSet<QString>& known) { emit catalogReady(known); });
 }
 
 void PartsUpload::upload(const QList<LocalPart>& parts, const QString& orgSlug) {
@@ -137,6 +151,41 @@ void PartsUpload::uploadNext() {
         }
         uploadNext();
     });
+}
+
+QSet<QString> partNumbersIn(const core::Map& map) {
+    QSet<QString> used;
+    for (const auto& layer : map.layers()) {
+        if (layer->kind() != core::LayerKind::Brick) continue;
+        const auto& bricks = static_cast<const core::LayerBrick&>(*layer);
+        for (const auto& b : bricks.bricks)
+            if (!b.partNumber.isEmpty()) used.insert(b.partNumber.toUpper());
+        for (const auto& g : bricks.groups)
+            if (!g.partNumber.isEmpty()) used.insert(g.partNumber.toUpper());
+    }
+    return used;
+}
+
+QList<LocalPart> partsToOffer(const core::Map& map, const QSet<QString>& serverKnown,
+                              const QList<LocalPart>& local, const QSet<QString>& alreadyAsked,
+                              const QString& bundledRoot) {
+    const QSet<QString> used = partNumbersIn(map);
+    const QString bundled =
+        bundledRoot.isEmpty() ? QString() : QDir::cleanPath(QDir(bundledRoot).absolutePath()) + QLatin1Char('/');
+    QList<LocalPart> out;
+    QSet<QString> offered;
+    for (const auto& p : local) {
+        const QString key = p.key.toUpper();
+        if (!used.contains(key) || serverKnown.contains(key) || alreadyAsked.contains(key)
+            || offered.contains(key))
+            continue;
+        if (!bundled.isEmpty()
+            && QDir::cleanPath(QFileInfo(p.xmlPath).absoluteFilePath()).startsWith(bundled, Qt::CaseInsensitive))
+            continue;
+        offered.insert(key);
+        out << p;
+    }
+    return out;
 }
 
 } // namespace bld::sync
