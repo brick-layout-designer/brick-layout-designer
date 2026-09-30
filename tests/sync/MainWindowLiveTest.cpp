@@ -19,6 +19,8 @@
 #include <QAction>
 #include <QApplication>
 #include <QDir>
+#include <QFile>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QMessageBox>
@@ -127,6 +129,7 @@ protected:
         ui::UpdateCheck::setCheckAtStartupEnabled(false);
         QDir(liveCache()).removeRecursively();
         http_.upgrade = [this](QTcpSocket* s) { ws_.take(s); };
+        beforeOpen();
         window_ = std::make_unique<TestWindow>(parts_);
         view_ = window_->findChild<ui::MapView*>();
         live_ = window_->findChild<ui::LiveLayout*>();
@@ -143,6 +146,9 @@ protected:
         QDir(liveCache()).removeRecursively();
         QStandardPaths::setTestModeEnabled(false);
     }
+
+    // Before the window opens the live layout.
+    virtual void beforeOpen() {}
 
     sync::SyncSession& session() { return live_->session(); }
     QAction* reviewAction() {
@@ -271,4 +277,99 @@ TEST_F(MainWindowLive, AFailedSaveAsNewKeepsTheOfflineEdits) {
     EXPECT_TRUE(session().offlineEdits());
     EXPECT_TRUE(reviewAction()->isEnabled());
     EXPECT_EQ(brickArea(ws_.doc, 0), original_);
+}
+
+namespace {
+
+// A part of my own that the server's catalog lacks.
+class MainWindowLiveMyPart : public MainWindowLive {
+protected:
+    void beforeOpen() override {
+        const QString dir =
+            QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + QStringLiteral("/imports");
+        QDir(dir).removeRecursively();
+        ASSERT_TRUE(QDir().mkpath(dir));
+        QFile xml(dir + QStringLiteral("/MYPART.1.xml"));
+        ASSERT_TRUE(xml.open(QIODevice::WriteOnly));
+        xml.write("<part><Description><en>My curve</en></Description></part>");
+        xml.close();
+        QFile gif(dir + QStringLiteral("/MYPART.1.gif"));
+        ASSERT_TRUE(gif.open(QIODevice::WriteOnly));
+        gif.write("GIF89a");
+        gif.close();
+        http_.reply("/api/parts/catalog", 200,
+                    QJsonObject{ { QStringLiteral("parts"),
+                                   QJsonArray{ QJsonObject{ { QStringLiteral("key"), QStringLiteral("3001") },
+                                                            { QStringLiteral("partNumber"), QStringLiteral("3001") } } } } });
+    }
+    void TearDown() override {
+        MainWindowLive::TearDown();
+        QStandardPaths::setTestModeEnabled(true);
+        QDir(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + QStringLiteral("/imports"))
+            .removeRecursively();
+        QStandardPaths::setTestModeEnabled(false);
+    }
+
+    // Once the catalog is in: without it nothing is offered.
+    void waitForCatalog() {
+        ASSERT_TRUE(waitFor([&] {
+            for (const auto& r : http_.requests)
+                if (r.path == "/api/parts/catalog") return true;
+            return false;
+        }));
+        waitFor([] { return false; }, 150);
+    }
+
+    // Places a MYPART.1 brick in the view, as the parts browser would.
+    void place(double x) {
+        core::Map& m = *view_->currentMap();
+        core::Brick b;
+        b.guid = QStringLiteral("my-%1").arg(x);
+        b.partNumber = QStringLiteral("MYPART.1");
+        b.displayArea = QRectF(x, 0, 8, 8);
+        view_->undoStack()->push(new edit::AddBrickCommand(m, brickRef(m, 0).layerIndex, b));
+    }
+
+    int customPartPosts() const {
+        int n = 0;
+        for (const auto& r : http_.requests)
+            if (r.method == "POST" && r.path == "/api/custom-parts") ++n;
+        return n;
+    }
+};
+
+}  // namespace
+
+TEST_F(MainWindowLiveMyPart, NotNowAsksOnlyOnce) {
+    waitForCatalog();
+    Answers answers{ { box(QStringLiteral("MYPART.1 isn't on the server yet"), QStringLiteral("Not Now")) } };
+    answers.during([&] {
+        place(400);
+        ASSERT_TRUE(waitFor([&] { return answers.done(); }));
+        // Another one of it: not asked again.
+        place(420);
+        waitFor([] { return false; }, 300);
+    });
+    EXPECT_EQ(answers.unexpected, 0);
+    EXPECT_EQ(customPartPosts(), 0);
+}
+
+TEST_F(MainWindowLiveMyPart, UploadSendsThePartToTheServer) {
+    http_.reply("/api/custom-parts", 201, QJsonObject{ { QStringLiteral("id"), QStringLiteral("p1") } });
+    waitForCatalog();
+    Answers answers{ { box(QStringLiteral("MYPART.1 isn't on the server yet"), QStringLiteral("Upload...")),
+                       press(QStringLiteral("Upload")) } };
+    answers.during([&] {
+        place(400);
+        ASSERT_TRUE(waitFor([&] { return answers.done() && customPartPosts() == 1; }));
+    });
+    EXPECT_EQ(answers.unexpected, 0);
+    const Request* post = nullptr;
+    for (const auto& r : http_.requests)
+        if (r.method == "POST" && r.path == "/api/custom-parts") post = &r;
+    ASSERT_NE(post, nullptr);
+    EXPECT_EQ(post->authorization, QByteArrayLiteral("Bearer bld_pat_test"));
+    const QJsonObject body = QJsonDocument::fromJson(post->body).object();
+    EXPECT_EQ(body.value(QStringLiteral("partNumber")).toString(), QStringLiteral("MYPART.1"));
+    EXPECT_EQ(body.value(QStringLiteral("displayName")).toString(), QStringLiteral("My curve"));
 }
