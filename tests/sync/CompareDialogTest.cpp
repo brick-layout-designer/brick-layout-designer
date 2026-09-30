@@ -1,6 +1,8 @@
 // The compare window for reconnecting with offline edits.
 
 #include "CompareDialog.h"
+#include "ui/help/HelpButton.h"
+#include "ui/help/HelpTexts.h"
 
 #include "core/Map.h"
 #include "sync/SyncDoc.h"
@@ -188,4 +190,16 @@ TEST(CompareDialog, IntroCountsInPlainEnglish) {
         << twoClash.toStdString();
     for (const auto& text : { one, three, lone, oneClash, twoClash })
         EXPECT_FALSE(text.contains(QStringLiteral("(s)"))) << text.toStdString();
+}
+
+// The "?"s: what the window is, and what the choices mean.
+TEST(CompareDialog, HasHelpForTheWindowAndTheChoices) {
+    CompareDialog dlg(fixtureChanges());
+    QStringList keys;
+    for (auto* b : dlg.findChildren<bld::ui::help::HelpButton*>()) {
+        keys << b->key();
+        EXPECT_TRUE(bld::ui::help::helpEntry(b->key())) << b->key().toStdString();
+    }
+    keys.sort();
+    EXPECT_EQ(keys, QStringList({ QStringLiteral("compare.about"), QStringLiteral("compare.keep") }));
 }

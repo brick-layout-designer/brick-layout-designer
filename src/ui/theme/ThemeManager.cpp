@@ -84,7 +84,6 @@ QToolButton#HelpButton { border: 1px solid @border; border-radius: @rcpx; backgr
 QToolButton#HelpButton:hover { background: @soft; }
 QWidget#PanelHeader { background: @panel; border-bottom: 1px solid @line; }
 QLabel#PanelTitle { color: @ink; }
-QToolButton#PanelHelp { border: 1.5px solid @atext; border-radius: 10px; background: @asoft; color: @atext; font-weight: 800; min-width: 18px; max-width: 18px; min-height: 18px; max-height: 18px; padding: 0; }
 QToolButton#PanelClose { border: none; border-radius: 6px; color: @muted; padding: 0 4px; }
 QToolButton#PanelClose:hover { background: @soft; color: @ink; }
 QDockWidget { color: @ink; }

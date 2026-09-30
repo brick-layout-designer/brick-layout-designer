@@ -1,4 +1,5 @@
 #include "PartDifferencesDialog.h"
+#include "help/HelpButton.h"
 
 #include <QComboBox>
 #include <QDialogButtonBox>
@@ -101,7 +102,7 @@ PartDifferencesDialog::PartDifferencesDialog(const QList<Row>& rows, QWidget* pa
                                     : tr("This layout has its own version of %n parts you already have. "
                                          "Choose which to use for each.", nullptr, n));
     intro->setWordWrap(true);
-    layout->addWidget(intro);
+    layout->addWidget(help::withHelp(intro, QStringLiteral("partsDiffer.about"), this));
     auto* hint = new QLabel(tr("<i>Use the layout's</i>: your files are backed up, then replaced. "
                                "<i>Keep both</i>: the layout's is added under a new part number, and this "
                                "layout uses it."));
@@ -113,7 +114,7 @@ PartDifferencesDialog::PartDifferencesDialog(const QList<Row>& rows, QWidget* pa
     grid->addWidget(new QLabel(tr("<b>Part</b>")), 0, 0);
     grid->addWidget(new QLabel(tr("<b>Yours</b>")), 0, 1);
     grid->addWidget(new QLabel(tr("<b>The layout's</b>")), 0, 2);
-    grid->addWidget(new QLabel(tr("<b>Use</b>")), 0, 3);
+    grid->addWidget(help::withHelp(new QLabel(tr("<b>Use</b>")), QStringLiteral("partsDiffer.choice"), this), 0, 3);
     int line = 1;
     for (const auto& row : rows) {
         // A rule between parts.

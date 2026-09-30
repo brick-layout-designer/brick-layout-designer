@@ -1,3 +1,22 @@
+# The design tokens, the synced settings and the "?" help buttons: what
+# the sync screens (bld_sync_ui, which bld_ui links) share with the rest.
+add_library(bld_ui_common STATIC
+    theme/Tokens.cpp
+    theme/Tokens.h
+    theme/AppPrefs.cpp
+    theme/AppPrefs.h
+    help/HelpTexts.cpp
+    help/HelpTexts.h
+    help/HelpPages.cpp
+    help/HelpPages.h
+    help/HelpButton.cpp
+    help/HelpButton.h
+)
+target_include_directories(bld_ui_common PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
+target_link_libraries(bld_ui_common PUBLIC Qt6::Core Qt6::Gui Qt6::Widgets)
+# Help pages fall back to the source tree's help/ in development builds.
+target_compile_definitions(bld_ui_common PRIVATE BLD_HELP_SOURCE_DIR="${CMAKE_SOURCE_DIR}/help")
+
 add_library(bld_ui STATIC
     MainWindow.cpp
     MainWindow.h
@@ -65,10 +84,6 @@ add_library(bld_ui STATIC
     MainWindowShell.cpp
     SettingsDialog.cpp
     SettingsDialog.h
-    theme/Tokens.cpp
-    theme/Tokens.h
-    theme/AppPrefs.cpp
-    theme/AppPrefs.h
     theme/ThemeManager.cpp
     theme/ThemeManager.h
     theme/Icons.cpp
@@ -76,10 +91,13 @@ add_library(bld_ui STATIC
     theme/PanelHeader.cpp
     theme/PanelHeader.h
     theme/theme.qrc
+    help/ShortcutsDialog.cpp
+    help/ShortcutsDialog.h
 )
 
 target_link_libraries(bld_ui
     PUBLIC
+        bld_ui_common
         bld_core
         bld_saveload
         bld_parts
@@ -93,9 +111,6 @@ target_link_libraries(bld_ui
         Qt6::PrintSupport
 )
 
-
-# Help > Contents falls back to the source tree's help/ in development builds.
-target_compile_definitions(bld_ui PRIVATE BLD_HELP_SOURCE_DIR="${CMAKE_SOURCE_DIR}/help")
 
 # Live layouts on a collaborative server (File › Connect to Server…), only
 # with -DBLD_SYNC=ON.

@@ -1,4 +1,5 @@
 #include "BudgetDialog.h"
+#include "help/HelpButton.h"
 #include "BudgetSession.h"
 
 #include "../core/Map.h"
@@ -24,6 +25,7 @@ BudgetDialog::BudgetDialog(core::Map& map, BudgetSession& budget, QWidget* paren
     auto* vbox = new QVBoxLayout(this);
     auto* btnRow = new QHBoxLayout();
     auto* refreshBtn = new QPushButton(tr("Refresh from map"), this);
+    btnRow->addWidget(help::headingWithHelp(tr("Budget"), QStringLiteral("dialog.budget"), this));
     btnRow->addStretch();
     btnRow->addWidget(refreshBtn);
     vbox->addLayout(btnRow);

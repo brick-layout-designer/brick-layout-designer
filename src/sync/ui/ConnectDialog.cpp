@@ -1,6 +1,7 @@
 #include "ConnectDialog.h"
 
 #include "TokenStore.h"
+#include "ui/help/HelpButton.h"
 
 #include <QComboBox>
 #include <QCoreApplication>
@@ -62,6 +63,7 @@ ConnectDialog::ConnectDialog(ServerApi& api, TokenStore& tokens, std::function<v
     connectBtn_->setDefault(true);
     row->addWidget(address_, 1);
     row->addWidget(connectBtn_);
+    row->addWidget(new bld::ui::help::HelpButton(QStringLiteral("connect.server"), addressPage, address_));
     a->addLayout(row);
     a->addStretch(1);
     pages_->addWidget(addressPage);
@@ -129,7 +131,7 @@ ConnectDialog::ConnectDialog(ServerApi& api, TokenStore& tokens, std::function<v
     publishBtn_ = new QPushButton(tr("Publish"), publishPage);
     publishBtn_->setObjectName(QStringLiteral("publish"));
     pf->addRow(tr("Title"), publishTitle_);
-    pf->addRow(tr("Owner"), owner_);
+    pf->addRow(tr("Owner"), bld::ui::help::withHelp(owner_, QStringLiteral("publish.owner"), publishPage));
     pf->addRow(QString(), publishBtn_);
     pages_->addWidget(publishPage);
     connect(publishBtn_, &QPushButton::clicked, this, &ConnectDialog::publishNow);

@@ -1,5 +1,7 @@
 #include "CompareDialog.h"
 
+#include "ui/help/HelpButton.h"
+
 #include <QComboBox>
 #include <QDialogButtonBox>
 #include <QHBoxLayout>
@@ -116,6 +118,7 @@ CompareDialog::CompareDialog(const QList<ItemChange>& changes, QWidget* parent)
     auto* bulk = new QHBoxLayout;
     bulk->addWidget(allMine);
     bulk->addWidget(allServer);
+    bulk->addWidget(new bld::ui::help::HelpButton(QStringLiteral("compare.keep"), this, list_));
     bulk->addStretch();
 
     auto* buttons = new QDialogButtonBox(this);
@@ -146,7 +149,7 @@ CompareDialog::CompareDialog(const QList<ItemChange>& changes, QWidget* parent)
     connect(later, &QPushButton::clicked, this, [this] { finish(Action::Later); });
 
     auto* layout = new QVBoxLayout(this);
-    layout->addWidget(intro);
+    layout->addWidget(bld::ui::help::withHelp(intro, QStringLiteral("compare.about"), this));
     layout->addWidget(list_, 1);
     layout->addLayout(bulk);
     layout->addWidget(buttons);

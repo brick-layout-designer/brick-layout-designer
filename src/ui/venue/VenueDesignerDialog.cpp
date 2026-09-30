@@ -1,6 +1,7 @@
 #include "VenueDesignerDialog.h"
 
 #include "VenueDesignerView.h"
+#include "ui/help/HelpButton.h"
 
 #include "saveload/VenueJson.h"
 
@@ -138,11 +139,13 @@ VenueDesignerDialog::VenueDesignerDialog(core::Venue initial, const QString& sub
     connect(unit_, &QComboBox::currentIndexChanged, this,
             [this](int i) { dispatch(ev::act::Unit{ static_cast<ev::LengthUnit>(i) }); });
     header->addWidget(unit_);
+    header->addWidget(new help::HelpButton(QStringLiteral("room.units"), this, unit_));
     snap_ = new QCheckBox(tr("Snap"), this);
     snap_->setChecked(true);
     snap_->setToolTip(tr("Snap to corners, walls, 45° and whole inches (hold Shift for any angle)"));
     connect(snap_, &QCheckBox::toggled, this, [this](bool on) { dispatch(ev::act::Snap{ on }); });
     header->addWidget(snap_);
+    header->addWidget(new help::HelpButton(QStringLiteral("room.snap"), this, snap_));
     undo_ = new QPushButton(tr("Undo"), this);
     redo_ = new QPushButton(tr("Redo"), this);
     connect(undo_, &QPushButton::clicked, this, [this] { dispatch(ev::act::Undo{}); });
@@ -152,6 +155,7 @@ VenueDesignerDialog::VenueDesignerDialog(core::Venue initial, const QString& sub
     auto* planBtn = new QPushButton(tr("Floor plan..."), this);
     connect(planBtn, &QPushButton::clicked, this, &VenueDesignerDialog::loadPlan);
     header->addWidget(planBtn);
+    header->addWidget(new help::HelpButton(QStringLiteral("room.floorPlan"), this, planBtn));
     saveBtn_ = new QPushButton(saveLabel, this);
     saveBtn_->setDefault(false);
     saveBtn_->setAutoDefault(false);
@@ -167,8 +171,11 @@ VenueDesignerDialog::VenueDesignerDialog(core::Venue initial, const QString& sub
     auto* body = new QHBoxLayout();
     body->setSpacing(0);
     // Tools
-    auto* toolCol = new QVBoxLayout();
+    auto* toolBox = new QWidget(this);
+    toolBox->setObjectName(QStringLiteral("RoomTools"));
+    auto* toolCol = new QVBoxLayout(toolBox);
     toolCol->setContentsMargins(6, 6, 6, 6);
+    toolCol->addWidget(new help::HelpButton(QStringLiteral("room.tools"), toolBox, toolBox), 0, Qt::AlignHCenter);
     auto* group = new QButtonGroup(this);
     for (const auto& t : ev::tools()) {
         auto* b = new QToolButton(this);
@@ -187,13 +194,15 @@ VenueDesignerDialog::VenueDesignerDialog(core::Venue initial, const QString& sub
         toolButtons_ << b;
     }
     toolCol->addStretch(1);
-    body->addLayout(toolCol);
+    body->addWidget(toolBox);
 
     // Layers + view + status
     auto* center = new QVBoxLayout();
     auto* layers = new QHBoxLayout();
     layers->setContentsMargins(12, 4, 12, 4);
-    layers->addWidget(new QLabel(QStringLiteral("<b>%1</b>").arg(tr("Show")), this));
+    auto* showLabel = new QLabel(QStringLiteral("<b>%1</b>").arg(tr("Show")), this);
+    layers->addWidget(showLabel);
+    layers->addWidget(new help::HelpButton(QStringLiteral("room.show"), this, showLabel));
     const std::pair<ev::Layer, QString> layerNames[] = {
         { ev::Layer::Plan, tr("Floor plan") }, { ev::Layer::Obstacles, tr("Obstacles") },
         { ev::Layer::Power, tr("Power") },     { ev::Layer::Dimensions, tr("Measurements") },
@@ -441,7 +450,7 @@ void VenueDesignerDialog::rebuildInspector() {
         auto* c = new QCheckBox(tr("Estimated, not measured yet"), w);
         c->setChecked(on);
         connect(c, &QCheckBox::toggled, this, std::move(apply));
-        col->addWidget(c);
+        col->addWidget(help::withHelp(c, QStringLiteral("room.estimates"), w));
     };
 
     const auto sel = state_.selection;
@@ -453,11 +462,12 @@ void VenueDesignerDialog::rebuildInspector() {
                          n.name = t.trimmed();
                          set(n);
                      }));
-        form->addRow(tr("Minimum walkway"), lengthEdit(w, v.minWalkwayStuds, unit, [=](double s) {
-                         core::Venue n = venue();
-                         n.minWalkwayStuds = s;
-                         set(n);
-                     }));
+        form->addRow(tr("Minimum walkway"), help::withHelp(lengthEdit(w, v.minWalkwayStuds, unit, [=](double s) {
+                                                  core::Venue n = venue();
+                                                  n.minWalkwayStuds = s;
+                                                  set(n);
+                                              }),
+                                              QStringLiteral("room.walkway"), w));
         const auto rs = ev::roomSize(v);
         form->addRow(tr("Size"), new QLabel(rs ? QStringLiteral("%1 × %2").arg(ev::formatLength(rs->w, unit),
                                                                                ev::formatLength(rs->h, unit))
@@ -688,6 +698,7 @@ void VenueDesignerDialog::rebuildInspector() {
         for (auto* b : { cal, move, remove }) {
             b->setAutoDefault(false);
             row->addWidget(b);
+            if (b == cal) row->addWidget(new help::HelpButton(QStringLiteral("room.calibrate"), w, cal));
         }
         connect(cal, &QPushButton::clicked, this, [this] {
             planMoving_ = false;

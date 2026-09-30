@@ -179,6 +179,7 @@ private:
     QAction* generalInfoAct_ = nullptr;   // Map > General Info (the Notes tab)
     QAction* preferencesAct_ = nullptr;   // Edit > Preferences (Settings' "More options")
     QAction* helpContentsAct_ = nullptr;
+    class QMenu* helpMenu_ = nullptr;     // Help (also behind the toolbar's "?")
     class QToolBar* mainToolbar_ = nullptr;
     QList<QPair<QAction*, QString>> shellIcons_;  // toolbar actions and their icon names
     std::function<void()> refreshPaintSwatch_;

@@ -1,5 +1,6 @@
 #include "SettingsDialog.h"
 
+#include "help/HelpButton.h"
 #include "theme/AppPrefs.h"
 #include "theme/Tokens.h"
 
@@ -119,7 +120,7 @@ SettingsDialog::SettingsDialog(PrefsStore& store, const QString& syncedHost,
     title->setFont(headingFont(2.0));
     col->addWidget(title);
 
-    const auto card = [page, col](const QString& heading) {
+    const auto card = [page, col](const QString& heading, const QString& helpKey = {}) {
         auto* f = new QFrame(page);
         f->setObjectName(QStringLiteral("SettingsCard"));
         auto* v = new QVBoxLayout(f);
@@ -129,7 +130,7 @@ SettingsDialog::SettingsDialog(PrefsStore& store, const QString& syncedHost,
             auto* h = new QLabel(heading, f);
             h->setObjectName(QStringLiteral("CardHeading"));
             h->setFont(headingFont(1.45));
-            v->addWidget(h);
+            v->addWidget(helpKey.isEmpty() ? static_cast<QWidget*>(h) : help::withHelp(h, helpKey, f));
         }
         col->addWidget(f);
         return v;
@@ -171,7 +172,7 @@ SettingsDialog::SettingsDialog(PrefsStore& store, const QString& syncedHost,
 
     // Colour and bigger text.
     {
-        auto* v = card(tr("Colour"));
+        auto* v = card(tr("Colour"), QStringLiteral("settings.colour"));
         auto* row = new QHBoxLayout;
         row->setSpacing(2 * kSpacing);
         auto* group = new QButtonGroup(this);
@@ -199,7 +200,7 @@ SettingsDialog::SettingsDialog(PrefsStore& store, const QString& syncedHost,
         v->addLayout(row);
         auto* large = new QCheckBox(tr("Bigger text and buttons"), this);
         large->setObjectName(QStringLiteral("largeText"));
-        v->addWidget(large);
+        v->addWidget(help::withHelp(large, QStringLiteral("settings.largeText"), this));
         connect(large, &QCheckBox::toggled, this, [this](bool on) {
             if (loading_) return;
             AppPrefs p = store_.prefs();
@@ -211,10 +212,10 @@ SettingsDialog::SettingsDialog(PrefsStore& store, const QString& syncedHost,
     // Help.
     {
         auto* v = card(tr("Help"));
-        auto* help = new QCheckBox(tr("Show the small \"?\" buttons that explain each panel"), this);
-        help->setObjectName(QStringLiteral("helpIcons"));
-        v->addWidget(help);
-        connect(help, &QCheckBox::toggled, this, [this](bool on) {
+        auto* helpIcons = new QCheckBox(tr("Show the small \"?\" buttons that explain things"), this);
+        helpIcons->setObjectName(QStringLiteral("helpIcons"));
+        v->addWidget(help::withHelp(helpIcons, QStringLiteral("settings.helpIcons"), this));
+        connect(helpIcons, &QCheckBox::toggled, this, [this](bool on) {
             if (loading_) return;
             AppPrefs p = store_.prefs();
             p.helpIcons = on;
@@ -235,7 +236,7 @@ SettingsDialog::SettingsDialog(PrefsStore& store, const QString& syncedHost,
                               "to a server, they sync with your account there, both ways.")
                                .arg(syncedHost.toHtmlEscaped()));
     }
-    col->addWidget(syncNote_);
+    col->addWidget(help::withHelp(syncNote_, QStringLiteral("settings.sync"), page));
     col->addStretch(1);
 
     auto* buttons = new QHBoxLayout;

@@ -1,5 +1,6 @@
 #include "PreferencesDialog.h"
 #include "LibraryPathsDialog.h"
+#include "help/HelpButton.h"
 #include "../import/ArchivePath.h"
 
 #include <QApplication>
@@ -68,7 +69,7 @@ QWidget* buildGeneralTab(QDialog* parent) {
     // BlueBrick's "default budget" choice: parts a budget doesn't list.
     auto* budgetInfiniteChk = new QCheckBox(QObject::tr("Parts without a budget are unlimited (otherwise: not allowed)"), w);
     budgetInfiniteChk->setChecked(s.value(QStringLiteral("budget/defaultInfinite"), true).toBool());
-    form->addRow(budgetInfiniteChk);
+    form->addRow(help::withHelp(budgetInfiniteChk, QStringLiteral("prefs.budgetUnlimited"), w));
 
     // Template file for File > New — vanilla "use default template" parity.
     auto* tplEdit = new QLineEdit(
@@ -84,7 +85,7 @@ QWidget* buildGeneralTab(QDialog* parent) {
     tplRow->addWidget(tplEdit, 1);
     tplRow->addWidget(tplBrowse);
     auto* tplWrap = new QWidget(w); tplWrap->setLayout(tplRow);
-    form->addRow(QObject::tr("File > New template:"), tplWrap);
+    form->addRow(QObject::tr("File > New template:"), help::withHelp(tplWrap, QStringLiteral("prefs.newTemplate"), w));
 
     // Language selector (scaffolding; applies next launch).
     auto* langCombo = new QComboBox(w);
@@ -138,7 +139,7 @@ QWidget* buildEditionTab(QDialog* parent) {
     for (int i = 0; i < snapCombo->count(); ++i)
         if (qFuzzyCompare(snapCombo->itemData(i).toDouble() + 1.0, curSnap + 1.0))
             snapCombo->setCurrentIndex(i);
-    form->addRow(QObject::tr("Default snap step (studs):"), snapCombo);
+    form->addRow(QObject::tr("Default snap step (studs):"), help::withHelp(snapCombo, QStringLiteral("toolbar.snap"), w));
 
     auto* rotCombo = new QComboBox(w);
     for (double d : { 90.0, 45.0, 22.5, 11.25, 5.0, 1.0 })
@@ -147,7 +148,7 @@ QWidget* buildEditionTab(QDialog* parent) {
     for (int i = 0; i < rotCombo->count(); ++i)
         if (qFuzzyCompare(rotCombo->itemData(i).toDouble(), curRot))
             rotCombo->setCurrentIndex(i);
-    form->addRow(QObject::tr("Default rotation step:"), rotCombo);
+    form->addRow(QObject::tr("Default rotation step:"), help::withHelp(rotCombo, QStringLiteral("toolbar.rotateStep"), w));
 
     QColor paintColor(s.value(QStringLiteral("paintColor"), QColor(0, 128, 0).name()).toString());
     auto* colorBtn = new QPushButton(w);
@@ -162,7 +163,7 @@ QWidget* buildEditionTab(QDialog* parent) {
                                           QColorDialog::ShowAlphaChannel);
         if (c.isValid()) { paintColor = c; refreshColor(); }
     });
-    form->addRow(QObject::tr("Default paint colour:"), colorBtn);
+    form->addRow(QObject::tr("Default paint colour:"), help::withHelp(colorBtn, QStringLiteral("toolbar.paintColour"), w));
 
     s.endGroup();
 
@@ -187,7 +188,7 @@ QWidget* buildAppearanceTab(QDialog* parent) {
 
     auto* connDotsChk = new QCheckBox(QObject::tr("Always show connection points (not only on selection)"), w);
     connDotsChk->setChecked(s.value(QStringLiteral("appearance/alwaysShowConnections"), false).toBool());
-    form->addRow(connDotsChk);
+    form->addRow(help::withHelp(connDotsChk, QStringLiteral("prefs.connectionPoints"), w));
 
     auto* highlightChk = new QCheckBox(QObject::tr("Selection tint (clearly-coloured overlay)"), w);
     highlightChk->setChecked(s.value(QStringLiteral("appearance/selectionTint"), true).toBool());
@@ -274,7 +275,9 @@ QWidget* buildLibraryTab(QDialog* parent) {
     auto* btnRow = new QHBoxLayout();
     auto* addBtn = new QPushButton(QObject::tr("Add..."), libBox);
     auto* rmBtn  = new QPushButton(QObject::tr("Remove"), libBox);
-    btnRow->addWidget(addBtn); btnRow->addWidget(rmBtn); btnRow->addStretch();
+    btnRow->addWidget(addBtn); btnRow->addWidget(rmBtn);
+    btnRow->addWidget(new help::HelpButton(QStringLiteral("prefs.partLibraries"), libBox, libBox));
+    btnRow->addStretch();
     libVbox->addLayout(btnRow);
     QObject::connect(addBtn, &QPushButton::clicked, w, [list, w]{
         const QString p = QFileDialog::getExistingDirectory(w, QObject::tr("Add parts library path"));
@@ -325,7 +328,7 @@ QWidget* buildImportTab(QDialog* parent) {
         QStringLiteral("import/ldrawLibraryPath"),
         QObject::tr("LDraw library root"));
     ldrawEdit->setPlaceholderText(QObject::tr("e.g. ~/ldraw — needs LDConfig.ldr + parts/"));
-    form->addRow(QObject::tr("LDraw library root:"), ldrawWrap);
+    form->addRow(QObject::tr("LDraw library root:"), help::withHelp(ldrawWrap, QStringLiteral("prefs.ldraw"), w));
 
     // One-click LDraw library install. Downloads the official complete
     // archive from library.ldraw.org, extracts it under the user's

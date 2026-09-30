@@ -16,6 +16,7 @@
 #include "VenueLibraryPanel.h"
 #include "PartsBrowser.h"
 #include "PartUsagePanel.h"
+#include "help/HelpButton.h"
 #ifdef BLD_SYNC
 #include "LiveLayout.h"
 #endif
@@ -159,8 +160,9 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
         if (!map || idx < 0 || idx >= static_cast<int>(map->layers().size())) return;
         auto& layer = *map->layers()[idx];
         QDialog dlg(this);
-        dlg.setWindowTitle(tr("Layer options"));
+        dlg.setWindowTitle(tr("Sheet options"));
         auto* form = new QFormLayout(&dlg);
+        form->addRow(help::headingWithHelp(tr("Sheet options"), QStringLiteral("dialog.sheetOptions"), &dlg));
         auto* nameE = new QLineEdit(layer.name, &dlg);
         form->addRow(tr("Name:"), nameE);
         auto* alphaSpin = new QSpinBox(&dlg);
@@ -245,7 +247,7 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
         connect(bb, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
         connect(bb, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
         if (dlg.exec() != QDialog::Accepted) return;
-        mapView_->undoStack()->beginMacro(tr("Layer options"));
+        mapView_->undoStack()->beginMacro(tr("Sheet options"));
         if (nameE->text() != layer.name) {
             mapView_->undoStack()->push(new edit::RenameLayerCommand(*map, idx, nameE->text()));
         }
@@ -668,10 +670,13 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
     // that trips a rule, just surface the warning count.
     QLabel* venueLabel = new QLabel(this);
     venueLabel->setCursor(Qt::PointingHandCursor);
-    statusBar()->addPermanentWidget(venueLabel);
-    auto refreshVenueStatus = [this, venueLabel]{
+    QWidget* venueItem = help::withHelp(venueLabel, QStringLiteral("status.room"));
+    statusBar()->addPermanentWidget(venueItem);
+    auto refreshVenueStatus = [this, venueLabel, venueItem]{
         auto* map = mapView_->currentMap();
-        if (!map || !map->sidecar.venue || !map->sidecar.venue->enabled) {
+        const bool shown = map && map->sidecar.venue && map->sidecar.venue->enabled;
+        venueItem->setVisible(shown);
+        if (!shown) {
             venueLabel->clear();
             venueLabel->setToolTip({});
             return;
@@ -702,10 +707,12 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
 
     // Budget status readout — mirrors the venue one. Silent without a budget.
     QLabel* budgetLabel = new QLabel(this);
-    statusBar()->addPermanentWidget(budgetLabel);
-    auto refreshBudgetStatus = [this, budgetLabel]{
+    QWidget* budgetItem = help::withHelp(budgetLabel, QStringLiteral("status.budget"));
+    statusBar()->addPermanentWidget(budgetItem);
+    auto refreshBudgetStatus = [this, budgetLabel, budgetItem]{
         auto* map = mapView_->currentMap();
         const auto* budget = budget_->budget();
+        budgetItem->setVisible(map && budget);
         if (!map || !budget) {
             budgetLabel->clear();
             budgetLabel->setToolTip({});
