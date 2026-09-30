@@ -70,7 +70,7 @@ AppPrefs AppPrefs::fromJson(const QJsonObject& json, const AppPrefs& base) {
     const QJsonValue tours = json.value(QLatin1String("toursSeen"));
     if (tours.isArray()) {
         QStringList ids;
-        for (const QJsonValue& v : tours.toArray())
+        for (const auto& v : tours.toArray())
             if (v.isString()) ids << v.toString();
         p.toursSeen = cleanTours(ids);
     }
