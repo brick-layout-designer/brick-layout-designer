@@ -16,6 +16,7 @@
 #include <QLocale>
 #include <QSaveFile>
 #include <QXmlStreamReader>
+#include <cmath>
 
 #include <algorithm>
 #include <limits>
@@ -360,6 +361,16 @@ private:
 
     void line(const QString& s) { out_ += s + QStringLiteral("\r\n"); }
 
+    // (int)(float) as BlueBrick writes it, but a map far outside int range
+    // (a damaged file) is held at the limits rather than overflowing.
+    static int toIntSaturated(double v) {
+        const float f = static_cast<float>(v);
+        if (!std::isfinite(f)) return 0;
+        if (f >= 2147483520.0f) return std::numeric_limits<int>::max();
+        if (f <= -2147483648.0f) return std::numeric_limits<int>::min();
+        return static_cast<int>(f);
+    }
+
     void header(const QString& path) {
         // Map.getTotalAreaInStud(true): visible brick layers only.
         QRectF area;
@@ -390,8 +401,8 @@ private:
         line(attr.arg(QStringLiteral("description"), c.toString(QDateTime(map_.date, QTime(0, 0)), format)));
         line(attr.arg(QStringLiteral("info"), escape(map_.comment)));
         line(QStringLiteral("      <tracklayout width=\"%1\" height=\"%2\" scale=\"0.25\"/>")
-                 .arg(static_cast<int>(static_cast<float>(area.right())))
-                 .arg(static_cast<int>(static_cast<float>(area.bottom()))));
+                 .arg(toIntSaturated(area.right()))
+                 .arg(toIntSaturated(area.bottom())));
         line(QStringLiteral("      <tilepanel rows=\"1\" columns=\"6\"/>"));
         line(QStringLiteral("   </project>"));
         for (const char* script : { "ST_ACTIVATION", "ST_DEACTIVATION" }) {

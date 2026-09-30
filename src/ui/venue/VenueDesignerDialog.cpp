@@ -553,7 +553,7 @@ void VenueDesignerDialog::rebuildInspector() {
                 auto* btn = new QPushButton(name, w);
                 btn->setCheckable(true);
                 btn->setAutoDefault(false);
-                btn->setChecked(o.upDegrees && std::abs(*o.upDegrees - deg) < 0.5);
+                btn->setChecked(std::abs(o.upDegrees.value_or(-1000.0) - deg) < 0.5);
                 connect(btn, &QPushButton::clicked, this, [=, deg = deg] {
                     core::Venue n = venue();
                     n.obstacles[i].upDegrees = deg;
