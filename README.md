@@ -244,6 +244,12 @@ Live sync with a collaborative web server is being built behind
 toolchain: `src/sync` links [yrs](https://github.com/y-crdt/y-crdt), the
 Rust port of Yjs, through its C API.
 
+With `BLD_SYNC` on, the build also makes `bld_sync_driver`, a headless
+live-sync client driven by commands on stdin. The web repo's end-to-end
+test (`apps/web/e2e/test/desktopLiveSync.spec.ts`, see its
+`references/DESKTOP-SYNC-E2E.md`) runs it against a real server beside
+the web editor. That test needs both repos, so it is not run in CI.
+
 Build a self-contained install tree (what CI packages):
 
 ```sh
