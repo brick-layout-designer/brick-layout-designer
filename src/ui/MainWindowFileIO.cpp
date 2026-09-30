@@ -161,7 +161,9 @@ bool MainWindow::openFile(const QString& path) {
             QMessageBox::warning(this, tr("Open failed"), tr("%1\n\n%2").arg(path, layout.error));
             return false;
         }
-        showLoadedMap(std::move(layout.map), path, layout.warnings);
+        // Before the map, so its bricks find their parts.
+        const QStringList partNotes = takeInLayoutParts(layout.partFiles);
+        showLoadedMap(std::move(layout.map), path, layout.warnings + partNotes);
         return true;
     }
     auto result = saveload::readBbm(path);
@@ -243,7 +245,7 @@ bool MainWindow::writeMapTo(const QString& path) {
     if (import::isLayoutFile(path)) {
         QString err;
         QStringList warnings;
-        if (!import::writeLayoutFile(*map, path, &err, &warnings)) {
+        if (!import::writeLayoutFile(*map, path, &err, &warnings, partsToEmbed())) {
             QMessageBox::warning(this, tr("Save failed"), err);
             return false;
         }
@@ -290,6 +292,36 @@ bool MainWindow::writeMapTo(const QString& path) {
     // Manual save supersedes any autosave for the session.
     QFile::remove(autosavePath());
     return true;
+}
+
+QMap<QString, QByteArray> MainWindow::partsToEmbed() const {
+    const auto* map = mapView_->currentMap();
+    return map ? import::layoutPartFiles(*map, parts_, defaultVendoredPartsRoot()) : QMap<QString, QByteArray>();
+}
+
+QStringList MainWindow::takeInLayoutParts(const QMap<QString, QByteArray>& files) {
+    if (files.isEmpty()) return {};
+    const QString dir =
+        QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + QStringLiteral("/layout-parts");
+    const auto installed = import::installLayoutParts(files, dir, parts_);
+    if (!installed.newParts.isEmpty()) {
+        // The folder joins the library paths once, so the parts stay after a restart.
+        QStringList paths = loadUserLibraryPaths();
+        if (!paths.contains(dir)) {
+            paths << dir;
+            saveUserLibraryPaths(paths);
+        }
+        for (const auto& xml : installed.newParts) registerImportedPart(xml);
+    }
+    QStringList notes;
+    if (!installed.newParts.isEmpty())
+        notes << tr("%n part(s) from the layout added to your library", nullptr,
+                    static_cast<int>(installed.newParts.size()));
+    if (!installed.differing.isEmpty())
+        notes << tr("your own %1 kept, which differ from the layout's").arg(installed.differing.join(QStringLiteral(", ")));
+    if (!installed.failed.isEmpty())
+        notes << tr("could not save %1").arg(installed.failed.join(QStringLiteral(", ")));
+    return notes;
 }
 
 bool MainWindow::onSave() {
@@ -615,7 +647,7 @@ void MainWindow::performAutosave() {
     if (!mapView_->currentMap() || mapView_->undoStack()->isClean()) return;
     const QString path = autosavePath();
     QString error;
-    if (import::writeLayoutFile(*mapView_->currentMap(), path, &error)) {
+    if (import::writeLayoutFile(*mapView_->currentMap(), path, &error, nullptr, partsToEmbed())) {
         // Record the original file alongside so the startup prompt can
         // mention the source filename.
         QSettings().setValue(QStringLiteral("autosave/sourceFile"), currentFilePath_);

@@ -2,6 +2,8 @@
 
 #include <QMainWindow>
 #include <QString>
+#include <QByteArray>
+#include <QMap>
 #include <QStringList>
 #include <QUrl>
 
@@ -116,6 +118,12 @@ private:
     bool writeMapTo(const QString& path);
     // Puts a just-read map in the window as the document at `path`.
     void showLoadedMap(std::unique_ptr<core::Map> map, const QString& path, const QStringList& warnings);
+    // Parts a .bld-layout carries that the library lacks: written to the
+    // layout-parts folder, which joins the library paths. Returns what to
+    // tell the user.
+    QStringList takeInLayoutParts(const QMap<QString, QByteArray>& files);
+    // The parts to put in a .bld-layout: the ones outside the bundled library.
+    QMap<QString, QByteArray> partsToEmbed() const;
     // Save on a file that isn't a .bld-layout asks once whether to switch.
     bool chooseSaveFormat();
     bool saveFormatChosen_ = false;

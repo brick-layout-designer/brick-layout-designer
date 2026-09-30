@@ -3,7 +3,9 @@
 #include "zip/SafeZip.h"
 #include "zip/ZipWriter.h"
 
+#include "../core/LayerBrick.h"
 #include "../core/Map.h"
+#include "../parts/PartsLibrary.h"
 #include "../saveload/BbmReader.h"
 #include "../saveload/BbmWriter.h"
 #include "../saveload/SidecarIO.h"
@@ -17,6 +19,7 @@
 #include <QJsonObject>
 #include <QRegularExpression>
 #include <QSaveFile>
+#include <QSet>
 
 namespace bld::import {
 
@@ -26,6 +29,19 @@ const QString kManifest = QStringLiteral("manifest.json");
 const QString kLayout = QStringLiteral("layout.bbm");
 const QString kSidecar = QStringLiteral("sidecar.json");
 const QString kFormat = QStringLiteral("bld-layout");
+const QString kParts = QStringLiteral("parts/");
+const QStringList kSpriteSuffixes{ QStringLiteral("png"), QStringLiteral("gif"), QStringLiteral("jpg"),
+                                   QStringLiteral("jpeg") };
+
+QByteArray readAll(const QString& path) {
+    QFile f(path);
+    return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
+}
+
+bool writeAll(const QString& path, const QByteArray& data) {
+    QSaveFile out(path);
+    return out.open(QIODevice::WriteOnly) && out.write(data) == data.size() && out.commit();
+}
 
 QString tr(const char* s) { return QCoreApplication::translate("bld::import::LayoutFile", s); }
 
@@ -37,6 +53,13 @@ QString imageSuffix(const QString& path) {
 }
 
 }  // namespace
+
+bool isLayoutPartFileName(const QString& name) {
+    static const QRegularExpression ok(
+        QStringLiteral(R"(^[^./\\:*?"<>|\x00-\x1F][^/\\:*?"<>|\x00-\x1F]{0,199}\.(xml|png|gif|jpe?g)$)"),
+        QRegularExpression::CaseInsensitiveOption);
+    return ok.match(name).hasMatch() && !name.contains(QStringLiteral(".."));
+}
 
 bool isLayoutFile(const QString& path) {
     return QFileInfo(path).suffix().compare(kFormat, Qt::CaseInsensitive) == 0;
@@ -116,11 +139,78 @@ LayoutFileResult readLayoutFileBytes(const QByteArray& bytes, const QString& ass
             }
         }
     }
+    for (const auto& e : zip.entries()) {
+        if (!e.name.startsWith(kParts) || e.isDir) continue;
+        const QString name = e.name.mid(kParts.size());
+        const auto data = isLayoutPartFileName(name) ? zip.read(e) : std::nullopt;
+        if (data) r.partFiles.insert(name, *data);
+        else r.warnings << tr("The part file %1 in the layout could not be read.").arg(name);
+    }
     r.map = std::move(loaded.map);
     return r;
 }
 
-QByteArray layoutFileBytes(const core::Map& map, QString* error, QStringList* warnings) {
+QMap<QString, QByteArray> layoutPartFiles(const core::Map& map, const parts::PartsLibrary& library,
+                                          const QString& standardRoot) {
+    QStringList todo;
+    for (const auto& layer : map.layers()) {
+        if (!layer || layer->kind() != core::LayerKind::Brick) continue;
+        const auto& bricks = static_cast<const core::LayerBrick&>(*layer);
+        for (const auto& b : bricks.bricks) todo << b.partNumber;
+        for (const auto& g : bricks.groups)
+            if (!g.partNumber.isEmpty()) todo << g.partNumber;
+    }
+    const QString root = QFileInfo(standardRoot).canonicalFilePath();
+    QMap<QString, QByteArray> files;
+    QSet<QString> seen;
+    while (!todo.isEmpty()) {
+        const QString key = todo.takeLast().toLower();
+        if (seen.contains(key)) continue;
+        seen.insert(key);
+        const auto meta = library.metadata(key);
+        if (!meta) continue;
+        for (const auto& sub : meta->subparts) todo << sub.subKey;  // a set needs its parts
+        const QFileInfo xml(meta->xmlFilePath);
+        const QString path = xml.canonicalFilePath();
+        if (path.isEmpty() || (!root.isEmpty() && path.startsWith(root + QLatin1Char('/')))) continue;
+        files.insert(xml.fileName(), readAll(path));
+        for (const auto& suffix : kSpriteSuffixes) {
+            const QFileInfo sprite(xml.dir().filePath(xml.completeBaseName() + QLatin1Char('.') + suffix));
+            if (sprite.exists()) files.insert(sprite.fileName(), readAll(sprite.filePath()));
+        }
+    }
+    return files;
+}
+
+LayoutPartsInstall installLayoutParts(const QMap<QString, QByteArray>& files, const QString& dir,
+                                      const parts::PartsLibrary& library) {
+    LayoutPartsInstall r;
+    for (auto it = files.constBegin(); it != files.constEnd(); ++it) {
+        if (!it.key().endsWith(QStringLiteral(".xml"), Qt::CaseInsensitive) || !isLayoutPartFileName(it.key()))
+            continue;
+        const QString stem = it.key().chopped(4);
+        // A set's file is <PartNumber>.<Color>.set.xml.
+        const QString key = stem.endsWith(QStringLiteral(".set"), Qt::CaseInsensitive) ? stem.chopped(4) : stem;
+        if (const auto meta = library.metadata(key)) {
+            if (readAll(meta->xmlFilePath) != it.value()) r.differing << key;
+            continue;
+        }
+        QDir().mkpath(dir);
+        bool written = true;
+        for (auto f = files.constBegin(); f != files.constEnd(); ++f) {
+            if (QFileInfo(f.key()).completeBaseName().compare(stem, Qt::CaseInsensitive) != 0) continue;
+            if (!writeAll(QDir(dir).filePath(f.key()), f.value())) {
+                r.failed << f.key();
+                written = false;
+            }
+        }
+        if (written) r.newParts << QDir(dir).filePath(it.key());
+    }
+    return r;
+}
+
+QByteArray layoutFileBytes(const core::Map& map, QString* error, QStringList* warnings,
+                           const QMap<QString, QByteArray>& partFiles) {
     QBuffer bbm;
     bbm.open(QIODevice::WriteOnly);
     const auto written = saveload::writeBbm(map, bbm);
@@ -165,11 +255,17 @@ QByteArray layoutFileBytes(const core::Map& map, QString* error, QStringList* wa
         }
         zip.add(kSidecar, QJsonDocument(root).toJson(QJsonDocument::Indented));
     }
+    for (auto it = partFiles.constBegin(); it != partFiles.constEnd(); ++it) {
+        if (!isLayoutPartFileName(it.key())) continue;
+        const bool xml = it.key().endsWith(QStringLiteral(".xml"), Qt::CaseInsensitive);
+        zip.add(kParts + it.key(), it.value(), xml ? ZipWriter::Method::Deflated : ZipWriter::Method::Stored);
+    }
     return zip.finish();
 }
 
-bool writeLayoutFile(const core::Map& map, const QString& path, QString* error, QStringList* warnings) {
-    const QByteArray bytes = layoutFileBytes(map, error, warnings);
+bool writeLayoutFile(const core::Map& map, const QString& path, QString* error, QStringList* warnings,
+                     const QMap<QString, QByteArray>& partFiles) {
+    const QByteArray bytes = layoutFileBytes(map, error, warnings, partFiles);
     if (bytes.isEmpty()) return false;
     QSaveFile out(path);
     if (!out.open(QIODevice::WriteOnly) || out.write(bytes) != bytes.size() || !out.commit()) {

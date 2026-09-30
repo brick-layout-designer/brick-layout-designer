@@ -17,6 +17,7 @@ Readers must accept both, and must ignore entries they don't know.
 | `layout.bbm` | yes | The map exactly as a `.bbm` file holds it ([bbm-schema.md](bbm-schema.md)). |
 | `sidecar.json` | no | Labels, modules, venue and background image. Same shape as the `.bbm.bld` sidecar ([bbm-bld-schema.md](bbm-bld-schema.md)), with two differences listed below. Left out when the layout has none of these. |
 | `background.<ext>` | no | The background image's bytes, named by `sidecar.json`'s `backgroundImage.file`. |
+| `parts/<file>` | no | The parts the layout uses that aren't in the bundled BlueBrick library. Each is a `<PartNumber>.<Color>.xml` (`.set.xml` for a set) with the sprites beside it (`.png`, `.gif`, `.jpg`). Sets bring their subparts too. |
 
 `sidecar.json` differs from a `.bbm.bld` sidecar in two ways:
 
@@ -24,6 +25,20 @@ Readers must accept both, and must ignore entries they don't know.
 - In `backgroundImage`, `file` (the entry name) replaces `path`, a location on
   one machine. Only a writer that couldn't read the image keeps `path`, and it
   warns that it did.
+
+## Parts
+
+`parts/` names are plain file names: no folders, no leading dot, and one of
+the part extensions. Readers skip any other name and warn.
+
+- **Saving.** The desktop carries every part the layout uses from outside the
+  bundled library: imported parts, your own folders and server parts.
+- **Opening.** It writes the parts its library lacks to `layout-parts/` in its
+  app data folder, which joins the library paths, before the map loads.
+  Where it already has a part of that number with different XML, it keeps its
+  own and says so in the status bar.
+- **The web app** carries the custom parts a layout uses. When it opens a
+  file, it uploads the parts the server lacks as custom parts.
 
 ## Versions
 
@@ -51,3 +66,5 @@ Both fixtures are in `fixtures/layouts/` here and in the web repository's
   module, the Grand Lobby venue and a 4×4 background image.
 - **`web-made.bld-layout`**, the same layout opened by the web app and
   downloaded again (the web's `apps/web/scripts/make-web-made-layout.ts`).
+- **`with-parts.bld-layout`**, one brick of `CLDTEST.1`, a part the file
+  carries. The web's e2e opens it and gets `CLDTEST.1` as a custom part.
