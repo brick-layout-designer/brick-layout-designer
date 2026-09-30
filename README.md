@@ -222,7 +222,7 @@ AI-assisted warning above and keep backups. What works today:
 
 ## Building
 
-Requires CMake 3.25+, a C++20 compiler, and Qt 6.7+.
+Requires CMake 3.25+, a C++20 compiler, and Qt 6.8+.
 
 ```sh
 git clone --recurse-submodules <this-repo>

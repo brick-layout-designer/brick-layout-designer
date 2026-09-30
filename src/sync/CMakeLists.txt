@@ -32,7 +32,7 @@ corrosion_import_crate(
     PROFILE release
 )
 
-find_package(Qt6 6.7 REQUIRED COMPONENTS WebSockets Widgets)
+find_package(Qt6 6.8 REQUIRED COMPONENTS WebSockets Widgets)
 
 # QtKeychain keeps the server sign-in token in the OS keychain (macOS
 # Keychain, Windows Credential Store, Secret Service on Linux). Built
