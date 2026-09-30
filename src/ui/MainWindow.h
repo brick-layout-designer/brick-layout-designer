@@ -11,6 +11,9 @@ class QMenu;
 class QComboBox;
 
 namespace bld::core { struct Venue; }
+namespace bld::sync {
+struct ConnectResult;
+}
 namespace bld::parts { class PartsLibrary; }
 
 namespace bld::ui {
@@ -134,6 +137,9 @@ private:
     void onConnectToServer();
     void onDisconnect();
     void onDownloadVenues();
+    void onPublishToServer();
+    // Open a server layout live in this window.
+    void openLive(const bld::sync::ConnectResult& r);
     void onLiveReloaded();
     void updateLiveUi();
     class LiveLayout* live_ = nullptr;

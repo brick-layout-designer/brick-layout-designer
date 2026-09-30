@@ -54,6 +54,12 @@ struct VenueEntry {
     QString ownerOrgId;  // empty for personal venues
 };
 
+struct OrgEntry {
+    QString slug;
+    QString name;
+    QString role; // admin / member
+};
+
 class ServerApi : public QObject {
     Q_OBJECT
 public:
@@ -79,6 +85,12 @@ public:
     // Who the token belongs to (GET /api/tokens/current): id and display name.
     void fetchCurrentUser();
     void fetchVenues();
+    // Publish to Server (token scopes layouts:read for the orgs,
+    // layouts:create to publish): the user's organisations, and a new
+    // layout from a .bbm and its sidecar, personal or in an org.
+    void fetchOrgs();
+    void publishLayout(const QString& title, const QByteArray& bbm, const QByteArray& sidecarJson,
+                       const QString& orgSlug);
     void fetchVenue(const QString& id);
 
     // Device sign-in: signInCode once the server issued a code, then polls
@@ -94,6 +106,8 @@ signals:
     void layoutsReady(const QList<bld::sync::LayoutEntry>& layouts);
     void venuesReady(const QList<bld::sync::VenueEntry>& venues);
     void currentUserReady(const QString& userId, const QString& displayName);
+    void orgsReady(const QList<bld::sync::OrgEntry>& orgs);
+    void published(const QString& layoutId, const QString& title);
     void venueReady(const QString& id, const QString& name, const QByteArray& venueFile);
     void signInCode(const bld::sync::DeviceCode& code);
     void signedIn(const QString& token);

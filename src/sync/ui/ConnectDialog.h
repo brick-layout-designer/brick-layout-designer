@@ -7,7 +7,9 @@
 //
 // The same steps serve File › Download Venues from Server…: then the list
 // is the server's venue library, several can be picked, and they are
-// downloaded as .bld-venue files (venues()).
+// downloaded as .bld-venue files (venues()). And File › Publish to
+// Server…: a title and an owner (you, or one of your organisations), and
+// the layout is created on the server; result() is then the new layout.
 
 #include "ServerApi.h"
 
@@ -17,6 +19,7 @@
 #include <functional>
 #include <optional>
 
+class QComboBox;
 class QLabel;
 class QLineEdit;
 class QPushButton;
@@ -44,7 +47,7 @@ class ConnectDialog : public QDialog {
     Q_OBJECT
 public:
     // `openUrl` opens the sign-in page (QDesktopServices in the app).
-    enum class Purpose { OpenLayout, DownloadVenues };
+    enum class Purpose { OpenLayout, DownloadVenues, Publish };
 
     ConnectDialog(ServerApi& api, TokenStore& tokens, std::function<void(const QUrl&)> openUrl,
                   QWidget* parent = nullptr, Purpose purpose = Purpose::OpenLayout);
@@ -53,6 +56,10 @@ public:
     QList<DownloadedVenue> venues() const { return venues_; }
 
     void setAddress(const QString& address);
+    // Publish: what to publish (the .bbm and its sidecar JSON) and the title offered.
+    void setPublishContent(const QByteArray& bbm, const QByteArray& sidecarJson, const QString& title);
+    // The same as clicking Publish.
+    void publishNow();
     // The same as clicking Connect.
     void connectToServer();
     // Forget the saved token for this server and sign in again.
@@ -65,6 +72,7 @@ private:
     void onFailed(const QString& what, const QString& message, bool unauthorized);
     void showLayouts(const QList<LayoutEntry>& layouts);
     void showVenues(const QList<VenueEntry>& venues);
+    void showOrgs(const QList<OrgEntry>& orgs);
     void signInAgain();
     void openSelected();
     void filterLayouts(const QString& text);
@@ -88,6 +96,10 @@ private:
     QLineEdit* filter_ = nullptr;
     QTreeWidget* layouts_ = nullptr;
     QPushButton* openBtn_ = nullptr;
+    QByteArray publishBbm_, publishSidecar_;
+    QComboBox* owner_ = nullptr;
+    QLineEdit* publishTitle_ = nullptr;
+    QPushButton* publishBtn_ = nullptr;
 };
 
 } // namespace bld::sync
