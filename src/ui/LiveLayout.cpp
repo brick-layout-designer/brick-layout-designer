@@ -24,6 +24,10 @@ LiveLayout::LiveLayout(MapView& view, QObject* parent) : QObject(parent), view_(
     connect(&session_, &sync::SyncSession::mapChanged, this, &LiveLayout::reload);
     connect(&session_, &sync::SyncSession::statusChanged, this,
             [this] { emit statusTextChanged(statusText()); });
+    connect(&session_, &sync::SyncSession::offlineEditsReady, this, [this] {
+        emit statusTextChanged(statusText());
+        emit offlineEditsReady();
+    });
     connect(&session_, &sync::SyncSession::ended, this, [this](int, const QString& reason) {
         close();
         emit ended(reason);
@@ -124,12 +128,14 @@ LiveLayout::~LiveLayout() {
     close();
 }
 
-void LiveLayout::open(const QUrl& socketUrl, const QString& token, bool readOnly, const QString& title) {
+void LiveLayout::open(const QUrl& socketUrl, const QString& token, bool readOnly, const QString& title,
+                      const QString& cacheDir) {
     title_ = title;
     active_ = true;
     reloadedOnce_ = false;
     view_.viewport()->installEventFilter(this);
     view_.viewport()->setMouseTracking(true);
+    session_.setCacheDir(cacheDir);
     session_.open(socketUrl, token, readOnly);
     schedulePresence();
     emit statusTextChanged(statusText());
@@ -157,7 +163,11 @@ QString LiveLayout::statusText() const {
     if (!active_) return {};
     QString s;
     switch (session_.status()) {
-    case sync::SyncClient::Status::Synced: s = tr("Connected"); break;
+    case sync::SyncClient::Status::Synced:
+        s = session_.unsyncedEdits() > 0
+                ? tr("Connected, %n offline edit(s) to review", nullptr, session_.unsyncedEdits())
+                : tr("Connected");
+        break;
     case sync::SyncClient::Status::Offline:
         s = session_.unsyncedEdits() > 0
                 ? tr("Offline, %n unsynced edit(s)", nullptr, session_.unsyncedEdits())
@@ -175,7 +185,7 @@ QString LiveLayout::statusText() const {
 void LiveLayout::reload() {
     if (!active_) return;
     QString error;
-    auto map = session_.currentMap(&error);
+    auto map = session_.editorMap(&error);
     if (!map) return;
     // Keep the view where it was, and the selection, across the reload.
     const bool first = !reloadedOnce_;

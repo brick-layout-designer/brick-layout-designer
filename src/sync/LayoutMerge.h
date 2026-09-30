@@ -34,6 +34,11 @@ struct Snapshot {
     QJsonObject sidecar;
 };
 Snapshot snapshotOf(const core::Map& map);
+// The desktop map a snapshot holds; nullptr (and *error) if it can't be read.
+std::unique_ptr<core::Map> mapOf(const Snapshot& snapshot, QString* error = nullptr);
+// A snapshot as one JSON object ({doc, sidecar}) and back, for keeping on disk.
+QJsonObject toJson(const Snapshot& snapshot);
+Snapshot snapshotFromJson(const QJsonObject& o);
 
 enum class Side { Unchanged, Added, Edited, Deleted };
 // Mine / Server: only that side changed. Same: both made the same change.

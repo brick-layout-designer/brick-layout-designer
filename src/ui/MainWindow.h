@@ -17,6 +17,7 @@ class QComboBox;
 namespace bld::core { struct Venue; class Map; }
 namespace bld::sync {
 struct ConnectResult;
+namespace merge { struct Snapshot; }
 }
 namespace bld::parts { class PartsLibrary; }
 
@@ -167,6 +168,15 @@ private:
     void syncServerParts(const QUrl& server, const QString& token);
     void onLiveReloaded();
     void updateLiveUi();
+    // Back in step with offline edits: the compare window, then apply,
+    // discard, replace the server's or save mine as a new layout.
+    void onReviewOfflineEdits();
+    // Select and centre the brick with this id, if the map shows it.
+    void showBrick(const QString& guid);
+    // Publish my offline version as a new layout of mine; the edits are
+    // resolved (the live layout keeps the server's) once it is published.
+    void saveOfflineAsNew(const bld::sync::merge::Snapshot& mine);
+    QAction* reviewOfflineAct_ = nullptr;
     class LiveLayout* live_ = nullptr;
     QLabel* liveStatus_ = nullptr;
     QAction* disconnectAct_ = nullptr;
