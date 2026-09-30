@@ -42,7 +42,6 @@ public:
     static HelpButton* addTo(QToolBar* toolbar, const QString& key, QWidget* target = nullptr);
 
     QString key() const { return key_; }
-    void setTarget(QWidget* target) { target_ = target; }
     QWidget* target() const;
 
     // A toolbar hides its widgets through their actions: when set, the
@@ -84,8 +83,11 @@ private:
     // Owned by the toolbar; cleared when it goes (a plain pointer: the
     // analyzer misreads QPointer's weak reference here).
     QAction* visibilityAction_ = nullptr;
-    QPointer<QLabel> tip_;
-    QPointer<HelpPopover> popover_;
+    // Plain pointers, like visibilityAction_ (the analyzer misreads QPointer
+    // here too). The tooltip is a parentless window this button owns; the
+    // popover is cleared when it is destroyed.
+    QLabel* tip_ = nullptr;
+    HelpPopover* popover_ = nullptr;
     bool hovered_ = false;
     // The tooltip came up for keyboard focus (so leaving with the mouse keeps it).
     bool focusTip_ = false;

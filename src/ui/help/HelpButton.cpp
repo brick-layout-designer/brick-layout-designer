@@ -238,6 +238,7 @@ HelpButton::HelpButton(const QString& key, QWidget* parent, QWidget* target)
     : HelpButton(key, theme::PrefsStore::instance(), parent, target) {}
 
 HelpButton::~HelpButton() {
+    delete popover_;
     delete tip_;
 }
 
@@ -255,9 +256,9 @@ void HelpButton::setVisibilityAction(QAction* action) {
     applyPrefs();
 }
 
-QLabel* HelpButton::tooltip() const { return tip_ && tip_->isVisible() ? tip_.data() : nullptr; }
+QLabel* HelpButton::tooltip() const { return tip_ && tip_->isVisible() ? tip_ : nullptr; }
 
-QWidget* HelpButton::popover() const { return popover_ && popover_->isVisible() ? popover_.data() : nullptr; }
+QWidget* HelpButton::popover() const { return popover_ && popover_->isVisible() ? popover_ : nullptr; }
 
 bool HelpButton::isPopoverOpen() const { return popover() != nullptr; }
 
@@ -329,7 +330,10 @@ void HelpButton::showPopover() {
     hideTip();
     popover_ = new HelpPopover(this, *entry);
     popover_->setFont(font());
-    connect(popover_, &QObject::destroyed, this, [this] { update(); });
+    connect(popover_, &QObject::destroyed, this, [this, pop = popover_] {
+        if (popover_ == pop) popover_ = nullptr;
+        update();
+    });
     placeFloating(popover_);
     popover_->show();
     popover_->setFocus(Qt::PopupFocusReason);
