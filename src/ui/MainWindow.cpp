@@ -16,6 +16,9 @@
 #include "VenueLibraryPanel.h"
 #include "PartsBrowser.h"
 #include "PartUsagePanel.h"
+#ifdef BLD_SYNC
+#include "LiveLayout.h"
+#endif
 
 #include "../core/Map.h"
 #include "../parts/BrickPlacement.h"
@@ -1059,7 +1062,15 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
     if (!state.isEmpty()) restoreState(state);
 }
 
-MainWindow::~MainWindow() = default;
+MainWindow::~MainWindow() {
+#ifdef BLD_SYNC
+    // Close a live layout while the map view it draws on still exists.
+    if (live_) {
+        live_->disconnect(this);
+        live_->close();
+    }
+#endif
+}
 
 
 void MainWindow::onCreateModuleFromSelection() {
