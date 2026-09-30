@@ -25,6 +25,14 @@ SyncSession::SyncSession(QObject* parent)
         emit statusChanged(s);
     });
     connect(&client_, &SyncClient::awarenessReceived, this, [this](const QByteArray& update) {
+        // y-protocols: told that we left (the server tidying up an old
+        // connection of ours), say again that we're here, with a newer clock.
+        if (const auto entries = awareness::decode(update); entries && presence_)
+            for (const auto& e : *entries)
+                if (e.clientId == clientId_ && !e.state && e.clock >= presenceClock_) {
+                    presenceClock_ = e.clock;
+                    sendPresence();
+                }
         if (peers_.apply(update)) emit peersChanged();
     });
     connect(&client_, &SyncClient::remoteChange, this, &SyncSession::remoteArrived);

@@ -150,6 +150,7 @@ TEST(SyncSession, SharesPresenceWithEveryoneElseOnTheLayout) {
     FakeServer server;
     sync::SyncSession a, b;
     a.client().setReconnectDelays(50ms, 200ms);
+    b.client().setReconnectDelays(80ms, 200ms);
     int changes = 0;
     QObject::connect(&b, &sync::SyncSession::peersChanged, [&] { ++changes; });
     a.open(server.url(), {}, false);
