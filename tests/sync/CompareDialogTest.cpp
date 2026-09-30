@@ -10,6 +10,7 @@
 
 #include <QComboBox>
 #include <QFile>
+#include <QLabel>
 #include <QTreeWidget>
 
 using namespace bld;
@@ -152,4 +153,39 @@ TEST(CompareDialog, PickingARowHighlightsItsChange) {
     ASSERT_EQ(seen.size(), 2);
     EXPECT_EQ(seen[0], keyOf(dlg.list()->topLevelItem(0)));
     EXPECT_EQ(seen[1], keyOf(dlg.list()->topLevelItem(dlg.list()->topLevelItemCount() - 1)));
+}
+
+// The intro counts changes in plain English: "1 change", "3 changes".
+TEST(CompareDialog, IntroCountsInPlainEnglish) {
+    const auto intro = [](std::initializer_list<Status> statuses) {
+        QList<ItemChange> changes;
+        int i = 0;
+        for (const auto s : statuses) {
+            ItemChange c;
+            c.key = QStringLiteral("label:%1").arg(i++);
+            c.kind = QStringLiteral("label");
+            c.status = s;
+            changes << c;
+        }
+        CompareDialog dlg(changes);
+        const auto* label = dlg.findChild<QLabel*>(QStringLiteral("intro"));
+        return label ? label->text() : QString();
+    };
+    const QString one = intro({ Status::Mine, Status::Server });
+    EXPECT_TRUE(one.startsWith(QStringLiteral("While you were offline you made 1 change. It doesn't clash")))
+        << one.toStdString();
+    const QString three = intro({ Status::Mine, Status::Mine, Status::Mine });
+    EXPECT_TRUE(three.startsWith(QStringLiteral("While you were offline you made 3 changes. None of them")))
+        << three.toStdString();
+    const QString lone = intro({ Status::Conflict });
+    EXPECT_TRUE(lone.startsWith(QStringLiteral("While you were offline you made 1 change, and it clashes")))
+        << lone.toStdString();
+    const QString oneClash = intro({ Status::Mine, Status::Conflict });
+    EXPECT_TRUE(oneClash.startsWith(QStringLiteral("While you were offline you made 2 changes; 1 of them clashes")))
+        << oneClash.toStdString();
+    const QString twoClash = intro({ Status::Mine, Status::Conflict, Status::Conflict });
+    EXPECT_TRUE(twoClash.startsWith(QStringLiteral("While you were offline you made 3 changes; 2 of them clash ")))
+        << twoClash.toStdString();
+    for (const auto& text : { one, three, lone, oneClash, twoClash })
+        EXPECT_FALSE(text.contains(QStringLiteral("(s)"))) << text.toStdString();
 }

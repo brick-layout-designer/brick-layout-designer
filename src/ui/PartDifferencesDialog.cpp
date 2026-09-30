@@ -94,8 +94,12 @@ PartDifferencesDialog::Info PartDifferencesDialog::partInfo(const QByteArray& xm
 PartDifferencesDialog::PartDifferencesDialog(const QList<Row>& rows, QWidget* parent) : QDialog(parent) {
     setWindowTitle(tr("Parts That Differ"));
     auto* layout = new QVBoxLayout(this);
-    auto* intro = new QLabel(tr("This layout has its own version of %n part(s) you already have. "
-                                "Choose which to use for each.", nullptr, static_cast<int>(rows.size())));
+    // Separate strings for one: no English plural catalogue is shipped.
+    const int n = static_cast<int>(rows.size());
+    auto* intro = new QLabel(n == 1 ? tr("This layout has its own version of a part you already have. "
+                                         "Choose which to use.")
+                                    : tr("This layout has its own version of %n parts you already have. "
+                                         "Choose which to use for each.", nullptr, n));
     intro->setWordWrap(true);
     layout->addWidget(intro);
     auto* hint = new QLabel(tr("<i>Use the layout's</i>: your files are backed up, then replaced. "

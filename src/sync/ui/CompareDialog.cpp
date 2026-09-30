@@ -39,14 +39,30 @@ CompareDialog::CompareDialog(const QList<ItemChange>& changes, QWidget* parent)
         else if (c.status == Status::Mine) ++mine;
     }
     auto* intro = new QLabel(this);
+    intro->setObjectName(QStringLiteral("intro"));
     intro->setWordWrap(true);
-    intro->setText(clashes == 0
-        ? tr("While you were offline you made %n change(s). None of them clash with what changed on the "
-             "server meanwhile. Apply them to the live layout, or discard them.", nullptr, mine)
-        : tr("While you were offline you made %1 change(s); %2 of them clash with what changed on the "
-             "server meanwhile. For each clash, choose what to keep.")
-              .arg(mine + clashes)
-              .arg(clashes));
+    // Separate strings for one: no English plural catalogue is shipped, so
+    // "%n change(s)" would read that way.
+    const int made = mine + clashes;
+    QString text;
+    if (clashes == 0)
+        text = mine == 1 ? tr("While you were offline you made 1 change. It doesn't clash with what changed on the "
+                              "server meanwhile. Apply it to the live layout, or discard it.")
+                         : tr("While you were offline you made %n changes. None of them clash with what changed "
+                              "on the server meanwhile. Apply them to the live layout, or discard them.",
+                              nullptr, mine);
+    else if (made == 1)
+        text = tr("While you were offline you made 1 change, and it clashes with what changed on the server "
+                  "meanwhile. Choose what to keep.");
+    else if (clashes == 1)
+        text = tr("While you were offline you made %n changes; 1 of them clashes with what changed on the "
+                  "server meanwhile. For the clash, choose what to keep.", nullptr, made);
+    else
+        text = tr("While you were offline you made %1 changes; %2 of them clash with what changed on the "
+                  "server meanwhile. For each clash, choose what to keep.")
+                   .arg(made)
+                   .arg(clashes);
+    intro->setText(text);
 
     list_ = new QTreeWidget(this);
     list_->setColumnCount(2);
