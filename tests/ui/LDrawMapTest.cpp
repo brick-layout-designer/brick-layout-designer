@@ -364,3 +364,22 @@ TEST_F(LDrawMapTest, FourDBrixRoundTripKeepsGroups) {
         if (layer->kind() == core::LayerKind::Brick) grouped += static_cast<const core::LayerBrick&>(*layer).groups.size();
     EXPECT_GT(grouped, 0u);
 }
+
+// A damaged map far outside int range still writes (the fuzzer found the
+// header's (int)(float) of the map area overflowing).
+TEST_F(LDrawMapTest, FourDBrixWriterHoldsHugeAreasAtIntLimits) {
+    core::Map map;
+    auto layer = std::make_unique<core::LayerBrick>();
+    core::Brick b;
+    b.guid = core::newBbmId();
+    b.partNumber = QStringLiteral("3001.8");
+    b.displayArea = QRectF(0, 0, 1e30, 1e30);
+    layer->bricks.push_back(b);
+    map.layers().push_back(std::move(layer));
+    const QString out = tmp_.filePath(QStringLiteral("huge.ncp"));
+    ASSERT_TRUE(import::writeFourDBrixMap(map, out, lib_));
+    QFile f(out);
+    ASSERT_TRUE(f.open(QIODevice::ReadOnly));
+    EXPECT_TRUE(QString::fromUtf8(f.readAll())
+                    .contains(QStringLiteral("width=\"2147483647\" height=\"2147483647\"")));
+}
