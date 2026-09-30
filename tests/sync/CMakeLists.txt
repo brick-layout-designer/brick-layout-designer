@@ -11,6 +11,7 @@ add_executable(bld_sync_tests
     PartsSyncTest.cpp
     ConnectDialogTest.cpp
     LiveLayoutTest.cpp
+    LayoutMergeTest.cpp
     SyncTestMain.cpp
 )
 target_compile_definitions(bld_sync_tests PRIVATE BLD_SOURCE_DIR="${CMAKE_SOURCE_DIR}")

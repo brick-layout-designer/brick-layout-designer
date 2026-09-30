@@ -1,0 +1,88 @@
+{
+  "changes": [
+    {
+      "key": "brick:2103:3226",
+      "kind": "brick",
+      "status": "server",
+      "mine": "unchanged",
+      "server": "deleted"
+    },
+    {
+      "key": "brick:211:222",
+      "kind": "brick",
+      "status": "mine",
+      "mine": "edited",
+      "server": "unchanged"
+    },
+    {
+      "key": "brick:211:223",
+      "kind": "brick",
+      "status": "mine",
+      "mine": "deleted",
+      "server": "unchanged"
+    },
+    {
+      "key": "brick:211:224",
+      "kind": "brick",
+      "status": "conflict",
+      "mine": "edited",
+      "server": "edited"
+    },
+    {
+      "key": "brick:211:225",
+      "kind": "brick",
+      "status": "same",
+      "mine": "edited",
+      "server": "edited"
+    },
+    {
+      "key": "brick:211:mine-new-brick",
+      "kind": "brick",
+      "status": "mine",
+      "mine": "added",
+      "server": "unchanged"
+    },
+    {
+      "key": "label:L-both",
+      "kind": "label",
+      "status": "conflict",
+      "mine": "edited",
+      "server": "edited"
+    },
+    {
+      "key": "label:L-gone",
+      "kind": "label",
+      "status": "server",
+      "mine": "unchanged",
+      "server": "deleted"
+    },
+    {
+      "key": "label:L-mine",
+      "kind": "label",
+      "status": "mine",
+      "mine": "added",
+      "server": "unchanged"
+    },
+    {
+      "key": "map",
+      "kind": "map",
+      "status": "conflict",
+      "mine": "edited",
+      "server": "edited"
+    },
+    {
+      "key": "text:3144:T0",
+      "kind": "text",
+      "status": "mine",
+      "mine": "edited",
+      "server": "unchanged"
+    },
+    {
+      "key": "venue",
+      "kind": "venue",
+      "status": "server",
+      "mine": "unchanged",
+      "server": "added"
+    }
+  ]
+}
