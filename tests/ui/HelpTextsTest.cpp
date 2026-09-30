@@ -120,11 +120,13 @@ TEST(HelpTexts, MatchesTheWebCatalogueWordForWord) {
 
 // Every key a "?" is given in the code (HelpButton, withHelp,
 // headingWithHelp, addToMessageBox, HelpButton::addTo and
-// PanelHeader::install take the key as their first string literal).
+// PanelHeader::install take the key as their first string literal). Any
+// dotted literal counts, digits and extra dots too, so a typo like
+// "room.units2" or "status.sheet.old" can't slip past.
 TEST(HelpTexts, EveryKeyTheUiUsesExists) {
     static const QRegularExpression callRe(
         QStringLiteral(R"re(\b(?:HelpButton|withHelp|headingWithHelp|addToMessageBox|addTo|PanelHeader::install)\()re"
-                       R"re([^;]*?QStringLiteral\("([A-Za-z]+\.[A-Za-z]+)"\))re"));
+                       R"re([^;]*?QStringLiteral\("([A-Za-z][\w-]*(?:\.[\w-]+)+)"\))re"));
     const QStringList known = helpKeys();
     QSet<QString> used;
     QDirIterator it(QStringLiteral(BLD_SOURCE_DIR "/src"), { QStringLiteral("*.cpp"), QStringLiteral("*.h") },
