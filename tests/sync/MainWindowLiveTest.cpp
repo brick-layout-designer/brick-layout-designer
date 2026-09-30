@@ -24,6 +24,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QMessageBox>
+#include <QPointer>
 #include <QPushButton>
 #include <QStandardPaths>
 #include <QTimer>
@@ -40,6 +41,12 @@ namespace {
 
 // Answers the modal dialogs that open while `run` runs, in order; a dialog
 // beyond the answers is closed and counted as unexpected.
+// Each dialog is answered once. The poll sees a dialog again while its
+// queued click hasn't landed yet, while it is busy (an upload in flight), or
+// for a moment once a box it opened has closed (before the dialog itself
+// finishes): none of that is a new dialog. A dialog answered before only
+// takes the next answer when it comes back to the front after another one,
+// as the compare window does when its confirmation is turned down.
 struct Answers {
     std::vector<std::function<void(QWidget*)>> steps;
     int unexpected = 0;
@@ -47,9 +54,15 @@ struct Answers {
     void during(const std::function<void()>& run) {
         QTimer poll;
         poll.setInterval(20);
+        QList<QPointer<QWidget>> answered;
+        QPointer<QWidget> last;
         QObject::connect(&poll, &QTimer::timeout, [&] {
             QWidget* modal = QApplication::activeModalWidget();
-            if (!modal || !modal->isVisible()) return;
+            if (!modal || !modal->isVisible() || modal == last) return;
+            const bool again = answered.contains(modal);
+            if (again && given == steps.size()) return;
+            last = modal;
+            if (!again) answered << modal;
             if (given < steps.size()) steps[given++](modal);
             else {
                 ++unexpected;
@@ -350,6 +363,35 @@ TEST_F(MainWindowLiveMyPart, NotNowAsksOnlyOnce) {
         place(420);
         waitFor([] { return false; }, 300);
     });
+    EXPECT_EQ(answers.unexpected, 0);
+    EXPECT_EQ(customPartPosts(), 0);
+}
+
+// The offer box deletes itself on close; the upload dialog, with its own
+// event loop, must open after the box's finished signal has returned, not
+// inside it, or the box is destroyed while it is still closing.
+TEST_F(MainWindowLiveMyPart, TheUploadDialogOpensOnceTheOfferBoxHasClosed) {
+    waitForCatalog();
+    bool boxFinishedReturned = false;
+    bool dialogSeen = false;
+    const auto answerBox = box(QStringLiteral("MYPART.1 isn't on the server yet"), QStringLiteral("Upload..."));
+    Answers answers{ { [&](QWidget* w) {
+                          // Connected after the window's own handler, so this runs once that has returned.
+                          QObject::connect(qobject_cast<QMessageBox*>(w), &QMessageBox::finished,
+                                           [&] { boxFinishedReturned = true; });
+                          answerBox(w);
+                      },
+                       [&](QWidget* w) {
+                           dialogSeen = true;
+                           EXPECT_TRUE(boxFinishedReturned)
+                               << "the upload dialog opened inside the offer box's finished signal";
+                           press(QStringLiteral("Cancel"))(w);
+                       } } };
+    answers.during([&] {
+        place(400);
+        ASSERT_TRUE(waitFor([&] { return answers.done(); }));
+    });
+    EXPECT_TRUE(dialogSeen);
     EXPECT_EQ(answers.unexpected, 0);
     EXPECT_EQ(customPartPosts(), 0);
 }
