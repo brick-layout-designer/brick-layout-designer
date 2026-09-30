@@ -11,6 +11,7 @@
 // - Undo / redo revert only this desktop's own edits.
 // - A read-only session (view-only access) never sends edits.
 
+#include "Awareness.h"
 #include "SyncClient.h"
 #include "SyncDoc.h"
 
@@ -54,18 +55,33 @@ public:
 
     void holdRemoteChanges(bool hold);
 
+    // Presence: our state in the web editor's shape (user, cursor,
+    // selection, tool, lastActivityMs), sent to everyone else; nullopt says
+    // we left. Sent again whenever the connection comes back.
+    void setPresence(const std::optional<QJsonObject>& state);
+    // Everyone else's presence, by client id.
+    const QHash<quint32, QJsonObject>& peers() const { return peers_.states(); }
+    quint32 clientId() const { return clientId_; }
+
     // For tests: retry delays of the connection.
     SyncClient& client() { return client_; }
 
 signals:
     void statusChanged(bld::sync::SyncClient::Status status);
     void mapChanged();
+    void peersChanged();
     // The server ended the session for good (access revoked, layout gone).
     void ended(int code, const QString& reason);
 
 private:
     void remoteArrived();
 
+    void sendPresence();
+
+    quint32 clientId_;
+    quint32 presenceClock_ = 0;
+    std::optional<QJsonObject> presence_;
+    awareness::Peers peers_;
     SyncDoc doc_;
     SyncClient client_;
     bool readOnly_ = false;
