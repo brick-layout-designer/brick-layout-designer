@@ -14,6 +14,8 @@
 #include <QSet>
 #include <QUuid>
 
+#include <cmath>
+
 namespace bld::sync::merge {
 
 namespace {
@@ -28,6 +30,7 @@ const QStringList kHeader{ QStringLiteral("author"), QStringLiteral("lug"), QStr
 struct Item {
     QString kind, layerId;
     QJsonValue value;
+    QString layerName;
 };
 using Items = QMap<QString, Item>;
 
@@ -56,32 +59,33 @@ Items itemsOf(const Snapshot& s) {
         const QString lid = lv.toString();
         QJsonObject props = data.value(lid).toObject();
         const QJsonObject layer = props;
+        const QString name = layer.value(QLatin1String("name")).toString();
         for (const auto& k : kItemLists) props.remove(k);
-        out.insert(QStringLiteral("layer:") + lid, { QStringLiteral("layer"), lid, props });
+        out.insert(QStringLiteral("layer:") + lid, { QStringLiteral("layer"), lid, props, name });
         for (const auto& g : layer.value(QLatin1String("groups")).toArray())
             out.insert(QStringLiteral("group:%1:%2").arg(lid, g.toObject().value(QLatin1String("id")).toString()),
-                       { QStringLiteral("group"), lid, g });
+                       { QStringLiteral("group"), lid, g, name });
         for (const auto& b : layer.value(QLatin1String("bricks")).toArray()) {
             QJsonObject brick = b.toObject();
             brick.remove(QStringLiteral("connexions"));  // links follow positions: noise
             out.insert(QStringLiteral("brick:%1:%2").arg(lid, brick.value(QLatin1String("id")).toString()),
-                       { QStringLiteral("brick"), lid, brick });
+                       { QStringLiteral("brick"), lid, brick, name });
         }
         const QJsonArray cells = layer.value(QLatin1String("textCells")).toArray();
         for (int i = 0; i < cells.size(); ++i)
-            out.insert(textKey(lid, cells[i].toObject(), i), { QStringLiteral("text"), lid, cells[i] });
+            out.insert(textKey(lid, cells[i].toObject(), i), { QStringLiteral("text"), lid, cells[i], name });
         for (const auto& a : layer.value(QLatin1String("areas")).toArray()) {
             const QJsonObject cell = a.toObject();
             out.insert(QStringLiteral("area:%1:%2,%3")
                            .arg(lid)
                            .arg(cell.value(QLatin1String("x")).toInt())
                            .arg(cell.value(QLatin1String("y")).toInt()),
-                       { QStringLiteral("area"), lid, cell.value(QLatin1String("color")) });
+                       { QStringLiteral("area"), lid, cell.value(QLatin1String("color")), name });
         }
         for (const auto& r : layer.value(QLatin1String("rulerItems")).toArray()) {
             QJsonObject ruler = r.toObject();
             ruler.remove(QStringLiteral("id"));
-            out.insert(QStringLiteral("ruler:%1:%2").arg(lid, rulerHash(ruler)), { QStringLiteral("ruler"), lid, ruler });
+            out.insert(QStringLiteral("ruler:%1:%2").arg(lid, rulerHash(ruler)), { QStringLiteral("ruler"), lid, ruler, name });
         }
     }
     for (const auto& l : s.sidecar.value(QLatin1String("anchoredLabels")).toArray())
@@ -362,6 +366,7 @@ QList<ItemChange> compareLayouts(const Snapshot& base, const Snapshot& mine, con
         const Item* any = mi ? mi : si ? si : bi;
         c.kind = any->kind;
         c.layerId = any->layerId;
+        c.layerName = any->layerName;
         if (bi) c.base = bi->value;
         if (mi) c.mineValue = mi->value;
         if (si) c.serverValue = si->value;
@@ -381,6 +386,24 @@ std::unique_ptr<core::Map> mergeLayouts(const Snapshot& mine, const Snapshot& se
     return mapOf(merger.result(), error);
 }
 
+namespace {
+
+// A stud coordinate, to a tenth at most: 120, 47.5.
+QString studs(double v) { return QString::number(std::round(v * 10) / 10 + 0.0); }  // + 0.0: no "-0"
+
+// " at (x, y)" for an item with a display area, else nothing.
+QString at(const QJsonObject& v) {
+    const QJsonObject area = v.value(QLatin1String("displayArea")).toObject();
+    if (area.isEmpty()) return {};
+    return tr(" at (%1, %2)")
+        .arg(studs(area.value(QLatin1String("x")).toDouble()), studs(area.value(QLatin1String("y")).toDouble()));
+}
+
+// " on "Layer"" for an item in a named layer, else nothing.
+QString on(const ItemChange& c) { return c.layerName.isEmpty() ? QString() : tr(" on \"%1\"").arg(c.layerName); }
+
+}  // namespace
+
 QString describe(const ItemChange& c) {
     const QJsonObject v = (c.mineValue.isUndefined() ? (c.serverValue.isUndefined() ? c.base : c.serverValue)
                                                      : c.mineValue)
@@ -388,11 +411,15 @@ QString describe(const ItemChange& c) {
     QString what;
     if (c.kind == QLatin1String("map")) what = tr("Layout details");
     else if (c.kind == QLatin1String("layer")) what = tr("Layer \"%1\"").arg(v.value(QLatin1String("name")).toString());
-    else if (c.kind == QLatin1String("brick")) what = tr("Brick %1").arg(v.value(QLatin1String("partNumber")).toString());
-    else if (c.kind == QLatin1String("group")) what = tr("Group");
-    else if (c.kind == QLatin1String("text")) what = tr("Text \"%1\"").arg(v.value(QLatin1String("text")).toString().left(40));
-    else if (c.kind == QLatin1String("area")) what = tr("Area cell %1").arg(c.key.section(QLatin1Char(':'), 2));
-    else if (c.kind == QLatin1String("ruler")) what = tr("Ruler");
+    else if (c.kind == QLatin1String("brick"))
+        what = tr("Brick %1").arg(v.value(QLatin1String("partNumber")).toString()) + at(v) + on(c);
+    else if (c.kind == QLatin1String("group")) {
+        const QString part = v.value(QLatin1String("partNumber")).toString();
+        what = (part.isEmpty() ? tr("Group") : tr("Group %1").arg(part)) + on(c);
+    } else if (c.kind == QLatin1String("text"))
+        what = tr("Text \"%1\"").arg(v.value(QLatin1String("text")).toString().left(40)) + at(v) + on(c);
+    else if (c.kind == QLatin1String("area")) what = tr("Area cell %1").arg(c.key.section(QLatin1Char(':'), 2)) + on(c);
+    else if (c.kind == QLatin1String("ruler")) what = tr("Ruler") + on(c);
     else if (c.kind == QLatin1String("label")) what = tr("Label \"%1\"").arg(v.value(QLatin1String("text")).toString().left(40));
     else if (c.kind == QLatin1String("module")) what = tr("Module \"%1\"").arg(v.value(QLatin1String("name")).toString());
     else if (c.kind == QLatin1String("venue")) what = tr("Venue");
