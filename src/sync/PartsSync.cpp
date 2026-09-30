@@ -48,10 +48,11 @@ PartsSync::PartsSync(QUrl server, QString token, QString cacheDir, QObject* pare
     QFile f(cache_.filePath(QStringLiteral("state.json")));
     if (f.open(QIODevice::ReadOnly)) {
         const QJsonObject s = QJsonDocument::fromJson(f.readAll()).object();
-        for (auto [k, v] : s.value(QLatin1String("libraries")).toObject().asKeyValueRange())
-            libHashes_.insert(k.toString(), v.toString());
-        for (auto [k, v] : s.value(QLatin1String("customParts")).toObject().asKeyValueRange())
-            customHashes_.insert(k.toString(), v.toString());
+        // (QJsonObject::asKeyValueRange needs Qt 6.8; CI builds with 6.7.)
+        const QJsonObject libs = s.value(QLatin1String("libraries")).toObject();
+        for (auto it = libs.begin(); it != libs.end(); ++it) libHashes_.insert(it.key(), it.value().toString());
+        const QJsonObject custom = s.value(QLatin1String("customParts")).toObject();
+        for (auto it = custom.begin(); it != custom.end(); ++it) customHashes_.insert(it.key(), it.value().toString());
     }
 }
 
