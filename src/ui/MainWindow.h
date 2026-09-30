@@ -7,6 +7,7 @@
 #include <QStringList>
 #include <QUrl>
 
+#include <functional>
 #include <memory>
 
 #ifdef BLD_SYNC
@@ -48,6 +49,8 @@ public:
 
 protected:
     void closeEvent(QCloseEvent* e) override;
+    // Redraws the toolbar's icons when the theme (palette) changes.
+    void changeEvent(QEvent* e) override;
 
     // Rescans the parts library against all configured paths. Called at
     // startup and after the user edits the paths via onManageLibraries.
@@ -110,6 +113,17 @@ private slots:
 
 private:
     void setupMenus();
+    // The friendlier shell (MainWindowShell.cpp): labelled toolbar, task
+    // tabs, panel headers and the status bar's piece count, sheet and zoom.
+    void setupShell();
+    void refreshShellIcons();
+    void addZoomReadout();
+    // Build / Room / Notes / Parts list: shortcuts onto the docks and dialogs.
+    void showTask(const QString& task);
+    // Edit > Settings...: the look and help settings.
+    void openSettings();
+    // The server the settings sync with now, or empty.
+    QString syncedHost() const;
     void setupMapMenu();           // in MainWindowMapMenu.cpp
     void setupToolsMenu();         // in MainWindowToolsMenu.cpp
     void setupBudgetMenu();        // in MainWindowBudgetMenu.cpp
@@ -162,6 +176,12 @@ private:
     QAction* redoAct_ = nullptr;
 
     class QMenu* recentMenu_ = nullptr;
+    QAction* generalInfoAct_ = nullptr;   // Map > General Info (the Notes tab)
+    QAction* preferencesAct_ = nullptr;   // Edit > Preferences (Settings' "More options")
+    QAction* helpContentsAct_ = nullptr;
+    class QToolBar* mainToolbar_ = nullptr;
+    QList<QPair<QAction*, QString>> shellIcons_;  // toolbar actions and their icon names
+    std::function<void()> refreshPaintSwatch_;
 
 #ifdef BLD_SYNC
     // Live layouts on a collaborative server (MainWindowLive.cpp).
@@ -180,6 +200,8 @@ private:
     void offerPartsUpload(bool quiet);
     QUrl liveServer_;
     QString liveToken_;
+    // Settings sync with the connected server's account.
+    class PrefsSync* prefsSync_ = nullptr;
     QAction* uploadPartsAct_ = nullptr;
     // Your own parts you place while live that the server lacks: each is
     // offered for upload once per session. The catalog is fetched on open

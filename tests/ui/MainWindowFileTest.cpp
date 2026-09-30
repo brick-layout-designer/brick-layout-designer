@@ -19,6 +19,9 @@
 
 #include <QAction>
 #include <QComboBox>
+#include <QDockWidget>
+#include <QLabel>
+#include <QToolButton>
 #include <QApplication>
 #include <QBuffer>
 #include <QDir>
@@ -401,4 +404,37 @@ TEST_F(MainWindowPartDifferences, KeepAllMineChangesNothing) {
     EXPECT_EQ(readBytes(mine_ + QStringLiteral("/MYPART.1.xml")), partXml());
     EXPECT_FALSE(parts_.metadata(QStringLiteral("MYPART-2.1")));
     EXPECT_EQ(brickPart(), QStringLiteral("MYPART.1"));
+}
+
+// The friendlier shell: plain panel names with the same header, task tabs
+// that bring up their panels, and the status bar's piece count and sheet.
+TEST_F(MainWindowFile, ShellHasTaskTabsSheetsAndThePieceCount) {
+    ASSERT_TRUE(window_->openFile(bbm_));
+    auto* sheets = window_->findChild<QDockWidget*>(QStringLiteral("dock.layers"));
+    ASSERT_NE(sheets, nullptr);
+    EXPECT_EQ(sheets->windowTitle(), QStringLiteral("Sheets"));
+    EXPECT_NE(sheets->titleBarWidget(), nullptr);
+    EXPECT_EQ(window_->findChild<QDockWidget*>(QStringLiteral("dock.venueLibrary"))->windowTitle(),
+              QStringLiteral("Room Library"));
+
+    auto* room = window_->findChild<QDockWidget*>(QStringLiteral("dock.venueLibrary"));
+    room->hide();
+    auto* roomTab = window_->findChild<QToolButton*>(QStringLiteral("task.room"));
+    ASSERT_NE(roomTab, nullptr);
+    roomTab->click();
+    EXPECT_FALSE(room->isHidden());
+    EXPECT_TRUE(roomTab->isChecked());
+    for (const char* id : { "task.build", "task.notes", "task.parts" })
+        EXPECT_NE(window_->findChild<QToolButton*>(QString::fromLatin1(id)), nullptr) << id;
+
+    QCoreApplication::processEvents();
+    auto* pieces = window_->findChild<QLabel*>(QStringLiteral("PiecesLabel"));
+    ASSERT_NE(pieces, nullptr);
+    EXPECT_TRUE(pieces->text().endsWith(QStringLiteral("pieces"))) << pieces->text().toStdString();
+    EXPECT_NE(window_->findChild<QLabel*>(QStringLiteral("ZoomLabel")), nullptr);
+    // Everything the old toolbar did is still in the menus.
+    EXPECT_NE(action(*window_, QStringLiteral("&Settings...")), nullptr);
+    EXPECT_NE(action(*window_, QStringLiteral("&Preferences...")), nullptr);
+    EXPECT_NE(action(*window_, QStringLiteral("Cu&t")), nullptr);
+    EXPECT_NE(action(*window_, QStringLiteral("Send to &Back")), nullptr);
 }

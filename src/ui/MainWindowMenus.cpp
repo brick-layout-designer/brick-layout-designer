@@ -487,8 +487,15 @@ void MainWindow::setupMenus() {
     });
 
     edit->addSeparator();
+    auto* settingsAct = edit->addAction(tr("&Settings..."));
+    settingsAct->setObjectName(QStringLiteral("action.settings"));
+    settingsAct->setShortcut(QKeySequence::Preferences);
+    settingsAct->setMenuRole(QAction::PreferencesRole);
+    settingsAct->setToolTip(tr("Light or dark, colour, bigger text, Expert mode and help buttons"));
+    connect(settingsAct, &QAction::triggered, this, &MainWindow::openSettings);
     auto* prefsAct = edit->addAction(tr("&Preferences..."));
-    prefsAct->setShortcut(QKeySequence::Preferences);
+    prefsAct->setMenuRole(QAction::NoRole);
+    preferencesAct_ = prefsAct;
     connect(prefsAct, &QAction::triggered, this, [this]{
         PreferencesDialog dlg(this);
         dlg.exec();
@@ -525,11 +532,11 @@ void MainWindow::setupMenus() {
         QObject::connect(d, &QDockWidget::visibilityChanged, act, &QAction::setChecked);
     };
     addDockToggle(partsBrowser_,       tr("&Parts Panel"));
-    addDockToggle(layerPanel_,         tr("&Layers Panel"));
+    addDockToggle(layerPanel_,         tr("&Sheets Panel"));
     addDockToggle(modulesPanel_,       tr("&Modules Panel"));
     addDockToggle(moduleLibraryPanel_, tr("Module Li&brary Panel"));
-    addDockToggle(venueLibraryPanel_,  tr("&Venue Library Panel"));
-    addDockToggle(partUsagePanel_,     tr("&Used Parts Panel"));
+    addDockToggle(venueLibraryPanel_,  tr("&Room Library Panel"));
+    addDockToggle(partUsagePanel_,     tr("Parts &List Panel"));
 
     view->addSeparator();
     auto* statusToggle = view->addAction(tr("&Status Bar"));
@@ -592,6 +599,7 @@ void MainWindow::setupMenus() {
 
     auto* help = menuBar()->addMenu(tr("&Help"));
     auto* contentsAct = help->addAction(tr("&Contents"));
+    helpContentsAct_ = contentsAct;
     contentsAct->setShortcut(QKeySequence::HelpContents);
     connect(contentsAct, &QAction::triggered, this, [this]{
         // BlueBrick's manual as offline HTML, in the UI language if there
