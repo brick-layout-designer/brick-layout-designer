@@ -28,7 +28,7 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
-  QT_VERSION: '6.8.*'
+  QT_VERSION: '6.12.*'
   # Headless test runs; never pop a message box from QCommandLineParser.
   QT_QPA_PLATFORM: offscreen
   QT_COMMAND_LINE_PARSER_NO_GUI_MESSAGE_BOXES: '1'
