@@ -11,6 +11,7 @@
 #include <QTreeWidget>
 #include <QVBoxLayout>
 
+#include <algorithm>
 #include <utility>
 
 namespace bld::sync {
@@ -51,8 +52,10 @@ CompareDialog::CompareDialog(const QList<ItemChange>& changes, QWidget* parent)
     list_->setColumnCount(2);
     list_->setHeaderLabels({ tr("Change"), tr("Keep") });
     list_->setRootIsDecorated(false);
+    list_->header()->setStretchLastSection(false);
     list_->header()->setSectionResizeMode(0, QHeaderView::Stretch);
-    list_->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    list_->header()->setSectionResizeMode(1, QHeaderView::Fixed);
+    int keepWidth = list_->header()->sectionSizeHint(1);
     // Clashes first, then my other changes, then the server's for reference.
     for (const Status group : { Status::Conflict, Status::Mine, Status::Same, Status::Server }) {
         for (const auto& c : changes_) {
@@ -61,7 +64,7 @@ CompareDialog::CompareDialog(const QList<ItemChange>& changes, QWidget* parent)
             row->setData(0, kKeyRole, c.key);
             if (c.status == Status::Server || c.status == Status::Same) {
                 row->setText(1, c.status == Status::Same ? tr("Both the same") : tr("Server's change"));
-                row->setForeground(0, palette().color(QPalette::Disabled, QPalette::Text));
+                for (int col : { 0, 1 }) row->setForeground(col, palette().color(QPalette::Disabled, QPalette::Text));
                 continue;
             }
             auto* combo = new QComboBox(list_);
@@ -76,10 +79,13 @@ CompareDialog::CompareDialog(const QList<ItemChange>& changes, QWidget* parent)
                 combo->setCurrentIndex(1);
                 row->setIcon(0, style()->standardIcon(QStyle::SP_MessageBoxWarning));
             }
+            keepWidth = std::max(keepWidth, combo->sizeHint().width());
             combos_.insert(c.key, combo);
             list_->setItemWidget(row, 1, combo);
         }
     }
+    // Just wide enough for the choices; the changes take the rest.
+    list_->header()->resizeSection(1, keepWidth + 8);
     connect(list_, &QTreeWidget::currentItemChanged, this, [this](QTreeWidgetItem* row) {
         if (!row) return;
         const QString key = row->data(0, kKeyRole).toString();
@@ -106,7 +112,8 @@ CompareDialog::CompareDialog(const QList<ItemChange>& changes, QWidget* parent)
     later->setToolTip(tr("Keep your offline changes waiting; File > Review Offline Changes brings this back"));
     connect(apply, &QPushButton::clicked, this, [this] { finish(Action::Apply); });
     connect(discard, &QPushButton::clicked, this, [this] {
-        if (QMessageBox::question(this, windowTitle(), tr("Throw away the changes you made offline?"))
+        if (QMessageBox::question(this, windowTitle(), tr("Throw away the changes you made offline?"),
+                                  QMessageBox::Yes | QMessageBox::No, QMessageBox::No)
             == QMessageBox::Yes)
             finish(Action::Discard);
     });
@@ -114,7 +121,8 @@ CompareDialog::CompareDialog(const QList<ItemChange>& changes, QWidget* parent)
         if (QMessageBox::question(this, windowTitle(),
                                   tr("Put your version in place of the server's? Everything changed on the "
                                      "server while you were offline is undone for everyone (they can "
-                                     "still undo this)."))
+                                     "still undo this)."),
+                                  QMessageBox::Yes | QMessageBox::No, QMessageBox::No)
             == QMessageBox::Yes)
             finish(Action::ReplaceServer);
     });

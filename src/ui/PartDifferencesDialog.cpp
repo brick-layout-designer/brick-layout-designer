@@ -98,14 +98,25 @@ PartDifferencesDialog::PartDifferencesDialog(const QList<Row>& rows, QWidget* pa
                                 "Choose which to use for each.", nullptr, static_cast<int>(rows.size())));
     intro->setWordWrap(true);
     layout->addWidget(intro);
+    auto* hint = new QLabel(tr("<i>Use the layout's</i>: your files are backed up, then replaced. "
+                               "<i>Keep both</i>: the layout's is added under a new part number, and this "
+                               "layout uses it."));
+    hint->setWordWrap(true);
+    layout->addWidget(hint);
 
     auto* grid = new QGridLayout;
+    grid->setHorizontalSpacing(16);
     grid->addWidget(new QLabel(tr("<b>Part</b>")), 0, 0);
     grid->addWidget(new QLabel(tr("<b>Yours</b>")), 0, 1);
     grid->addWidget(new QLabel(tr("<b>The layout's</b>")), 0, 2);
     grid->addWidget(new QLabel(tr("<b>Use</b>")), 0, 3);
     int line = 1;
     for (const auto& row : rows) {
+        // A rule between parts.
+        auto* rule = new QFrame;
+        rule->setFrameShape(QFrame::HLine);
+        rule->setFrameShadow(QFrame::Sunken);
+        grid->addWidget(rule, line++, 0, 1, 4);
         grid->addWidget(new QLabel(row.key), line, 0, Qt::AlignTop);
         grid->addWidget(sideOf(row.mine, QStringLiteral("mine-") + row.key), line, 1, Qt::AlignTop);
         grid->addWidget(sideOf(row.layouts, QStringLiteral("layouts-") + row.key), line, 2, Qt::AlignTop);
@@ -136,7 +147,7 @@ PartDifferencesDialog::PartDifferencesDialog(const QList<Row>& rows, QWidget* pa
     connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
     layout->addWidget(buttons);
-    resize(640, qMin(160 + 170 * static_cast<int>(rows.size()), 640));
+    resize(660, qMin(200 + 185 * static_cast<int>(rows.size()), 720));
 }
 
 QMap<QString, PartDifferencesDialog::Choice> PartDifferencesDialog::choices() const {
