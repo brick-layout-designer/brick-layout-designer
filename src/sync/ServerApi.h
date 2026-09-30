@@ -76,6 +76,8 @@ public:
     // The venue library (token scope venues:read): the list, then one
     // venue as a .bld-venue file's bytes, ready to save into the local
     // Venue Library folder.
+    // Who the token belongs to (GET /api/tokens/current): id and display name.
+    void fetchCurrentUser();
     void fetchVenues();
     void fetchVenue(const QString& id);
 
@@ -91,6 +93,7 @@ signals:
     void versionReady(const bld::sync::ServerInfo& info);
     void layoutsReady(const QList<bld::sync::LayoutEntry>& layouts);
     void venuesReady(const QList<bld::sync::VenueEntry>& venues);
+    void currentUserReady(const QString& userId, const QString& displayName);
     void venueReady(const QString& id, const QString& name, const QByteArray& venueFile);
     void signInCode(const bld::sync::DeviceCode& code);
     void signedIn(const QString& token);

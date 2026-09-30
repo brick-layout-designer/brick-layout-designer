@@ -13,6 +13,8 @@
 
 #include <gtest/gtest.h>
 
+#include <QGraphicsRectItem>
+#include <QGraphicsSimpleTextItem>
 #include <QMouseEvent>
 #include <QUndoStack>
 
@@ -128,4 +130,50 @@ TEST(LiveLayout, ClosingLeavesTheMapAndStopsFollowingTheServer) {
     EXPECT_EQ(h.view.undoStack()->count(), 1);
     EXPECT_EQ(h.reloads, before);
     EXPECT_NE(firstBrickArea(h.server.doc), firstBrick(*h.view.currentMap()).displayArea);
+}
+
+TEST(LiveLayout, ShowsOtherPeoplesCursorsAndSendsOurs) {
+    Harness h;
+    h.open();
+    // Someone else on the same layout.
+    sync::SyncSession other;
+    other.open(h.server.url(), {}, false);
+    ASSERT_TRUE(waitFor([&] { return other.status() == Status::Synced; }));
+    const QString brick = firstBrick(*h.view.currentMap()).guid;
+    other.setPresence(
+        sync::presence::state({ QStringLiteral("u-bob"), QStringLiteral("Bob"), QStringLiteral("#60a5fa") },
+                              QPointF(10, 20), { brick }, 0));
+    ASSERT_TRUE(waitFor([&] { return h.live.drawnPeers() == 1; }));
+    QStringList names;
+    int outlines = 0;
+    for (QGraphicsItem* it : h.view.scene()->items()) {
+        if (auto* t = dynamic_cast<QGraphicsSimpleTextItem*>(it)) names << t->text();
+        if (auto* r = dynamic_cast<QGraphicsRectItem*>(it);
+            r && r->pen().style() == Qt::DashLine && r->zValue() >= 1e9)
+            ++outlines;
+    }
+    EXPECT_TRUE(names.contains(QStringLiteral("Bob")));
+    EXPECT_EQ(outlines, 1); // Bob's selected brick
+
+    // Our cursor and name reach them, in the web's shape and colour.
+    h.live.setUser(QStringLiteral("u-alice"), QStringLiteral("Alice"), QStringLiteral("L1"));
+    QMouseEvent move(QEvent::MouseMove, QPointF(30, 30), h.view.viewport()->mapToGlobal(QPointF(30, 30)),
+                     Qt::NoButton, Qt::NoButton, Qt::NoModifier);
+    QCoreApplication::sendEvent(h.view.viewport(), &move);
+    ASSERT_TRUE(waitFor([&] {
+        for (const auto& s : other.peers()) {
+            const auto p = sync::presence::peerFrom(s);
+            if (p.name == QLatin1String("Alice") && p.cursor) return true;
+        }
+        return false;
+    }));
+    const auto alice = sync::presence::peerFrom(other.peers().begin().value());
+    EXPECT_EQ(alice.color, sync::presence::colorFor(QStringLiteral("u-alice"), QStringLiteral("L1")));
+
+    // They leave: their cursor goes.
+    other.setPresence(std::nullopt);
+    ASSERT_TRUE(waitFor([&] { return h.live.drawnPeers() == 0; }));
+    // We close: nothing of theirs is left on the map.
+    h.live.close();
+    EXPECT_EQ(h.live.drawnPeers(), 0);
 }

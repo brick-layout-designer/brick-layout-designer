@@ -73,6 +73,17 @@ void MainWindow::onConnectToServer() {
     api.setBase(r.server);
     currentFilePath_.clear();
     live_->open(api.layoutSocketUrl(r.layoutId), r.token, r.readOnly, r.title);
+    // Name and colour our cursor as the web does, once we know who we are.
+    auto* who = new sync::ServerApi(this);
+    who->setBase(r.server);
+    who->setToken(r.token);
+    connect(who, &sync::ServerApi::currentUserReady, this,
+            [this, who, layout = r.layoutId](const QString& id, const QString& name) {
+                live_->setUser(id, name, layout);
+                who->deleteLater();
+            });
+    connect(who, &sync::ServerApi::requestFailed, who, &QObject::deleteLater);
+    who->fetchCurrentUser();
     updateLiveUi();
 }
 

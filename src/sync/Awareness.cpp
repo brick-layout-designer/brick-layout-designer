@@ -36,7 +36,7 @@ struct Reader {
     }
 };
 
-}  // namespace
+} // namespace
 
 QByteArray encode(const QList<Entry>& entries) {
     QByteArray out;
@@ -44,7 +44,8 @@ QByteArray encode(const QList<Entry>& entries) {
     for (const auto& e : entries) {
         writeVarUint(out, e.clientId);
         writeVarUint(out, e.clock);
-        const QByteArray json = e.state ? QJsonDocument(*e.state).toJson(QJsonDocument::Compact) : QByteArrayLiteral("null");
+        const QByteArray json =
+            e.state ? QJsonDocument(*e.state).toJson(QJsonDocument::Compact) : QByteArrayLiteral("null");
         writeVarUint(out, static_cast<quint64>(json.size()));
         out.append(json);
     }
@@ -85,4 +86,4 @@ bool Peers::apply(const QByteArray& update) {
     return changed;
 }
 
-}  // namespace bld::sync::awareness
+} // namespace bld::sync::awareness

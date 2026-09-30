@@ -3,8 +3,8 @@
 // Test helpers shared by the sync tests: an in-process server speaking the
 // collaborative server's y-websocket protocol, and small map accessors.
 
-#include "SyncDoc.h"
 #include "Awareness.h"
+#include "SyncDoc.h"
 #include "SyncProtocol.h"
 #include "WebModel.h"
 
@@ -60,7 +60,9 @@ public:
                 if (const auto last = presence.take(ws); !last.isEmpty())
                     if (const auto entries = sync::awareness::decode(last); entries && !entries->isEmpty()) {
                         const auto& e = entries->first();
-                        const QByteArray gone = protocol::encode(Kind::Awareness, sync::awareness::encode({ { e.clientId, e.clock + 1, std::nullopt } }));
+                        const QByteArray gone = protocol::encode(
+                            Kind::Awareness,
+                            sync::awareness::encode({ { e.clientId, e.clock + 1, std::nullopt } }));
                         for (QWebSocket* p : peers) p->sendBinaryMessage(gone);
                     }
                 ws->deleteLater();
@@ -88,7 +90,7 @@ public:
     sync::SyncDoc doc;
     std::vector<QWebSocket*> peers;
     std::vector<QString> authHeaders;
-    QHash<QWebSocket*, QByteArray> presence;  // each client's last awareness update
+    QHash<QWebSocket*, QByteArray> presence; // each client's last awareness update
 
 private:
     void onMessage(QWebSocket* from, const QByteArray& message) {

@@ -9,14 +9,16 @@
 namespace bld::sync {
 
 SyncSession::SyncSession(QObject* parent)
-    : QObject(parent), clientId_(QRandomGenerator::global()->bounded(1u, 0x7fffffffu)), peers_(clientId_), client_(doc_) {
+    : QObject(parent), clientId_(QRandomGenerator::global()->bounded(1u, 0x7fffffffu)), peers_(clientId_),
+      client_(doc_) {
     connect(&client_, &SyncClient::statusChanged, this, [this](SyncClient::Status s) {
         if (s == SyncClient::Status::Synced) {
             unsynced_ = 0;
             if (presence_) sendPresence();
         }
         // Disconnected: the server sends everyone's presence again on reconnect.
-        if ((s == SyncClient::Status::Offline || s == SyncClient::Status::Connecting) && !peers_.states().isEmpty()) {
+        if ((s == SyncClient::Status::Offline || s == SyncClient::Status::Connecting)
+            && !peers_.states().isEmpty()) {
             peers_.clear();
             emit peersChanged();
         }
