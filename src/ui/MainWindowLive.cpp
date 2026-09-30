@@ -14,8 +14,10 @@
 #include "VenueLibraryPanel.h"
 
 #include "ConnectDialog.h"
+#include "PartsUpload.h"
 #include "ServerApi.h"
 #include "TokenStore.h"
+#include "UploadPartsDialog.h"
 
 #include <QAction>
 #include <QBuffer>
@@ -46,6 +48,10 @@ void MainWindow::setupLiveMenu(QMenu* file) {
     publishAct->setToolTip(
         tr("Put this layout on a server, yours or an organisation's, and keep editing it live"));
     connect(publishAct, &QAction::triggered, this, &MainWindow::onPublishToServer);
+    uploadPartsAct_ = file->addAction(tr("&Upload My Parts to Server..."));
+    uploadPartsAct_->setToolTip(tr("Offer your own parts that the live layout's server doesn't have yet"));
+    uploadPartsAct_->setEnabled(false);
+    connect(uploadPartsAct_, &QAction::triggered, this, [this] { offerPartsUpload(false); });
     auto* venuesAct = file->addAction(tr("Download &Venues from Server..."));
     connect(venuesAct, &QAction::triggered, this, &MainWindow::onDownloadVenues);
 
@@ -115,9 +121,45 @@ void MainWindow::onPublishToServer() {
     openLive(*published);
     statusBar()->showMessage(tr("Published \"%1\" to %2").arg(published->title, published->server.host()),
                              5000);
+    // Parts of yours the server lacks would show as missing there: offer them.
+    offerPartsUpload(true);
+}
+
+void MainWindow::offerPartsUpload(bool quiet) {
+    if (!live_->active() || liveToken_.isEmpty()) return;
+    const QString root = importedPartsRoot();
+    const auto local = root.isEmpty() ? QList<sync::LocalPart>() : sync::PartsUpload::scanFolder(root);
+    if (local.isEmpty()) {
+        if (!quiet) statusBar()->showMessage(tr("You have no parts of your own to upload."), 4000);
+        return;
+    }
+    auto* upload = new sync::PartsUpload(liveServer_, liveToken_, this);
+    connect(upload, &sync::PartsUpload::failed, this, [this, upload, quiet](const QString& message, bool) {
+        if (!quiet) statusBar()->showMessage(tr("Could not check the server's parts: %1").arg(message), 6000);
+        upload->deleteLater();
+    });
+    connect(upload, &sync::PartsUpload::missingReady, this,
+            [this, upload, quiet](const QList<sync::LocalPart>& missing) {
+                if (missing.isEmpty()) {
+                    if (!quiet) statusBar()->showMessage(tr("The server already has all your parts."), 4000);
+                    upload->deleteLater();
+                    return;
+                }
+                sync::ServerApi api;
+                api.setBase(liveServer_);
+                api.setToken(liveToken_);
+                sync::UploadPartsDialog dialog(api, *upload, missing, this);
+                if (dialog.exec() == QDialog::Accepted)
+                    statusBar()->showMessage(
+                        tr("Uploaded %n part(s) to the server", nullptr, dialog.uploadedCount()), 5000);
+                upload->deleteLater();
+            });
+    upload->findMissing(local);
 }
 
 void MainWindow::openLive(const sync::ConnectResult& r) {
+    liveServer_ = r.server;
+    liveToken_ = r.token;
     sync::ServerApi api;
     if (live_->active()) live_->close();
     api.setBase(r.server);
@@ -178,6 +220,7 @@ void MainWindow::updateLiveUi() {
     liveStatus_->setVisible(on);
     liveStatus_->setText(on ? tr("Live: %1").arg(live_->statusText()) : QString());
     disconnectAct_->setEnabled(on);
+    uploadPartsAct_->setEnabled(on);
     undoAct_->setVisible(!on);
     redoAct_->setVisible(!on);
     liveUndoAct_->setVisible(on);

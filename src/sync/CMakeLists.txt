@@ -75,6 +75,8 @@ add_library(bld_sync STATIC
     Awareness.cpp
     Presence.h
     Presence.cpp
+    PartsUpload.h
+    PartsUpload.cpp
     TokenStore.h
     TokenStore.cpp
 )
@@ -88,6 +90,8 @@ target_link_libraries(bld_sync PUBLIC bld_core bld_saveload Qt6::Core Qt6::Gui Q
 add_library(bld_sync_ui STATIC
     ui/ConnectDialog.h
     ui/ConnectDialog.cpp
+    ui/UploadPartsDialog.h
+    ui/UploadPartsDialog.cpp
 )
 target_include_directories(bld_sync_ui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/ui)
 target_link_libraries(bld_sync_ui PUBLIC bld_sync Qt6::Widgets)
