@@ -92,7 +92,7 @@ QIcon swatch(const QColor& colour, const QColor& ringGap, bool chosen) {
 }  // namespace
 
 SettingsDialog::SettingsDialog(PrefsStore& store, const QString& syncedHost,
-                               std::function<void()> openMoreOptions, QWidget* parent)
+                               const std::function<void()>& openMoreOptions, QWidget* parent)
     : QDialog(parent), store_(store) {
     setObjectName(QStringLiteral("SettingsDialog"));
     setWindowTitle(tr("Settings"));
@@ -175,6 +175,7 @@ SettingsDialog::SettingsDialog(PrefsStore& store, const QString& syncedHost,
         auto* row = new QHBoxLayout;
         row->setSpacing(2 * kSpacing);
         auto* group = new QButtonGroup(this);
+        group->setObjectName(QStringLiteral("accentGroup"));
         for (const Accent& a : accents()) {
             auto* b = new QToolButton(this);
             b->setObjectName(QStringLiteral("accent_") + a.id);

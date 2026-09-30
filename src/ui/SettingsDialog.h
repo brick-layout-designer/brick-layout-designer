@@ -25,7 +25,7 @@ public:
     // now, or empty when not connected. `openMoreOptions` opens the
     // Preferences dialog (the button is left out when it is empty).
     SettingsDialog(theme::PrefsStore& store, const QString& syncedHost,
-                   std::function<void()> openMoreOptions = {}, QWidget* parent = nullptr);
+                   const std::function<void()>& openMoreOptions = {}, QWidget* parent = nullptr);
 
     // The note under the options: synced with the host, or kept here.
     QLabel* syncNote() const { return syncNote_; }
