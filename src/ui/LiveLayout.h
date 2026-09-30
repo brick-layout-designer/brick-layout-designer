@@ -70,6 +70,8 @@ signals:
     void ended(const QString& reason);
     // Back in step with offline edits to resolve (SyncSession::resolveOffline).
     void offlineEditsReady();
+    // One of this desktop's own edits went to the shared layout.
+    void localEdited();
 
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;

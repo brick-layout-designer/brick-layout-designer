@@ -7,6 +7,9 @@
 #include "ServerApi.h"
 #include "UploadPartsDialog.h"
 
+#include "core/LayerBrick.h"
+#include "core/Map.h"
+
 #include <gtest/gtest.h>
 
 #include <QComboBox>
@@ -20,6 +23,7 @@
 #include <QTemporaryDir>
 
 #include <functional>
+#include <memory>
 
 using namespace bld::sync;
 using bld::synctest::FakeHttp;
@@ -129,4 +133,93 @@ TEST(PartsUpload, StopsWhenTheTokenCantUpload) {
     EXPECT_EQ(count, 0);
     EXPECT_EQ(failures.size(), 1); // stopped after the first refusal
     EXPECT_TRUE(unauthorized);
+}
+
+// Placing a part while live: only your own parts the server lacks are
+// offered, each once.
+namespace {
+std::unique_ptr<bld::core::Map> mapUsing(const QStringList& bricks, const QStringList& groups = {}) {
+    auto map = std::make_unique<bld::core::Map>();
+    auto layer = std::make_unique<bld::core::LayerBrick>();
+    for (const auto& n : bricks) {
+        bld::core::Brick b;
+        b.partNumber = n;
+        layer->bricks.push_back(b);
+    }
+    for (const auto& n : groups) {
+        bld::core::Group g;
+        g.partNumber = n;
+        layer->groups.push_back(g);
+    }
+    map->layers().push_back(std::move(layer));
+    return map;
+}
+LocalPart localPart(const QString& key, const QString& dir = QStringLiteral("/home/me/imports")) {
+    return { key, key, dir + QLatin1Char('/') + key + QStringLiteral(".xml"),
+             dir + QLatin1Char('/') + key + QStringLiteral(".gif") };
+}
+QStringList keysOf(const QList<LocalPart>& parts) {
+    QStringList out;
+    for (const auto& p : parts) out << p.key;
+    return out;
+}
+} // namespace
+
+TEST(PartsToOffer, OffersYourOwnPlacedPartTheServerLacks) {
+    const auto map = mapUsing({ QStringLiteral("MY.1"), QStringLiteral("3001.8") });
+    const auto offered =
+        partsToOffer(*map, {}, { localPart(QStringLiteral("MY.1")), localPart(QStringLiteral("MY.2")) }, {});
+    EXPECT_EQ(keysOf(offered), QStringList{ QStringLiteral("MY.1") }); // MY.2 isn't placed
+}
+
+TEST(PartsToOffer, NeverOffersBundledParts) {
+    const auto map = mapUsing({ QStringLiteral("3001.8"), QStringLiteral("MY.1") });
+    const QString bundled = QStringLiteral("/opt/bld/parts/BlueBrickParts/parts");
+    const auto offered = partsToOffer(
+        *map, {}, { localPart(QStringLiteral("3001.8"), bundled + QStringLiteral("/Brick")),
+                    localPart(QStringLiteral("MY.1")) },
+        {}, bundled);
+    EXPECT_EQ(keysOf(offered), QStringList{ QStringLiteral("MY.1") });
+}
+
+TEST(PartsToOffer, SkipsPartsTheServerKnowsIgnoringCase) {
+    // The server's keys arrive upper-cased, as findMissing compares them.
+    const auto map = mapUsing({ QStringLiteral("my.1"), QStringLiteral("Tunnel.8") });
+    const auto offered = partsToOffer(
+        *map, { QStringLiteral("MY.1") },
+        { localPart(QStringLiteral("My.1")), localPart(QStringLiteral("tunnel.8")) }, {});
+    EXPECT_EQ(keysOf(offered), QStringList{ QStringLiteral("tunnel.8") });
+}
+
+TEST(PartsToOffer, AsksOnlyOncePerPart) {
+    const auto map = mapUsing({ QStringLiteral("MY.1"), QStringLiteral("MY.2") });
+    const auto offered = partsToOffer(
+        *map, {}, { localPart(QStringLiteral("MY.1")), localPart(QStringLiteral("MY.2")) },
+        { QStringLiteral("MY.1") });
+    EXPECT_EQ(keysOf(offered), QStringList{ QStringLiteral("MY.2") });
+}
+
+TEST(PartsToOffer, CountsSetAndGroupParts) {
+    const auto map = mapUsing({}, { QStringLiteral("MYSTATION.SET") });
+    const auto offered = partsToOffer(*map, {}, { localPart(QStringLiteral("MYSTATION.SET")) }, {});
+    EXPECT_EQ(keysOf(offered), QStringList{ QStringLiteral("MYSTATION.SET") });
+    EXPECT_TRUE(partNumbersIn(*map).contains(QStringLiteral("MYSTATION.SET")));
+}
+
+TEST(PartsUpload, FetchesTheCatalogsKnownPartsUpperCased) {
+    FakeHttp http;
+    http.reply("/api/parts/catalog", 200,
+               { { QStringLiteral("parts"),
+                   QJsonArray{ QJsonObject{ { QStringLiteral("key"), QStringLiteral("my.1") },
+                                            { QStringLiteral("partNumber"), QStringLiteral("My") } } } } });
+    PartsUpload upload(http.base(), QStringLiteral("t"));
+    QSet<QString> known;
+    bool got = false;
+    QObject::connect(&upload, &PartsUpload::catalogReady, [&](const QSet<QString>& k) {
+        known = k;
+        got = true;
+    });
+    upload.fetchCatalog();
+    ASSERT_TRUE(waitFor([&] { return got; }));
+    EXPECT_EQ(known, (QSet<QString>{ QStringLiteral("MY.1"), QStringLiteral("MY") }));
 }

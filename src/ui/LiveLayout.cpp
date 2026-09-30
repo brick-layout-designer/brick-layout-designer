@@ -225,7 +225,10 @@ void LiveLayout::onLocalStep() {
         QTimer::singleShot(0, this, [this] { reload(); });
         return;
     }
-    if (const core::Map* m = view_.currentMap()) session_.localEdit(*m);
+    if (const core::Map* m = view_.currentMap()) {
+        session_.localEdit(*m);
+        emit localEdited();
+    }
     // Undo goes through the shared document from here, so the local
     // stack doesn't keep this step (its commands would outlive the map
     // the next reload replaces).

@@ -25,6 +25,7 @@
 
 #include <QAction>
 #include <QBuffer>
+#include <QDir>
 #include <QDesktopServices>
 #include <QFileInfo>
 #include <QGraphicsItem>
@@ -32,6 +33,7 @@
 #include <QLabel>
 #include <QMenu>
 #include <QMessageBox>
+#include <QPushButton>
 #include <QStandardPaths>
 #include <QStatusBar>
 #include <QUndoStack>
@@ -81,6 +83,8 @@ void MainWindow::setupLiveMenu(QMenu* file) {
     connect(live_, &LiveLayout::statusTextChanged, this, [this] { updateLiveUi(); });
     connect(live_, &LiveLayout::undoStateChanged, this, [this] { updateLiveUi(); });
     connect(live_, &LiveLayout::offlineEditsReady, this, &MainWindow::onReviewOfflineEdits);
+    // Queued: after the edit's own signal handling, not inside it.
+    connect(live_, &LiveLayout::localEdited, this, &MainWindow::offerPlacedParts, Qt::QueuedConnection);
     connect(live_, &LiveLayout::ended, this, [this](const QString& reason) {
         updateLiveUi();
         QMessageBox::information(
@@ -162,9 +166,11 @@ void MainWindow::offerPartsUpload(bool quiet) {
                 api.setBase(liveServer_);
                 api.setToken(liveToken_);
                 sync::UploadPartsDialog dialog(api, *upload, missing, this);
-                if (dialog.exec() == QDialog::Accepted)
+                if (dialog.exec() == QDialog::Accepted) {
                     statusBar()->showMessage(
                         tr("Uploaded %n part(s) to the server", nullptr, dialog.uploadedCount()), 5000);
+                    loadLivePartsCatalog();
+                }
                 upload->deleteLater();
             });
     upload->findMissing(local);
@@ -195,7 +201,80 @@ void MainWindow::openLive(const sync::ConnectResult& r) {
     connect(who, &sync::ServerApi::requestFailed, who, &QObject::deleteLater);
     who->fetchCurrentUser();
     syncServerParts(r.server, r.token);
+    liveAskedParts_.clear();
+    liveLayoutSeen_ = false;
+    liveLocalParts_.clear();
+    // Your own parts: the imported ones and your library folders, not the
+    // bundled library or the folders of server parts.
+    const QString vendored = defaultVendoredPartsRoot();
+    const QString serverParts = QDir::cleanPath(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
+                                                + QStringLiteral("/server-parts"));
+    QStringList roots{ importedPartsRoot() };
+    for (const QString& p : loadUserLibraryPaths())
+        if (!roots.contains(p) && p != vendored && !QDir::cleanPath(p).startsWith(serverParts)) roots << p;
+    for (const QString& root : std::as_const(roots))
+        if (!root.isEmpty() && QDir(root).exists()) liveLocalParts_ << sync::PartsUpload::scanFolder(root);
+    loadLivePartsCatalog();
     updateLiveUi();
+}
+
+void MainWindow::loadLivePartsCatalog() {
+    liveCatalogReady_ = false;
+    liveServerParts_.clear();
+    if (!live_->active() || liveToken_.isEmpty() || liveLocalParts_.isEmpty()) return;
+    auto* catalog = new sync::PartsUpload(liveServer_, liveToken_, this);
+    const QUrl server = liveServer_;
+    connect(catalog, &sync::PartsUpload::catalogReady, this, [this, catalog, server](const QSet<QString>& known) {
+        catalog->deleteLater();
+        if (server != liveServer_) return; // another layout opened meanwhile
+        liveServerParts_ = known;
+        liveCatalogReady_ = true;
+    });
+    // Without the catalog nothing is offered; File > Upload My Parts still works.
+    connect(catalog, &sync::PartsUpload::failed, catalog, &QObject::deleteLater);
+    catalog->fetchCatalog();
+}
+
+void MainWindow::offerPlacedParts() {
+    if (!live_->active() || live_->readOnly() || !liveCatalogReady_ || liveOfferOpen_) return;
+    const core::Map* map = mapView_->currentMap();
+    if (!map) return;
+    const auto parts =
+        sync::partsToOffer(*map, liveServerParts_, liveLocalParts_, liveAskedParts_, defaultVendoredPartsRoot());
+    if (parts.isEmpty()) return;
+    // Asked once per session, whatever the answer.
+    QStringList names;
+    for (const auto& p : parts) {
+        liveAskedParts_.insert(p.key.toUpper());
+        names << p.key;
+    }
+    auto* box = new QMessageBox(QMessageBox::Question, tr("Upload to Server"),
+                                parts.size() == 1
+                                    ? tr("%1 isn't on the server yet, so others see a missing part. Upload it?")
+                                          .arg(names.first())
+                                    : tr("%1 aren't on the server yet, so others see missing parts. Upload them?")
+                                          .arg(names.join(QStringLiteral(", "))),
+                                QMessageBox::NoButton, this);
+    box->setAttribute(Qt::WA_DeleteOnClose);
+    auto* uploadBtn = box->addButton(tr("Upload..."), QMessageBox::AcceptRole);
+    box->addButton(tr("Not Now"), QMessageBox::RejectRole);
+    liveOfferOpen_ = true;
+    connect(box, &QMessageBox::finished, this, [this, box, uploadBtn, parts] {
+        liveOfferOpen_ = false;
+        if (box->clickedButton() != uploadBtn || !live_->active()) return;
+        auto* upload = new sync::PartsUpload(liveServer_, liveToken_, this);
+        sync::ServerApi api;
+        api.setBase(liveServer_);
+        api.setToken(liveToken_);
+        sync::UploadPartsDialog dialog(api, *upload, parts, this);
+        if (dialog.exec() == QDialog::Accepted) {
+            statusBar()->showMessage(tr("Uploaded %n part(s) to the server", nullptr, dialog.uploadedCount()),
+                                     5000);
+            loadLivePartsCatalog();
+        }
+        upload->deleteLater();
+    });
+    box->open();
 }
 
 void MainWindow::onDownloadVenues() {
@@ -262,6 +341,12 @@ void MainWindow::onDisconnect() {
 }
 
 void MainWindow::onLiveReloaded() {
+    // Parts already in the layout as opened aren't "placed": File > Upload
+    // My Parts covers those.
+    if (!liveLayoutSeen_ && live_->active() && mapView_->currentMap()) {
+        liveAskedParts_ |= sync::partNumbersIn(*mapView_->currentMap());
+        liveLayoutSeen_ = true;
+    }
     layerPanel_->setMap(mapView_->currentMap(), mapView_->builder());
     modulesPanel_->setMap(mapView_->currentMap());
     updateTitle();
