@@ -48,11 +48,11 @@ QString englishDescription(const QByteArray& xml) {
 QString comparablePath(const QString& path) {
     if (path.isEmpty()) return {};
     const QString slashed = QDir::fromNativeSeparators(path).replace(QLatin1Char('\\'), QLatin1Char('/'));
-    const QString abs = QDir::cleanPath(QFileInfo(slashed).absoluteFilePath());
+    QString abs = QDir::cleanPath(QFileInfo(slashed).absoluteFilePath());
     // Canonicalise the deepest part that exists and keep the rest as written.
     QString head = abs, tail;
     for (;;) {
-        const QString real = QFileInfo(head).canonicalFilePath();
+        QString real = QFileInfo(head).canonicalFilePath();
         if (!real.isEmpty()) {
             if (tail.isEmpty()) return real;
             return real.endsWith(QLatin1Char('/')) ? real + tail : real + QLatin1Char('/') + tail;
