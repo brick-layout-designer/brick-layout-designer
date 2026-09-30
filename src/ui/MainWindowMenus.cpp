@@ -102,6 +102,9 @@ void MainWindow::setupMenus() {
     connect(saveAsAct, &QAction::triggered, this, &MainWindow::onSaveAs);
 
     file->addSeparator();
+    auto* exportBbmAct = file->addAction(tr("Export as &BlueBrick Map (.bbm)..."));
+    exportBbmAct->setToolTip(tr("A copy BlueBrick can open, with what BlueBrick supports"));
+    connect(exportBbmAct, &QAction::triggered, this, &MainWindow::onExportBbm);
     auto* exportAct = file->addAction(tr("Export as &Image..."));
     connect(exportAct, &QAction::triggered, this, [this]{
         if (!mapView_->currentMap()) return;

@@ -30,6 +30,8 @@ quint32 crc32Of(const QByteArray& data) {
 
 }  // namespace
 
+quint32 zipCrc32(const QByteArray& data) { return crc32Of(data); }
+
 std::optional<SafeZip> SafeZip::open(const QString& path) {
     QFile f(path);
     if (!f.open(QIODevice::ReadOnly)) return std::nullopt;

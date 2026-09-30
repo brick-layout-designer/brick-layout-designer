@@ -1,7 +1,7 @@
 // Headless map conversion and comparison, as the app does it:
 //
 //   bld-convert [-p <parts dir>] <input> <output>
-//       Read .bbm / .ldr / .mpd / .tdl / .ncp and write any of them (by
+//       Read .bld-layout / .bbm / .ldr / .mpd / .tdl / .ncp and write any of them (by
 //       extension). Like opening the file in the app, bricks are relinked
 //       and stale sizes fixed before writing.
 //
@@ -18,6 +18,7 @@
 #include "core/LayerBrick.h"
 #include "core/Map.h"
 #include "edit/Connectivity.h"
+#include "import/LayoutFile.h"
 #include "import/mapformats/FourDBrixMap.h"
 #include "import/mapformats/LDrawMap.h"
 #include "import/mapformats/TrackDesignerMap.h"
@@ -45,6 +46,11 @@ QString suffixOf(const QString& path) { return QFileInfo(path).suffix().toLower(
 
 std::unique_ptr<core::Map> readMap(const QString& path, parts::PartsLibrary& lib, QString* error) {
     const QString s = suffixOf(path);
+    if (import::isLayoutFile(path)) {
+        auto r = import::readLayoutFile(path, QDir::temp().filePath(QStringLiteral("bld-layout-assets")));
+        if (!r.ok()) { *error = r.error; return nullptr; }
+        return std::move(r.map);
+    }
     if (s == QLatin1String("bbm")) {
         auto r = saveload::readBbm(path);
         if (!r.ok()) { *error = r.error; return nullptr; }
@@ -61,6 +67,7 @@ std::unique_ptr<core::Map> readMap(const QString& path, parts::PartsLibrary& lib
 
 bool writeMap(const core::Map& map, const QString& path, parts::PartsLibrary& lib, QString* error) {
     const QString s = suffixOf(path);
+    if (import::isLayoutFile(path)) return import::writeLayoutFile(map, path, error);
     if (s == QLatin1String("bbm")) {
         const auto r = saveload::writeBbm(map, path);
         if (!r.ok) *error = r.error;

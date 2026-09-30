@@ -2,6 +2,7 @@
 
 #include <QMainWindow>
 #include <QString>
+#include <QStringList>
 #include <QUrl>
 
 #include <memory>
@@ -11,7 +12,7 @@ class QLabel;
 class QMenu;
 class QComboBox;
 
-namespace bld::core { struct Venue; }
+namespace bld::core { struct Venue; class Map; }
 namespace bld::sync {
 struct ConnectResult;
 }
@@ -113,6 +114,12 @@ private:
     // changes prompt) with that venue in place.
     void startLayoutFromVenue(const core::Venue& venue);
     bool writeMapTo(const QString& path);
+    // Puts a just-read map in the window as the document at `path`.
+    void showLoadedMap(std::unique_ptr<core::Map> map, const QString& path, const QStringList& warnings);
+    // Save on a file that isn't a .bld-layout asks once whether to switch.
+    bool chooseSaveFormat();
+    bool saveFormatChosen_ = false;
+    void onExportBbm();
 
     parts::PartsLibrary& parts_;
     MapView*      mapView_     = nullptr;
@@ -167,7 +174,7 @@ private:
     void performAutosaveThrottled();  // called on every undo-stack change
 public:
     // Returns the path where the autosave file lives for the current session
-    // (AppDataLocation/autosave.bbm). Public so main.cpp can check on startup.
+    // (AppDataLocation/autosave.bld-layout). Public so main.cpp can check on startup.
     static QString autosavePath();
     // Offers to restore the autosave if it exists and is newer than lastFile.
     // Called from main.cpp before openFile()ing the recent file. Returns true

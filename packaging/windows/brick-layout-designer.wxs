@@ -7,7 +7,7 @@
    - Creates a Start menu shortcut
    - Registers a shared "App Paths" entry so `brick-layout-designer`
      on cmd.exe finds the binary without full-path PATH surgery
-   - Associates .bbm files with the app (Explorer double-click passes
+   - Associates .bld-layout and .bbm files with the app (Explorer double-click passes
      the path as the first argument)
 
   The payload is the CMake install tree (exe + Qt runtime + MSVC
@@ -60,6 +60,14 @@
                     WorkingDirectory="INSTALLFOLDER"
                     Advertise="yes" />
         </File>
+        <ProgId Id="BrickLayoutDesigner.layout"
+                Description="Brick Layout Designer Layout"
+                Icon="BrickLayoutDesignerExe"
+                IconIndex="0">
+          <Extension Id="bld-layout" ContentType="application/x-brick-layout-designer-layout">
+            <Verb Id="open" TargetFile="BrickLayoutDesignerExe" Argument="&quot;%1&quot;" />
+          </Extension>
+        </ProgId>
         <ProgId Id="BrickLayoutDesigner.bbm"
                 Description="BlueBrick Map"
                 Icon="BrickLayoutDesignerExe"

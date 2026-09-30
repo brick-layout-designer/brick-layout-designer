@@ -9,6 +9,7 @@ add_executable(bld_ui_tests
     FuzzRegressionTest.cpp
     VenueLibraryPanelTest.cpp
     VenueDesignerDialogTest.cpp
+    MainWindowFileTest.cpp
 )
 
 target_compile_definitions(bld_ui_tests PRIVATE

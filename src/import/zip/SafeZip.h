@@ -45,4 +45,7 @@ private:
     bool valid_ = false;
 };
 
+// The CRC-32 a ZIP entry carries.
+quint32 zipCrc32(const QByteArray& data);
+
 }  // namespace bld::import
