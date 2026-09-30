@@ -77,6 +77,8 @@ add_library(bld_sync STATIC
     Presence.cpp
     PartsUpload.h
     PartsUpload.cpp
+    PartsSync.h
+    PartsSync.cpp
     TokenStore.h
     TokenStore.cpp
 )

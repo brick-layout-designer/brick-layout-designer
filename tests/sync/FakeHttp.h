@@ -38,7 +38,14 @@ public:
     }
     QUrl base() const { return QUrl(QStringLiteral("http://127.0.0.1:%1").arg(server_.serverPort())); }
     void reply(const QByteArray& path, int status, const QJsonObject& body) {
-        replies_[path].push_back({ status, body });
+        replies_[path].push_back({ status, QJsonDocument(body).toJson(QJsonDocument::Compact),
+                                   QByteArrayLiteral("application/json") });
+    }
+    // Forget the replies queued for a path (to answer differently from now on).
+    void clear(const QByteArray& path) { replies_.remove(path); }
+    // Any bytes, e.g. a part's sprite.
+    void replyRaw(const QByteArray& path, int status, const QByteArray& body, const QByteArray& contentType) {
+        replies_[path].push_back({ status, body, contentType });
     }
 
     std::vector<Request> requests;
@@ -67,22 +74,26 @@ private:
         pending_.remove(s);
         requests.push_back(req);
         auto& q = replies_[req.path];
-        const auto [status, json] =
-            q.empty()
-                ? std::pair{ 404, QJsonObject{ { QStringLiteral("error"), QStringLiteral("not_found") } } }
-                : q.front();
+        const Reply r = q.empty() ? Reply{ 404, QByteArrayLiteral("{\"error\":\"not_found\"}"),
+                                           QByteArrayLiteral("application/json") }
+                                  : q.front();
         if (q.size() > 1) q.pop_front(); // the last reply repeats
-        const QByteArray body = QJsonDocument(json).toJson(QJsonDocument::Compact);
-        s->write("HTTP/1.1 " + QByteArray::number(status)
-                 + " X\r\nContent-Type: application/json\r\nContent-Length: "
-                 + QByteArray::number(body.size()) + "\r\nConnection: close\r\n\r\n" + body);
+        const QByteArray& body = r.body;
+        const int status = r.status;
+        s->write("HTTP/1.1 " + QByteArray::number(status) + " X\r\nContent-Type: " + r.contentType
+                 + "\r\nContent-Length: " + QByteArray::number(body.size()) + "\r\nConnection: close\r\n\r\n"
+                 + body);
         s->disconnectFromHost();
     }
 
     QTcpServer server_;
     QElapsedTimer clock_;
     QHash<QTcpSocket*, QByteArray> pending_;
-    QHash<QByteArray, std::deque<std::pair<int, QJsonObject>>> replies_;
+    struct Reply {
+        int status;
+        QByteArray body, contentType;
+    };
+    QHash<QByteArray, std::deque<Reply>> replies_;
 };
 
 } // namespace bld::synctest

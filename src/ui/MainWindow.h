@@ -147,6 +147,9 @@ private:
     QUrl liveServer_;
     QString liveToken_;
     QAction* uploadPartsAct_ = nullptr;
+    // Bring this server's parts into the library (in the background):
+    // missing or changed ones are downloaded to a folder named after it.
+    void syncServerParts(const QUrl& server, const QString& token);
     void onLiveReloaded();
     void updateLiveUi();
     class LiveLayout* live_ = nullptr;
