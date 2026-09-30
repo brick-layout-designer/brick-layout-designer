@@ -251,6 +251,7 @@ QWidget* HelpButton::target() const { return target_ ? target_.data() : parentWi
 
 void HelpButton::setVisibilityAction(QAction* action) {
     visibilityAction_ = action;
+    if (action) connect(action, &QObject::destroyed, this, [this] { visibilityAction_ = nullptr; });
     applyPrefs();
 }
 
