@@ -35,7 +35,7 @@ class PartsSync : public QObject {
 public:
     // `cacheDir`: this server's parts folder (libraries in libs/<slug>/,
     // custom parts in custom/); its state.json remembers the hashes synced.
-    PartsSync(QUrl server, QString token, QString cacheDir, QObject* parent = nullptr);
+    PartsSync(QUrl server, QString token, const QString& cacheDir, QObject* parent = nullptr);
 
     void start();
     const PartsSyncResult& result() const { return result_; }

@@ -43,8 +43,8 @@ QString safeFileName(QString n) {
 
 } // namespace
 
-PartsSync::PartsSync(QUrl server, QString token, QString cacheDir, QObject* parent)
-    : QObject(parent), server_(std::move(server)), token_(std::move(token)), cache_(std::move(cacheDir)) {
+PartsSync::PartsSync(QUrl server, QString token, const QString& cacheDir, QObject* parent)
+    : QObject(parent), server_(std::move(server)), token_(std::move(token)), cache_(cacheDir) {
     QFile f(cache_.filePath(QStringLiteral("state.json")));
     if (f.open(QIODevice::ReadOnly)) {
         const QJsonObject s = QJsonDocument::fromJson(f.readAll()).object();
