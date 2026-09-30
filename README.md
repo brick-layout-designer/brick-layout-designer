@@ -36,6 +36,14 @@ A cross-platform maintainer fork of **[BlueBrick](https://github.com/Lswbanban/B
 natively on Windows, Linux, and macOS (Intel + Apple Silicon) with no .NET /
 Mono dependency.
 
+## Made with AI
+
+Much of this app's code, tests and documentation was written with the help
+of AI (Anthropic's Claude), directed and reviewed by a person. Every change
+goes through automated tests, but it can still contain mistakes. If you
+find one, please [open an issue](../../issues). The app says the same in
+**Help › About**.
+
 ## Credit where it's due
 
 This project stands entirely on the shoulders of **BlueBrick**. It is a

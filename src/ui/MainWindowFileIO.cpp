@@ -657,10 +657,12 @@ void MainWindow::onAbout() {
     QMessageBox::about(this, tr("About Brick Layout Designer"),
         tr("<h3>Brick Layout Designer</h3>"
            "<p>Cross-platform C++/Qt 6 fork of <b>BlueBrick</b> by Alban Nanty and contributors.</p>"
-           "<p>Adds cross-layer modules, anchored text labels, and event venues on top of the "
-           "vanilla <i>.bbm</i> format (extra metadata stored in a sidecar <i>.bbm.bld</i> so "
-           "vanilla BlueBrick 1.9.2 keeps opening our files).</p>"
-           "<p>Licensed under GPL-3.0 — same as upstream BlueBrick.</p>"
+           "<p>Adds modules, labels, rooms and live editing with your club, and saves everything "
+           "in one <i>.bld-layout</i> file. It still opens and exports BlueBrick <i>.bbm</i> files.</p>"
+           "<p><b>Made with AI.</b> Much of this app was written with the help of AI "
+           "(Anthropic's Claude), directed and reviewed by a person. It is tested, but it can "
+           "still contain mistakes. Please report any you find.</p>"
+           "<p>Licensed under GPL-3.0, like BlueBrick.</p>"
            "<p>Parts library: %1 parts indexed.</p>")
         .arg(parts_.partCount()));
 }
