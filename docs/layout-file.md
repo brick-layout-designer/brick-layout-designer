@@ -41,16 +41,13 @@ anything it doesn't understand is left out. A reader refuses a file whose
 - **Autosave.** Autosave writes a `.bld-layout`, so a restore brings back the
   labels, modules and venue too.
 
-## Fixture
+## Fixtures
 
-[`fixtures/layouts/corner-lobby.bld-layout`](../fixtures/layouts/corner-lobby.bld-layout)
-contains:
+Both fixtures are in `fixtures/layouts/` here and in the web repository's
+`packages/bbm/tests/fixtures/`, and both apps' tests read both:
 
-- `tight-corner.bbm`
-- a label
-- a module
-- the Grand Lobby venue
-- a 4×4 background image
-
-The desktop tests read it (tests/import/LayoutFileTest.cpp), and the web app
-has the same file in its repository and reads it too.
+- **`corner-lobby.bld-layout`**, made by the desktop (tests/import/LayoutFileTest.cpp
+  with `BLD_UPDATE_FIXTURES=1`). It holds `tight-corner.bbm`, a label, a
+  module, the Grand Lobby venue and a 4×4 background image.
+- **`web-made.bld-layout`**, the same layout opened by the web app and
+  downloaded again (the web's `apps/web/scripts/make-web-made-layout.ts`).
