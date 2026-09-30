@@ -35,9 +35,11 @@
 #include <QLabel>
 #include <QMenu>
 #include <QMessageBox>
+#include <QPointer>
 #include <QPushButton>
 #include <QStandardPaths>
 #include <QStatusBar>
+#include <QTimer>
 #include <QUndoStack>
 
 #include <algorithm>
@@ -154,27 +156,38 @@ void MainWindow::offerPartsUpload(bool quiet) {
         return;
     }
     auto* upload = new sync::PartsUpload(liveServer_, liveToken_, this);
-    connect(upload, &sync::PartsUpload::failed, this, [this, upload, quiet](const QString& message, bool) {
-        if (!quiet) statusBar()->showMessage(tr("Could not check the server's parts: %1").arg(message), 6000);
-        upload->deleteLater();
-    });
+    const auto checkFailed =
+        connect(upload, &sync::PartsUpload::failed, this, [this, upload, quiet](const QString& message, bool) {
+            if (!quiet)
+                statusBar()->showMessage(tr("Could not check the server's parts: %1").arg(message), 6000);
+            upload->deleteLater();
+        });
     connect(upload, &sync::PartsUpload::missingReady, this,
-            [this, upload, quiet](const QList<sync::LocalPart>& missing) {
+            [this, upload, quiet, checkFailed](const QList<sync::LocalPart>& missing) {
+                // The check is over: a refused upload later must not delete the
+                // PartsUpload under the dialog that is still using it.
+                disconnect(checkFailed);
                 if (missing.isEmpty()) {
                     if (!quiet) statusBar()->showMessage(tr("The server already has all your parts."), 4000);
                     upload->deleteLater();
                     return;
                 }
-                sync::ServerApi api;
-                api.setBase(liveServer_);
-                api.setToken(liveToken_);
-                sync::UploadPartsDialog dialog(api, *upload, missing, this);
-                if (dialog.exec() == QDialog::Accepted) {
-                    statusBar()->showMessage(
-                        tr("Uploaded %n part(s) to the server", nullptr, dialog.uploadedCount()), 5000);
-                    loadLivePartsCatalog();
-                }
-                upload->deleteLater();
+                // missingReady comes from inside a network reply's finished
+                // signal, and that reply is already deleteLater'd: open the
+                // dialog (and its event loop) once the signal has returned.
+                QTimer::singleShot(0, this, [this, upload = QPointer<sync::PartsUpload>(upload), missing] {
+                    if (!upload) return;
+                    sync::ServerApi api;
+                    api.setBase(liveServer_);
+                    api.setToken(liveToken_);
+                    sync::UploadPartsDialog dialog(api, *upload, missing, this);
+                    if (dialog.exec() == QDialog::Accepted) {
+                        statusBar()->showMessage(
+                            tr("Uploaded %n part(s) to the server", nullptr, dialog.uploadedCount()), 5000);
+                        loadLivePartsCatalog();
+                    }
+                    upload->deleteLater();
+                });
             });
     upload->findMissing(local);
 }
@@ -275,17 +288,23 @@ void MainWindow::offerPlacedParts() {
     connect(box, &QMessageBox::finished, this, [this, box, uploadBtn, parts] {
         liveOfferOpen_ = false;
         if (box->clickedButton() != uploadBtn || !live_->active()) return;
-        auto* upload = new sync::PartsUpload(liveServer_, liveToken_, this);
-        sync::ServerApi api;
-        api.setBase(liveServer_);
-        api.setToken(liveToken_);
-        sync::UploadPartsDialog dialog(api, *upload, parts, this);
-        if (dialog.exec() == QDialog::Accepted) {
-            statusBar()->showMessage(tr("Uploaded %n part(s) to the server", nullptr, dialog.uploadedCount()),
-                                     5000);
-            loadLivePartsCatalog();
-        }
-        upload->deleteLater();
+        // The box deletes itself on close: the upload dialog's own event loop
+        // must not run inside its finished signal, or the box is destroyed
+        // while it is still closing. Open it once the signal has returned.
+        QTimer::singleShot(0, this, [this, parts] {
+            if (!live_->active()) return;
+            auto* upload = new sync::PartsUpload(liveServer_, liveToken_, this);
+            sync::ServerApi api;
+            api.setBase(liveServer_);
+            api.setToken(liveToken_);
+            sync::UploadPartsDialog dialog(api, *upload, parts, this);
+            if (dialog.exec() == QDialog::Accepted) {
+                statusBar()->showMessage(
+                    tr("Uploaded %n part(s) to the server", nullptr, dialog.uploadedCount()), 5000);
+                loadLivePartsCatalog();
+            }
+            upload->deleteLater();
+        });
     });
     box->open();
 }
