@@ -13,7 +13,6 @@
 // is off. The words come from HelpTexts, by key.
 
 #include <QAbstractButton>
-#include <QPointer>
 
 class QAction;
 class QLabel;
@@ -79,13 +78,12 @@ private:
 
     QString key_;
     theme::PrefsStore& store_;
-    QPointer<QWidget> target_;
-    // Owned by the toolbar; cleared when it goes (a plain pointer: the
-    // analyzer misreads QPointer's weak reference here).
+    // Plain pointers throughout: CI's analyzer misreads QPointer's weak
+    // reference as a use after free. The target and the toolbar action are
+    // cleared when they are destroyed; the tooltip is a parentless window
+    // this button owns; the popover is cleared when it is destroyed.
+    QWidget* target_ = nullptr;
     QAction* visibilityAction_ = nullptr;
-    // Plain pointers, like visibilityAction_ (the analyzer misreads QPointer
-    // here too). The tooltip is a parentless window this button owns; the
-    // popover is cleared when it is destroyed.
     QLabel* tip_ = nullptr;
     HelpPopover* popover_ = nullptr;
     bool hovered_ = false;

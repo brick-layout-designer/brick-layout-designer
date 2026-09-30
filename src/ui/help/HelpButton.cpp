@@ -230,6 +230,7 @@ HelpButton::HelpButton(const QString& key, theme::PrefsStore& store, QWidget* pa
         if (isPopoverOpen()) closePopover(false);
         else showPopover();
     });
+    if (target_) connect(target_, &QObject::destroyed, this, [this] { target_ = nullptr; });
     connect(&store_, &theme::PrefsStore::changed, this, &HelpButton::applyPrefs);
     applyPrefs();
 }
@@ -250,7 +251,7 @@ HelpButton* HelpButton::addTo(QToolBar* toolbar, const QString& key, QWidget* ta
     return b;
 }
 
-QWidget* HelpButton::target() const { return target_ ? target_.data() : parentWidget(); }
+QWidget* HelpButton::target() const { return target_ ? target_ : parentWidget(); }
 
 void HelpButton::setVisibilityAction(QAction* action) {
     visibilityAction_ = action;
