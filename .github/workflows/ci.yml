@@ -72,6 +72,8 @@ jobs:
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
+          # aqtinstall 3.3.0 (the latest release) cannot find Qt >= 6.11 for Windows.
+          aqtsource: git+https://github.com/miurahr/aqtinstall.git@076e1659807d0b362a3ed684d54c2e9c775eb9c7
           version: '6.12.*'
           modules: qtwebsockets
           cache: true
@@ -114,6 +116,8 @@ jobs:
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
+          # aqtinstall 3.3.0 (the latest release) cannot find Qt >= 6.11 for Windows.
+          aqtsource: git+https://github.com/miurahr/aqtinstall.git@076e1659807d0b362a3ed684d54c2e9c775eb9c7
           version: '6.12.*'
           cache: true
 
@@ -160,6 +164,8 @@ jobs:
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
+          # aqtinstall 3.3.0 (the latest release) cannot find Qt >= 6.11 for Windows.
+          aqtsource: git+https://github.com/miurahr/aqtinstall.git@076e1659807d0b362a3ed684d54c2e9c775eb9c7
           version: '6.12.*'
           cache: true
 
@@ -199,6 +205,8 @@ jobs:
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
+          # aqtinstall 3.3.0 (the latest release) cannot find Qt >= 6.11 for Windows.
+          aqtsource: git+https://github.com/miurahr/aqtinstall.git@076e1659807d0b362a3ed684d54c2e9c775eb9c7
           version: '6.12.*'
           cache: true
 
@@ -249,6 +257,8 @@ jobs:
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
+          # aqtinstall 3.3.0 (the latest release) cannot find Qt >= 6.11 for Windows.
+          aqtsource: git+https://github.com/miurahr/aqtinstall.git@076e1659807d0b362a3ed684d54c2e9c775eb9c7
           version: '6.12.*'
           modules: qtwebsockets
           cache: true
@@ -292,6 +302,8 @@ jobs:
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
+          # aqtinstall 3.3.0 (the latest release) cannot find Qt >= 6.11 for Windows.
+          aqtsource: git+https://github.com/miurahr/aqtinstall.git@076e1659807d0b362a3ed684d54c2e9c775eb9c7
           version: '6.12.*'
           cache: true
 

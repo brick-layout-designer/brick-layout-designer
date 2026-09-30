@@ -20,6 +20,14 @@ set(CMAKE_AUTOUIC ON)
 
 find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Widgets Network PrintSupport)
 find_package(Qt6 6.8 QUIET COMPONENTS LinguistTools)
+# Tests and fuzz seeds write ZIPs with Qt's private QZipWriter (the app reads
+# them with src/import/zip/SafeZip and needs no private Qt). CorePrivate is a
+# package of its own from Qt 6.9; Qt 6.8 defines the target with Core.
+set(QT_NO_PRIVATE_MODULE_WARNING ON)
+find_package(Qt6 QUIET COMPONENTS CorePrivate)
+if(NOT TARGET Qt6::CorePrivate)
+    message(FATAL_ERROR "Qt6::CorePrivate (Qt's private headers) not found")
+endif()
 qt_standard_project_setup()
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
