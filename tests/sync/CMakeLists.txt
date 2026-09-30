@@ -6,6 +6,7 @@ add_executable(bld_sync_tests
     SyncClientTest.cpp
     ServerApiTest.cpp
     SyncSessionTest.cpp
+    AwarenessTest.cpp
     ConnectDialogTest.cpp
     LiveLayoutTest.cpp
     SyncTestMain.cpp

@@ -71,6 +71,8 @@ add_library(bld_sync STATIC
     ServerApi.cpp
     SyncSession.h
     SyncSession.cpp
+    Awareness.h
+    Awareness.cpp
     TokenStore.h
     TokenStore.cpp
 )
