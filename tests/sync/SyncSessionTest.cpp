@@ -7,6 +7,7 @@
 #include <gtest/gtest.h>
 
 #include <QJsonObject>
+#include <QTemporaryDir>
 
 using namespace bld;
 using namespace bld::synctest;
@@ -113,12 +114,16 @@ TEST(SyncSession, ReadOnlySessionsNeverSend) {
     EXPECT_EQ(firstBrick(*session.currentMap()).displayArea, firstBrickArea(server.doc));
 }
 
-TEST(SyncSession, CountsEditsMadeOfflineUntilTheyAreDelivered) {
+TEST(SyncSession, KeepsOfflineEditsApartUntilTheyAreResolved) {
     FakeServer server;
     sync::SyncSession session;
     session.client().setReconnectDelays(50ms, 200ms);
+    int ready = 0, changed = 0;
+    QObject::connect(&session, &sync::SyncSession::offlineEditsReady, [&] { ++ready; });
+    QObject::connect(&session, &sync::SyncSession::mapChanged, [&] { ++changed; });
     session.open(server.url(), {}, false);
     ASSERT_TRUE(waitFor([&] { return session.status() == Status::Synced; }));
+    const QRectF original = firstBrickArea(server.doc);
 
     server.dropAll(QWebSocketProtocol::CloseCodeGoingAway);
     ASSERT_TRUE(waitFor([&] { return session.status() != Status::Synced; }));
@@ -128,10 +133,91 @@ TEST(SyncSession, CountsEditsMadeOfflineUntilTheyAreDelivered) {
     firstBrick(*map).displayArea.translate(0, 8);
     session.localEdit(*map);
     EXPECT_EQ(session.unsyncedEdits(), 2);
+    ASSERT_TRUE(session.offlineEdits());
+    EXPECT_EQ(firstBrick(*sync::merge::mapOf(session.offlineEdits()->base)).displayArea, original);
+    EXPECT_FALSE(session.canUndo());
 
-    ASSERT_TRUE(waitFor([&] { return session.status() == Status::Synced; }));
+    // Back in step: nothing is merged, the editor is asked instead.
+    ASSERT_TRUE(waitFor([&] { return ready == 1; }));
+    EXPECT_EQ(session.status(), Status::Synced);
+    EXPECT_EQ(firstBrickArea(server.doc), original);
+    EXPECT_EQ(session.unsyncedEdits(), 2);
+    // Someone else's edit meanwhile: the editor keeps showing mine.
+    const int before = changed;
+    server.remoteEdit([](core::Map& m) { firstBrick(m).orientation = 90.0f; });
+    ASSERT_TRUE(waitFor([&] { return firstBrick(*session.currentMap()).orientation == 90.0f; }));
+    EXPECT_EQ(changed, before);
+    EXPECT_EQ(firstBrick(*session.editorMap()).displayArea, firstBrick(*map).displayArea);
+    // A further edit while they wait is still an offline edit.
+    session.localEdit(*map);
+    EXPECT_EQ(session.unsyncedEdits(), 3);
+    EXPECT_EQ(firstBrickArea(server.doc), original);
+
+    // Resolved: the result goes in as an ordinary edit.
+    auto merged = session.currentMap();
+    firstBrick(*merged).displayArea = firstBrick(*map).displayArea;
+    session.resolveOffline(merged.get());
+    EXPECT_FALSE(session.offlineEdits());
     EXPECT_EQ(session.unsyncedEdits(), 0);
-    EXPECT_EQ(firstBrickArea(server.doc), firstBrick(*map).displayArea);
+    EXPECT_EQ(changed, before + 1);
+    ASSERT_TRUE(waitFor([&] { return firstBrickArea(server.doc) == firstBrick(*map).displayArea; }));
+    EXPECT_EQ(firstBrick(*sync::mapFromDocJson(server.doc.toJson())).orientation, 90.0f);
+    EXPECT_TRUE(session.canUndo());
+}
+
+TEST(SyncSession, DiscardingOfflineEditsLeavesTheServerAlone) {
+    FakeServer server;
+    sync::SyncSession session;
+    session.client().setReconnectDelays(50ms, 200ms);
+    session.open(server.url(), {}, false);
+    ASSERT_TRUE(waitFor([&] { return session.status() == Status::Synced; }));
+    const QRectF original = firstBrickArea(server.doc);
+    server.dropAll(QWebSocketProtocol::CloseCodeGoingAway);
+    ASSERT_TRUE(waitFor([&] { return session.status() != Status::Synced; }));
+    auto map = session.currentMap();
+    firstBrick(*map).displayArea.translate(8, 0);
+    session.localEdit(*map);
+    ASSERT_TRUE(waitFor([&] { return session.status() == Status::Synced; }));
+    session.resolveOffline(nullptr);
+    EXPECT_FALSE(session.offlineEdits());
+    EXPECT_EQ(firstBrick(*session.editorMap()).displayArea, original);
+    waitFor([] { return false; }, 100);
+    EXPECT_EQ(firstBrickArea(server.doc), original);
+}
+
+TEST(SyncSession, TheCacheOpensTheLayoutOfflineAndKeepsOfflineEdits) {
+    QTemporaryDir cache;
+    QRectF moved;
+    {
+        FakeServer server;
+        sync::SyncSession session;
+        session.setCacheDir(cache.path());
+        session.client().setReconnectDelays(50ms, 200ms);
+        session.open(server.url(), {}, false);
+        ASSERT_TRUE(waitFor([&] { return session.status() == Status::Synced; }));
+        server.remoteEdit([](core::Map& m) { firstBrick(m).orientation = 45.0f; });
+        ASSERT_TRUE(waitFor([&] { return firstBrick(*session.currentMap()).orientation == 45.0f; }));
+        server.dropAll(QWebSocketProtocol::CloseCodeGoingAway);
+        ASSERT_TRUE(waitFor([&] { return session.status() != Status::Synced; }));
+        auto map = session.currentMap();
+        firstBrick(*map).displayArea.translate(0, 24);
+        moved = firstBrick(*map).displayArea;
+        session.localEdit(*map);
+        session.close();  // then the app crashes, say
+    }
+    // No server now: the layout opens from the cache, offline edits and all.
+    sync::SyncSession session;
+    session.setCacheDir(cache.path());
+    int changed = 0;
+    QObject::connect(&session, &sync::SyncSession::mapChanged, [&] { ++changed; });
+    session.open(QUrl(QStringLiteral("ws://127.0.0.1:1/ws/layout/L1")), {}, false);
+    EXPECT_TRUE(session.loaded());
+    ASSERT_TRUE(waitFor([&] { return changed > 0; }));
+    EXPECT_EQ(firstBrick(*session.currentMap()).orientation, 45.0f);
+    ASSERT_TRUE(session.offlineEdits());
+    EXPECT_EQ(session.unsyncedEdits(), 1);
+    EXPECT_EQ(firstBrick(*session.editorMap()).displayArea, moved);
+    session.close();
 }
 
 TEST(SyncSession, TellsTheEditorWhenTheServerEndsIt) {

@@ -6,6 +6,7 @@
 #include "LayerPanel.h"
 #include "LiveLayout.h"
 #include "MapView.h"
+#include "MapViewInternal.h"
 
 #include "../core/Map.h"
 #include "../saveload/BbmWriter.h"
@@ -13,7 +14,9 @@
 #include "ModulesPanel.h"
 #include "VenueLibraryPanel.h"
 
+#include "CompareDialog.h"
 #include "ConnectDialog.h"
+#include "LayoutMerge.h"
 #include "PartsUpload.h"
 #include "PartsSync.h"
 #include "ServerApi.h"
@@ -24,6 +27,7 @@
 #include <QBuffer>
 #include <QDesktopServices>
 #include <QFileInfo>
+#include <QGraphicsItem>
 #include <QJsonDocument>
 #include <QLabel>
 #include <QMenu>
@@ -31,6 +35,8 @@
 #include <QStandardPaths>
 #include <QStatusBar>
 #include <QUndoStack>
+
+#include <algorithm>
 
 namespace bld::ui {
 
@@ -54,6 +60,10 @@ void MainWindow::setupLiveMenu(QMenu* file) {
     uploadPartsAct_->setToolTip(tr("Offer your own parts that the live layout's server doesn't have yet"));
     uploadPartsAct_->setEnabled(false);
     connect(uploadPartsAct_, &QAction::triggered, this, [this] { offerPartsUpload(false); });
+    reviewOfflineAct_ = file->addAction(tr("Review &Offline Changes..."));
+    reviewOfflineAct_->setToolTip(tr("Compare what you changed offline with the server's layout"));
+    reviewOfflineAct_->setEnabled(false);
+    connect(reviewOfflineAct_, &QAction::triggered, this, &MainWindow::onReviewOfflineEdits);
     auto* venuesAct = file->addAction(tr("Download &Venues from Server..."));
     connect(venuesAct, &QAction::triggered, this, &MainWindow::onDownloadVenues);
 
@@ -70,6 +80,7 @@ void MainWindow::setupLiveMenu(QMenu* file) {
     connect(live_, &LiveLayout::mapReloaded, this, &MainWindow::onLiveReloaded);
     connect(live_, &LiveLayout::statusTextChanged, this, [this] { updateLiveUi(); });
     connect(live_, &LiveLayout::undoStateChanged, this, [this] { updateLiveUi(); });
+    connect(live_, &LiveLayout::offlineEditsReady, this, &MainWindow::onReviewOfflineEdits);
     connect(live_, &LiveLayout::ended, this, [this](const QString& reason) {
         updateLiveUi();
         QMessageBox::information(
@@ -166,7 +177,12 @@ void MainWindow::openLive(const sync::ConnectResult& r) {
     if (live_->active()) live_->close();
     api.setBase(r.server);
     currentFilePath_.clear();
-    live_->open(api.layoutSocketUrl(r.layoutId), r.token, r.readOnly, r.title);
+    // The layout and any offline edits are kept per server and layout.
+    const QString cacheDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
+                             + QStringLiteral("/live/")
+                             + QString(r.server.host()).replace(QLatin1Char(':'), QLatin1Char('_'))
+                             + QLatin1Char('/') + r.layoutId;
+    live_->open(api.layoutSocketUrl(r.layoutId), r.token, r.readOnly, r.title, cacheDir);
     // Name and colour our cursor as the web does, once we know who we are.
     auto* who = new sync::ServerApi(this);
     who->setBase(r.server);
@@ -263,7 +279,129 @@ void MainWindow::updateLiveUi() {
     liveRedoAct_->setVisible(on);
     liveUndoAct_->setEnabled(on && live_->canUndo());
     liveRedoAct_->setEnabled(on && live_->canRedo());
+    reviewOfflineAct_->setEnabled(on && live_->session().offlineEdits()
+                                  && live_->session().status() == sync::SyncClient::Status::Synced);
     updateTitle();
+}
+
+void MainWindow::onReviewOfflineEdits() {
+    if (!live_->active()) return;
+    auto& session = live_->session();
+    const auto& off = session.offlineEdits();
+    if (!off) return;
+    const auto current = session.currentMap();
+    if (!current) return;
+    const auto server = sync::merge::snapshotOf(*current);
+    const auto base = off->base, mine = off->mine;
+    const auto changes = sync::merge::compareLayouts(base, mine, server);
+    const bool anyMine = std::any_of(changes.cbegin(), changes.cend(), [](const sync::merge::ItemChange& c) {
+        return c.mine != sync::merge::Side::Unchanged;
+    });
+    if (!anyMine) {
+        session.resolveOffline(nullptr);
+        statusBar()->showMessage(tr("Your offline edits left the layout as it was; nothing to apply."), 5000);
+        updateLiveUi();
+        return;
+    }
+
+    sync::CompareDialog dlg(changes, this);
+    connect(&dlg, &sync::CompareDialog::highlight, this, [this](const sync::merge::ItemChange& c) {
+        // brick:<layer>:<id>
+        if (c.kind == QLatin1String("brick")) showBrick(c.key.section(QLatin1Char(':'), 2));
+    });
+    dlg.exec();
+    // The session may have ended or resolved meanwhile.
+    if (!live_->active() || !session.offlineEdits()) return;
+
+    QString error;
+    switch (dlg.action()) {
+    case sync::CompareDialog::Action::Later:
+        break;
+    case sync::CompareDialog::Action::Apply: {
+        const auto merged = sync::merge::mergeLayouts(mine, server, changes, dlg.choices(), &error);
+        if (!merged) {
+            QMessageBox::warning(this, tr("Review Offline Changes"),
+                                 tr("Could not merge your changes: %1").arg(error));
+            break;
+        }
+        session.resolveOffline(merged.get());
+        statusBar()->showMessage(tr("Your offline changes were applied to the live layout."), 5000);
+        break;
+    }
+    case sync::CompareDialog::Action::Discard:
+        session.resolveOffline(nullptr);
+        statusBar()->showMessage(tr("Your offline changes were discarded."), 5000);
+        break;
+    case sync::CompareDialog::Action::ReplaceServer: {
+        const auto map = sync::merge::mapOf(mine, &error);
+        if (!map) {
+            QMessageBox::warning(this, tr("Review Offline Changes"),
+                                 tr("Could not read your version: %1").arg(error));
+            break;
+        }
+        session.resolveOffline(map.get());
+        statusBar()->showMessage(tr("Your version replaced the server's."), 5000);
+        break;
+    }
+    case sync::CompareDialog::Action::SaveAsNew:
+        saveOfflineAsNew(mine);
+        break;
+    }
+    updateLiveUi();
+}
+
+void MainWindow::saveOfflineAsNew(const sync::merge::Snapshot& mine) {
+    QString error;
+    const auto map = sync::merge::mapOf(mine, &error);
+    QBuffer bbm;
+    bbm.open(QIODevice::WriteOnly);
+    if (!map || !saveload::writeBbm(*map, bbm).ok) {
+        QMessageBox::warning(this, tr("Save as a New Layout"),
+                             tr("Could not write your version to publish it. Your offline changes are kept."));
+        return;
+    }
+    const QByteArray sidecar =
+        map->sidecar.isEmpty()
+            ? QByteArray()
+            : QJsonDocument(saveload::sidecarToJson(map->sidecar)).toJson(QJsonDocument::Compact);
+    const QString title = tr("%1 (offline copy)").arg(live_->title());
+    auto* api = new sync::ServerApi(this);
+    api->setBase(liveServer_);
+    api->setToken(liveToken_);
+    const QUrl server = liveServer_;
+    connect(api, &sync::ServerApi::published, this, [this, api, server](const QString&, const QString& t) {
+        api->deleteLater();
+        if (live_->active() && live_->session().offlineEdits()) live_->session().resolveOffline(nullptr);
+        updateLiveUi();
+        QMessageBox::information(this, tr("Save as a New Layout"),
+                                 tr("Your version was saved as \"%1\" in your layouts on %2. The live layout "
+                                    "stays as the server has it.")
+                                     .arg(t, server.host()));
+    });
+    connect(api, &sync::ServerApi::requestFailed, this, [this, api](const QString&, const QString& message, bool) {
+        api->deleteLater();
+        QMessageBox::warning(this, tr("Save as a New Layout"),
+                             tr("Could not publish your version: %1\nYour offline changes are kept; "
+                                "File > Review Offline Changes brings them back.")
+                                 .arg(message));
+    });
+    // Empty organisation: the user's own layouts.
+    api->publishLayout(title, bbm.data(), sidecar, QString());
+    statusBar()->showMessage(tr("Publishing your version as \"%1\"...").arg(title), 5000);
+}
+
+void MainWindow::showBrick(const QString& guid) {
+    auto* scene = mapView_->scene();
+    QGraphicsItem* found = nullptr;
+    for (QGraphicsItem* it : scene->items())
+        if (detail::isBrickItem(it) && it->data(detail::kBrickDataGuid).toString() == guid) {
+            found = it;
+            break;
+        }
+    if (!found) return;
+    scene->clearSelection();
+    found->setSelected(true);
+    mapView_->centerOn(found);
 }
 
 } // namespace bld::ui

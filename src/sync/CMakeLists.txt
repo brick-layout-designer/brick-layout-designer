@@ -96,6 +96,8 @@ add_library(bld_sync_ui STATIC
     ui/ConnectDialog.cpp
     ui/UploadPartsDialog.h
     ui/UploadPartsDialog.cpp
+    ui/CompareDialog.h
+    ui/CompareDialog.cpp
 )
 target_include_directories(bld_sync_ui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/ui)
 target_link_libraries(bld_sync_ui PUBLIC bld_sync Qt6::Widgets)

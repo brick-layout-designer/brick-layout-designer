@@ -11,7 +11,10 @@
 //   which revert only this desktop's own edits;
 // - others' changes wait while a mouse button is down on the map;
 // - with view-only access, clicks on the map are ignored and any edit that
-//   still happens (a menu command) is put back.
+//   still happens (a menu command) is put back;
+// - out of step with the server, edits are offline edits (SyncSession):
+//   the map shows them, and back in step offlineEditsReady() asks for the
+//   compare window.
 
 #include "Presence.h"
 #include "SyncSession.h"
@@ -33,7 +36,9 @@ public:
     explicit LiveLayout(MapView& view, QObject* parent = nullptr);
     ~LiveLayout() override;
 
-    void open(const QUrl& socketUrl, const QString& token, bool readOnly, const QString& title);
+    // `cacheDir` keeps the layout and offline edits on disk; empty for none.
+    void open(const QUrl& socketUrl, const QString& token, bool readOnly, const QString& title,
+              const QString& cacheDir = {});
     void close();
     bool active() const { return active_; }
     QString title() const { return title_; }
@@ -63,6 +68,8 @@ signals:
     void undoStateChanged();
     // The server ended the session (access revoked, layout deleted).
     void ended(const QString& reason);
+    // Back in step with offline edits to resolve (SyncSession::resolveOffline).
+    void offlineEditsReady();
 
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;

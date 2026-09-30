@@ -321,6 +321,20 @@ Snapshot snapshotOf(const core::Map& map) {
     return { docJsonFromMap(map), sidecar };
 }
 
+std::unique_ptr<core::Map> mapOf(const Snapshot& snapshot, QString* error) {
+    auto map = mapFromDocJson(snapshot.doc, error);
+    if (map) saveload::sidecarFromJson(snapshot.sidecar, map->sidecar);
+    return map;
+}
+
+QJsonObject toJson(const Snapshot& snapshot) {
+    return { { QStringLiteral("doc"), snapshot.doc }, { QStringLiteral("sidecar"), snapshot.sidecar } };
+}
+
+Snapshot snapshotFromJson(const QJsonObject& o) {
+    return { o.value(QLatin1String("doc")).toObject(), o.value(QLatin1String("sidecar")).toObject() };
+}
+
 QList<ItemChange> compareLayouts(const Snapshot& base, const Snapshot& mine, const Snapshot& server) {
     const Items b = itemsOf(base), m = itemsOf(mine), s = itemsOf(server);
     QSet<QString> keys;
@@ -364,10 +378,7 @@ std::unique_ptr<core::Map> mergeLayouts(const Snapshot& mine, const Snapshot& se
     for (int pass = 0; pass < 2; ++pass)
         for (const auto& c : changes)
             if ((c.kind == QLatin1String("layer")) == (pass == 0)) merger.take(c, choices.value(c.key, c.defaultChoice()));
-    const Snapshot result = merger.result();
-    auto map = mapFromDocJson(result.doc, error);
-    if (map) saveload::sidecarFromJson(result.sidecar, map->sidecar);
-    return map;
+    return mapOf(merger.result(), error);
 }
 
 QString describe(const ItemChange& c) {
