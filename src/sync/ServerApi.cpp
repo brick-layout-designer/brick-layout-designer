@@ -80,6 +80,37 @@ QNetworkReply* ServerApi::post(const QString& path, const QJsonObject& body) {
     return net_.post(req, QJsonDocument(body).toJson(QJsonDocument::Compact));
 }
 
+QNetworkReply* ServerApi::put(const QString& path, const QJsonObject& body) {
+    QUrl url = base_;
+    url.setPath(path);
+    QNetworkRequest req(url);
+    req.setHeader(QNetworkRequest::UserAgentHeader, userAgent());
+    req.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
+    if (!token_.isEmpty()) req.setRawHeader("Authorization", "Bearer " + token_.toUtf8());
+    return net_.put(req, QJsonDocument(body).toJson(QJsonDocument::Compact));
+}
+
+void ServerApi::fetchPreferences() {
+    QNetworkReply* r = get(QStringLiteral("/api/me/preferences"));
+    connect(r, &QNetworkReply::finished, this, [this, r] { onPreferencesReply(r, false); });
+}
+
+void ServerApi::savePreferences(const QJsonObject& prefs) {
+    QNetworkReply* r = put(QStringLiteral("/api/me/preferences"), QJsonObject{ { QStringLiteral("prefs"), prefs } });
+    connect(r, &QNetworkReply::finished, this, [this, r] { onPreferencesReply(r, true); });
+}
+
+void ServerApi::onPreferencesReply(QNetworkReply* r, bool saved) {
+    r->deleteLater();
+    const auto o = okJson(r, QStringLiteral("preferences"));
+    if (!o) return;
+    const QJsonObject prefs = o->value(QLatin1String("prefs")).toObject();
+    // null until the account saves anything.
+    const QDateTime at = QDateTime::fromString(o->value(QLatin1String("updatedAt")).toString(), Qt::ISODateWithMs);
+    if (saved) emit preferencesSaved(prefs, at);
+    else emit preferencesReady(prefs, at);
+}
+
 void ServerApi::fetchVersion() {
     QNetworkReply* r = get(QStringLiteral("/api/version"));
     connect(r, &QNetworkReply::finished, this, [this, r] {

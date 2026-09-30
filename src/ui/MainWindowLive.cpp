@@ -21,6 +21,8 @@
 #include "PartsSync.h"
 #include "ServerApi.h"
 #include "TokenStore.h"
+#include "PrefsSync.h"
+#include "theme/AppPrefs.h"
 #include "UploadPartsDialog.h"
 
 #include <QAction>
@@ -86,6 +88,7 @@ void MainWindow::setupLiveMenu(QMenu* file) {
     // Queued: after the edit's own signal handling, not inside it.
     connect(live_, &LiveLayout::localEdited, this, &MainWindow::offerPlacedParts, Qt::QueuedConnection);
     connect(live_, &LiveLayout::ended, this, [this](const QString& reason) {
+        if (prefsSync_) prefsSync_->stop();
         updateLiveUi();
         QMessageBox::information(
             this, tr("Live layout closed"),
@@ -215,6 +218,16 @@ void MainWindow::openLive(const sync::ConnectResult& r) {
     for (const QString& root : std::as_const(roots))
         if (!root.isEmpty() && QDir(root).exists()) liveLocalParts_ << sync::PartsUpload::scanFolder(root);
     loadLivePartsCatalog();
+    // Settings follow the account on this server while connected.
+    if (!prefsSync_) {
+        prefsSync_ = new PrefsSync(theme::PrefsStore::instance(), this);
+        connect(prefsSync_, &PrefsSync::failed, this, [this](const QString&, bool unauthorized) {
+            if (unauthorized)
+                statusBar()->showMessage(
+                    tr("Your settings didn't sync with the server. Sign in again to sync them."), 6000);
+        });
+    }
+    prefsSync_->start(r.server, r.token);
     updateLiveUi();
 }
 
@@ -336,6 +349,7 @@ void MainWindow::syncServerParts(const QUrl& server, const QString& token) {
 
 void MainWindow::onDisconnect() {
     live_->close();
+    if (prefsSync_) prefsSync_->stop();
     updateLiveUi();
     statusBar()->showMessage(tr("Disconnected. The layout stays open here as an unsaved copy."), 5000);
 }

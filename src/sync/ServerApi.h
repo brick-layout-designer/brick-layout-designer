@@ -7,6 +7,7 @@
 // SyncClient; tokens only ever travel in the Authorization header.
 
 #include <QDateTime>
+#include <QJsonObject>
 #include <QList>
 #include <QNetworkAccessManager>
 #include <QObject>
@@ -98,6 +99,13 @@ public:
                        const QString& orgSlug);
     void fetchVenue(const QString& id);
 
+    // The account's app settings (GET / PUT /api/me/preferences; token
+    // scope layouts:read or account:prefs to read, account:prefs to save).
+    // Saving merges the keys given. Both answer with the settings and when
+    // they were last changed (invalid when never).
+    void fetchPreferences();
+    void savePreferences(const QJsonObject& prefs);
+
     // Device sign-in: signInCode once the server issued a code, then polls
     // until signedIn(token) or signInFailed(reason).
     void startSignIn(const QString& clientName);
@@ -114,18 +122,22 @@ signals:
     void orgsReady(const QList<bld::sync::OrgEntry>& orgs);
     void published(const QString& layoutId, const QString& title);
     void venueReady(const QString& id, const QString& name, const QByteArray& venueFile);
+    void preferencesReady(const QJsonObject& prefs, const QDateTime& updatedAt);
+    void preferencesSaved(const QJsonObject& prefs, const QDateTime& updatedAt);
     void signInCode(const bld::sync::DeviceCode& code);
     void signedIn(const QString& token);
     // access_denied, expired_token, or a network / server error.
     void signInFailed(const QString& reason);
-    // A request failed: `what` is "version", "layouts", "venues" or
-    // "venue"; unauthorized is
+    // A request failed: `what` is "version", "layouts", "venues",
+    // "venue" or "preferences"; unauthorized is
     // true for a missing, revoked or expired token (sign in again).
     void requestFailed(const QString& what, const QString& message, bool unauthorized);
 
 private:
     QNetworkReply* get(const QString& path);
     QNetworkReply* post(const QString& path, const QJsonObject& body);
+    QNetworkReply* put(const QString& path, const QJsonObject& body);
+    void onPreferencesReply(QNetworkReply* r, bool saved);
     void pollToken();
     // The reply's JSON when it is a 200; otherwise emits requestFailed(what).
     std::optional<QJsonObject> okJson(QNetworkReply* r, const QString& what);
