@@ -27,19 +27,8 @@ target_link_libraries(bld_import_tests
         Qt6::Gui
 )
 
-# Studio/LDD tests construct synthetic ZIPs in temp dirs using Qt's
-# private QZipWriter — same approach the reader side uses. bld_import's
-# CMakeLists.txt already located the private header dir and cached it
-# in BLD_QZIPREADER_INCLUDE_DIR; reuse it here so the tests can include
-# <private/qzipwriter_p.h>.
-if(BLD_QZIPREADER_INCLUDE_DIR)
-    target_include_directories(bld_import_tests PRIVATE
-        "${BLD_QZIPREADER_INCLUDE_DIR}")
-    get_filename_component(_qtcore_private_parent
-        "${BLD_QZIPREADER_INCLUDE_DIR}" DIRECTORY)
-    target_include_directories(bld_import_tests PRIVATE
-        "${_qtcore_private_parent}")
-endif()
+# Studio/LDD tests build synthetic ZIPs with Qt's private QZipWriter.
+target_link_libraries(bld_import_tests PRIVATE Qt6::CorePrivate)
 
 target_compile_definitions(bld_import_tests PRIVATE BLD_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 

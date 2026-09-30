@@ -14,9 +14,8 @@ endforeach()
 
 add_executable(bld_fuzz_seeds SeedWriter.cpp)
 target_link_libraries(bld_fuzz_seeds PRIVATE bld_edit bld_saveload bld_core Qt6::Core)
-# QZipWriter (for a Studio .io seed) is private; src/import found its headers.
-get_filename_component(_qtcore_version_parent "${BLD_QZIPREADER_INCLUDE_DIR}" DIRECTORY)
-target_include_directories(bld_fuzz_seeds PRIVATE "${BLD_QZIPREADER_INCLUDE_DIR}" "${_qtcore_version_parent}")
+# QZipWriter (for a Studio .io seed) is private.
+target_link_libraries(bld_fuzz_seeds PRIVATE Qt6::CorePrivate)
 
 # The sync document reader (yrs), when built.
 if(BLD_SYNC)
