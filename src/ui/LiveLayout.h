@@ -13,11 +13,15 @@
 // - with view-only access, clicks on the map are ignored and any edit that
 //   still happens (a menu command) is put back.
 
+#include "Presence.h"
 #include "SyncSession.h"
 
 #include <QObject>
 #include <QString>
 #include <QUrl>
+
+class QGraphicsItem;
+class QTimer;
 
 namespace bld::ui {
 
@@ -46,6 +50,12 @@ public:
 
     sync::SyncSession& session() { return session_; }
 
+    // Who we are on this layout, for our cursor's name and colour (the
+    // colour is the web's, per user and layout).
+    void setUser(const QString& userId, const QString& displayName, const QString& layoutId);
+    // Other people's cursors and selections drawn on the map right now.
+    int drawnPeers() const { return drawnPeers_; }
+
 signals:
     // The map was replaced: panels bound to the old one must re-bind.
     void mapReloaded();
@@ -60,6 +70,9 @@ protected:
 private:
     void reload();
     void onLocalStep();
+    void schedulePresence();
+    void publishPresence();
+    void drawPeers();
 
     MapView& view_;
     sync::SyncSession session_;
@@ -67,7 +80,12 @@ private:
     bool active_ = false;
     bool reloading_ = false;
     bool clearing_ = false;
-    bool reloadedOnce_ = false; // the first load fits the view; later ones keep it
+    bool reloadedOnce_ = false;
+    sync::presence::User user_{ {}, QStringLiteral("Desktop"), QStringLiteral("#888888") };
+    std::optional<QPointF> cursorStuds_;
+    QTimer* presenceTimer_ = nullptr;
+    QList<QGraphicsItem*> peerItems_;
+    int drawnPeers_ = 0; // the first load fits the view; later ones keep it
 };
 
 } // namespace bld::ui

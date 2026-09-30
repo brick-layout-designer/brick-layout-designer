@@ -124,6 +124,18 @@ std::optional<QJsonObject> ServerApi::okJson(QNetworkReply* r, const QString& wh
     return jsonOf(r);
 }
 
+void ServerApi::fetchCurrentUser() {
+    QNetworkReply* r = get(QStringLiteral("/api/tokens/current"));
+    connect(r, &QNetworkReply::finished, this, [this, r] {
+        r->deleteLater();
+        const auto o = okJson(r, QStringLiteral("user"));
+        if (!o) return;
+        const QJsonObject u = o->value(QLatin1String("user")).toObject();
+        emit currentUserReady(u.value(QLatin1String("id")).toString(),
+                              u.value(QLatin1String("displayName")).toString());
+    });
+}
+
 void ServerApi::fetchVenues() {
     QNetworkReply* r = get(QStringLiteral("/api/venues"));
     connect(r, &QNetworkReply::finished, this, [this, r] {

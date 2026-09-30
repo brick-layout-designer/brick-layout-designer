@@ -249,3 +249,23 @@ TEST(ServerApi, PullsVenuesAsFilesTheVenueLibraryReads) {
     EXPECT_EQ(failedWhat, QStringLiteral("venue"));
     EXPECT_TRUE(unauthorized);
 }
+
+TEST(ServerApi, AsksWhoTheTokenBelongsTo) {
+    FakeHttp http;
+    ServerApi api;
+    api.setBase(http.base());
+    api.setToken(QStringLiteral("bld_pat_abc"));
+    QString id, name;
+    QObject::connect(&api, &ServerApi::currentUserReady, [&](const QString& i, const QString& n) {
+        id = i;
+        name = n;
+    });
+    http.reply("/api/tokens/current", 200,
+               { { QStringLiteral("user"),
+                   QJsonObject{ { QStringLiteral("id"), QStringLiteral("u1") },
+                                { QStringLiteral("displayName"), QStringLiteral("Aaron") } } } });
+    api.fetchCurrentUser();
+    ASSERT_TRUE(waitFor([&] { return !id.isEmpty(); }));
+    EXPECT_EQ(name, QStringLiteral("Aaron"));
+    EXPECT_EQ(http.requests.back().authorization, QByteArray("Bearer bld_pat_abc"));
+}

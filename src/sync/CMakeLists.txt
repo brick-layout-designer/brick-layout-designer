@@ -73,6 +73,8 @@ add_library(bld_sync STATIC
     SyncSession.cpp
     Awareness.h
     Awareness.cpp
+    Presence.h
+    Presence.cpp
     TokenStore.h
     TokenStore.cpp
 )

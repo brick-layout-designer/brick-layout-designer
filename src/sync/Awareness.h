@@ -20,7 +20,7 @@ namespace bld::sync::awareness {
 struct Entry {
     quint32 clientId = 0;
     quint32 clock = 0;
-    std::optional<QJsonObject> state;  // nullopt: the client left
+    std::optional<QJsonObject> state; // nullopt: the client left
 };
 
 QByteArray encode(const QList<Entry>& entries);
@@ -34,7 +34,10 @@ public:
     explicit Peers(quint32 ownId) : ownId_(ownId) {}
     // Returns whether anything changed.
     bool apply(const QByteArray& update);
-    void clear() { states_.clear(); clocks_.clear(); }
+    void clear() {
+        states_.clear();
+        clocks_.clear();
+    }
     const QHash<quint32, QJsonObject>& states() const { return states_; }
 
 private:
@@ -43,4 +46,4 @@ private:
     QHash<quint32, quint32> clocks_;
 };
 
-}  // namespace bld::sync::awareness
+} // namespace bld::sync::awareness
