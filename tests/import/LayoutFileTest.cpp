@@ -262,3 +262,23 @@ TEST(LayoutFile, ReadsTheSharedFixture) {
     EXPECT_EQ(s.backgroundImageRectStuds, QRectF(-10, -20, 300, 200));
     EXPECT_EQ(QImage(s.backgroundImagePath).size(), QSize(4, 4));
 }
+
+// fixtures/layouts/web-made.bld-layout: corner-lobby.bld-layout opened by
+// the web app and downloaded again (its apps/web/scripts/make-web-made-layout.ts).
+// The web writes its own sidecar JSON; the layout must come back the same.
+TEST(LayoutFile, ReadsTheWebMadeFixture) {
+    QTemporaryDir dir;
+    const QString fixtures = kSource + QStringLiteral("/fixtures/layouts/");
+    const auto web = readLayoutFile(fixtures + QStringLiteral("web-made.bld-layout"), dir.filePath(QStringLiteral("web")));
+    const auto desktop =
+        readLayoutFile(fixtures + QStringLiteral("corner-lobby.bld-layout"), dir.filePath(QStringLiteral("desktop")));
+    ASSERT_TRUE(web.ok()) << web.error.toStdString();
+    ASSERT_TRUE(desktop.ok());
+    EXPECT_TRUE(web.warnings.isEmpty()) << web.warnings.join(QStringLiteral("; ")).toStdString();
+    EXPECT_EQ(bbmOf(*web.map), bbmOf(*desktop.map));
+    EXPECT_EQ(sidecarOf(*web.map), sidecarOf(*desktop.map));
+    QFile a(web.map->sidecar.backgroundImagePath), b(desktop.map->sidecar.backgroundImagePath);
+    ASSERT_TRUE(a.open(QIODevice::ReadOnly));
+    ASSERT_TRUE(b.open(QIODevice::ReadOnly));
+    EXPECT_EQ(a.readAll(), b.readAll());
+}
