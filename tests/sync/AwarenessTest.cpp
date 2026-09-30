@@ -8,6 +8,7 @@
 
 #include <gtest/gtest.h>
 
+#include <QDateTime>
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -84,4 +85,13 @@ TEST(Presence, ColoursMatchTheWebAndStatesUseItsShape) {
     EXPECT_TRUE(pr::peerFrom(*entries->at(0).state).cursor);
     EXPECT_EQ(pr::label(QStringLiteral("A very long display name indeed")),
               QStringLiteral("A very long display…"));
+}
+
+TEST(Awareness, DropsPeersNotHeardFromInAWhile) {
+    Peers peers(1);
+    ASSERT_TRUE(peers.apply(
+        encode({ { 7, 1, QJsonObject{ { QStringLiteral("tool"), QStringLiteral("select") } } } })));
+    EXPECT_FALSE(peers.dropOlderThan(QDateTime::currentMSecsSinceEpoch() - 30000)); // heard just now
+    EXPECT_TRUE(peers.dropOlderThan(QDateTime::currentMSecsSinceEpoch() + 1));      // as if 30 s went by
+    EXPECT_TRUE(peers.states().isEmpty());
 }

@@ -37,13 +37,17 @@ public:
     void clear() {
         states_.clear();
         clocks_.clear();
+        seen_.clear();
     }
+    // Drop everyone last heard from before `ms` (epoch ms); whether any went.
+    bool dropOlderThan(qint64 ms);
     const QHash<quint32, QJsonObject>& states() const { return states_; }
 
 private:
     quint32 ownId_;
     QHash<quint32, QJsonObject> states_;
     QHash<quint32, quint32> clocks_;
+    QHash<quint32, qint64> seen_; // when each was last heard from
 };
 
 } // namespace bld::sync::awareness

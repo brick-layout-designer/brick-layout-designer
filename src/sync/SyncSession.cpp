@@ -4,7 +4,9 @@
 
 #include "core/Map.h"
 
+#include <QDateTime>
 #include <QRandomGenerator>
+#include <QTimer>
 
 namespace bld::sync {
 
@@ -14,7 +16,12 @@ SyncSession::SyncSession(QObject* parent)
     connect(&client_, &SyncClient::statusChanged, this, [this](SyncClient::Status s) {
         if (s == SyncClient::Status::Synced) {
             unsynced_ = 0;
-            if (presence_) sendPresence();
+            // Two clocks on: the server marks our old connection's presence
+            // gone one clock later, and a tie keeps it gone.
+            if (presence_) {
+                ++presenceClock_;
+                sendPresence();
+            }
         }
         // Disconnected: the server sends everyone's presence again on reconnect.
         if ((s == SyncClient::Status::Offline || s == SyncClient::Status::Connecting)
@@ -24,6 +31,15 @@ SyncSession::SyncSession(QObject* parent)
         }
         emit statusChanged(s);
     });
+    // y-protocols: say again we're here every 15 s (others drop a presence
+    // not renewed for 30 s), and drop others' we haven't heard from in 30 s.
+    renew_ = new QTimer(this);
+    renew_->setInterval(15000);
+    connect(renew_, &QTimer::timeout, this, [this] {
+        if (presence_ && client_.status() == SyncClient::Status::Synced) sendPresence();
+        dropStalePeers();
+    });
+    renew_->start();
     connect(&client_, &SyncClient::awarenessReceived, this, [this](const QByteArray& update) {
         // y-protocols: told that we left (the server tidying up an old
         // connection of ours), say again that we're here, with a newer clock.
@@ -54,6 +70,10 @@ void SyncSession::close() {
 void SyncSession::setPresence(const std::optional<QJsonObject>& state) {
     presence_ = state;
     sendPresence();
+}
+
+void SyncSession::dropStalePeers() {
+    if (peers_.dropOlderThan(QDateTime::currentMSecsSinceEpoch() - 30000)) emit peersChanged();
 }
 
 void SyncSession::sendPresence() {

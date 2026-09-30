@@ -1,5 +1,6 @@
 #include "Awareness.h"
 
+#include <QDateTime>
 #include <QJsonDocument>
 
 namespace bld::sync::awareness {
@@ -69,6 +70,19 @@ std::optional<QList<Entry>> decode(const QByteArray& update) {
     return out;
 }
 
+bool Peers::dropOlderThan(qint64 ms) {
+    bool changed = false;
+    for (auto it = states_.begin(); it != states_.end();) {
+        if (seen_.value(it.key()) < ms) {
+            it = states_.erase(it);
+            changed = true;
+        } else {
+            ++it;
+        }
+    }
+    return changed;
+}
+
 bool Peers::apply(const QByteArray& update) {
     const auto entries = decode(update);
     if (!entries) return false;
@@ -79,6 +93,7 @@ bool Peers::apply(const QByteArray& update) {
         // y-protocols: a newer clock wins; the same clock with a null state is a removal.
         if (known != clocks_.end() && (*known > e.clock || (*known == e.clock && e.state))) continue;
         clocks_[e.clientId] = e.clock;
+        seen_[e.clientId] = QDateTime::currentMSecsSinceEpoch();
         if (e.state) states_[e.clientId] = *e.state;
         else states_.remove(e.clientId);
         changed = true;
