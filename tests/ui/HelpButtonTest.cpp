@@ -158,6 +158,18 @@ TEST_F(HelpButtonTest, EscClosesThePopoverAndGivesFocusBack) {
     QTest::keyClick(showMe, Qt::Key_Escape);
     EXPECT_EQ(button_->popover(), nullptr);
     EXPECT_TRUE(button_->hasFocus());
+
+    // Opened while another field had focus: Esc still hands focus to the
+    // "?", not back to that field.
+    after_->setFocus(Qt::TabFocusReason);
+    ASSERT_TRUE(after_->hasFocus());
+    button_->showPopover();
+    ASSERT_NE(button_->popover(), nullptr);
+    QTest::keyClick(QApplication::focusWidget(), Qt::Key_Escape);
+    EXPECT_EQ(button_->popover(), nullptr);
+    EXPECT_TRUE(button_->hasFocus());
+    EXPECT_FALSE(after_->hasFocus());
+    EXPECT_EQ(button_->tooltip(), nullptr);
 }
 
 TEST_F(HelpButtonTest, EscOnTheButtonHidesTheTooltip) {
