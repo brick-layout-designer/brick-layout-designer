@@ -212,7 +212,7 @@ protected:
     }
 
 private:
-    QPointer<HelpButton> button_;
+    HelpButton* button_;  // the parent, so it outlives the popover
 };
 
 HelpButton::HelpButton(const QString& key, theme::PrefsStore& store, QWidget* parent, QWidget* target)
@@ -238,7 +238,9 @@ HelpButton::HelpButton(const QString& key, QWidget* parent, QWidget* target)
     : HelpButton(key, theme::PrefsStore::instance(), parent, target) {}
 
 HelpButton::~HelpButton() {
-    delete popover_;
+    // Popovers are children, deleted after this destructor: their
+    // destroyed() handler must not reach this button by then.
+    for (QObject* child : children()) disconnect(child, &QObject::destroyed, this, nullptr);
     delete tip_;
 }
 
