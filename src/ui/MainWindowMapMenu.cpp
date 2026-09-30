@@ -7,10 +7,12 @@
 
 #include "MainWindow.h"
 
+#include "../edit/venue/VenueDesign.h"
 #include "MapView.h"
 #include "VenueDialog.h"
 #include "VenueDimensionsDialog.h"
 #include "VenueLibraryPanel.h"
+#include "venue/VenueDesignerDialog.h"
 
 #include "../core/Map.h"
 #include "../core/Venue.h"
@@ -156,6 +158,25 @@ void MainWindow::setupMapMenu() {
 
     mapMenu->addSeparator();
     auto* venueMenu = mapMenu->addMenu(tr("&Venue"));
+    auto* designerAct = venueMenu->addAction(tr("Open Venue &Designer..."));
+    designerAct->setToolTip(
+        tr("Design this layout's venue: walls, doors, openings, columns, stairs, power, measurements."));
+    connect(designerAct, &QAction::triggered, this, [this] {
+        auto* m = mapView_->currentMap();
+        if (!m) return;
+        core::Venue initial = m->sidecar.venue.value_or(edit::venue::emptyVenue(tr("Venue")));
+        VenueDesignerDialog dlg(
+            std::move(initial), tr("Venue of this layout"), tr("Save to Layout"),
+            [this](const core::Venue& v) {
+                auto* map = mapView_->currentMap();
+                if (!map) return tr("The layout was closed.");
+                mapView_->undoStack()->push(new edit::SetVenueCommand(*map, std::make_optional(v)));
+                return QString();
+            },
+            this);
+        dlg.exec();
+    });
+    venueMenu->addSeparator();
     auto* drawOutlineAct = venueMenu->addAction(tr("Draw &Outline..."));
     drawOutlineAct->setToolTip(tr("Click points on the map to build the venue outline. "
                                     "Right-click or Enter finishes; Escape cancels."));

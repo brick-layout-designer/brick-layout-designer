@@ -155,9 +155,11 @@ void SceneBuilder::addVenue(const core::Map& map) {
                 // Font size is user-configurable via Preferences
                 // (settings key venue/labelPx). Default 28 px stays
                 // legible at map-scale zooms that show the whole venue.
-                const int labelPx = QSettings().value(
-                    QStringLiteral("venue/labelPx"), 28).toInt();
-                f.setPixelSize(std::max(10, labelPx));
+                const int labelPx =
+                    venueLabelPx_
+                        ? std::max(1, static_cast<int>(std::lround(*venueLabelPx_)))
+                        : std::max(10, QSettings().value(QStringLiteral("venue/labelPx"), 28).toInt());
+                f.setPixelSize(labelPx);
                 lbl->setFont(f);
                 lbl->setBrush(QBrush(QColor(20, 20, 20)));
                 double angleDeg = std::atan2(d.y(), d.x()) * 180.0 / M_PI;
@@ -192,7 +194,9 @@ void SceneBuilder::addVenue(const core::Map& map) {
             sink.add(li);
         }
     };
-    const int labelPx = std::max(10, QSettings().value(QStringLiteral("venue/labelPx"), 28).toInt());
+    const double labelPx = venueLabelPx_
+                               ? *venueLabelPx_
+                               : std::max(10, QSettings().value(QStringLiteral("venue/labelPx"), 28).toInt());
     const auto text = [&](const QString& s, QPointF studs, double px, const QColor& color, bool italic,
                           double angle, bool centred) {
         auto* t = new QGraphicsSimpleTextItem(s);

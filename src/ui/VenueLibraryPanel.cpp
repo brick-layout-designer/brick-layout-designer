@@ -1,4 +1,6 @@
 #include "VenueLibraryPanel.h"
+#include "../edit/venue/VenueDesign.h"
+#include "venue/VenueDesignerDialog.h"
 
 #include "../saveload/VenueIO.h"
 
@@ -92,6 +94,12 @@ VenueLibraryPanel::VenueLibraryPanel(QWidget* parent)
     startBtn_  = new QPushButton(tr("Start Layout"), host);
     startBtn_->setObjectName(QStringLiteral("venueStartLayout"));
     startBtn_->setToolTip(tr("Start a new layout with this venue"));
+    newBtn_ = new QPushButton(tr("New Venue…"), host);
+    newBtn_->setObjectName(QStringLiteral("venueNew"));
+    newBtn_->setToolTip(tr("Design a new venue in the Venue Designer"));
+    designBtn_ = new QPushButton(tr("Design…"), host);
+    designBtn_->setObjectName(QStringLiteral("venueDesign"));
+    designBtn_->setToolTip(tr("Open this venue in the Venue Designer"));
     saveBtn_   = new QPushButton(tr("Save Current Venue"), host);
     deleteBtn_ = new QPushButton(tr("Delete"), host);
     renameBtn_ = new QPushButton(tr("Rename…"), host);
@@ -101,6 +109,10 @@ VenueLibraryPanel::VenueLibraryPanel(QWidget* parent)
     btnRow->addWidget(renameBtn_);
     btnRow->addWidget(deleteBtn_);
     col->addLayout(btnRow);
+    auto* designRow = new QHBoxLayout();
+    designRow->addWidget(newBtn_);
+    designRow->addWidget(designBtn_);
+    col->addLayout(designRow);
 
     setWidget(host);
 
@@ -113,6 +125,8 @@ VenueLibraryPanel::VenueLibraryPanel(QWidget* parent)
     connect(refreshBtn, &QPushButton::clicked, this, &VenueLibraryPanel::refresh);
     connect(loadBtn_,   &QPushButton::clicked, this, &VenueLibraryPanel::onLoad);
     connect(startBtn_,  &QPushButton::clicked, this, &VenueLibraryPanel::onStartLayout);
+    connect(newBtn_, &QPushButton::clicked, this, &VenueLibraryPanel::onNewVenue);
+    connect(designBtn_, &QPushButton::clicked, this, &VenueLibraryPanel::onDesign);
     connect(saveBtn_,   &QPushButton::clicked, this, [this]{ emit venueSaveRequested(); });
     connect(deleteBtn_, &QPushButton::clicked, this, &VenueLibraryPanel::onDelete);
     connect(renameBtn_, &QPushButton::clicked, this, &VenueLibraryPanel::onRename);
@@ -243,6 +257,36 @@ void VenueLibraryPanel::onLoad() {
     if (auto v = readSelected(tr("Load venue"))) emit venueLoadRequested(*v);
 }
 
+void VenueLibraryPanel::onNewVenue() {
+    design(edit::venue::emptyVenue(tr("New venue")), QString());
+}
+
+void VenueLibraryPanel::onDesign() {
+    const QString p = selectedPath();
+    if (auto v = readSelected(tr("Design venue"))) design(*v, p);
+}
+
+void VenueLibraryPanel::design(core::Venue venue, QString path) {
+    VenueDesignerDialog dlg(
+        std::move(venue), tr("Venue in the library folder %1").arg(path_), tr("Save Venue"),
+        [this, &path](const core::Venue& v) {
+            QDir().mkpath(path_);
+            if (path.isEmpty()) {
+                // A new venue: a new file named after it, never over another.
+                QString base = sanitize(v.name.trimmed());
+                path = QDir(path_).filePath(base + QStringLiteral(".bld-venue"));
+                for (int n = 2; QFile::exists(path); ++n)
+                    path = QDir(path_).filePath(QStringLiteral("%1 (%2).bld-venue").arg(base).arg(n));
+            }
+            QString err;
+            if (!saveload::writeVenueFile(path, v, &err)) return tr("Could not save %1: %2").arg(path, err);
+            refresh();
+            return QString();
+        },
+        this);
+    dlg.exec();
+}
+
 void VenueLibraryPanel::onStartLayout() {
     if (auto v = readSelected(tr("Start layout"))) emit newLayoutRequested(*v);
 }
@@ -306,6 +350,7 @@ void VenueLibraryPanel::updateButtons() {
     const bool has = !selectedPath().isEmpty();
     loadBtn_->setEnabled(has);
     startBtn_->setEnabled(has);
+    designBtn_->setEnabled(has);
     deleteBtn_->setEnabled(has);
     renameBtn_->setEnabled(has);
 }

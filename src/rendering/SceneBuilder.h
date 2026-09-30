@@ -1,5 +1,7 @@
 #pragma once
 
+#include <optional>
+
 #include <QHash>
 #include <QList>
 #include <QPointF>
@@ -29,6 +31,10 @@ public:
     void build(const core::Map& map);
     void clear();
 
+    // Venue label size in scene px; unset reads Preferences (venue/labelPx).
+    // The Venue Designer sets it from the zoom so labels read the same at any scale.
+    void setVenueLabelPx(std::optional<double> px) { venueLabelPx_ = px; }
+
     // Configure live drag-snap. `snapStepStuds` of 0 disables snapping.
     // Applied by the per-item ItemPositionChange override so the brick snaps
     // under the cursor during drag, not only on release.
@@ -44,6 +50,7 @@ public:
     bool setLayerVisible(int layerIndex, bool visible);
 
 private:
+    std::optional<double> venueLabelPx_;
     void addLayer(const core::Layer& layer, int layerIndex);
     void addVenue(const core::Map& map);
     void addAnchoredLabels(const core::Map& map);

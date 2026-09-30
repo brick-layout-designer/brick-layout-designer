@@ -56,6 +56,10 @@ add_library(bld_ui STATIC
     VenueDimensionsDialog.h
     VenueLibraryPanel.cpp
     VenueLibraryPanel.h
+    venue/VenueDesignerDialog.cpp
+    venue/VenueDesignerDialog.h
+    venue/VenueDesignerView.cpp
+    venue/VenueDesignerView.h
 )
 
 target_link_libraries(bld_ui
