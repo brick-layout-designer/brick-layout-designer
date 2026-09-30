@@ -295,11 +295,17 @@ void VenueDesignerView::drawBackground(QPainter* painter, const QRectF& rect) {
     if (rect.width() / step > 400) return;
     for (int major = 0; major < 2; ++major) {
         painter->setPen(cosmetic(major ? QColor(213, 218, 225) : QColor(238, 240, 243), 1));
-        for (double x = std::floor(rect.left() / step) * step; x <= rect.right(); x += step) {
+        const long x0 = std::lround(std::floor(rect.left() / step)),
+                   x1 = std::lround(std::ceil(rect.right() / step));
+        for (long i = x0; i <= x1; ++i) {
+            const double x = i * step;
             if ((std::lround(x / ftPx) % 10 == 0) != static_cast<bool>(major)) continue;
             painter->drawLine(QPointF(x, rect.top()), QPointF(x, rect.bottom()));
         }
-        for (double y = std::floor(rect.top() / step) * step; y <= rect.bottom(); y += step) {
+        const long y0 = std::lround(std::floor(rect.top() / step)),
+                   y1 = std::lround(std::ceil(rect.bottom() / step));
+        for (long i = y0; i <= y1; ++i) {
+            const double y = i * step;
             if ((std::lround(y / ftPx) % 10 == 0) != static_cast<bool>(major)) continue;
             painter->drawLine(QPointF(rect.left(), y), QPointF(rect.right(), y));
         }

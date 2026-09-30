@@ -51,7 +51,7 @@ QLineEdit* lengthEdit(QWidget* parent, double studs, ev::LengthUnit unit, std::f
     return e;
 }
 
-QLineEdit* textEdit(QWidget* parent, const QString& value, std::function<void(QString)> apply) {
+QLineEdit* textEdit(QWidget* parent, const QString& value, std::function<void(const QString&)> apply) {
     auto* e = new QLineEdit(value, parent);
     QObject::connect(e, &QLineEdit::editingFinished, e, [e, value, apply = std::move(apply)] {
         if (e->text() != value) apply(e->text());
@@ -447,7 +447,7 @@ void VenueDesignerDialog::rebuildInspector() {
     const auto sel = state_.selection;
     if (!sel) {
         head->setText(QStringLiteral("<b>%1</b>").arg(tr("Venue")));
-        form->addRow(tr("Name"), textEdit(w, v.name, [=](QString t) {
+        form->addRow(tr("Name"), textEdit(w, v.name, [=](const QString& t) {
                          if (t.trimmed().isEmpty()) return;
                          core::Venue n = venue();
                          n.name = t.trimmed();
@@ -471,7 +471,7 @@ void VenueDesignerDialog::rebuildInspector() {
         head->setText(QStringLiteral("<b>%1</b>").arg(tr("Wall")));
         const auto e = v.edges[sel->index];
         const int i = sel->index;
-        form->addRow(tr("Label"), textEdit(w, e.label, [=](QString t) {
+        form->addRow(tr("Label"), textEdit(w, e.label, [=](const QString& t) {
                          core::Venue n = venue();
                          n.edges[i].label = t;
                          set(n);
@@ -506,7 +506,7 @@ void VenueDesignerDialog::rebuildInspector() {
         const auto o = v.obstacles[sel->index];
         const int i = sel->index;
         const QRectF b = ev::bounds(o.polygon);
-        form->addRow(tr("Label"), textEdit(w, o.label, [=](QString t) {
+        form->addRow(tr("Label"), textEdit(w, o.label, [=](const QString& t) {
                          core::Venue n = venue();
                          n.obstacles[i].label = t;
                          set(n);
@@ -536,12 +536,14 @@ void VenueDesignerDialog::rebuildInspector() {
         form->addRow(tr("Depth"), lengthEdit(w, b.height(), unit, [=](double y) {
                          set(ev::resizeObstacle(venue(), i, b.width(), y));
                      }));
-        form->addRow(tr("From the left (x)"), lengthEdit(w, b.left(), unit, [=](double x) {
-                         set(ev::movePart(venue(), *sel, { x - b.left(), 0 }));
-                     }));
-        form->addRow(tr("From the top (y)"), lengthEdit(w, b.top(), unit, [=](double y) {
-                         set(ev::movePart(venue(), *sel, { 0, y - b.top() }));
-                     }));
+        form->addRow(
+            tr("From the left (x)"), lengthEdit(w, b.left(), unit, [=](double x) {
+                set(ev::movePart(venue(), ev::Selection{ ev::PartKind::Obstacle, i }, { x - b.left(), 0 }));
+            }));
+        form->addRow(
+            tr("From the top (y)"), lengthEdit(w, b.top(), unit, [=](double y) {
+                set(ev::movePart(venue(), ev::Selection{ ev::PartKind::Obstacle, i }, { 0, y - b.top() }));
+            }));
         if (o.kind == core::ObstacleKind::Stairs) {
             auto* ways = new QHBoxLayout();
             const std::pair<double, QString> dirs[] = {
@@ -565,7 +567,7 @@ void VenueDesignerDialog::rebuildInspector() {
         head->setText(QStringLiteral("<b>%1</b>").arg(tr("Power point")));
         const auto p = v.power[sel->index];
         const int i = sel->index;
-        form->addRow(tr("Label"), textEdit(w, p.label, [=](QString t) {
+        form->addRow(tr("Label"), textEdit(w, p.label, [=](const QString& t) {
                          core::Venue n = venue();
                          n.power[i].label = t;
                          set(n);
@@ -579,8 +581,8 @@ void VenueDesignerDialog::rebuildInspector() {
             set(n);
         });
         form->addRow(tr("Where"), where);
-        const auto number = [&](double value, std::function<void(core::VenuePower&, double)> put) {
-            return textEdit(w, value > 0 ? QString::number(value) : QString(), [=](QString t) {
+        const auto number = [&](double value, const std::function<void(core::VenuePower&, double)>& put) {
+            return textEdit(w, value > 0 ? QString::number(value) : QString(), [=](const QString& t) {
                 core::Venue n = venue();
                 put(n.power[i], std::max(0.0, t.toDouble()));
                 set(n);
@@ -592,7 +594,7 @@ void VenueDesignerDialog::rebuildInspector() {
         head->setText(QStringLiteral("<b>%1</b>").arg(tr("Note")));
         const auto nt = v.notes[sel->index];
         const int i = sel->index;
-        auto* text = textEdit(w, nt.text, [=](QString t) {
+        auto* text = textEdit(w, nt.text, [=](const QString& t) {
             if (t.trimmed().isEmpty()) return;
             core::Venue n = venue();
             n.notes[i].text = t.trimmed();
@@ -612,7 +614,7 @@ void VenueDesignerDialog::rebuildInspector() {
         head->setText(QStringLiteral("<b>%1</b>").arg(tr("Measurement")));
         const auto d = v.dimensions[sel->index];
         const int i = sel->index;
-        form->addRow(tr("Label"), textEdit(w, d.label, [=](QString t) {
+        form->addRow(tr("Label"), textEdit(w, d.label, [=](const QString& t) {
                          core::Venue n = venue();
                          n.dimensions[i].label = t;
                          set(n);

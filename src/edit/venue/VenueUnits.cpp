@@ -67,7 +67,7 @@ std::optional<double> parseLength(const QString& input, LengthUnit unit) {
         if (!v) return std::nullopt;
         switch (unit) {
         case LengthUnit::Metres: return *v * 1000.0 * kStudsPerMm;
-        case LengthUnit::Studs: return *v;
+        case LengthUnit::Studs: return v;
         case LengthUnit::FeetInches: return *v * kStudsPerInch;
         }
     }
