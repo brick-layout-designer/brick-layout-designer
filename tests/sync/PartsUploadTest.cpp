@@ -98,6 +98,7 @@ TEST(PartsUpload, ListsOnlyPartsTheServerLacksAndUploadsWhatWasChosen) {
     EXPECT_EQ(dialog.uploadedCount(), 1);
     int posts = 0;
     for (const auto& r : http.requests) {
+        EXPECT_EQ(r.userAgent, userAgent());
         if (r.path != "/api/custom-parts") continue;
         ++posts;
         const auto body = QJsonDocument::fromJson(r.body).object();

@@ -20,6 +20,11 @@ class QNetworkReply;
 
 namespace bld::sync {
 
+// "BrickLayoutDesigner/<version> (desktop)": the User-Agent of every request
+// the desktop makes to a collaborative server, the live socket included, so
+// a server's filters can tell the app apart.
+QByteArray userAgent();
+
 // Newest shared-document schema this build reads (the web's DOC_SCHEMA_VERSION).
 constexpr int kSupportedSchemaVersion = 1;
 

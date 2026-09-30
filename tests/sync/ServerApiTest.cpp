@@ -269,3 +269,25 @@ TEST(ServerApi, AsksWhoTheTokenBelongsTo) {
     EXPECT_EQ(name, QStringLiteral("Aaron"));
     EXPECT_EQ(http.requests.back().authorization, QByteArray("Bearer bld_pat_abc"));
 }
+
+TEST(ServerApi, NamesTheAppInEveryRequest) {
+    EXPECT_TRUE(userAgent().startsWith("BrickLayoutDesigner/"));
+    EXPECT_TRUE(userAgent().endsWith(" (desktop)"));
+    FakeHttp http;
+    ServerApi api;
+    api.setBase(http.base());
+    api.setToken(QStringLiteral("bld_pat_x"));
+    http.reply("/api/orgs", 200, { { QStringLiteral("orgs"), QJsonArray{} } });
+    bool done = false;
+    QObject::connect(&api, &ServerApi::orgsReady, [&] { done = true; });
+    api.fetchOrgs();
+    ASSERT_TRUE(waitFor([&] { return done; }));
+    // A POST too.
+    http.reply("/api/layouts", 200, { { QStringLiteral("id"), QStringLiteral("L9") }, { QStringLiteral("title"), QStringLiteral("T") } });
+    bool published = false;
+    QObject::connect(&api, &ServerApi::published, [&] { published = true; });
+    api.publishLayout(QStringLiteral("T"), QByteArray("<Map/>"), {}, {});
+    ASSERT_TRUE(waitFor([&] { return published; }));
+    ASSERT_EQ(http.requests.size(), 2u);
+    for (const auto& r : http.requests) EXPECT_EQ(r.userAgent, userAgent());
+}

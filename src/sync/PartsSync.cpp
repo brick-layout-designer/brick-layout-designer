@@ -1,5 +1,7 @@
 #include "PartsSync.h"
 
+#include "ServerApi.h"
+
 #include <QCryptographicHash>
 #include <QDirIterator>
 #include <QFile>
@@ -67,6 +69,7 @@ bool PartsSync::safeRelativePath(const QString& path) {
 
 QNetworkReply* PartsSync::get(const QUrl& url) {
     QNetworkRequest req(url);
+    req.setHeader(QNetworkRequest::UserAgentHeader, userAgent());
     if (!token_.isEmpty() && url.host() == server_.host() && url.port() == server_.port())
         req.setRawHeader("Authorization", "Bearer " + token_.toUtf8());
     return net_.get(req);

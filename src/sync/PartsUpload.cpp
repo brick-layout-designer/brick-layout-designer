@@ -1,5 +1,7 @@
 #include "PartsUpload.h"
 
+#include "ServerApi.h"
+
 #include "core/LayerBrick.h"
 #include "core/Map.h"
 
@@ -111,6 +113,7 @@ void PartsUpload::getCatalog(std::function<void(const QSet<QString>&)> done) {
     QUrl url = server_;
     url.setPath(QStringLiteral("/api/parts/catalog"));
     QNetworkRequest req(url);
+    req.setHeader(QNetworkRequest::UserAgentHeader, userAgent());
     req.setRawHeader("Authorization", "Bearer " + token_.toUtf8());
     QNetworkReply* r = net_.get(req);
     connect(r, &QNetworkReply::finished, this, [this, r, done = std::move(done)] {
@@ -172,6 +175,7 @@ void PartsUpload::uploadNext() {
     QUrl url = server_;
     url.setPath(QStringLiteral("/api/custom-parts"));
     QNetworkRequest req(url);
+    req.setHeader(QNetworkRequest::UserAgentHeader, userAgent());
     req.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
     req.setRawHeader("Authorization", "Bearer " + token_.toUtf8());
     QNetworkReply* r = net_.post(req, QJsonDocument(body).toJson(QJsonDocument::Compact));

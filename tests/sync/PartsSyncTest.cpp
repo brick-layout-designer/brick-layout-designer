@@ -4,6 +4,7 @@
 // retry what failed next time.
 
 #include "PartsSync.h"
+#include "ServerApi.h"
 #include "FakeHttp.h"
 
 #include <gtest/gtest.h>
@@ -104,7 +105,10 @@ TEST(PartsSync, DownloadsWhatChangedAndSkipsWhatDidnt) {
     EXPECT_EQ(read(dir.filePath(QStringLiteral("libs/club/3001.gif"))), kGif);
     EXPECT_EQ(read(dir.filePath(QStringLiteral("custom/MY.1.xml"))), kCustomXml);
     EXPECT_EQ(read(dir.filePath(QStringLiteral("custom/MY.1.png"))), kPng);
-    for (const auto& r : http.requests) EXPECT_EQ(r.authorization, QByteArray("Bearer bld_pat_abc"));
+    for (const auto& r : http.requests) {
+        EXPECT_EQ(r.authorization, QByteArray("Bearer bld_pat_abc"));
+        EXPECT_EQ(r.userAgent, userAgent());  // so a server's filters can tell the app apart
+    }
 
     // Nothing changed on the server: only the manifest is read.
     const auto before = http.requests.size();
