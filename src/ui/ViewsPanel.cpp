@@ -39,26 +39,35 @@ public:
         QStyleOptionViewItem o(option);
         initStyleOption(&o, index);
         const QString name = o.text;
-        o.text.clear();
-        const QWidget* w = o.widget;
-        QStyle* style = w ? w->style() : QApplication::style();
-        style->drawControl(QStyle::CE_ItemViewItem, &o, p, w);
-
         const bool selected = o.state & QStyle::State_Selected;
-        const QRect r = o.rect.adjusted(10, 6, -10, -6);
+        const bool hovered = o.state & QStyle::State_MouseOver;
+        p->save();
+        p->setRenderHint(QPainter::Antialiasing);
+        // The picked view: a soft accent card, like the web's row.
+        const QRectF card = QRectF(o.rect).adjusted(1.5, 1.5, -1.5, -1.5);
+        if (selected) {
+            QColor fill = o.palette.color(QPalette::Highlight);
+            fill.setAlphaF(0.14);
+            p->setPen(QPen(o.palette.color(QPalette::Highlight), 1.2));
+            p->setBrush(fill);
+            p->drawRoundedRect(card, 8, 8);
+        } else if (hovered) {
+            p->setPen(Qt::NoPen);
+            p->setBrush(o.palette.color(QPalette::AlternateBase));
+            p->drawRoundedRect(card, 8, 8);
+        }
+        const QRect r = o.rect.adjusted(12, 7, -12, -7);
         QFont bold = o.font;
         bold.setBold(true);
-        p->save();
         p->setFont(bold);
-        p->setPen(o.palette.color(selected ? QPalette::HighlightedText : QPalette::Text));
+        p->setPen(o.palette.color(QPalette::Text));
         const QFontMetrics fmBold(bold);
         p->drawText(QRect(r.left(), r.top(), r.width(), fmBold.height()), Qt::AlignLeft | Qt::AlignVCenter,
                     fmBold.elidedText(name, Qt::ElideRight, r.width()));
         QFont small = o.font;
         small.setPointSizeF(std::max(7.0, o.font.pointSizeF() * 0.9));
         p->setFont(small);
-        QColor muted = o.palette.color(selected ? QPalette::HighlightedText : QPalette::PlaceholderText);
-        p->setPen(muted);
+        p->setPen(o.palette.color(QPalette::PlaceholderText));
         const QFontMetrics fmSmall(small);
         p->drawText(QRect(r.left(), r.top() + fmBold.height() + 2, r.width(), fmSmall.height()),
                     Qt::AlignLeft | Qt::AlignVCenter,
@@ -66,12 +75,11 @@ public:
         p->restore();
     }
 
-    QSize sizeHint(const QStyleOptionViewItem& option, const QModelIndex& index) const override {
-        QSize s = QStyledItemDelegate::sizeHint(option, index);
+    QSize sizeHint(const QStyleOptionViewItem& option, const QModelIndex&) const override {
         QFont bold = option.font;
         bold.setBold(true);
-        const int h = QFontMetrics(bold).height() + QFontMetrics(option.font).height() + 14;
-        return { s.width(), std::max(h, 44) };
+        const int h = QFontMetrics(bold).height() + QFontMetrics(option.font).height() + 16;
+        return { 120, std::max(h, 44) };
     }
 };
 
@@ -118,6 +126,8 @@ ViewsPanel::ViewsPanel(QWidget* parent) : QDockWidget(tr("Views"), parent) {
     list_->setSelectionMode(QAbstractItemView::SingleSelection);
     list_->setUniformItemSizes(true);
     list_->setFrameShape(QFrame::NoFrame);
+    list_->setMouseTracking(true);  // the hovered row lights up
+    list_->setSpacing(1);
     list_->setMinimumHeight(60);
     col->addWidget(list_, 1);
 

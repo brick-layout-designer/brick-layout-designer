@@ -94,7 +94,6 @@ QFrame#Segmented QPushButton:checked { background: @panel; color: @ink; font-wei
 QFrame#ViewIndicator { background: @panel; border: 1px solid @line; border-radius: 16px; }
 QFrame#ViewIndicator QPushButton { background: transparent; border: none; color: @atext; font-weight: 600; padding: 4px 10px; }
 QFrame#ViewIndicator QPushButton:hover { background: @soft; }
-QListWidget#ViewList::item { border-radius: @rcpx; }
 QPushButton { background: @panel; color: @ink; border: 1px solid @border; border-radius: @rcpx; padding: 6px 14px; min-height: 20px; }
 QPushButton:hover { background: @soft; }
 QPushButton:pressed { background: @line; }

@@ -237,6 +237,7 @@ SharePictureDialog::SharePictureDialog(Input input, QWidget* parent) : QDialog(p
         choiceBox_->setCurrentIndex(std::max(0, at));
     }
     choose(choice());
+    choiceBox_->setFocus();  // not the "?" first
 }
 
 SharePictureDialog::~SharePictureDialog() = default;
