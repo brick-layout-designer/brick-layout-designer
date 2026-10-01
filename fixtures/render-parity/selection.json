@@ -1,0 +1,40 @@
+{
+  "about": "How a selection looks in both apps (web render/selectionStyle.ts, desktop ui/SelectionStyle.h). Px are scene px at zoom 1 except the part outline and handle stroke widths, which are screen px. Same file in both repos.",
+  "part": {
+    "padPx": 1,
+    "outer": "rgba(0,0,0,0.9)",
+    "outerWidth": 5,
+    "innerWidth": 2.5,
+    "tint": "#FFD700",
+    "fillAlpha": 77,
+    "snapStroke": "rgb(80,255,120)",
+    "snapFill": "rgba(80,255,120,0.353)"
+  },
+  "text": {
+    "glow": "#ffcc00",
+    "blur": 8
+  },
+  "ruler": {
+    "halo": "rgba(255,215,0,0.5)",
+    "haloWidth": [
+      {
+        "thickness": 1,
+        "width": 6
+      },
+      {
+        "thickness": 4,
+        "width": 8
+      },
+      {
+        "thickness": 0.5,
+        "width": 6
+      }
+    ],
+    "handle": {
+      "radius": 6,
+      "fill": "rgb(255,215,0)",
+      "stroke": "rgb(20,20,20)",
+      "strokeWidth": 1.5
+    }
+  }
+}

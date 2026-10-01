@@ -621,6 +621,8 @@ void addRulerLayer(const core::LayerRuler& L, LayerSink& sink, int layerIndex,
                 selectableLine->setData(kBrickDataLayerIndex, layerIndex);
                 selectableLine->setData(kBrickDataGuid,       r.guid);
                 selectableLine->setData(kBrickDataKind,       QStringLiteral("ruler"));
+                selectableLine->setData(SceneBuilder::kRulerBandRole, QLineF(offsetP1, offsetP2));
+                selectableLine->setData(SceneBuilder::kRulerThicknessRole, static_cast<double>(r.lineThickness));
             }
 
             // Vanilla BlueBrick draws perpendicular tick caps on each end
@@ -721,6 +723,8 @@ void addRulerLayer(const core::LayerRuler& L, LayerSink& sink, int layerIndex,
             el->setData(kBrickDataLayerIndex, layerIndex);
             el->setData(kBrickDataGuid,       r.guid);
             el->setData(kBrickDataKind,       QStringLiteral("ruler"));
+            el->setData(SceneBuilder::kRulerBandRole, el->rect());
+            el->setData(SceneBuilder::kRulerThicknessRole, static_cast<double>(r.lineThickness));
             sink.add(el);
 
             // Radius label to the right of centre.

@@ -14,6 +14,7 @@
 //   RenderGoldens. BLD_PARITY_OUT=<dir> writes the pictures there.
 
 #include "ui/SavedViews.h"
+#include "ui/SelectionStyle.h"
 
 #include "core/Map.h"
 #include "core/Module.h"
@@ -197,6 +198,43 @@ TEST(RenderParity, SceneFadesAreaCellsOnce) {
         EXPECT_DOUBLE_EQ(r->opacity(), 1.0);
     }
     EXPECT_EQ(cells, 3);
+}
+
+namespace {
+// "rgb(r,g,b)" / "rgba(r,g,b,a)" as a colour, alpha rounded to 0..255.
+QColor css(const QJsonValue& v) {
+    const QString t = v.toString();
+    const QStringList n = t.mid(t.indexOf(QLatin1Char('(')) + 1).chopped(1).split(QLatin1Char(','));
+    QColor c(n.value(0).toInt(), n.value(1).toInt(), n.value(2).toInt());
+    if (n.size() == 4) c.setAlpha(static_cast<int>(std::lround(n[3].toDouble() * 255)));
+    return c;
+}
+}  // namespace
+
+TEST(RenderParity, SelectionMatchesTheSharedDescription) {
+    using namespace ui::selection;
+    const QJsonObject spec = readJson(kDir + QStringLiteral("/selection.json"));
+    const QJsonObject part = spec[QLatin1String("part")].toObject();
+    EXPECT_EQ(kPartPadPx, part[QLatin1String("padPx")].toDouble());
+    EXPECT_EQ(kPartOuter, css(part[QLatin1String("outer")]));
+    EXPECT_EQ(kPartOuterWidth, part[QLatin1String("outerWidth")].toDouble());
+    EXPECT_EQ(kPartInnerWidth, part[QLatin1String("innerWidth")].toDouble());
+    EXPECT_EQ(kPartTint.name().toUpper(), part[QLatin1String("tint")].toString());
+    EXPECT_EQ(kPartFillAlpha, part[QLatin1String("fillAlpha")].toInt());
+    EXPECT_EQ(kSnapStroke, css(part[QLatin1String("snapStroke")]));
+    EXPECT_EQ(kSnapFill, css(part[QLatin1String("snapFill")]));
+    const QJsonObject text = spec[QLatin1String("text")].toObject();
+    EXPECT_EQ(kTextGlow.name(), text[QLatin1String("glow")].toString());
+    EXPECT_EQ(kTextGlowBlur, text[QLatin1String("blur")].toDouble());
+    const QJsonObject ruler = spec[QLatin1String("ruler")].toObject();
+    EXPECT_EQ(kRulerHalo, css(ruler[QLatin1String("halo")]));
+    for (const QJsonValue& v : ruler[QLatin1String("haloWidth")].toArray())
+        EXPECT_EQ(rulerHaloWidth(v[QLatin1String("thickness")].toDouble()), v[QLatin1String("width")].toDouble());
+    const QJsonObject handle = ruler[QLatin1String("handle")].toObject();
+    EXPECT_EQ(kHandleRadius, handle[QLatin1String("radius")].toDouble());
+    EXPECT_EQ(kHandleFill, css(handle[QLatin1String("fill")]));
+    EXPECT_EQ(kHandleStroke, css(handle[QLatin1String("stroke")]));
+    EXPECT_EQ(kHandleStrokeWidth, handle[QLatin1String("strokeWidth")].toDouble());
 }
 
 // The drawn scene: one dashed frame and one outlined name per module, no

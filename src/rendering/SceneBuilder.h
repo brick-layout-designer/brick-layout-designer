@@ -32,6 +32,11 @@ QColor areaCellColor(const QColor& cell, int transparency);
 class SceneBuilder {
 public:
     static constexpr int kPixelsPerStud = 8;
+    // A ruler's selectable item carries its line (QLineF, the offset line)
+    // or circle (QRectF) in scene px, and its line thickness, for the
+    // selection band.
+    static constexpr int kRulerBandRole = 10;
+    static constexpr int kRulerThicknessRole = 11;
 
     SceneBuilder(QGraphicsScene& scene, parts::PartsLibrary& parts);
 

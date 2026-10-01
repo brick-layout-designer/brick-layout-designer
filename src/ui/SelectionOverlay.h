@@ -2,6 +2,7 @@
 
 #include <QColor>
 #include <QGraphicsItem>
+#include <QLineF>
 #include <QList>
 #include <QPainterPath>
 #include <QPointF>
@@ -32,10 +33,20 @@ public:
     void paint(QPainter* p, const QStyleOptionGraphicsItem*, QWidget*) override;
 
     void setOutlines(QList<QPolygonF> polys);
+    // A selected ruler: a see-through band along its line or circle.
+    struct RulerBand {
+        bool circle = false;
+        QLineF line;      // linear: the offset line, scene px
+        QPointF centre;   // circular
+        double radius = 0;
+        double width = 0;  // scene px
+    };
+    void setRulerBands(QList<RulerBand> bands);
     void setSnapState(bool active, QPointF snapPoint);
 
 private:
     QList<QPolygonF> polys_;
+    QList<RulerBand> bands_;
     QRectF  bounds_;
     bool    snapActive_ = false;
     QPointF snapPoint_;
