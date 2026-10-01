@@ -110,6 +110,15 @@ QFrame#LoadingCard QProgressBar { background: @soft; border: none; border-radius
 QFrame#LoadingCard QProgressBar::chunk { background: @amain; border-radius: 4px; }
 QFrame#LoadingCard QToolButton#LoadingHide { border: none; border-radius: @rcpx; color: @muted; padding: 4px 8px; }
 QFrame#LoadingCard QToolButton#LoadingHide:hover { background: @soft; color: @ink; }
+QFrame#NoticeCard { background: @panel; border: 1px solid @line; border-radius: @rcardpx; }
+QFrame#NoticeCard[important="true"] { border: 2px solid @danger; }
+QFrame#NoticeCard QLabel#NoticeTitle { color: @ink; font-weight: 700; }
+QFrame#NoticeCard[important="true"] QLabel#NoticeTitle { color: @danger; }
+QFrame#NoticeCard QLabel#NoticeText { color: @ink; }
+QFrame#NoticeCard QScrollArea#NoticeDetails, QFrame#NoticeCard QScrollArea#NoticeDetails > QWidget > QWidget { background: @soft; border-radius: @rcpx; }
+QFrame#NoticeCard QScrollArea#NoticeDetails QLabel { color: @ink; padding: 8px; }
+QFrame#NoticeCard QToolButton#NoticeClose { border: none; border-radius: @rcpx; color: @muted; padding: 4px 8px; }
+QFrame#NoticeCard QToolButton#NoticeClose:hover { background: @soft; color: @ink; }
 QPushButton { background: @panel; color: @ink; border: 1px solid @border; border-radius: @rcpx; padding: 6px 14px; min-height: 20px; }
 QPushButton:hover { background: @soft; }
 QPushButton:pressed { background: @line; }

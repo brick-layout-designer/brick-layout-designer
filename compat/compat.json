@@ -1,0 +1,76 @@
+{
+  "about": "Which desktop apps and servers work together. Kept identical in the web repo (compat/compat.json) and the desktop repo (compat/compat.json); both test suites check their code against it. Change both copies in the same change.",
+  "desktop": {
+    "minimum": "1.2.0",
+    "recommended": "1.3.0",
+    "why": {
+      "1.2.0": "The first version number any desktop that can connect to a server reports: 1.2.0 and earlier releases have no Connect to Server at all, and every live-sync build before 1.3.0 still calls itself 1.2.0.",
+      "1.3.0": "The first release with live sync, the token fix that lets it download a server's parts (needs server #140, which every server with the partFilesWithToken feature has), and these version checks."
+    },
+    "downloadUrl": "https://github.com/brick-layout-designer/brick-layout-designer/releases/latest",
+    "userAgentPattern": "^BrickLayoutDesigner/([0-9][0-9A-Za-z.+-]{0,31}) \\(desktop\\)"
+  },
+  "doc": { "schemaVersion": 1, "minReadable": 1 },
+  "sidecar": { "schemaVersion": 1 },
+  "layoutFile": { "version": 1 },
+  "protocols": ["y-websocket/1"],
+  "features": [
+    { "id": "liveSync", "label": "Editing a layout together, live" },
+    { "id": "signIn", "label": "Signing in from the desktop app" },
+    { "id": "publish", "label": "Putting a layout on the server" },
+    { "id": "clubs", "label": "Your clubs" },
+    { "id": "venues", "label": "The venue library" },
+    { "id": "partsManifest", "label": "Getting the server's parts" },
+    { "id": "partFilesWithToken", "label": "Downloading the server's part pictures" },
+    { "id": "uploadParts", "label": "Sending your own parts to the server" },
+    { "id": "preferences", "label": "Your settings on every computer" },
+    { "id": "ownerTags", "label": "Showing whose layouts and venues they are" },
+    { "id": "limits", "label": "Usage limits, with plain messages when one is reached" }
+  ],
+  "serverFeatures": ["liveSync", "signIn", "publish", "clubs", "venues", "partsManifest", "partFilesWithToken", "uploadParts", "preferences", "ownerTags", "limits"],
+  "desktopUses": ["liveSync", "signIn", "publish", "clubs", "venues", "partsManifest", "partFilesWithToken", "uploadParts", "preferences", "ownerTags"],
+  "assumedWhenUnlisted": ["liveSync", "signIn"],
+  "cases": {
+    "versionCompare": [
+      { "a": "1.3.0", "b": "1.2.0", "cmp": 1 },
+      { "a": "v1.2.0", "b": "1.2.0", "cmp": 0 },
+      { "a": "1.2", "b": "1.2.0", "cmp": 0 },
+      { "a": "1.10.0", "b": "1.9.9", "cmp": 1 },
+      { "a": "2.0.0", "b": "10.0.0", "cmp": -1 },
+      { "a": "1.3.0-beta.1", "b": "1.3.0", "cmp": -1 },
+      { "a": "1.3.0", "b": "1.3.0-rc.2", "cmp": 1 },
+      { "a": "1.3.0+build.7", "b": "1.3.0", "cmp": 0 },
+      { "a": "junk", "b": "1.0.0", "cmp": null },
+      { "a": "1.0.0", "b": "", "cmp": null }
+    ],
+    "userAgent": [
+      { "ua": "BrickLayoutDesigner/1.3.0 (desktop)", "version": "1.3.0" },
+      { "ua": "BrickLayoutDesigner/1.2.0-dev (desktop) Qt/6.8", "version": "1.2.0-dev" },
+      { "ua": "BrickLayoutDesigner/1.3.0", "version": null },
+      { "ua": "Mozilla/5.0 (X11; Linux x86_64) Firefox/131.0", "version": null },
+      { "ua": "", "version": null }
+    ],
+    "standing": [
+      { "app": "1.1.0", "minimum": "1.2.0", "recommended": "1.3.0", "expect": "updateRequired" },
+      { "app": "1.2.0", "minimum": "1.2.0", "recommended": "1.3.0", "expect": "updateSuggested" },
+      { "app": "1.3.0-beta.1", "minimum": "1.2.0", "recommended": "1.3.0", "expect": "updateSuggested" },
+      { "app": "1.3.0", "minimum": "1.2.0", "recommended": "1.3.0", "expect": "ok" },
+      { "app": "1.4.2", "minimum": "1.2.0", "recommended": "1.3.0", "expect": "ok" },
+      { "app": "1.3.0", "minimum": "1.4.0", "recommended": "1.3.0", "expect": "updateRequired" },
+      { "app": "dev", "minimum": "1.2.0", "recommended": "1.3.0", "expect": "ok" },
+      { "app": "1.0.0", "minimum": "", "recommended": "", "expect": "ok" }
+    ],
+    "missingFeatures": [
+      { "server": ["liveSync", "signIn", "publish", "clubs", "venues", "partsManifest", "partFilesWithToken", "uploadParts", "preferences", "ownerTags", "limits"], "expect": [] },
+      { "server": ["liveSync", "signIn", "publish", "clubs", "partsManifest", "partFilesWithToken", "uploadParts", "ownerTags", "somethingNew"], "expect": ["venues", "preferences"] },
+      { "server": null, "expect": ["publish", "clubs", "venues", "partsManifest", "partFilesWithToken", "uploadParts", "preferences", "ownerTags"] }
+    ],
+    "docReadable": [
+      { "doc": null, "schemaVersion": 1, "minReadable": 1, "expect": true },
+      { "doc": 1, "schemaVersion": 1, "minReadable": 1, "expect": true },
+      { "doc": 2, "schemaVersion": 1, "minReadable": 1, "expect": false },
+      { "doc": 1, "schemaVersion": 3, "minReadable": 2, "expect": false },
+      { "doc": 2, "schemaVersion": 3, "minReadable": 2, "expect": true }
+    ]
+  }
+}

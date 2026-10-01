@@ -394,6 +394,18 @@ QByteArray SyncDoc::writeMap(const core::Map& map) {
     return d.ops == 0 ? QByteArray() : update;
 }
 
+QByteArray SyncDoc::setMeta(const QString& key, const QJsonValue& value) {
+    const QByteArray before = stateVector();
+    Impl& d = *d_;
+    d.txn = ydoc_write_transaction(d.doc, 0, nullptr);
+    const YInput v = d.arena.plain(value);
+    ymap_insert(d.meta, d.txn, d.arena.str(key), &v);
+    ytransaction_commit(d.txn);
+    d.txn = nullptr;
+    d.arena = Arena();
+    return diffSince(before);
+}
+
 QByteArray SyncDoc::undo() {
     const QByteArray before = stateVector();
     if (!yundo_manager_undo(d_->undo)) return {};

@@ -6,6 +6,8 @@
 #include "LayerPanel.h"
 #include "LiveLayout.h"
 #include "LoadingCard.h"
+#include "NoticeArea.h"
+#include "core/Version.h"
 #include "MapView.h"
 #include "MapViewInternal.h"
 
@@ -29,6 +31,7 @@
 #include <QAction>
 #include <QBuffer>
 #include <QDir>
+#include <QCoreApplication>
 #include <QDesktopServices>
 #include <QFileInfo>
 #include <QGraphicsItem>
@@ -213,6 +216,7 @@ void MainWindow::offerPartsUpload(bool quiet) {
 void MainWindow::openLive(const sync::ConnectResult& r) {
     liveServer_ = r.server;
     liveToken_ = r.token;
+    liveInfo_ = r.info;
     sync::ServerApi api;
     if (live_->active()) live_->close();
     api.setBase(r.server);
@@ -236,7 +240,8 @@ void MainWindow::openLive(const sync::ConnectResult& r) {
             });
     connect(who, &sync::ServerApi::requestFailed, who, &QObject::deleteLater);
     who->fetchCurrentUser();
-    syncServerParts(r.server, r.token);
+    // Only what the server has (servers that don't say: everything, as before).
+    if (r.info.has(QStringLiteral("partsManifest"))) syncServerParts(r.server, r.token);
     liveAskedParts_.clear();
     liveLayoutSeen_ = false;
     liveLocalParts_.clear();
@@ -260,14 +265,48 @@ void MainWindow::openLive(const sync::ConnectResult& r) {
                     tr("Your settings didn't sync with the server. Sign in again to sync them."), 6000);
         });
     }
-    prefsSync_->start(r.server, r.token);
+    if (r.info.has(QStringLiteral("preferences"))) prefsSync_->start(r.server, r.token);
+    else prefsSync_->stop();
+    showServerNotices(r.info);
     updateLiveUi();
+}
+
+void MainWindow::showServerNotices(const sync::ServerInfo& info) {
+    const QString host = liveServer_.host();
+    const QString mine = QCoreApplication::applicationVersion();
+    if (info.standing(mine) == sync::Standing::UpdateSuggested) {
+        const QUrl url(info.downloadUrl.isEmpty() ? core::desktopDownloadUrl() : info.downloadUrl);
+        notices_->showNotice(
+            QStringLiteral("server-update"), tr("Please update Brick Layout Designer"),
+            tr("%1 works best with version %2 or newer, and you have %3. Everything still works for now.")
+                .arg(host, info.desktopRecommended, mine),
+            { NoticeAction{ tr("Download"), [url] { QDesktopServices::openUrl(url); }, true },
+              NoticeAction{ tr("Later"), {} } });
+    } else {
+        notices_->hideNotice(QStringLiteral("server-update"));
+    }
+    const QStringList missing = info.missing();
+    if (missing.isEmpty()) {
+        notices_->hideNotice(QStringLiteral("server-features"));
+        return;
+    }
+    QStringList names;
+    for (const QString& f : missing) names << QStringLiteral("• ") + sync::featureLabel(f);
+    notices_->showNotice(
+        QStringLiteral("server-features"),
+        info.features ? tr("This server can't do everything yet") : tr("This server may not do everything yet"),
+        (info.features ? tr("%1 is running an older version, so these aren't available there:").arg(host)
+                       : tr("%1 hasn't been updated in a while, so these may not work there:").arg(host)) +
+            QLatin1Char('\n') + names.join(QLatin1Char('\n')) + QLatin1Char('\n') +
+            tr("Everything else works as usual. Whoever runs the server can update it."),
+        { NoticeAction{ tr("OK"), {} } });
 }
 
 void MainWindow::loadLivePartsCatalog() {
     liveCatalogReady_ = false;
     liveServerParts_.clear();
     if (!live_->active() || liveToken_.isEmpty() || liveLocalParts_.isEmpty()) return;
+    if (!liveInfo_.has(QStringLiteral("uploadParts"))) return;  // nothing to offer on such a server
     auto* catalog = new sync::PartsUpload(liveServer_, liveToken_, this);
     const QUrl server = liveServer_;
     connect(catalog, &sync::PartsUpload::catalogReady, this, [this, catalog, server](const QSet<QString>& known) {

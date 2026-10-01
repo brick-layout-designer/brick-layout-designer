@@ -98,6 +98,12 @@ public:
         for (QWebSocket* p : peers) p->sendBinaryMessage(protocol::encode(Kind::Update, update));
     }
 
+    // Another writer sets a meta field (e.g. a newer app's schemaVersion).
+    void remoteMeta(const QString& key, const QJsonValue& value) {
+        const QByteArray update = doc.setMeta(key, value);
+        for (QWebSocket* p : peers) p->sendBinaryMessage(protocol::encode(Kind::Update, update));
+    }
+
     void dropAll(QWebSocketProtocol::CloseCode code, const QString& reason = {}) {
         for (QWebSocket* p : std::vector<QWebSocket*>(peers)) p->close(code, reason);
     }

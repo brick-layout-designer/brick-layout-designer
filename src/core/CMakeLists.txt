@@ -1,5 +1,7 @@
 add_library(bld_core STATIC
     Map.cpp
+    Version.h
+    Version.cpp
     Ids.h
     Geometry.h
     Map.h

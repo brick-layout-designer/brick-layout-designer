@@ -2,6 +2,7 @@
 
 #include "OwnerFilter.h"
 #include "TokenStore.h"
+#include "core/Version.h"
 #include "ui/help/HelpButton.h"
 
 #include <QComboBox>
@@ -154,6 +155,12 @@ ConnectDialog::ConnectDialog(ServerApi& api, TokenStore& tokens, std::function<v
     message_->setObjectName(QStringLiteral("message"));
     message_->setWordWrap(true);
     col->addWidget(message_);
+    updateBtn_ = new QPushButton(tr("Download the New Version"), this);
+    updateBtn_->setObjectName(QStringLiteral("downloadUpdate"));
+    updateBtn_->setProperty("accent", true);
+    updateBtn_->hide();
+    col->addWidget(updateBtn_, 0, Qt::AlignLeft);
+    connect(updateBtn_, &QPushButton::clicked, this, [this] { openUrl_(downloadUrl_); });
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Cancel, this);
     col->addWidget(buttons);
 
@@ -178,7 +185,7 @@ ConnectDialog::ConnectDialog(ServerApi& api, TokenStore& tokens, std::function<v
     connect(&api_, &ServerApi::orgsReady, this, &ConnectDialog::showOrgs);
     connect(&api_, &ServerApi::published, this, [this](const QString& id, const QString& title) {
         if (purpose_ != Purpose::Publish) return;
-        result_ = ConnectResult{ server_, token_, id, title, false };
+        result_ = ConnectResult{ server_, token_, id, title, false, info_ };
         accept();
     });
     connect(&api_, &ServerApi::venueReady, this,
@@ -216,6 +223,14 @@ void ConnectDialog::setAddress(const QString& address) {
 
 void ConnectDialog::showMessage(const QString& text) {
     message_->setText(text);
+    updateBtn_->hide();
+}
+
+void ConnectDialog::showUpdateNeeded(const QString& text, const QString& downloadUrl) {
+    message_->setText(text);
+    downloadUrl_ = QUrl(downloadUrl.isEmpty() ? core::desktopDownloadUrl() : downloadUrl);
+    updateBtn_->show();
+    connectBtn_->setEnabled(true);
 }
 
 void ConnectDialog::connectToServer() {
@@ -233,9 +248,31 @@ void ConnectDialog::connectToServer() {
 }
 
 void ConnectDialog::onVersion(const ServerInfo& info) {
+    info_ = info;
+    const QString mine = QCoreApplication::applicationVersion();
+    // Too old for this server: stop here, before signing in or syncing anything.
+    if (info.standing(mine) == Standing::UpdateRequired) {
+        showUpdateNeeded(tr("This server needs Brick Layout Designer %1 or newer, and you have %2. "
+                            "Download the new version, install it, then connect again.")
+                             .arg(info.desktopMinimum, mine),
+                         info.downloadUrl);
+        return;
+    }
     if (!info.compatible()) {
+        showUpdateNeeded(tr("This server keeps its layouts in a newer form than this version of Brick Layout "
+                            "Designer can read. Download the new version, then connect again."),
+                         info.downloadUrl);
+        return;
+    }
+    // A server without what this window is for.
+    if (purpose_ == Purpose::DownloadVenues && !info.has(QStringLiteral("venues"))) {
         connectBtn_->setEnabled(true);
-        showMessage(tr("This server (version %1) needs a newer Brick Layout Designer.").arg(info.version));
+        showMessage(tr("This server doesn't have a venue library yet."));
+        return;
+    }
+    if (purpose_ == Purpose::Publish && !info.has(QStringLiteral("publish"))) {
+        connectBtn_->setEnabled(true);
+        showMessage(tr("This server can't take layouts from the desktop app yet."));
         return;
     }
     QSettings().setValue(QLatin1String(kAddressKey), address_->text().trimmed());
@@ -418,7 +455,7 @@ void ConnectDialog::openSelected() {
     }
     const auto* item = items.first();
     result_ = ConnectResult{ server_, token_, item->data(TitleCol, Qt::UserRole).toString(),
-                             item->text(TitleCol), item->data(AccessCol, Qt::UserRole).toBool() };
+                             item->text(TitleCol), item->data(AccessCol, Qt::UserRole).toBool(), info_ };
     accept();
 }
 

@@ -8,6 +8,7 @@
 
 #include <QByteArray>
 #include <QJsonObject>
+#include <QJsonValue>
 #include <QString>
 
 #include <memory>
@@ -44,6 +45,9 @@ public:
     // are left alone. Returns the change as a v1 update, empty when the
     // document already matched.
     QByteArray writeMap(const core::Map& map);
+    // Set one meta field (as another writer would, e.g. a newer app stamping
+    // meta.schemaVersion); not an undoable step. Returns the update to send.
+    QByteArray setMeta(const QString& key, const QJsonValue& value);
 
     // Undo / redo this desktop's own writeMap changes only: other people's
     // edits (applied with applyUpdate) are never undone, and undoing a

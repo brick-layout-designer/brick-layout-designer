@@ -59,6 +59,8 @@ add_library(bld_ui STATIC
     ViewsPanel.cpp
     ViewsPanel.h
     LoadingCard.cpp
+    NoticeArea.cpp
+    NoticeArea.h
     LoadingCard.h
     LibraryPathsDialog.cpp
     LibraryPathsDialog.h

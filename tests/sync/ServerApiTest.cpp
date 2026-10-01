@@ -78,6 +78,51 @@ TEST(ServerApi, ChecksTheServerSpeaksOurProtocolAndSchema) {
     EXPECT_FALSE((ServerInfo{ {}, 1, { QStringLiteral("y-websocket/2") } }).compatible());
 }
 
+TEST(ServerApi, ReadsTheDesktopVersionsAndFeaturesAServerWorksWith) {
+    FakeHttp http;
+    ServerApi api;
+    api.setBase(http.base());
+    std::optional<ServerInfo> info;
+    QObject::connect(&api, &ServerApi::versionReady, [&](const ServerInfo& i) { info = i; });
+    http.reply("/api/version", 200,
+               { { QStringLiteral("version"), QStringLiteral("nightly-abc") },
+                 { QStringLiteral("schemaVersion"), 1 },
+                 { QStringLiteral("protocols"), QJsonArray{ QStringLiteral("y-websocket/1") } },
+                 { QStringLiteral("desktop"),
+                   QJsonObject{ { QStringLiteral("minimum"), QStringLiteral("1.2.0") },
+                                { QStringLiteral("recommended"), QStringLiteral("1.3.0") },
+                                { QStringLiteral("downloadUrl"), QStringLiteral("https://example.org/get") } } },
+                 { QStringLiteral("doc"), QJsonObject{ { QStringLiteral("schemaVersion"), 1 }, { QStringLiteral("minReadable"), 1 } } },
+                 { QStringLiteral("features"), QJsonArray{ QStringLiteral("liveSync"), QStringLiteral("venues") } } });
+    api.fetchVersion();
+    ASSERT_TRUE(waitFor([&] { return info.has_value(); }));
+    EXPECT_EQ(info->desktopMinimum, QStringLiteral("1.2.0"));
+    EXPECT_EQ(info->desktopRecommended, QStringLiteral("1.3.0"));
+    EXPECT_EQ(info->downloadUrl, QStringLiteral("https://example.org/get"));
+    EXPECT_EQ(info->standing(QStringLiteral("1.1.0")), Standing::UpdateRequired);
+    EXPECT_EQ(info->standing(QStringLiteral("1.2.0")), Standing::UpdateSuggested);
+    EXPECT_EQ(info->standing(QStringLiteral("1.3.0")), Standing::Ok);
+    EXPECT_TRUE(info->has(QStringLiteral("venues")));
+    EXPECT_FALSE(info->has(QStringLiteral("preferences")));
+    EXPECT_TRUE(info->missing().contains(QStringLiteral("preferences")));
+    EXPECT_FALSE(info->missing().contains(QStringLiteral("venues")));
+    // No "limits" listed: this server doesn't refuse with limit_reached.
+    EXPECT_FALSE(info->hasLimits());
+    ServerInfo limited = *info;
+    limited.features->append(QStringLiteral("limits"));
+    EXPECT_TRUE(limited.hasLimits());
+    EXPECT_FALSE(ServerInfo{}.hasLimits());
+    // A server that reads only newer documents than this build writes.
+    ServerInfo strict = *info;
+    strict.docMinReadable = kDocSchemaVersion + 1;
+    EXPECT_FALSE(strict.compatible());
+    // A server from before these checks: nothing asked, everything assumed there.
+    ServerInfo old{ {}, 1, { QStringLiteral("y-websocket/1") } };
+    EXPECT_EQ(old.standing(QStringLiteral("0.1.0")), Standing::Ok);
+    EXPECT_TRUE(old.has(QStringLiteral("venues")));
+    EXPECT_TRUE(old.compatible());
+}
+
 TEST(ServerApi, DeviceSignInPollsUntilApproved) {
     FakeHttp http;
     ServerApi api;

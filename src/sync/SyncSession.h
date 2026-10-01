@@ -99,7 +99,8 @@ signals:
     void peersChanged();
     // Back in step with the server, with offline edits to resolve.
     void offlineEditsReady();
-    // The server ended the session for good (access revoked, layout gone).
+    // The server ended the session for good (access revoked, layout gone),
+    // or the layout is in a form this version can't read (kUnreadableDocCode).
     void ended(int code, const QString& reason);
 
 private:
