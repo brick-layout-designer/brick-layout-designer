@@ -10,6 +10,7 @@
 #include "edit/EditCommands.h"
 #include "parts/PartsLibrary.h"
 #include "ui/LiveLayout.h"
+#include "ui/LoadingCard.h"
 #include "ui/MainWindow.h"
 #include "ui/MapView.h"
 #include "ui/UpdateCheck.h"
@@ -18,6 +19,8 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QCryptographicHash>
+#include <QUuid>
 #include <QDir>
 #include <QFile>
 #include <QJsonArray>
@@ -451,4 +454,91 @@ TEST_F(MainWindowLiveServerParts, AFailedDownloadStaysInSightAndTryAgainFetchesT
 
     button->click();
     ASSERT_TRUE(waitFor([&] { return manifestGets() == 2 && !button->isVisibleTo(window_.get()); }));
+}
+
+namespace {
+
+// The server has 20 part files this computer doesn't.
+class MainWindowLiveDownloadCard : public MainWindowLive {
+protected:
+    static constexpr int kFiles = 20;
+    static QString serverParts() {
+        return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + QStringLiteral("/server-parts");
+    }
+    void beforeOpen() override {
+        // Files left by an earlier run would be skipped as up to date.
+        QDir(serverParts()).removeRecursively();
+        QJsonArray files;
+        for (int i = 0; i < kFiles; ++i) {
+            const QByteArray data = "<part>" + QByteArray::number(i) + "</part>";
+            const QString path = QStringLiteral("dl/p%1.xml").arg(i);
+            files.append(QJsonObject{
+                { QStringLiteral("path"), path },
+                { QStringLiteral("sha256"),
+                  QString::fromLatin1(QCryptographicHash::hash(data, QCryptographicHash::Sha256).toHex()) },
+                { QStringLiteral("size"), data.size() } });
+            http_.replyRaw("/parts/libraries/club/" + path.toUtf8(), 200, data, "text/xml");
+        }
+        // A new hash every run, so nothing is skipped as already fetched.
+        const QString hash = QUuid::createUuid().toString(QUuid::WithoutBraces);
+        http_.reply("/api/parts/manifest", 200,
+                    { { QStringLiteral("libraries"),
+                        QJsonArray{ QJsonObject{ { QStringLiteral("slug"), QStringLiteral("club") },
+                                                 { QStringLiteral("name"), QStringLiteral("Club parts") },
+                                                 { QStringLiteral("urlPrefix"), QStringLiteral("/parts/libraries/club/") },
+                                                 { QStringLiteral("hash"), hash } } } },
+                      { QStringLiteral("customParts"), QJsonArray{} } });
+        http_.reply("/api/parts/manifest/libraries/club", 200,
+                    { { QStringLiteral("slug"), QStringLiteral("club") },
+                      { QStringLiteral("urlPrefix"), QStringLiteral("/parts/libraries/club/") },
+                      { QStringLiteral("files"), files } });
+        // Write down what the download card says, every turn of the event loop.
+        sampler_.setInterval(0);
+        QObject::connect(&sampler_, &QTimer::timeout, [this] {
+            for (QWidget* w : QApplication::allWidgets()) {
+                if (w->objectName() != QStringLiteral("partsDownloadCard")) continue;
+                auto* card = static_cast<ui::LoadingCard*>(w);
+                const QString now = card->isVisibleTo(card->window())
+                                        ? card->title() + QLatin1Char('|') + card->count()
+                                        : QStringLiteral("hidden");
+                if (seen_.isEmpty() || seen_.last() != now) seen_ << now;
+            }
+        });
+        sampler_.start();
+    }
+    void TearDown() override {
+        sampler_.stop();
+        MainWindowLive::TearDown();
+        QStandardPaths::setTestModeEnabled(true);
+        QDir(serverParts()).removeRecursively();
+        QStandardPaths::setTestModeEnabled(false);
+    }
+    int fileGets() const {
+        int n = 0;
+        for (const auto& r : http_.requests)
+            if (r.path.startsWith("/parts/libraries/club/dl/")) ++n;
+        return n;
+    }
+    QTimer sampler_;
+    QStringList seen_;
+};
+
+}  // namespace
+
+TEST_F(MainWindowLiveDownloadCard, DownloadingServerPartsShowsACountThenGoesAway) {
+    auto* card = window_->findChild<ui::LoadingCard*>(QStringLiteral("partsDownloadCard"));
+    ASSERT_NE(card, nullptr);
+    ASSERT_TRUE(waitFor([&] { return fileGets() == kFiles && !card->isVisibleTo(window_.get()); }));
+    waitFor([] { return false; }, 50);
+    const QString all = seen_.join(QLatin1Char('\n'));
+    EXPECT_TRUE(seen_.contains(QStringLiteral("Checking the server's parts…|"))) << all.toStdString();
+    bool midway = false;
+    for (const QString& s : seen_) {
+        if (!s.startsWith(QStringLiteral("Downloading server parts…|"))) continue;
+        const QString count = s.section(QLatin1Char('|'), 1);
+        EXPECT_TRUE(count.endsWith(QStringLiteral(" of %1").arg(kFiles))) << all.toStdString();
+        midway |= count != QStringLiteral("%1 of %1").arg(kFiles);
+    }
+    EXPECT_TRUE(midway) << all.toStdString();
+    EXPECT_EQ(seen_.last(), QStringLiteral("hidden")) << all.toStdString();
 }

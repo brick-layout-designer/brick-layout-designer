@@ -134,11 +134,13 @@ bool MainWindow::openFile(const QString& path) {
         updateLiveUi();
     }
 #endif
+    mapView_->showOpening(tr("Reading the layout file."));
     if (isOtherMapFormat(path)) {
         auto ldraw = isTrackDesignerMap(path) ? import::readTrackDesignerMap(path, parts_)
                    : isFourDBrixMap(path)     ? import::readFourDBrixMap(path, parts_)
                                               : import::readLDrawMap(path, parts_);
         if (!ldraw.ok()) {
+            mapView_->hideOpening();
             QMessageBox::warning(this, tr("Open failed"), tr("%1\n\n%2").arg(path, ldraw.error));
             return false;
         }
@@ -161,6 +163,7 @@ bool MainWindow::openFile(const QString& path) {
     if (import::isLayoutFile(path)) {
         auto layout = import::readLayoutFile(path, layoutAssetDir());
         if (!layout.ok()) {
+            mapView_->hideOpening();
             QMessageBox::warning(this, tr("Open failed"), tr("%1\n\n%2").arg(path, layout.error));
             return false;
         }
@@ -173,6 +176,7 @@ bool MainWindow::openFile(const QString& path) {
     }
     auto result = saveload::readBbm(path);
     if (!result.ok()) {
+        mapView_->hideOpening();
         QMessageBox::warning(this, tr("Open failed"),
             tr("%1\n\n%2").arg(path, result.error));
         return false;

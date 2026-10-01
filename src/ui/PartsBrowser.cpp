@@ -1,4 +1,5 @@
 #include "PartsBrowser.h"
+#include "LoadingCard.h"
 #include "BudgetSession.h"
 
 #include "../core/Map.h"
@@ -25,6 +26,8 @@
 #include <QSet>
 #include <QSize>
 #include <QVBoxLayout>
+#include <QElapsedTimer>
+#include <QTimer>
 #include <QWidget>
 
 namespace bld::ui {
@@ -136,7 +139,12 @@ PartsBrowser::PartsBrowser(parts::PartsLibrary& lib, QWidget* parent)
     // squished into a tall/thin letterbox inside a fixed square cell.
     grid_->setUniformItemSizes(false);
     grid_->setGridSize(QSize(kIconSize + 32, kIconSize + 52));
+    loading_ = new LoadingCard(host);
+    col->addWidget(loading_);
     col->addWidget(grid_);
+    iconTimer_ = new QTimer(this);
+    iconTimer_->setInterval(0);
+    connect(iconTimer_, &QTimer::timeout, this, &PartsBrowser::loadSomeIcons);
 
     setWidget(host);
 
@@ -217,12 +225,22 @@ QString PartsBrowser::categoryForPath(const QString& absPath) const {
 
 namespace {
 
+void setPartIcon(parts::PartsLibrary& lib, const QString& key, QListWidgetItem* item) {
+    QPixmap pm = lib.pixmap(key);
+    if (!pm.isNull()) {
+        item->setIcon(QIcon(pm.scaled(kIconSize, kIconSize,
+                                      Qt::KeepAspectRatio,
+                                      Qt::SmoothTransformation)));
+    }
+}
+
 // Build one grid item from a library entry. Shared between rebuild()
 // (which calls it for every key) and addOne() (single insert after an
 // import). Returns nullptr if the key isn't in the library.
 QListWidgetItem* makePartItem(parts::PartsLibrary& lib,
                               const QString& key,
-                              const QString& cat) {
+                              const QString& cat,
+                              bool withIcon = true) {
     auto meta = lib.metadata(key);
     if (!meta) return nullptr;
 
@@ -245,12 +263,7 @@ QListWidgetItem* makePartItem(parts::PartsLibrary& lib,
     // Go through PartsLibrary::pixmap() rather than loading meta->gifFilePath
     // directly — sets without a companion image (BrickTracks/4DBrix/TrixBrix
     // and any user-saved set) get a composite synthesized from their subparts.
-    QPixmap pm = lib.pixmap(key);
-    if (!pm.isNull()) {
-        item->setIcon(QIcon(pm.scaled(kIconSize, kIconSize,
-                                      Qt::KeepAspectRatio,
-                                      Qt::SmoothTransformation)));
-    }
+    if (withIcon) setPartIcon(lib, key, item);
 
     item->setData(kCaptionRole,  caption);
     item->setData(kPartKeyRole,  key);
@@ -262,6 +275,11 @@ QListWidgetItem* makePartItem(parts::PartsLibrary& lib,
 }  // namespace
 
 void PartsBrowser::rebuild() {
+    iconTimer_->stop();
+    iconQueue_.clear();
+    iconItems_.clear();
+    iconsDone_ = iconsTotal_ = 0;
+    loading_->finish();
     grid_->clear();
     const QString previousCat = category_->currentText();
     category_->blockSignals(true);
@@ -275,7 +293,7 @@ void PartsBrowser::rebuild() {
         if (!meta) continue;
         const QString cat = categoryForPath(meta->xmlFilePath);
         cats.insert(cat);
-        if (auto* item = makePartItem(lib_, key, cat)) {
+        if (auto* item = makePartItem(lib_, key, cat, /*withIcon=*/false)) {
             grid_->addItem(item);
         }
     }
@@ -290,6 +308,33 @@ void PartsBrowser::rebuild() {
 
     grid_->sortItems(Qt::AscendingOrder);
     refreshBudget();
+
+    // Thumbnails next, a few at a time, in the order the grid shows them.
+    for (int i = 0; i < grid_->count(); ++i) {
+        QListWidgetItem* item = grid_->item(i);
+        const QString key = item->data(kPartKeyRole).toString();
+        if (iconItems_.contains(key)) continue;
+        iconItems_.insert(key, item);
+        iconQueue_ << key;
+    }
+    iconsTotal_ = static_cast<int>(iconQueue_.size());
+    if (iconsTotal_ > 0) iconTimer_->start();
+}
+
+void PartsBrowser::loadSomeIcons() {
+    QElapsedTimer clock;
+    clock.start();
+    while (!iconQueue_.isEmpty() && clock.elapsed() < 15) {
+        const QString key = iconQueue_.takeFirst();
+        if (QListWidgetItem* item = iconItems_.take(key)) setPartIcon(lib_, key, item);
+        ++iconsDone_;
+    }
+    if (iconQueue_.isEmpty()) {
+        iconTimer_->stop();
+        loading_->finish();
+    } else {
+        loading_->showProgress(tr("Loading part pictures…"), iconsDone_, iconsTotal_);
+    }
 }
 
 void PartsBrowser::addOne(const QString& key) {
@@ -299,6 +344,7 @@ void PartsBrowser::addOne(const QString& key) {
     // new sprite) rather than listing it twice.
     for (int i = 0; i < grid_->count(); ++i) {
         if (grid_->item(i)->data(kPartKeyRole).toString() == key) {
+            iconItems_.remove(key);
             delete grid_->takeItem(i);
             break;
         }

@@ -22,6 +22,7 @@ add_executable(bld_ui_tests
     ViewsPanelTest.cpp
     PanelDockingTest.cpp
     RenderParityTest.cpp
+    LoadingCardTest.cpp
 )
 
 target_compile_definitions(bld_ui_tests PRIVATE

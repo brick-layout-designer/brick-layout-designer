@@ -250,6 +250,8 @@ private:
     // When server parts didn't all download, a button in the status bar
     // says so (they draw as outlines until they do) and tries again.
     QToolButton* partsSyncFailed_ = nullptr;
+    // "Downloading server parts… 1,204 of 2,853" over the map (a child of it).
+    class LoadingCard* partsDownloadCard_ = nullptr;
     QAction* downloadPartsAct_ = nullptr;
     bool partsSyncRunning_ = false;
     void showPartsSyncFailed(const QString& summary, const QStringList& details);

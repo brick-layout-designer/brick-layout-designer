@@ -1,7 +1,9 @@
 #pragma once
 
 #include <QDockWidget>
+#include <QHash>
 #include <QString>
+#include <QStringList>
 
 #include <functional>
 
@@ -9,6 +11,7 @@ class QComboBox;
 class QLineEdit;
 class QListWidget;
 class QListWidgetItem;
+class QTimer;
 
 namespace bld::core  { class Map; }
 namespace bld::parts { class PartsLibrary; }
@@ -56,8 +59,16 @@ signals:
     // "Re-import from Source" on an imported part.
     void reimportRequested(const QString& key);
 
+public:
+    // The thumbnails are read a few at a time after rebuild(), so a library
+    // of thousands of parts doesn't freeze the window; these say how far.
+    int iconsLoaded() const { return iconsDone_; }
+    int iconsWanted() const { return iconsTotal_; }
+    class LoadingCard* loadingCard() const { return loading_; }
+
 private:
     void applyFilter();
+    void loadSomeIcons();
     QString categoryForPath(const QString& absPath) const;
 
     parts::PartsLibrary& lib_;
@@ -66,6 +77,12 @@ private:
     QComboBox*    category_ = nullptr;
     QLineEdit*    filter_   = nullptr;
     QListWidget*  grid_     = nullptr;
+    class LoadingCard* loading_ = nullptr;
+    QTimer* iconTimer_ = nullptr;
+    QStringList iconQueue_;                       // keys, in the grid's order
+    QHash<QString, QListWidgetItem*> iconItems_;  // key -> item still without its thumbnail
+    int iconsDone_ = 0;
+    int iconsTotal_ = 0;
 };
 
 }

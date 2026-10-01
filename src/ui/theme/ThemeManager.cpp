@@ -102,6 +102,14 @@ QFrame#Segmented QPushButton:checked { background: @panel; color: @ink; font-wei
 QFrame#ViewIndicator { background: @panel; border: 1px solid @line; border-radius: 16px; }
 QFrame#ViewIndicator QPushButton { background: transparent; border: none; color: @atext; font-weight: 600; padding: 4px 10px; }
 QFrame#ViewIndicator QPushButton:hover { background: @soft; }
+QFrame#LoadingCard { background: @panel; border: 1px solid @line; border-radius: @rcardpx; }
+QFrame#LoadingCard QLabel#LoadingTitle { color: @ink; }
+QFrame#LoadingCard[failed="true"] QLabel#LoadingTitle { color: @danger; font-weight: 700; }
+QFrame#LoadingCard QLabel#LoadingCount, QFrame#LoadingCard QLabel#LoadingDetail { color: @muted; }
+QFrame#LoadingCard QProgressBar { background: @soft; border: none; border-radius: 4px; }
+QFrame#LoadingCard QProgressBar::chunk { background: @amain; border-radius: 4px; }
+QFrame#LoadingCard QToolButton#LoadingHide { border: none; border-radius: @rcpx; color: @muted; padding: 4px 8px; }
+QFrame#LoadingCard QToolButton#LoadingHide:hover { background: @soft; color: @ink; }
 QPushButton { background: @panel; color: @ink; border: 1px solid @border; border-radius: @rcpx; padding: 6px 14px; min-height: 20px; }
 QPushButton:hover { background: @soft; }
 QPushButton:pressed { background: @line; }
@@ -128,10 +136,11 @@ QMenuBar::item:selected { background: @soft; }
     const QList<std::pair<const char*, QColor>> vars{
         { "@panel", n.panel }, { "@line", n.line }, { "@border", n.border }, { "@ink", n.ink },
         { "@muted", n.muted }, { "@soft", n.soft }, { "@tourBg", n.tourBg }, { "@tourInk", n.tourInk },
-        { "@asoft", a.soft(mode) }, { "@atext", a.text(mode) }, { "@amain", a.main }, { "@aon", a.onMain },
+        { "@danger", n.danger }, { "@asoft", a.soft(mode) }, { "@atext", a.text(mode) }, { "@amain", a.main }, { "@aon", a.onMain },
     };
     for (const auto& [name, colour] : vars) css.replace(QLatin1String(name), colour.name());
     css.replace(QLatin1String("@rcpx"), QStringLiteral("%1px").arg(Radius::control));
+    css.replace(QLatin1String("@rcardpx"), QStringLiteral("%1px").arg(Radius::card));
     return css;
 }
 

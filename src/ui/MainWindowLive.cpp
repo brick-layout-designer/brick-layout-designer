@@ -5,6 +5,7 @@
 
 #include "LayerPanel.h"
 #include "LiveLayout.h"
+#include "LoadingCard.h"
 #include "MapView.h"
 #include "MapViewInternal.h"
 
@@ -80,6 +81,9 @@ void MainWindow::setupLiveMenu(QMenu* file) {
         if (live_->active()) syncServerParts(liveServer_, liveToken_);
     });
     statusBar()->addPermanentWidget(partsSyncFailed_);
+    partsDownloadCard_ = new LoadingCard(mapView_, LoadingCard::Place::Bottom);
+    partsDownloadCard_->setObjectName(QStringLiteral("partsDownloadCard"));
+    connect(partsDownloadCard_, &QObject::destroyed, this, [this] { partsDownloadCard_ = nullptr; });
     reviewOfflineAct_ = file->addAction(tr("Review &Offline Changes..."));
     reviewOfflineAct_->setToolTip(tr("Compare what you changed offline with the server's layout"));
     reviewOfflineAct_->setEnabled(false);
@@ -219,6 +223,7 @@ void MainWindow::openLive(const sync::ConnectResult& r) {
                              + QStringLiteral("/live/")
                              + QString(r.server.host()).replace(QLatin1Char(':'), QLatin1Char('_'))
                              + QLatin1Char('/') + r.layoutId;
+    mapView_->showOpening(tr("Getting the layout from the server."));
     live_->open(api.layoutSocketUrl(r.layoutId), r.token, r.readOnly, r.title, cacheDir);
     // Name and colour our cursor as the web does, once we know who we are.
     auto* who = new sync::ServerApi(this);
@@ -357,12 +362,18 @@ void MainWindow::syncServerParts(const QUrl& server, const QString& token) {
                          + QStringLiteral("/server-parts/")
                          + QString(server.host()).replace(QLatin1Char(':'), QLatin1Char('_'));
     auto* job = new sync::PartsSync(server, token, root, this);
+    // The first connect fetches thousands of files: a card with a real
+    // progress bar, like the web's, for as long as it takes.
+    if (partsDownloadCard_) partsDownloadCard_->showBusy(tr("Checking the server's parts…"));
     const auto done = [this] {
         partsSyncRunning_ = false;
+        if (partsDownloadCard_) partsDownloadCard_->finish();
         updateLiveUi();
     };
     connect(job, &sync::PartsSync::progress, this, [this](int done, int total) {
-        statusBar()->showMessage(tr("Downloading server parts: %1 of %2").arg(done).arg(total), 2000);
+        if (partsDownloadCard_)
+            partsDownloadCard_->showProgress(tr("Downloading server parts…"), done, total,
+                                             tr("You can keep working while they download."));
     });
     connect(job, &sync::PartsSync::failed, this, [this, job, done](const QString& message, bool) {
         job->deleteLater();
@@ -403,6 +414,8 @@ void MainWindow::showPartsSyncFailed(const QString& summary, const QStringList& 
 
 void MainWindow::onDisconnect() {
     live_->close();
+    mapView_->hideOpening();
+    if (partsDownloadCard_) partsDownloadCard_->finish();
     if (prefsSync_) prefsSync_->stop();
     updateLiveUi();
     statusBar()->showMessage(tr("Disconnected. The layout stays open here as an unsaved copy."), 5000);

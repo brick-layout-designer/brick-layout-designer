@@ -638,6 +638,14 @@ void PartsLibrary::forget(const QString& key) {
     hullCache_.remove(lk);
 }
 
+bool PartsLibrary::pixmapTried(const QString& key) const { return pixmapCache_.contains(key.toLower()); }
+
+void PartsLibrary::forgetPixmap(const QString& key) {
+    const QString lk = key.toLower();
+    pixmapCache_.remove(lk);
+    hullCache_.remove(lk);
+}
+
 void PartsLibrary::clear() {
     index_.clear();
     renamed_.clear();

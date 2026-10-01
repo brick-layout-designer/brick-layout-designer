@@ -133,7 +133,8 @@ void MainWindow::onReloadLibrary() {
     }
     rescanLibrary(allPaths);
     partsBrowser_->rebuild();
-    mapView_->rebuildScene();
+    // The library's pictures were dropped: read the layout's again, with the loading card.
+    mapView_->reloadPictures();
     statusBar()->showMessage(
         tr("Reloaded library: %1 parts across %2 path(s)")
             .arg(parts_.partCount()).arg(allPaths.size()), 4000);
