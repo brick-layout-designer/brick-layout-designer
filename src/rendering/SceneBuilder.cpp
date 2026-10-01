@@ -1,5 +1,6 @@
 #include "SceneBuilder.h"
 #include "MapText.h"
+#include "UnknownPart.h"
 #include "SceneBuilderInternal.h"
 
 #include "../core/Layer.h"
@@ -229,17 +230,18 @@ void addBrickLayer(const core::LayerBrick& L, LayerSink& sink, parts::PartsLibra
             }
         }
         if (!item) {
-            // Fallback placeholder: dashed rectangle centred on origin so
-            // drag + snap act on the brick's centre (consistent with pixmap
-            // items above).
-            auto* r = new SnappingRect(QRectF(-areaPx.width() / 2.0, -areaPx.height() / 2.0,
-                                               areaPx.width(), areaPx.height()));
+            // A part the library doesn't know: vanilla's red cross and part
+            // number (UnknownPart.h), turned with the brick. The clear rect
+            // takes the clicks and moves like a part.
+            const UnknownPartLook look = unknownPartLook(brick.partNumber, brick.displayArea.width(),
+                                                         brick.displayArea.height());
+            auto* r = new SnappingRect(QRectF(-look.width / 2.0, -look.height / 2.0, look.width, look.height));
             r->setFlag(QGraphicsItem::ItemSendsGeometryChanges, true);
             r->setPos(centerPx);
-            QPen pen(QColor(200, 80, 80));
-            pen.setStyle(Qt::DashLine);
-            r->setPen(pen);
-            r->setBrush(QBrush(QColor(255, 200, 200, 80)));
+            r->setRotation(brick.orientation);
+            r->setPen(Qt::NoPen);
+            r->setBrush(Qt::NoBrush);
+            addUnknownPartDrawing(r, brick.partNumber, look);
             item = r;
         }
 

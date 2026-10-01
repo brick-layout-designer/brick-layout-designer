@@ -1,0 +1,62 @@
+{
+  "about": "Parts the library doesn't know, as vanilla BlueBrick draws them (BrickLibrary.cs createUnknownImage) and both apps copy (web render/unknownPart.ts, desktop rendering/UnknownPart.cpp): a clear picture of whole studs, a red cross, the part number in black. Same file in both repos.",
+  "crossColor": "#ff0000",
+  "textColor": "#000000",
+  "cases": [
+    {
+      "partNumber": "TB CT R24.8",
+      "widthStuds": 20.7,
+      "heightStuds": 9.3,
+      "expect": {
+        "width": 160,
+        "height": 72,
+        "penPx": 10,
+        "fontPx": 8.727272727272728
+      }
+    },
+    {
+      "partNumber": "X",
+      "widthStuds": 4,
+      "heightStuds": 2,
+      "expect": {
+        "width": 32,
+        "height": 16,
+        "penPx": 2,
+        "fontPx": 21.333333333333332
+      }
+    },
+    {
+      "partNumber": "A-very-long-part-number.21",
+      "widthStuds": 6.99,
+      "heightStuds": 1.5,
+      "expect": {
+        "width": 48,
+        "height": 8,
+        "penPx": 3,
+        "fontPx": 5.333333333333333
+      }
+    },
+    {
+      "partNumber": "",
+      "widthStuds": 0.5,
+      "heightStuds": 0.5,
+      "expect": {
+        "width": 0,
+        "height": 0,
+        "penPx": 1,
+        "fontPx": 5.333333333333333
+      }
+    },
+    {
+      "partNumber": "Long",
+      "widthStuds": 30.4,
+      "heightStuds": 5,
+      "expect": {
+        "width": 240,
+        "height": 40,
+        "penPx": 15,
+        "fontPx": 13.333333333333334
+      }
+    }
+  ]
+}

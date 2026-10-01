@@ -22,6 +22,7 @@
 #include "core/TextCell.h"
 #include "rendering/MapText.h"
 #include "rendering/ModuleLabels.h"
+#include "rendering/UnknownPart.h"
 #include "rendering/SceneBuilder.h"
 
 #include <gtest/gtest.h>
@@ -143,6 +144,22 @@ TEST(RenderParity, TextCellLayoutsMatchTheSharedDescription) {
             EXPECT_DOUBLE_EQ(g.x, l[QLatin1String("x")].toDouble()) << what;
             EXPECT_DOUBLE_EQ(g.y, l[QLatin1String("y")].toDouble()) << what;
         }
+    }
+}
+
+TEST(RenderParity, UnknownPartsMatchTheSharedDescription) {
+    const QJsonArray cases = readJson(kDir + QStringLiteral("/parts.json"))[QLatin1String("cases")].toArray();
+    ASSERT_FALSE(cases.isEmpty());
+    for (const QJsonValue& v : cases) {
+        const QJsonObject c = v.toObject();
+        const QString part = c[QLatin1String("partNumber")].toString();
+        const auto got = rendering::unknownPartLook(part, c[QLatin1String("widthStuds")].toDouble(),
+                                                    c[QLatin1String("heightStuds")].toDouble());
+        const QJsonObject want = c[QLatin1String("expect")].toObject();
+        EXPECT_DOUBLE_EQ(got.width, want[QLatin1String("width")].toDouble()) << part.toStdString();
+        EXPECT_DOUBLE_EQ(got.height, want[QLatin1String("height")].toDouble()) << part.toStdString();
+        EXPECT_DOUBLE_EQ(got.penPx, want[QLatin1String("penPx")].toDouble()) << part.toStdString();
+        EXPECT_DOUBLE_EQ(got.fontPx, want[QLatin1String("fontPx")].toDouble()) << part.toStdString();
     }
 }
 

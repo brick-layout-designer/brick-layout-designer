@@ -8,6 +8,8 @@ add_library(bld_rendering STATIC
     ModuleLabels.h
     MapText.cpp
     MapText.h
+    UnknownPart.cpp
+    UnknownPart.h
     VenueDraw.cpp
     VenueDraw.h
     MapScene.h
