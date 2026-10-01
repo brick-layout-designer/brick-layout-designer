@@ -94,6 +94,9 @@ Items itemsOf(const Snapshot& s) {
     for (const auto& m : s.sidecar.value(QLatin1String("modules")).toArray())
         out.insert(QStringLiteral("module:") + m.toObject().value(QLatin1String("id")).toString(),
                    { QStringLiteral("module"), {}, m });
+    for (const auto& v : s.sidecar.value(QLatin1String("views")).toArray())
+        out.insert(QStringLiteral("view:") + v.toObject().value(QLatin1String("id")).toString(),
+                   { QStringLiteral("view"), {}, v });
     if (s.sidecar.contains(QLatin1String("venue")))
         out.insert(QStringLiteral("venue"), { QStringLiteral("venue"), {}, s.sidecar.value(QLatin1String("venue")) });
     if (s.sidecar.contains(QLatin1String("backgroundImage")))
@@ -154,10 +157,10 @@ public:
         const bool copy = choice == Choice::Both && c.allowsBoth();
         if (c.kind == QLatin1String("map")) return takeHeader(c);
         if (c.kind == QLatin1String("layer")) return takeLayer(c);
-        if (c.kind == QLatin1String("label") || c.kind == QLatin1String("module"))
-            return takeSidecarItem(c, c.kind == QLatin1String("label") ? QStringLiteral("anchoredLabels")
-                                                                       : QStringLiteral("modules"),
-                                   copy);
+        if (c.kind == QLatin1String("label")) return takeSidecarItem(c, QStringLiteral("anchoredLabels"), copy);
+        if (c.kind == QLatin1String("module")) return takeSidecarItem(c, QStringLiteral("modules"), copy);
+        // A view is replaced whole: the last edit of a view wins.
+        if (c.kind == QLatin1String("view")) return takeSidecarItem(c, QStringLiteral("views"), copy);
         if (c.kind == QLatin1String("venue") || c.kind == QLatin1String("background")) {
             const QString k = c.kind == QLatin1String("venue") ? QStringLiteral("venue") : QStringLiteral("backgroundImage");
             if (c.mineValue.isUndefined()) sidecar_.remove(k);
@@ -314,7 +317,7 @@ QString verb(Side s) {
 
 bool ItemChange::allowsBoth() const {
     static const QSet<QString> copyable{ QStringLiteral("brick"), QStringLiteral("text"), QStringLiteral("label"),
-                                         QStringLiteral("module") };
+                                         QStringLiteral("module"), QStringLiteral("view") };
     return copyable.contains(kind) && !mineValue.isUndefined() && !serverValue.isUndefined();
 }
 
@@ -422,6 +425,7 @@ QString describe(const ItemChange& c) {
     else if (c.kind == QLatin1String("ruler")) what = tr("Ruler") + on(c);
     else if (c.kind == QLatin1String("label")) what = tr("Label \"%1\"").arg(v.value(QLatin1String("text")).toString().left(40));
     else if (c.kind == QLatin1String("module")) what = tr("Module \"%1\"").arg(v.value(QLatin1String("name")).toString());
+    else if (c.kind == QLatin1String("view")) what = tr("View \"%1\"").arg(v.value(QLatin1String("name")).toString());
     else if (c.kind == QLatin1String("venue")) what = tr("Venue");
     else what = tr("Background image");
     if (c.status == Status::Same) return tr("%1: you and the server both %2").arg(what, verb(c.mine));

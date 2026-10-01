@@ -43,8 +43,13 @@ const label = (id, text) => ({
 });
 const sidecar = (labels, extra = {}) => ({ schemaVersion: 1, bbmHashSha256: '', anchoredLabels: labels, modules: [], ...extra });
 
+// Saved views (references/LAYOUT-FILE.md "Saved views"): a view is one
+// item, replaced whole, keyed view:<id>.
+const view = (id, name, extra = {}) => ({ id, name, fit: true, rect: null, sheets: null, grid: false, labels: true, ...extra });
+const baseViews = [view('V-both', 'Both rename this'), view('V-gone', 'Server deletes this'), view('V-keep', 'Mine changes this', { note: 'kept' })];
+
 const base = read();
-const baseSidecar = sidecar([label('L-both', 'Both edit this'), label('L-gone', 'Server deletes this')]);
+const baseSidecar = sidecar([label('L-both', 'Both edit this'), label('L-gone', 'Server deletes this')], { views: baseViews });
 
 // Offline edits.
 const mine = read();
@@ -60,7 +65,14 @@ const mine = read();
   const t = textLayer(mine);
   if (t?.textCells[0]) t.textCells[0].text = 'Edited offline';
 }
-const mineSidecar = sidecar([label('L-both', 'Mine says this'), label('L-gone', 'Server deletes this'), label('L-mine', 'Added offline')]);
+const mineSidecar = sidecar([label('L-both', 'Mine says this'), label('L-gone', 'Server deletes this'), label('L-mine', 'Added offline')], {
+  views: [
+    view('V-both', 'Mine calls it this'),
+    baseViews[1],
+    view('V-keep', 'Mine changes this', { note: 'kept', fit: false, rect: { x: 10, y: 20, w: 30, h: 40 }, sheets: ['211'] }),
+    view('V-mine', 'Added offline'),
+  ],
+});
 
 // The server's layout since.
 const server = read();
@@ -76,6 +88,7 @@ const server = read();
   for (const c of linked.connexions) c.linkedTo = '';
 }
 const serverSidecar = sidecar([label('L-both', 'Server says this')], {
+  views: [view('V-both', 'Server calls it this'), baseViews[2]],
   venue: { name: 'Hall', outline: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 50 }], edges: [], obstacles: [] },
 });
 

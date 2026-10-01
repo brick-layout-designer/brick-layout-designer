@@ -16,7 +16,7 @@ namespace bld::sync {
 // { meta, layers, layerData } as the web's bbmToDoc lays them out.
 QJsonObject docJsonFromMap(const core::Map& map);
 
-// The shared document's sidecar cache (meta.cache: anchored labels,
+// The shared document's sidecar cache (meta.cache: anchored labels, saved views,
 // modules, venue) after the desktop's sidecar is written into `current`.
 // Last write wins per part; parts the desktop doesn't handle (the web's
 // background image) are kept, and an empty list stays absent.

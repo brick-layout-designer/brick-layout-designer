@@ -217,7 +217,7 @@ QJsonObject docJsonFromMap(const core::Map& map) {
 QJsonObject mergeSidecarCache(const QJsonObject& current, const core::Sidecar& sidecar) {
     const QJsonObject mine = saveload::sidecarToJson(sidecar);
     QJsonObject out = current;
-    for (const char* key : { "anchoredLabels", "modules" }) {
+    for (const char* key : { "anchoredLabels", "modules", "views" }) {
         const QString k = QString::fromLatin1(key);
         const QJsonArray list = mine.value(k).toArray();
         if (!list.isEmpty()) out.insert(k, list);

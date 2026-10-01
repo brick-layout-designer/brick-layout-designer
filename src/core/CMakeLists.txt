@@ -20,6 +20,7 @@ add_library(bld_core STATIC
     Module.h
     Venue.h
     Sidecar.h
+    SavedView.h
 )
 
 target_include_directories(bld_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)

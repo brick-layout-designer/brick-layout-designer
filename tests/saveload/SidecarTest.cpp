@@ -6,6 +6,8 @@
 
 #include <QByteArray>
 #include <QDir>
+#include <QJsonArray>
+#include <QJsonObject>
 #include <QString>
 #include <QTemporaryDir>
 #include <QUuid>
@@ -154,4 +156,75 @@ TEST(Sidecar, HashMismatchDetected) {
     auto r = saveload::readSidecar(path, "modified bbm bytes", back);
     ASSERT_TRUE(r.ok);
     EXPECT_TRUE(r.hashMismatch);
+}
+
+// Saved views (references/LAYOUT-FILE.md "Saved views"): in list order,
+// with every field, and the fields this build doesn't know kept.
+TEST(Sidecar, RoundTripSavedViews) {
+    core::Sidecar sc;
+    core::SavedView whole;
+    whole.id = QStringLiteral("view-whole");
+    whole.name = QStringLiteral("Whole layout");
+    core::SavedView station;
+    station.id = QStringLiteral("view-station");
+    station.name = QStringLiteral("Station");
+    station.fit = false;
+    station.rect = QRectF(90, 40, 40, 30.5);
+    station.sheets = QStringList{ QStringLiteral("sheet-town"), QStringLiteral("sheet-track") };
+    station.grid = false;
+    station.labels = false;
+    station.extras.insert(QStringLiteral("zoomHint"), 2.5);
+    station.extras.insert(QStringLiteral("future"), QJsonObject{ { QStringLiteral("a"), 1 } });
+    sc.views = { whole, station };
+    EXPECT_FALSE(sc.isEmpty());
+
+    QTemporaryDir dir;
+    const QString path = dir.filePath("t.bbm.bld");
+    ASSERT_TRUE(saveload::writeSidecar(path, "<bbm>", sc));
+    core::Sidecar back;
+    ASSERT_TRUE(saveload::readSidecar(path, "<bbm>", back).ok);
+    ASSERT_EQ(back.views.size(), 2u);
+    EXPECT_EQ(back.views[0], whole);
+    EXPECT_EQ(back.views[1], station);
+    EXPECT_EQ(back.views[1].extras.value(QLatin1String("zoomHint")).toDouble(), 2.5);
+
+    // The JSON is the web's shape: fit views write rect and all-sheets as null.
+    const QJsonObject json = saveload::viewToJson(whole);
+    EXPECT_TRUE(json.value(QLatin1String("rect")).isNull());
+    EXPECT_TRUE(json.value(QLatin1String("sheets")).isNull());
+    EXPECT_EQ(json.value(QLatin1String("fit")).toBool(), true);
+    // A fit view that still remembers an area writes it as null too.
+    core::SavedView fitted = station;
+    fitted.fit = true;
+    EXPECT_TRUE(saveload::viewToJson(fitted).value(QLatin1String("rect")).isNull());
+    const QJsonObject rect = saveload::viewToJson(station).value(QLatin1String("rect")).toObject();
+    EXPECT_EQ(rect.value(QLatin1String("x")).toDouble(), 90.0);
+    EXPECT_EQ(rect.value(QLatin1String("h")).toDouble(), 30.5);
+}
+
+// Reading is forgiving, like the web's readView: missing fields take their
+// defaults, [x, y, w, h] works too, and a view with no id is dropped.
+TEST(Sidecar, ReadsViewsWrittenByOtherBuilds) {
+    const QJsonArray views{
+        QJsonObject{ { QStringLiteral("id"), QStringLiteral("a") } },
+        QJsonObject{ { QStringLiteral("id"), QStringLiteral("b") },
+                     { QStringLiteral("rect"), QJsonArray{ 1, 2, 3, 4 } } },
+        QJsonObject{ { QStringLiteral("id"), QStringLiteral("c") }, { QStringLiteral("fit"), false } },
+        QJsonObject{ { QStringLiteral("name"), QStringLiteral("no id") } },
+        QStringLiteral("not a view"),
+    };
+    core::Sidecar sc;
+    saveload::sidecarFromJson(QJsonObject{ { QStringLiteral("views"), views } }, sc);
+    ASSERT_EQ(sc.views.size(), 3u);
+    EXPECT_TRUE(sc.views[0].fit);
+    EXPECT_TRUE(sc.views[0].grid);
+    EXPECT_TRUE(sc.views[0].labels);
+    EXPECT_FALSE(sc.views[0].sheets.has_value());
+    // An area and no "fit": it uses the area.
+    EXPECT_FALSE(sc.views[1].fit);
+    EXPECT_EQ(sc.views[1].rect, QRectF(1, 2, 3, 4));
+    // "Use this area" with no usable area can only fit.
+    EXPECT_TRUE(sc.views[2].fit);
+    // No views: none written.
+    EXPECT_FALSE(saveload::sidecarToJson(core::Sidecar{}).contains(QLatin1String("views")));
 }
