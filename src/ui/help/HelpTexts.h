@@ -5,7 +5,9 @@
 // (two or three, shown on click). The web app's apps/web/src/help/
 // helpTexts.ts has the same keys and the same words; fixtures/help-keys.txt
 // is its key list, and HelpTextsTest keeps the two in step. A few keys
-// are for controls only the desktop has (desktopOnlyHelpKeys()).
+// are for controls only the desktop has (desktopOnlyHelpKeys()), and a
+// few shared keys say something different on the desktop, where the
+// web's words would be wrong here (desktopOverriddenHelpKeys()).
 //
 // In the words people see, layers are "sheets" and the venue is the
 // "room". Keys keep their own names and never change once shipped.
@@ -26,8 +28,12 @@ struct HelpEntry {
     QString learnMoreUrl;
 };
 
-// The entry for `key`, translated; nothing for an unknown key.
+// The entry for `key`, translated, with the desktop's own words where it
+// has them; nothing for an unknown key.
 std::optional<HelpEntry> helpEntry(const QString& key);
+// A shared key's entry in the web's words, before the desktop's own
+// (nothing for a desktop-only or unknown key).
+std::optional<HelpEntry> sharedHelpEntry(const QString& key);
 
 // Every key, in catalogue order: the web's first, then the desktop's own.
 QStringList helpKeys();
@@ -35,5 +41,7 @@ QStringList helpKeys();
 QStringList sharedHelpKeys();
 // Keys for controls only the desktop app has.
 QStringList desktopOnlyHelpKeys();
+// Shared keys whose words the desktop changes (one list, in HelpTexts.cpp).
+QStringList desktopOverriddenHelpKeys();
 
 }  // namespace bld::ui::help
