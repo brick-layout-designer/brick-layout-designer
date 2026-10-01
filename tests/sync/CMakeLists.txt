@@ -11,6 +11,8 @@ add_executable(bld_sync_tests
     PartsUploadTest.cpp
     PartsSyncTest.cpp
     ConnectDialogTest.cpp
+    ServerListTest.cpp
+    ServersDialogTest.cpp
     LiveLayoutTest.cpp
     LayoutMergeTest.cpp
     CompareDialogTest.cpp

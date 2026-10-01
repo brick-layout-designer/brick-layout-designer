@@ -78,7 +78,7 @@ void MainWindow::updateTitle() {
 #ifdef BLD_SYNC
     // Live: the server keeps it saved.
     if (live_ && live_->active()) {
-        name = tr("%1 — Live").arg(live_->title());
+        name = tr("%1 — Live on %2").arg(live_->title(), liveServerName());
         dirty = false;
     }
 #endif

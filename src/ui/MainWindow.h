@@ -13,6 +13,7 @@
 #ifdef BLD_SYNC
 #include "PartsUpload.h"
 #include "ServerApi.h"
+#include "TokenStore.h"
 #include <QSet>
 #endif
 
@@ -233,11 +234,22 @@ private:
     void onDisconnect();
     void onDownloadVenues();
     void onPublishToServer();
+    // File › Servers…: your servers (add, rename, remove, sign in, Main).
+    void onManageServers();
 protected:
     // Open a server layout live in this window. Protected so tests can open
     // one without the connect dialog.
     void openLive(const bld::sync::ConnectResult& r);
+    // Where sign-in tokens are kept (the OS keychain; tests use memory).
+    void setTokenStore(std::shared_ptr<bld::sync::TokenStore> store) { tokens_ = std::move(store); }
+    bld::sync::TokenStore& tokenStore() { return *tokens_; }
 private:
+    std::shared_ptr<bld::sync::TokenStore> tokens_ = std::make_shared<bld::sync::KeychainTokenStore>();
+    // Settings follow your account on the Main server (ServerList::settingsAccount):
+    // with the live server's token when it is Main, else with Main's own.
+    void startPrefsSync(const bld::sync::ConnectResult& r);
+    // The live server's name as you call it (Servers), for the title and status bar.
+    QString liveServerName() const;
     // Offer to upload the user's parts the live server lacks; `quiet`: say
     // nothing when there are none (after publishing).
     void offerPartsUpload(bool quiet);

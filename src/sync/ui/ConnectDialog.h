@@ -1,7 +1,8 @@
 #pragma once
 
-// File › Connect to Server… (sync phase P4): the server's address, a check
-// that it speaks our protocol, device sign-in when there is no saved token
+// File › Connect to Server… (sync phase P4): pick one of your servers (or
+// type a new address; recent layouts are listed under the server they're
+// on), a check that it speaks our protocol, device sign-in when there is no saved token
 // (the code is shown and the browser opened), then a layout picker. The
 // token goes to the TokenStore; the chosen layout is result().
 //
@@ -10,6 +11,9 @@
 // downloaded as .bld-venue files (venues()). And File › Publish to
 // Server…: a title and where it's saved (you, or one of your clubs), and
 // the layout is created on the server; result() is then the new layout.
+//
+// Purpose::SignIn (from File › Servers…) only signs in to the address set
+// and hands back the token: result() then has no layout.
 
 #include "ServerApi.h"
 
@@ -49,7 +53,7 @@ class ConnectDialog : public QDialog {
     Q_OBJECT
 public:
     // `openUrl` opens the sign-in page (QDesktopServices in the app).
-    enum class Purpose { OpenLayout, DownloadVenues, Publish };
+    enum class Purpose { OpenLayout, DownloadVenues, Publish, SignIn };
 
     ConnectDialog(ServerApi& api, TokenStore& tokens, std::function<void(const QUrl&)> openUrl,
                   QWidget* parent = nullptr, Purpose purpose = Purpose::OpenLayout);
@@ -66,6 +70,13 @@ public:
     void connectToServer();
     // Forget the saved token for this server and sign in again.
     void signOut();
+    // Connect to the server in the list and open its recent layout `layoutId`
+    // once the list has it (the same as double-clicking it under the server).
+    void openRecent(const QUrl& server, const QString& layoutId);
+    // Fill the server list again (after File › Servers… changed it).
+    void refreshServers();
+    // How to open File › Servers… from here (the app's; tests replace it).
+    void setManageServers(std::function<void()> manage) { manageServers_ = std::move(manage); }
 
 private:
     void showMessage(const QString& text);
@@ -82,6 +93,7 @@ private:
     void filterLayouts(const QString& text);
     // Fill the Show filter with All, Mine and the clubs in the list (key, name).
     void setShowChoices(const QList<std::pair<QString, QString>>& clubs);
+    void onServerPicked();
 
     ServerApi& api_;
     TokenStore& tokens_;
@@ -93,7 +105,12 @@ private:
     QList<DownloadedVenue> venues_;
     int venuesPending_ = 0;
 
+    QString pendingLayout_;  // a recent layout to open once listed
+    std::function<void()> manageServers_;
+
     QStackedWidget* pages_ = nullptr;
+    QTreeWidget* servers_ = nullptr;  // your servers, each with its recent layouts
+    QLabel* publishServer_ = nullptr;
     QLineEdit* address_ = nullptr;
     QPushButton* connectBtn_ = nullptr;
     QLabel* message_ = nullptr;

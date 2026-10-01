@@ -6,6 +6,8 @@
 #include "FakeSyncServer.h"
 
 #include "ConnectDialog.h"
+#include "ServerList.h"
+#include "TokenStore.h"
 #include "CompareDialog.h"
 #include "edit/EditCommands.h"
 #include "parts/PartsLibrary.h"
@@ -33,6 +35,9 @@
 #include <QMessageBox>
 #include <QPointer>
 #include <QPushButton>
+#include <QSettings>
+
+#include <algorithm>
 #include <QStandardPaths>
 #include <QTimer>
 #include <QToolButton>
@@ -137,6 +142,7 @@ class TestWindow : public ui::MainWindow {
 public:
     using ui::MainWindow::MainWindow;
     using ui::MainWindow::openLive;
+    using ui::MainWindow::setTokenStore;
 };
 
 QString liveCache() {
@@ -149,9 +155,13 @@ protected:
         QStandardPaths::setTestModeEnabled(true);
         ui::UpdateCheck::setCheckAtStartupEnabled(false);
         QDir(liveCache()).removeRecursively();
+        // No servers from an earlier test.
+        QSettings().remove(QStringLiteral("sync/serverAddress"));
+        QSettings().setValue(QLatin1String(sync::ServerList::kKey), QByteArray("[]"));
         http_.upgrade = [this](QTcpSocket* s) { ws_.take(s); };
         beforeOpen();
         window_ = std::make_unique<TestWindow>(parts_);
+        window_->setTokenStore(tokens_);
         view_ = window_->findChild<ui::MapView*>();
         live_ = window_->findChild<ui::LiveLayout*>();
         ASSERT_TRUE(view_ && live_);
@@ -195,6 +205,7 @@ protected:
 
     FakeHttp http_;
     FakeServer ws_;
+    std::shared_ptr<sync::MemoryTokenStore> tokens_ = std::make_shared<sync::MemoryTokenStore>();
     parts::PartsLibrary parts_;
     std::unique_ptr<TestWindow> window_;
     ui::MapView* view_ = nullptr;
@@ -607,4 +618,65 @@ TEST_F(MainWindowLive, AServerFromBeforeTheChecksAsksNothing) {
     ASSERT_TRUE(window_->notices()->isShown(QStringLiteral("server-features")));
     EXPECT_EQ(window_->notices()->card(QStringLiteral("server-features"))->findChild<QLabel*>(QStringLiteral("NoticeTitle"))->text(),
               QStringLiteral("This server may not do everything yet"));
+}
+
+namespace {
+
+// Two servers: the club's is Main; the layout is live on the other one.
+class MainWindowLiveElsewhere : public MainWindowLive {
+protected:
+    void beforeOpen() override {
+        sync::ServerList list;
+        list.add(main_.base(), QStringLiteral("Train club"));
+        list.add(http_.base(), QStringLiteral("Show hall"));
+        list.save();
+        tokens_->save(main_.base(), QStringLiteral("bld_pat_main"));
+        tokens_->save(http_.base(), QStringLiteral("bld_pat_test"));
+        main_.reply("/api/me/preferences", 200,
+                    { { QStringLiteral("prefs"), QJsonObject{} }, { QStringLiteral("updatedAt"), QJsonValue() } });
+    }
+    FakeHttp main_;
+};
+
+}  // namespace
+
+TEST_F(MainWindowLiveElsewhere, SettingsFollowTheMainServerWithItsOwnToken) {
+    ASSERT_TRUE(waitFor([&] {
+        return std::any_of(main_.requests.cbegin(), main_.requests.cend(),
+                           [](const auto& r) { return r.path == "/api/me/preferences"; });
+    }));
+    for (const auto& r : main_.requests) EXPECT_EQ(r.authorization, QByteArray("Bearer bld_pat_main")) << r.path.toStdString();
+    // The live server is never asked for settings, nor sent Main's token.
+    waitFor([] { return false; }, 200);
+    for (const auto& r : http_.requests) {
+        EXPECT_NE(r.path, QByteArray("/api/me/preferences"));
+        EXPECT_TRUE(r.authorization.isEmpty() || r.authorization == "Bearer bld_pat_test") << r.path.toStdString();
+    }
+    for (const QString& h : ws_.authHeaders) EXPECT_EQ(h, QStringLiteral("Bearer bld_pat_test"));
+}
+
+TEST_F(MainWindowLiveElsewhere, TheWindowSaysWhichServerItIsLiveOnAndRemembersTheLayout) {
+    EXPECT_TRUE(window_->windowTitle().contains(QStringLiteral("Live on Show hall"))) << window_->windowTitle().toStdString();
+    bool status = false;
+    for (QLabel* l : window_->findChildren<QLabel*>()) status |= l->text().startsWith(QStringLiteral("Live on Show hall: "));
+    EXPECT_TRUE(status);
+    const sync::ServerList list = sync::ServerList::load();
+    const sync::ServerEntry* live = list.find(http_.base());
+    ASSERT_NE(live, nullptr);
+    ASSERT_EQ(live->recent.size(), 1);
+    EXPECT_EQ(live->recent.first().id, QStringLiteral("L1"));
+    EXPECT_EQ(live->recent.first().title, QStringLiteral("Show 2026"));
+    EXPECT_TRUE(list.find(main_.base())->recent.isEmpty());
+    EXPECT_EQ(list.lastUsed()->url, http_.base());
+    EXPECT_EQ(list.settingsAccount(), main_.base());
+}
+
+TEST_F(MainWindowLive, LiveOnTheOnlyServerItBecomesMainAndKeepsItsSettings) {
+    const sync::ServerList list = sync::ServerList::load();
+    ASSERT_EQ(list.servers().size(), 1);
+    EXPECT_EQ(list.settingsAccount(), http_.base());
+    ASSERT_TRUE(waitFor([&] {
+        return std::any_of(http_.requests.cbegin(), http_.requests.cend(),
+                           [](const auto& r) { return r.path == "/api/me/preferences"; });
+    }));
 }
