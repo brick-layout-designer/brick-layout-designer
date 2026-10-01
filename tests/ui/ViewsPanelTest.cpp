@@ -291,7 +291,7 @@ TEST(ViewsPanel, TheViewOnShowSaysSoAndClickingItAgainStops) {
     PanelOnMap t;
     int left = 0;
     QObject::connect(&t.panel, &ui::ViewsPanel::leaveViewRequested, [&] { ++left; });
-    const QString onScreen = QStringLiteral("On screen now · tap to stop");
+    const QString onScreen = QStringLiteral("On screen now · click to stop");
     EXPECT_FALSE(t.row(QStringLiteral("view-station"))->accessibleDescription().contains(onScreen));
     t.panel.setActiveView(QStringLiteral("view-station"));
     EXPECT_TRUE(t.row(QStringLiteral("view-station"))->accessibleDescription().contains(onScreen));
@@ -634,7 +634,7 @@ TEST_F(ViewsInTheWindow, ClickingTheViewOnShowAgainStopsShowingIt) {
     ASSERT_TRUE(view_->viewFilter());
     EXPECT_TRUE(rowOf(*panel_, QStringLiteral("view-station"))
                     ->accessibleDescription()
-                    .contains(QStringLiteral("On screen now · tap to stop")));
+                    .contains(QStringLiteral("On screen now · click to stop")));
     const auto before = view_->screenRectStuds();
     ASSERT_TRUE(before);
 
