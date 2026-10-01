@@ -823,6 +823,8 @@ MainWindow::~MainWindow() {
         live_->disconnect(this);
         live_->close();
     }
+    // A child of the map view, deleted after this destructor.
+    if (partsDownloadCard_) partsDownloadCard_->disconnect(this);
 #endif
 }
 

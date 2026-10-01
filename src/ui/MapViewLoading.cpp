@@ -83,10 +83,10 @@ bool MapView::preloadPictures(const core::Map& map) {
 
 void MapView::finishLoading() {
     if (!loadingCard_) return;
-    if (failedPictures_.isEmpty()) {
-        loadingCard_->finish();
-    } else if (failedPictures_ != shownFailures_ || loadingCard_->failureShown()) {
-        // Once hidden, the same failures don't come back on every live update.
+    // Once hidden, the same failures don't come back on every live update.
+    const bool sayFailed = !failedPictures_.isEmpty()
+                           && (failedPictures_ != shownFailures_ || loadingCard_->failureShown());
+    if (sayFailed) {
         loadingCard_->setPlace(LoadingCard::Place::Top);
         loadingCard_->showFailed(
             tr("%1 couldn't load").arg(LoadingCard::pictures(static_cast<int>(failedPictures_.size()))));

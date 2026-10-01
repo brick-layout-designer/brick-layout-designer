@@ -243,6 +243,9 @@ MapView::~MapView() {
     // survivors that may already be mid-destruction. Disconnect from
     // the scene signals BEFORE any of that runs.
     if (scene()) scene()->disconnect(this);
+    // The card, a child, is deleted after this destructor: its destroyed
+    // signal must not reach a MapView that's already gone.
+    if (loadingCard_) loadingCard_->disconnect(this);
     // The undo stack's destructor clears it, which says indexChanged: the
     // handler would rebuild the scene of a view being destroyed and tell
     // the main window, already gone, that the selection changed. Let it go
