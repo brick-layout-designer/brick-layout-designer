@@ -1,12 +1,20 @@
 # Keep the workflow actions current (Node runtime deprecations, fixes).
+#
+# GitHub Actions is the only ecosystem Dependabot can see here: the C++
+# dependencies (Corrosion, the yffi crate, QtKeychain) are pinned by URL and
+# hash with FetchContent in src/sync/CMakeLists.txt, there is no vcpkg,
+# Cargo or pip manifest, and Qt comes from the system or the CI installer.
+# Bump those by hand.
 version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: monthly
+      interval: weekly
+      day: monday
+    labels: [dependencies, ci]
     commit-message:
-      prefix: ci
+      prefix: ci(deps)
     groups:
       actions:
-        patterns: ["*"]
+        patterns: ['*']
