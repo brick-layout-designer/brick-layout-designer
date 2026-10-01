@@ -72,7 +72,7 @@ QString ServerEntry::address() const {
 }
 
 QString ServerEntry::label() const {
-    const QString n = name.trimmed();
+    QString n = name.trimmed();
     if (!n.isEmpty()) return n;
     return url.port() > 0 ? QStringLiteral("%1:%2").arg(url.host()).arg(url.port()) : url.host();
 }
