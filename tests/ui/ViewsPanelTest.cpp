@@ -23,6 +23,8 @@
 #include <QDir>
 #include <QDockWidget>
 #include <QFile>
+#include <QGraphicsItem>
+#include <QGraphicsScene>
 #include <QImage>
 #include <QLabel>
 #include <QListWidget>
@@ -36,6 +38,14 @@
 using namespace bld;
 
 namespace {
+
+// Bricks the map draws now.
+int shownBricks(ui::MapView& view) {
+    int n = 0;
+    for (QGraphicsItem* it : view.scene()->items())
+        n += it->isVisible() && it->data(2).toString() == QLatin1String("brick");
+    return n;
+}
 
 const QString kFixture = QStringLiteral(BLD_SOURCE_DIR "/fixtures/layouts/views.bld-layout");
 
@@ -272,7 +282,7 @@ TEST_F(SharePicture, ExportAllRemembersTheFolderAndSize) {
         EXPECT_TRUE(dlg.status().startsWith(QStringLiteral("Saved 2 pictures in")));
     }
     const auto prefs = ui::loadExportViewsPrefs();
-    EXPECT_EQ(prefs.folder, out);
+    ASSERT_EQ(prefs.folder, out);  // else the one-click export below would ask for a folder
     EXPECT_EQ(prefs.scale, 1.0);
     // The next time: the same size, and one click writes to the same folder.
     ui::SharePictureDialog again(input());
@@ -320,8 +330,10 @@ TEST_F(ViewsInTheWindow, ShowingAViewChangesOnlyThisScreen) {
     auto* indicator = window_->findChild<ui::ViewIndicator*>();
     ASSERT_NE(indicator, nullptr);
     EXPECT_FALSE(indicator->isVisible());
+    EXPECT_EQ(shownBricks(*view_), 3);
 
     emit list->itemClicked(list->item(1));  // Station: one sheet, one area
+    EXPECT_EQ(shownBricks(*view_), 1);  // the town's only
     ASSERT_TRUE(view_->viewFilter().has_value());
     EXPECT_EQ(view_->viewFilter()->sheets, QStringList{ view_->currentMap()->layers()[1]->guid });
     EXPECT_FALSE(view_->viewFilter()->labels);
@@ -349,6 +361,7 @@ TEST_F(ViewsInTheWindow, ShowingAViewChangesOnlyThisScreen) {
     EXPECT_FALSE(view_->viewFilter().has_value());
     EXPECT_FALSE(indicator->isVisible());
     EXPECT_TRUE(panel_->activeViewId().isEmpty());
+    EXPECT_EQ(shownBricks(*view_), 3);
 }
 
 TEST_F(ViewsInTheWindow, DeletingTheViewBeingLookedAtEndsIt) {

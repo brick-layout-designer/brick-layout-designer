@@ -206,7 +206,7 @@ TEST(SavedViews, ExportAllMakesOnePictureOfEachViewAtItsSize) {
     ASSERT_TRUE(QDir().mkpath(out));
 
     auto r = exportAllViews(*map, parts, QStringLiteral("Show"), 1, out);
-    EXPECT_EQ(r.files, (QStringList{ QStringLiteral("Show - Whole layout.png"), QStringLiteral("Show - Station.png") }));
+    ASSERT_EQ(r.files, (QStringList{ QStringLiteral("Show - Whole layout.png"), QStringLiteral("Show - Station.png") }));
     EXPECT_TRUE(r.skipped.isEmpty());
     EXPECT_TRUE(r.failed.isEmpty());
     EXPECT_EQ(QImage(QDir(out).filePath(r.files[0])).size(), QSize(128 * 8, 88 * 8));
@@ -230,6 +230,6 @@ TEST(SavedViews, ExportAllMakesOnePictureOfEachViewAtItsSize) {
     const QString empty = dir.filePath(QStringLiteral("none"));
     ASSERT_TRUE(QDir().mkpath(empty));
     r = exportAllViews(*map, parts, QStringLiteral("Show"), 2, empty);
-    EXPECT_EQ(r.files, QStringList{ QStringLiteral("Show - Whole layout.png") });
+    ASSERT_EQ(r.files, QStringList{ QStringLiteral("Show - Whole layout.png") });
     EXPECT_EQ(QImage(QDir(empty).filePath(r.files[0])).size(), QSize(128 * 16, 88 * 16));
 }
