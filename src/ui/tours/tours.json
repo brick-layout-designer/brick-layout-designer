@@ -6,7 +6,7 @@
     "text": "Plan a LEGO layout for your next show, on your own or with your club.",
     "actions": {
       "layout": { "label": "Start or open a layout", "text": "Begin with an empty map, or open a file from this app or BlueBrick." },
-      "club": { "label": "Join a club", "text": "Share layouts, rooms and parts with the people you build with." },
+      "club": { "label": "Join a club", "text": "Share layouts, venues and parts with the people you build with." },
       "tour": { "label": "Take the tour", "text": "A few short steps that show you the main buttons." }
     },
     "dismiss": "Not now"
@@ -28,14 +28,14 @@
     },
     {
       "id": "rooms",
-      "title": "Rooms",
+      "title": "Venues",
       "devices": "all",
       "steps": [
-        { "target": "room.tools", "title": "Draw your room", "text": "Draw the walls first, then add doors, openings and things in the way, like pillars." },
+        { "target": "room.tools", "title": "Draw your venue", "text": "Draw the walls first, then add doors, openings and things in the way, like pillars." },
         { "target": "room.units", "title": "Real sizes", "text": "Type sizes in feet and inches or metres. The app works out the studs for you." },
         { "target": "room.snap", "title": "Straight walls", "text": "Snap keeps walls straight and corners square while you draw." },
         { "target": "room.floorPlan", "title": "Trace a floor plan", "text": "Have a plan of the hall? Put the picture underneath and draw over it." },
-        { "target": "roomDesigner.save", "title": "Save the room", "text": "Save it, and start new layouts from it whenever you show there." }
+        { "target": "roomDesigner.save", "title": "Save the venue", "text": "Save it, and start new layouts from it whenever you show there." }
       ]
     },
     {
@@ -43,7 +43,7 @@
       "title": "Clubs",
       "devices": "all",
       "steps": [
-        { "target": "owners.filter", "title": "Mine and my clubs'", "text": "Pick All, Mine or a club to see just those layouts, rooms and parts." },
+        { "target": "owners.filter", "title": "Mine and my clubs'", "text": "Pick All, Mine or a club to see just those layouts, venues and parts." },
         { "target": "publish.owner", "title": "Save to", "text": "When you make or publish a layout, Save to picks whether it is yours or your club's." },
         { "target": "clubs.page", "title": "Your club's page", "text": "The club page shows who is in the club. Admins invite people from there." },
         { "target": "clubs.join", "title": "Joining a club", "text": "A club admin sends you an invite link. Open it to join, and the club's things show up here." }

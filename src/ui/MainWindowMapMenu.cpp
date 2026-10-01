@@ -158,8 +158,8 @@ void MainWindow::setupMapMenu() {
     });
 
     mapMenu->addSeparator();
-    auto* venueMenu = mapMenu->addMenu(tr("&Room"));
-    auto* designerAct = venueMenu->addAction(tr("Open Room &Designer..."));
+    auto* venueMenu = mapMenu->addMenu(tr("&Venue"));
+    auto* designerAct = venueMenu->addAction(tr("Open Venue &Designer..."));
     designerAct->setObjectName(QStringLiteral("map.roomDesigner"));
     designerAct->setToolTip(
         tr("Design this layout's venue: walls, doors, openings, columns, stairs, power, measurements."));
@@ -233,7 +233,7 @@ void MainWindow::setupMapMenu() {
             8000);
     });
     venueMenu->addSeparator();
-    auto* editVenueAct = venueMenu->addAction(tr("&Edit Room Properties..."));
+    auto* editVenueAct = venueMenu->addAction(tr("&Edit Venue Properties..."));
     connect(editVenueAct, &QAction::triggered, this, [this]{
         auto* m = mapView_->currentMap();
         if (!m) return;
@@ -245,7 +245,7 @@ void MainWindow::setupMapMenu() {
             mapView_->undoStack()->push(new edit::SetVenueCommand(*m, dlg.result()));
         }
     });
-    auto* clearVenueAct = venueMenu->addAction(tr("&Clear Room"));
+    auto* clearVenueAct = venueMenu->addAction(tr("&Clear Venue"));
     connect(clearVenueAct, &QAction::triggered, this, [this]{
         auto* m = mapView_->currentMap();
         if (!m || !m->sidecar.venue) return;
@@ -257,14 +257,14 @@ void MainWindow::setupMapMenu() {
 
     venueMenu->addSeparator();
 
-    auto* showLibraryAct = venueMenu->addAction(tr("Room &Library..."));
-    showLibraryAct->setToolTip(tr("Open the Room library panel to browse, load, or save rooms."));
+    auto* showLibraryAct = venueMenu->addAction(tr("Venue &Library..."));
+    showLibraryAct->setToolTip(tr("Open the Venue library panel to browse, load, or save venues."));
     connect(showLibraryAct, &QAction::triggered, this, [this]{
         venueLibraryPanel_->show();
         venueLibraryPanel_->raise();
     });
 
-    auto* loadVenueFileAct = venueMenu->addAction(tr("Load Room from &File..."));
+    auto* loadVenueFileAct = venueMenu->addAction(tr("Load Venue from &File..."));
     connect(loadVenueFileAct, &QAction::triggered, this, [this]{
         auto* m = mapView_->currentMap();
         if (!m) return;

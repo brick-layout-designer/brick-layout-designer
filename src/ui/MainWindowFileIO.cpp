@@ -670,7 +670,7 @@ void MainWindow::onAbout() {
     QMessageBox::about(this, tr("About Brick Layout Designer"),
         tr("<h3>Brick Layout Designer</h3>"
            "<p>Cross-platform C++/Qt 6 fork of <b>BlueBrick</b> by Alban Nanty and contributors.</p>"
-           "<p>Adds modules, labels, rooms and live editing with your club, and saves everything "
+           "<p>Adds modules, labels, venues and live editing with your club, and saves everything "
            "in one <i>.bld-layout</i> file. It still opens and exports BlueBrick <i>.bbm</i> files.</p>"
            "<p><b>Made with AI.</b> Much of this app was written with the help of AI "
            "(Anthropic's Claude), directed and reviewed by a person. It is tested, but it can "

@@ -48,10 +48,10 @@ constexpr Raw kShared[] = {
       QT_TRANSLATE_NOOP("HelpTexts", "Drag a module from here onto the map to add a copy of it. Your "
                                      "club’s modules are shared with everyone in the club.") },
     { "panel.roomLibrary", "/help#room",
-      QT_TRANSLATE_NOOP("HelpTexts", "Room library"),
-      QT_TRANSLATE_NOOP("HelpTexts", "Rooms and halls saved to your account or your club."),
-      QT_TRANSLATE_NOOP("HelpTexts", "Put a room under your layout to check that it fits, with space to "
-                                     "walk around. Anyone in your club can use the club’s rooms.") },
+      QT_TRANSLATE_NOOP("HelpTexts", "Venue library"),
+      QT_TRANSLATE_NOOP("HelpTexts", "Venues saved to your account or your club."),
+      QT_TRANSLATE_NOOP("HelpTexts", "Put a venue under your layout to check that it fits, with space to "
+                                     "walk around. Anyone in your club can use the club’s venues.") },
     { "panel.views", "",
       QT_TRANSLATE_NOOP("HelpTexts", "Views"),
       QT_TRANSLATE_NOOP("HelpTexts", "Saved views remember a part of the layout, so you can show it again "
@@ -67,7 +67,7 @@ constexpr Raw kShared[] = {
                                      "working: your changes are kept here and saved when you are back.") },
     { "topbar.tasks", "",
       QT_TRANSLATE_NOOP("HelpTexts", "Tasks"),
-      QT_TRANSLATE_NOOP("HelpTexts", "Jump to what you want to do: build, draw the room, add notes or see "
+      QT_TRANSLATE_NOOP("HelpTexts", "Jump to what you want to do: build, draw the venue, add notes or see "
                                      "the parts list."),
       QT_TRANSLATE_NOOP("HelpTexts", "Each task opens the panels you need for it. Nothing is lost when "
                                      "you switch between them.") },
@@ -102,7 +102,7 @@ constexpr Raw kShared[] = {
       QT_TRANSLATE_NOOP("HelpTexts", "Tools"),
       QT_TRANSLATE_NOOP("HelpTexts", "Pick what a click on the map does."),
       QT_TRANSLATE_NOOP("HelpTexts", "Select moves pieces. Measure and Circle add a ruler you can keep on "
-                                     "the map. Room and Obstacle draw the walls of the room and things to "
+                                     "the map. Venue and Obstacle draw the walls of the venue and things to "
                                      "keep clear of.") },
     // Status bar
     { "status.sheet", "/help#sheets",
@@ -111,8 +111,8 @@ constexpr Raw kShared[] = {
       QT_TRANSLATE_NOOP("HelpTexts", "Pick a different sheet in the Sheets panel to put new parts there "
                                      "instead. Each sheet keeps its own parts.") },
     { "status.room", "/help#room",
-      QT_TRANSLATE_NOOP("HelpTexts", "Room check"),
-      QT_TRANSLATE_NOOP("HelpTexts", "Says whether the layout fits the room, with space to walk around."),
+      QT_TRANSLATE_NOOP("HelpTexts", "Venue check"),
+      QT_TRANSLATE_NOOP("HelpTexts", "Says whether the layout fits the venue, with space to walk around."),
       QT_TRANSLATE_NOOP("HelpTexts", "It checks for pieces outside the walls, on top of obstacles, or too "
                                      "close to leave a walkway. Point at it to see what needs fixing.") },
     { "status.budget", "",
@@ -162,13 +162,13 @@ constexpr Raw kShared[] = {
                                      "some things out.") },
     { "download.layout", "/help#files",
       QT_TRANSLATE_NOOP("HelpTexts", "Layout file"),
-      QT_TRANSLATE_NOOP("HelpTexts", "Everything in one file: parts, sheets, room, labels and modules."),
+      QT_TRANSLATE_NOOP("HelpTexts", "Everything in one file: parts, sheets, venue, labels and modules."),
       QT_TRANSLATE_NOOP("HelpTexts", "Pick this to keep a backup or to open the layout in the desktop "
                                      "app. Nothing is left out.") },
     { "download.bbm", "/help#files",
       QT_TRANSLATE_NOOP("HelpTexts", "BlueBrick map"),
       QT_TRANSLATE_NOOP("HelpTexts", "For people who still use the old BlueBrick program."),
-      QT_TRANSLATE_NOOP("HelpTexts", "BlueBrick can’t hold everything this app can, so the room, labels, "
+      QT_TRANSLATE_NOOP("HelpTexts", "BlueBrick can’t hold everything this app can, so the venue, labels, "
                                      "modules and background picture are left out. Your layout here keeps "
                                      "them.") },
     // Share and people
@@ -243,7 +243,7 @@ constexpr Raw kShared[] = {
       QT_TRANSLATE_NOOP("HelpTexts", "Short guided walks through the app."),
       QT_TRANSLATE_NOOP("HelpTexts", "A tour points at the real buttons, one step at a time. Press “Show "
                                      "tours again” to see the ones you have already finished.") },
-    // The room designer
+    // The venue designer
     { "room.tools", "/help#room",
       QT_TRANSLATE_NOOP("HelpTexts", "Drawing tools"),
       QT_TRANSLATE_NOOP("HelpTexts", "Pick what to draw: walls, doors, columns, power points and more."),
@@ -252,7 +252,7 @@ constexpr Raw kShared[] = {
     { "room.units", "",
       QT_TRANSLATE_NOOP("HelpTexts", "Units"),
       QT_TRANSLATE_NOOP("HelpTexts", "Show lengths in feet and inches, metres or studs."),
-      QT_TRANSLATE_NOOP("HelpTexts", "Change it any time: the room stays the same size. A stud is 8 mm, "
+      QT_TRANSLATE_NOOP("HelpTexts", "Change it any time: the venue stays the same size. A stud is 8 mm, "
                                      "the width of one LEGO bump.") },
     { "room.snap", "",
       QT_TRANSLATE_NOOP("HelpTexts", "Snap"),
@@ -261,7 +261,7 @@ constexpr Raw kShared[] = {
                                      "angle for a moment.") },
     { "room.floorPlan", "/help#room",
       QT_TRANSLATE_NOOP("HelpTexts", "Floor plan"),
-      QT_TRANSLATE_NOOP("HelpTexts", "Put a picture of the room’s plan underneath, and trace over it."),
+      QT_TRANSLATE_NOOP("HelpTexts", "Put a picture of the venue’s plan underneath, and trace over it."),
       QT_TRANSLATE_NOOP("HelpTexts", "A photo or a drawing both work. Scale it by clicking two points you "
                                      "know the real distance between.") },
     { "room.calibrate", "",
@@ -273,11 +273,11 @@ constexpr Raw kShared[] = {
     { "room.show", "",
       QT_TRANSLATE_NOOP("HelpTexts", "Show"),
       QT_TRANSLATE_NOOP("HelpTexts", "Hide parts of the drawing to see the rest more clearly."),
-      QT_TRANSLATE_NOOP("HelpTexts", "Hiding something only hides it here. It is still part of the room.") },
+      QT_TRANSLATE_NOOP("HelpTexts", "Hiding something only hides it here. It is still part of the venue.") },
     { "room.walkway", "",
       QT_TRANSLATE_NOOP("HelpTexts", "Walkway"),
       QT_TRANSLATE_NOOP("HelpTexts", "The space to leave clear around the layout for people to walk."),
-      QT_TRANSLATE_NOOP("HelpTexts", "The room check warns you when the layout comes closer than this to "
+      QT_TRANSLATE_NOOP("HelpTexts", "The venue check warns you when the layout comes closer than this to "
                                      "a wall or an obstacle. It starts at about 90 cm.") },
     { "room.estimates", "",
       QT_TRANSLATE_NOOP("HelpTexts", "Estimates"),

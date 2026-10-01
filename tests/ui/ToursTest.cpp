@@ -75,6 +75,8 @@ TEST_F(Tours, TheCatalogueIsTheWebAppsFile) {
     QStringList ids;
     for (const auto& t : c.tours) ids << t.id;
     EXPECT_EQ(ids, (QStringList{ "editor", "rooms", "clubs", "view" }));
+    // The venue tour keeps its id; people see "Venues".
+    EXPECT_EQ(tours::findTour(QStringLiteral("rooms"))->title, QStringLiteral("Venues"));
     for (const auto& t : c.tours) {
         EXPECT_GE(t.steps.size(), 4) << t.id.toStdString();
         EXPECT_LE(t.steps.size(), 7) << t.id.toStdString();
