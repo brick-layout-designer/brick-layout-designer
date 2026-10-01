@@ -1,4 +1,5 @@
 #include "ServerApi.h"
+#include "ServerRefusal.h"
 
 #include <QCoreApplication>
 #include <QHostAddress>
@@ -166,9 +167,13 @@ void ServerApi::fetchLayouts() {
 std::optional<QJsonObject> ServerApi::okJson(QNetworkReply* r, const QString& what) {
     const int status = r->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
     if (status != 200) {
-        // 403 is a token without the scope this needs (or one revoked since).
-        const bool unauthorized = status == 401 || status == 403;
-        emit requestFailed(what, status == 0 ? r->errorString() : tr("The server answered %1").arg(status), unauthorized);
+        // 403 is a token without the scope this needs (or one revoked since),
+        // unless it is a usage limit or a read-only account.
+        const ServerRefusal refusal = readRefusal(status, r->readAll(), r->errorString());
+        const QString message = isLimitRefusal(refusal) ? describe(refusal)
+                                : status == 0          ? r->errorString()
+                                                       : tr("The server answered %1").arg(status);
+        emit requestFailed(what, message, needsSignIn(refusal));
         return std::nullopt;
     }
     return jsonOf(r);
@@ -214,12 +219,11 @@ void ServerApi::publishLayout(const QString& title, const QByteArray& bbm, const
         const int status = r->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         const QJsonObject o = jsonOf(r);
         if (status != 201 && status != 200) {
-            const QString err = o.value(QLatin1String("error")).toString();
-            emit requestFailed(
-                QStringLiteral("publish"),
-                err.isEmpty() ? (status == 0 ? r->errorString() : tr("The server answered %1").arg(status))
-                              : err,
-                status == 401 || status == 403);
+            // A usage limit (or a read-only account) comes with a sentence to
+            // show, and is not a reason to sign in again.
+            const ServerRefusal refusal =
+                readRefusal(status, QJsonDocument(o).toJson(QJsonDocument::Compact), r->errorString());
+            emit requestFailed(QStringLiteral("publish"), describe(refusal), needsSignIn(refusal));
             return;
         }
         emit published(o.value(QLatin1String("id")).toString(),

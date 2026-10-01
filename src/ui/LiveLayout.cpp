@@ -1,4 +1,5 @@
 #include "LiveLayout.h"
+#include "ServerRefusal.h"
 
 #include "MapView.h"
 #include "MapViewInternal.h"
@@ -28,9 +29,10 @@ LiveLayout::LiveLayout(MapView& view, QObject* parent) : QObject(parent), view_(
         emit statusTextChanged(statusText());
         emit offlineEditsReady();
     });
-    connect(&session_, &sync::SyncSession::ended, this, [this](int, const QString& reason) {
+    connect(&session_, &sync::SyncSession::ended, this, [this](int code, const QString& reason) {
         close();
-        emit ended(reason);
+        const QString friendly = sync::liveCloseText(code, reason);
+        emit ended(friendly.isEmpty() ? reason : friendly);
     });
     connect(view_.undoStack(), &QUndoStack::indexChanged, this, [this](int) {
         onLocalStep();

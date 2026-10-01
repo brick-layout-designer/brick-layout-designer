@@ -4,6 +4,7 @@
 // layout list with the token in the Authorization header.
 
 #include "ServerApi.h"
+#include "ServerRefusal.h"
 #include "FakeHttp.h"
 #include "saveload/VenueIO.h"
 
@@ -290,4 +291,60 @@ TEST(ServerApi, NamesTheAppInEveryRequest) {
     ASSERT_TRUE(waitFor([&] { return published; }));
     ASSERT_EQ(http.requests.size(), 2u);
     for (const auto& r : http.requests) EXPECT_EQ(r.userAgent, userAgent());
+}
+
+// Publish refused by a usage limit: the server's sentence, and no sign-in
+// prompt (that is only for a token that can't publish).
+TEST(ServerApi, PublishShowsTheServersLimitMessage) {
+    FakeHttp http;
+    ServerApi api;
+    api.setBase(http.base());
+    api.setToken(QStringLiteral("bld_pat_x"));
+    const QString msg = QStringLiteral("Your club has used its 10 GB. Ask the site admin for more room.");
+    http.reply("/api/layouts", 403,
+               { { QStringLiteral("error"), QStringLiteral("limit_reached") },
+                 { QStringLiteral("limit"), QStringLiteral("storagePerClub") },
+                 { QStringLiteral("message"), msg } });
+    http.reply("/api/layouts", 403, { { QStringLiteral("error"), QStringLiteral("insufficient_scope") } });
+    QString what, message;
+    bool unauthorized = true;
+    int fails = 0;
+    QObject::connect(&api, &ServerApi::requestFailed, [&](const QString& w, const QString& m, bool u) {
+        what = w;
+        message = m;
+        unauthorized = u;
+        ++fails;
+    });
+    api.publishLayout(QStringLiteral("T"), QByteArray("<Map/>"), {}, QStringLiteral("club"));
+    ASSERT_TRUE(waitFor([&] { return fails == 1; }));
+    EXPECT_EQ(what, QStringLiteral("publish"));
+    EXPECT_EQ(message, msg);
+    EXPECT_FALSE(unauthorized);
+    // A token without the scope still asks to sign in again.
+    api.publishLayout(QStringLiteral("T"), QByteArray("<Map/>"), {}, {});
+    ASSERT_TRUE(waitFor([&] { return fails == 2; }));
+    EXPECT_TRUE(unauthorized);
+    EXPECT_EQ(message, QStringLiteral("insufficient_scope"));
+}
+
+TEST(ServerRefusal, ReadsLimitsReadOnlyAndRateLimits) {
+    const auto lim = readRefusal(403, R"({"error":"limit_reached","limit":"layoutsPerUser","message":"You have 500 layouts, the most allowed."})");
+    EXPECT_TRUE(isLimitRefusal(lim));
+    EXPECT_FALSE(needsSignIn(lim));
+    EXPECT_EQ(lim.limit, QStringLiteral("layoutsPerUser"));
+    EXPECT_EQ(describe(lim), QStringLiteral("You have 500 layouts, the most allowed."));
+
+    const auto sus = readRefusal(403, R"({"error":"suspended"})");
+    EXPECT_EQ(describe(sus), QStringLiteral("This account is read-only for now. Ask the site admin why."));
+    EXPECT_FALSE(needsSignIn(sus));
+    EXPECT_EQ(describe(readRefusal(429, R"({"error":"rate_limited"})")),
+              QStringLiteral("Too many requests at once. Please wait a minute and try again."));
+
+    EXPECT_TRUE(needsSignIn(readRefusal(401, R"({"error":"invalid_token"})")));
+    EXPECT_TRUE(needsSignIn(readRefusal(403, "not json")));
+    EXPECT_EQ(describe(readRefusal(500, "")), QStringLiteral("The server answered 500"));
+    EXPECT_EQ(describe(readRefusal(0, "", QStringLiteral("Connection refused"))), QStringLiteral("Connection refused"));
+
+    EXPECT_FALSE(liveCloseText(4429, QStringLiteral("limit_reached")).isEmpty());
+    EXPECT_TRUE(liveCloseText(4429, QStringLiteral("too_many_connections")).isEmpty());
 }
