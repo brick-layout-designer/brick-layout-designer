@@ -1,5 +1,7 @@
 #include "SelectionOverlay.h"
 
+#include "SelectionStyle.h"
+
 #include <QBrush>
 #include <QPainter>
 #include <QPen>
@@ -19,17 +21,27 @@ SelectionOverlay::SelectionOverlay() {
 
 
 void SelectionOverlay::paint(QPainter* p, const QStyleOptionGraphicsItem*, QWidget*) {
-    if (polys_.isEmpty()) return;
+    if (polys_.isEmpty() && bands_.isEmpty()) return;
     p->save();
     p->setRenderHint(QPainter::Antialiasing, true);
+    using namespace selection;
 
-    const QColor inColor = snapActive_ ? QColor(80, 255, 120)
-                                       : QColor(255, 215, 0);
-    const QColor fillColor = snapActive_ ? QColor(80, 255, 120, 90)
-                                         : QColor(255, 215, 0, 80);
-    QPen outer(QColor(0, 0, 0, 230)); outer.setWidthF(5.0); outer.setCosmetic(true);
+    for (const RulerBand& b : bands_) {
+        QPen band(kRulerHalo);
+        band.setWidthF(b.width);
+        band.setCapStyle(Qt::FlatCap);
+        p->setPen(band);
+        p->setBrush(Qt::NoBrush);
+        if (b.circle) p->drawEllipse(b.centre, b.radius, b.radius);
+        else p->drawLine(b.line);
+    }
+
+    const QColor inColor = snapActive_ ? kSnapStroke : kPartTint;
+    QColor fillColor = snapActive_ ? kSnapFill : kPartTint;
+    if (!snapActive_) fillColor.setAlpha(kPartFillAlpha);
+    QPen outer(kPartOuter); outer.setWidthF(kPartOuterWidth); outer.setCosmetic(true);
     outer.setJoinStyle(Qt::MiterJoin);
-    QPen inner(inColor); inner.setWidthF(2.5); inner.setCosmetic(true);
+    QPen inner(inColor); inner.setWidthF(kPartInnerWidth); inner.setCosmetic(true);
     inner.setJoinStyle(Qt::MiterJoin);
     const QBrush fill(fillColor);
 
@@ -47,12 +59,23 @@ void SelectionOverlay::paint(QPainter* p, const QStyleOptionGraphicsItem*, QWidg
     p->restore();
 }
 
+void SelectionOverlay::setRulerBands(QList<RulerBand> bands) {
+    prepareGeometryChange();
+    bands_ = std::move(bands);
+    setOutlines(polys_);
+}
+
 void SelectionOverlay::setOutlines(QList<QPolygonF> polys) {
     prepareGeometryChange();
     polys_ = std::move(polys);
     QRectF total;
     for (const QPolygonF& poly : polys_) {
         total = total.united(poly.boundingRect());
+    }
+    for (const RulerBand& b : bands_) {
+        const QRectF r = b.circle ? QRectF(b.centre - QPointF(b.radius, b.radius), QSizeF(2 * b.radius, 2 * b.radius))
+                                  : QRectF(b.line.p1(), b.line.p2()).normalized();
+        total = total.united(r.adjusted(-b.width, -b.width, b.width, b.width));
     }
     if (snapActive_)
         total = total.united(QRectF(snapPoint_ - QPointF(12, 12), QSizeF(24, 24)));

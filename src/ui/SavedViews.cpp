@@ -9,11 +9,15 @@
 #include "../core/LayerText.h"
 #include "../core/Map.h"
 #include "../core/Module.h"
+#include "../core/Sidecar.h"
+#include "../rendering/MapText.h"
 #include "../rendering/SceneBuilder.h"
 
 #include <QCoreApplication>
 #include <QDir>
 #include <QFont>
+#include <QGraphicsItem>
+#include <QGraphicsLineItem>
 #include <QGraphicsScene>
 #include <QPainter>
 #include <QPen>
@@ -24,6 +28,8 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <utility>
+#include <vector>
 
 namespace bld::ui::views {
 
@@ -82,6 +88,36 @@ void paintGrid(QPainter& p, const core::LayerGrid& g, const QRectF& region, doub
         pass(static_cast<double>(g.gridSizeInStud) / std::max(2, g.subDivisionNumber), g.subGridColor.color,
              g.subGridThickness);
     if (g.displayGrid) pass(g.gridSizeInStud, g.gridColor.color, g.gridThickness);
+    if (!g.displayCellIndex || g.gridSizeInStud <= 0) return;
+    // The cell indices, as BlueBrick's exported pictures and the web's show
+    // them: the origin row's and column's labels centred in their cells,
+    // in the map font at pt x 4/3 scene px per stud, scaled with the picture.
+    const double cell = g.gridSizeInStud;
+    const double scale = std::min(pxPerStudX, pxPerStudY) / kPxPerStud;
+    const QFont f = rendering::mapFont(g.cellIndexFont.styleString, std::lround(g.cellIndexFont.sizePt * 4.0 / 3.0 * kPxPerStud));
+    p.save();
+    p.setFont(f);
+    p.setPen(g.cellIndexColor.color);
+    const QPoint c = g.cellIndexCorner;
+    const auto label = [&](int cx, int cy, const QString& text) {
+        if (text.isEmpty()) return;
+        const QPointF centre(((cx + 0.5) * cell - region.x()) * pxPerStudX, ((cy + 0.5) * cell - region.y()) * pxPerStudY);
+        p.save();
+        p.translate(centre);
+        p.scale(scale, scale);
+        p.drawText(QRectF(-cell * kPxPerStud, -cell * kPxPerStud, 2 * cell * kPxPerStud, 2 * cell * kPxPerStud),
+                   Qt::AlignCenter, text);
+        p.restore();
+    };
+    if ((c.y() + 1) * cell > region.top() && c.y() * cell < region.bottom())
+        for (int x = std::max(c.x(), static_cast<int>(std::floor(region.left() / cell)));
+             x <= static_cast<int>(std::ceil(region.right() / cell)); ++x)
+            label(x, c.y(), core::LayerGrid::cellIndexLabel(x - c.x(), g.cellIndexColumnType == core::CellIndexType::Letters));
+    if ((c.x() + 1) * cell > region.left() && c.x() * cell < region.right())
+        for (int y = std::max(c.y(), static_cast<int>(std::floor(region.top() / cell)));
+             y <= static_cast<int>(std::ceil(region.bottom() / cell)); ++y)
+            label(c.x(), y, core::LayerGrid::cellIndexLabel(y - c.y(), g.cellIndexRowType == core::CellIndexType::Letters));
+    p.restore();
 }
 
 }  // namespace
@@ -234,7 +270,47 @@ QImage renderSceneImage(QGraphicsScene& scene, const QRectF& source, QSize size,
         o.underlay(p);
         p.restore();
     }
-    scene.render(&p, QRectF(0, 0, size.width(), size.height()), source, o.aspect);
+    // A picture is the map at zoom 1, scaled (the web's pictures render the
+    // stage at scale 1 with a pixel ratio): lines that keep their width on
+    // screen (module frames, hulls, the room) are as wide as at zoom 1, so
+    // they grow and shrink with the picture instead of staying N pixels.
+    std::vector<std::pair<QAbstractGraphicsShapeItem*, QPen>> shapes;
+    std::vector<std::pair<QGraphicsLineItem*, QPen>> lines;
+    const auto zoomOne = [](QPen pen) {
+        pen.setCosmetic(false);
+        return pen;
+    };
+    for (QGraphicsItem* it : scene.items()) {
+        if (auto* shape = dynamic_cast<QAbstractGraphicsShapeItem*>(it); shape && shape->pen().isCosmetic()) {
+            shapes.emplace_back(shape, shape->pen());
+            shape->setPen(zoomOne(shape->pen()));
+        } else if (auto* line = dynamic_cast<QGraphicsLineItem*>(it); line && line->pen().isCosmetic()) {
+            lines.emplace_back(line, line->pen());
+            line->setPen(zoomOne(line->pen()));
+        }
+    }
+    // Parts are drawn from 32 px per stud pictures; shrinking one a lot in
+    // one step leaves moire, where the web's canvas filters it (it shrinks
+    // pictures in halving steps). Draw the map k times bigger and shrink it
+    // smoothly, so a part loses its detail the same way.
+    const double shrink = 4.0 * source.width() / std::max(1, size.width());  // part px per picture px
+    int k = o.antialias ? std::clamp(static_cast<int>(std::ceil(shrink)), 1, 8) : 1;
+    while (k > 1 && static_cast<double>(size.width()) * size.height() * k * k * 4 > 256.0 * 1024 * 1024) --k;
+    if (k > 1) {
+        QImage big(size * k, QImage::Format_ARGB32_Premultiplied);
+        big.fill(Qt::transparent);
+        {
+            QPainter bp(&big);
+            bp.setRenderHint(QPainter::Antialiasing);
+            bp.setRenderHint(QPainter::SmoothPixmapTransform);
+            scene.render(&bp, QRectF(0, 0, big.width(), big.height()), source, o.aspect);
+        }
+        p.drawImage(QPoint(0, 0), big.scaled(size, Qt::IgnoreAspectRatio, Qt::SmoothTransformation));
+    } else {
+        scene.render(&p, QRectF(0, 0, size.width(), size.height()), source, o.aspect);
+    }
+    for (auto& [shape, pen] : shapes) shape->setPen(pen);
+    for (auto& [line, pen] : lines) line->setPen(pen);
     if (!o.watermark.isEmpty()) {
         QFont f;
         f.setPointSize(std::max(8, size.height() / 60));
@@ -270,10 +346,28 @@ QImage PictureRenderer::render(const PictureSpec& spec, QSize size) {
     SceneImageOptions o;
     o.background = d_->map.backgroundColor.color;
     const core::LayerGrid* grid = spec.grid ? drawnGrid(d_->map) : nullptr;
-    if (grid) {
+    const core::Sidecar& side = d_->map.sidecar;
+    const QImage background = side.backgroundImagePath.isEmpty() ? QImage() : QImage(side.backgroundImagePath);
+    if (grid || !background.isNull()) {
         const QRectF region = spec.region;
-        o.underlay = [grid, region, size](QPainter& p) {
-            paintGrid(p, *grid, region, size.width() / region.width(), size.height() / region.height());
+        o.underlay = [grid, region, size, &side, background](QPainter& p) {
+            const double sx = size.width() / region.width(), sy = size.height() / region.height();
+            // The background image under the grid, as the map and the web's
+            // pictures draw it: at its rect in studs, or its own size at the
+            // origin (1 image px = 1 scene px).
+            if (!background.isNull()) {
+                const QRectF r = side.backgroundImageRectStuds.isNull()
+                                     ? QRectF(0, 0, background.width() / double(kPxPerStud),
+                                              background.height() / double(kPxPerStud))
+                                     : side.backgroundImageRectStuds;
+                p.save();
+                p.setOpacity(std::clamp(side.backgroundImageOpacity, 0.0, 1.0));
+                p.drawImage(QRectF((r.x() - region.x()) * sx, (r.y() - region.y()) * sy, r.width() * sx,
+                                   r.height() * sy),
+                            background, QRectF(background.rect()));
+                p.restore();
+            }
+            if (grid) paintGrid(p, *grid, region, sx, sy);
         };
     }
     const QRectF px(spec.region.x() * kPxPerStud, spec.region.y() * kPxPerStud, spec.region.width() * kPxPerStud,

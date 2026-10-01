@@ -1,0 +1,191 @@
+{
+  "about": "Text cells as both apps lay them out (web render/mapText.ts textCellLayout, desktop rendering/MapText.cpp). Scene px at 8 px per stud; a line is charWidth x font px wide per character so fonts do not matter. Lines are lineHeight em apart. Same file in both repos.",
+  "charWidth": 0.6,
+  "lineHeight": 1.14990234375,
+  "fontFamily": "Liberation Sans",
+  "cases": [
+    {
+      "text": "Garage",
+      "displayArea": {
+        "x": 10,
+        "y": 20,
+        "width": 12,
+        "height": 3
+      },
+      "orientation": 0,
+      "textAlignment": "Center",
+      "expect": {
+        "fontPx": 20,
+        "width": 72,
+        "height": 22.998046875,
+        "centre": {
+          "x": 128,
+          "y": 172
+        },
+        "rotation": 0,
+        "lines": [
+          {
+            "text": "Garage",
+            "x": 0,
+            "y": 0
+          }
+        ]
+      }
+    },
+    {
+      "text": "Botique\nHotel",
+      "displayArea": {
+        "x": 0,
+        "y": 0,
+        "width": 10,
+        "height": 6.5
+      },
+      "orientation": 0,
+      "textAlignment": "Near",
+      "expect": {
+        "fontPx": 19,
+        "width": 79.8,
+        "height": 43.6962890625,
+        "centre": {
+          "x": 40,
+          "y": 26
+        },
+        "rotation": 0,
+        "lines": [
+          {
+            "text": "Botique",
+            "x": 0,
+            "y": 0
+          },
+          {
+            "text": "Hotel",
+            "x": 0,
+            "y": 21.84814453125
+          }
+        ]
+      }
+    },
+    {
+      "text": "Assembly\nSquare",
+      "displayArea": {
+        "x": 40,
+        "y": 10,
+        "width": 16,
+        "height": 8
+      },
+      "orientation": 0,
+      "textAlignment": "Center",
+      "expect": {
+        "fontPx": 26,
+        "width": 124.8,
+        "height": 59.794921875,
+        "centre": {
+          "x": 384,
+          "y": 112
+        },
+        "rotation": 0,
+        "lines": [
+          {
+            "text": "Assembly",
+            "x": 0,
+            "y": 0
+          },
+          {
+            "text": "Square",
+            "x": 15.600000000000001,
+            "y": 29.8974609375
+          }
+        ]
+      }
+    },
+    {
+      "text": "City\nMarketplace",
+      "displayArea": {
+        "x": -5,
+        "y": 4,
+        "width": 14,
+        "height": 7
+      },
+      "orientation": 0,
+      "textAlignment": "Far",
+      "expect": {
+        "fontPx": 16,
+        "width": 105.6,
+        "height": 36.796875,
+        "centre": {
+          "x": 16,
+          "y": 60
+        },
+        "rotation": 0,
+        "lines": [
+          {
+            "text": "City",
+            "x": 67.19999999999999,
+            "y": 0
+          },
+          {
+            "text": "Marketplace",
+            "x": 0,
+            "y": 18.3984375
+          }
+        ]
+      }
+    },
+    {
+      "text": "Side",
+      "displayArea": {
+        "x": 3,
+        "y": 3,
+        "width": 2,
+        "height": 9
+      },
+      "orientation": 90,
+      "textAlignment": "Center",
+      "expect": {
+        "fontPx": 13,
+        "width": 31.2,
+        "height": 14.94873046875,
+        "centre": {
+          "x": 32,
+          "y": 60
+        },
+        "rotation": 90,
+        "lines": [
+          {
+            "text": "Side",
+            "x": 0,
+            "y": 0
+          }
+        ]
+      }
+    },
+    {
+      "text": "Slant",
+      "displayArea": {
+        "x": 0,
+        "y": 0,
+        "width": 9,
+        "height": 9
+      },
+      "orientation": 45,
+      "textAlignment": "Center",
+      "expect": {
+        "fontPx": 24,
+        "width": 72,
+        "height": 27.59765625,
+        "centre": {
+          "x": 36,
+          "y": 36
+        },
+        "rotation": 45,
+        "lines": [
+          {
+            "text": "Slant",
+            "x": 0,
+            "y": 0
+          }
+        ]
+      }
+    }
+  ]
+}

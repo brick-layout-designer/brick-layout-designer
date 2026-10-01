@@ -1,0 +1,141 @@
+{
+  "about": "Module frames and names as both apps draw them (web moduleLabels.ts, desktop rendering/ModuleLabels.cpp). Scene px at 8 px per stud; a name is charWidth x font px wide per character so fonts do not matter. Same file in both repos.",
+  "charWidth": 0.6,
+  "style": {
+    "frameStroke": "rgba(100,180,255,0.8)",
+    "frameDash": [
+      6,
+      4
+    ],
+    "nameFill": "rgba(100,180,255,0.9)",
+    "nameStroke": "rgba(0,0,0,0.6)",
+    "nameFontStyle": "bold",
+    "nameStrokeWidth": "max(2, fontPx / 12)"
+  },
+  "cases": [
+    {
+      "name": "Corner Station",
+      "studs": {
+        "x": 96,
+        "y": 96,
+        "width": 384,
+        "height": 192
+      },
+      "labelPercent": 35,
+      "expect": {
+        "frame": {
+          "x": 764,
+          "y": 764,
+          "width": 3080,
+          "height": 1544
+        },
+        "text": {
+          "x": 764,
+          "y": 382,
+          "rotation": 0,
+          "width": 3080,
+          "fontPx": 366
+        },
+        "bounds": {
+          "x": 764,
+          "y": 382,
+          "width": 3080,
+          "height": 1926
+        }
+      }
+    },
+    {
+      "name": "Town",
+      "studs": {
+        "x": 10,
+        "y": 20,
+        "width": 30,
+        "height": 120
+      },
+      "labelPercent": 35,
+      "expect": {
+        "frame": {
+          "x": 76,
+          "y": 156,
+          "width": 248,
+          "height": 968
+        },
+        "text": {
+          "x": -276,
+          "y": 1124,
+          "rotation": -90,
+          "width": 968,
+          "fontPx": 336
+        },
+        "bounds": {
+          "x": -276,
+          "y": 156,
+          "width": 600,
+          "height": 968
+        }
+      }
+    },
+    {
+      "name": "A rather long module name here",
+      "studs": {
+        "x": 0,
+        "y": 0,
+        "width": 64,
+        "height": 32
+      },
+      "labelPercent": 35,
+      "expect": {
+        "frame": {
+          "x": -4,
+          "y": -4,
+          "width": 520,
+          "height": 264
+        },
+        "text": {
+          "x": -708,
+          "y": -127,
+          "rotation": 0,
+          "width": 1928,
+          "fontPx": 107
+        },
+        "bounds": {
+          "x": -708,
+          "y": -127,
+          "width": 1928,
+          "height": 387
+        }
+      }
+    },
+    {
+      "name": "Yard",
+      "studs": {
+        "x": -40,
+        "y": 8,
+        "width": 200,
+        "height": 48
+      },
+      "labelPercent": 80,
+      "expect": {
+        "frame": {
+          "x": -324,
+          "y": 60,
+          "width": 1608,
+          "height": 392
+        },
+        "text": {
+          "x": -324,
+          "y": -356,
+          "rotation": 0,
+          "width": 1608,
+          "fontPx": 400
+        },
+        "bounds": {
+          "x": -324,
+          "y": -356,
+          "width": 1608,
+          "height": 808
+        }
+      }
+    }
+  ]
+}

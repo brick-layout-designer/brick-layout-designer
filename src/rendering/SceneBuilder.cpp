@@ -1,4 +1,6 @@
 #include "SceneBuilder.h"
+#include "MapText.h"
+#include "UnknownPart.h"
 #include "SceneBuilderInternal.h"
 
 #include "../core/Layer.h"
@@ -228,17 +230,18 @@ void addBrickLayer(const core::LayerBrick& L, LayerSink& sink, parts::PartsLibra
             }
         }
         if (!item) {
-            // Fallback placeholder: dashed rectangle centred on origin so
-            // drag + snap act on the brick's centre (consistent with pixmap
-            // items above).
-            auto* r = new SnappingRect(QRectF(-areaPx.width() / 2.0, -areaPx.height() / 2.0,
-                                               areaPx.width(), areaPx.height()));
+            // A part the library doesn't know: vanilla's red cross and part
+            // number (UnknownPart.h), turned with the brick. The clear rect
+            // takes the clicks and moves like a part.
+            const UnknownPartLook look = unknownPartLook(brick.partNumber, brick.displayArea.width(),
+                                                         brick.displayArea.height());
+            auto* r = new SnappingRect(QRectF(-look.width / 2.0, -look.height / 2.0, look.width, look.height));
             r->setFlag(QGraphicsItem::ItemSendsGeometryChanges, true);
             r->setPos(centerPx);
-            QPen pen(QColor(200, 80, 80));
-            pen.setStyle(Qt::DashLine);
-            r->setPen(pen);
-            r->setBrush(QBrush(QColor(255, 200, 200, 80)));
+            r->setRotation(brick.orientation);
+            r->setPen(Qt::NoPen);
+            r->setBrush(Qt::NoBrush);
+            addUnknownPartDrawing(r, brick.partNumber, look);
             item = r;
         }
 
@@ -354,7 +357,7 @@ void addBrickLayer(const core::LayerBrick& L, LayerSink& sink, parts::PartsLibra
         // DisplayBrickElevation (LayerBrick.cs ~line 806).
         if (displayElev && std::abs(brick.altitude) > 0.001f) {
             auto* alt = new QGraphicsSimpleTextItem(QString::number(brick.altitude, 'f', 1));
-            QFont f(QStringLiteral("Sans"));
+            QFont f(mapFontFamily());
             f.setPixelSize(10);
             alt->setFont(f);
             alt->setBrush(QBrush(QColor(40, 40, 40)));
@@ -397,55 +400,17 @@ void addBrickLayer(const core::LayerBrick& L, LayerSink& sink, parts::PartsLibra
 
 void addTextLayer(const core::LayerText& L, LayerSink& sink, int layerIndex) {
     for (const auto& cell : L.textCells) {
-        auto* t = new QGraphicsSimpleTextItem(cell.text);
-        QFont f(cell.font.familyName);
-        f.setBold(cell.font.styleString.contains(QStringLiteral("Bold")));
-        f.setItalic(cell.font.styleString.contains(QStringLiteral("Italic")));
-
-        // Upstream BlueBrick stores the text's *pixel* bounding box (converted
-        // to studs) in displayArea. The nominal Font.Size field is the
-        // typographic size used to render that pixmap, not the scene-scale
-        // size. We ignore font.sizePt and instead pick a pixel font size so
-        // the rendered text fills the displayArea's short axis. For rotated
-        // text (orientation != 0/180) the short axis is displayArea.width.
-        const float orient = std::fmod(cell.orientation, 360.0f);
-        const bool rot90 = (std::abs(std::abs(orient) - 90.0f)  < 1.0f ||
-                            std::abs(std::abs(orient) - 270.0f) < 1.0f);
-        // Unrotated target box in pixels. For 90° rotations the displayArea
-        // AABB's width is the rendered height and vice versa.
-        const double boxWpx = (rot90 ? cell.displayArea.height()
-                                     : cell.displayArea.width()) * kPx;
-        const double boxHpx = (rot90 ? cell.displayArea.width()
-                                     : cell.displayArea.height()) * kPx;
-
-        // Probe at a reference size, measure, then pick the pixel size that
-        // makes the rendered bounding box fit entirely inside (boxWpx, boxHpx).
-        // This preserves vanilla's per-label aspect without letting text
-        // overflow into neighbours when labels are tightly packed.
-        constexpr int kProbe = 100;
-        f.setPixelSize(kProbe);
-        t->setFont(f);
-        const QRectF probeRect = t->boundingRect();
-        if (probeRect.width() > 0 && probeRect.height() > 0) {
-            const double scaleW = boxWpx / probeRect.width();
-            const double scaleH = boxHpx / probeRect.height();
-            const double scale  = std::min(scaleW, scaleH);
-            const int finalPx = std::max(1, static_cast<int>(kProbe * scale));
-            f.setPixelSize(finalPx);
-            t->setFont(f);
-        }
+        // The web's text (MapText.h): the bundled font, fitted into the
+        // display area BlueBrick measured, lines aligned as the cell says.
+        const TextCellLayout at = textCellLayout(cell, mapLineWidth(cell.font.styleString));
+        const QFont f = mapFont(cell.font.styleString, at.fontPx);
+        auto* t = new QGraphicsPathItem(textPath(f, at.lines, kMapLineHeight));
+        t->setPen(Qt::NoPen);
         t->setBrush(QBrush(cell.fontColor.color));
-
-        // Centre the text on the displayArea centre, rotated in place. We
-        // translate by centre, rotate, then offset by -bbox.center so the
-        // item's local centre lands on the scene centre.
-        const QRectF localBbox = t->boundingRect();
-        const QPointF centerPx(studToPx(cell.displayArea.center().x()),
-                                studToPx(cell.displayArea.center().y()));
         QTransform tr;
-        tr.translate(centerPx.x(), centerPx.y());
-        tr.rotate(cell.orientation);
-        tr.translate(-localBbox.width() / 2.0, -localBbox.height() / 2.0);
+        tr.translate(at.centre.x(), at.centre.y());
+        tr.rotate(at.rotation);
+        tr.translate(-at.width / 2.0, -at.height / 2.0);
         t->setTransform(tr);
         t->setFlag(QGraphicsItem::ItemIsSelectable, true);
         t->setData(kBrickDataLayerIndex, layerIndex);
@@ -455,23 +420,25 @@ void addTextLayer(const core::LayerText& L, LayerSink& sink, int layerIndex) {
     }
 }
 
+}  // namespace
+
+QColor areaCellColor(const QColor& cell, int transparency) {
+    QColor c = cell;
+    c.setAlpha((255 * std::clamp(transparency, 0, 100)) / 100);
+    return c;
+}
+
+namespace {
+
 void addAreaLayer(const core::LayerArea& L, LayerSink& sink) {
     const double sizePx = studToPx(L.areaCellSizeInStud);
-    // Vanilla BlueBrick applies the area layer's transparency on top of
-    // each cell's own colour. The layer-level transparency multiplies
-    // every cell's own alpha; we mirror that. When the layer's
-    // transparency is the file-format default of 100 ("fully opaque")
-    // we use 1.0 — letting the cell's own alpha control opacity. The
-    // earlier 0.5-when-100 hack was load-bearing only for legacy .bbm
-    // files where the cell colour was QColor(rgb) (alpha 255) and the
-    // user expected ~50% blend — but that broke fresh paint where
-    // cells are also alpha-255 and need to actually be visible.
-    const double alpha = std::clamp(L.transparency, 0, 100) / 100.0;
+    // Vanilla BlueBrick draws a cell in its RGB at the sheet's alpha,
+    // (255 * transparency) / 100 in whole numbers, replacing the cell's own
+    // alpha (LayerArea.cs paintCell / AlphaValue); the web does the same.
     for (const auto& cell : L.cells) {
         auto* r = new QGraphicsRectItem(cell.x * sizePx, cell.y * sizePx, sizePx, sizePx);
         r->setPen(Qt::NoPen);
-        QColor c = cell.color;
-        c.setAlpha(static_cast<int>(c.alpha() * alpha));
+        const QColor c = areaCellColor(cell.color, L.transparency);
         r->setBrush(QBrush(c));
         sink.add(r);
     }
@@ -499,7 +466,7 @@ void addRulerLabel(LayerSink& sink, const QString& text,
                    const core::FontSpec& fontSpec, const core::ColorSpec& colorSpec) {
     if (text.isEmpty()) return;
     auto* t = new QGraphicsSimpleTextItem(text);
-    QFont f(fontSpec.familyName);
+    QFont f(mapFontFamily());
     f.setBold(fontSpec.styleString.contains(QStringLiteral("Bold")));
     f.setItalic(fontSpec.styleString.contains(QStringLiteral("Italic")));
     f.setPixelSize(std::max(6, static_cast<int>(fontSpec.sizePt * 1.6)));
@@ -590,7 +557,7 @@ void addRulerLayer(const core::LayerRuler& L, LayerSink& sink, int layerIndex,
                 // ruler's pixel length for readout height, capped so a
                 // huge ruler (like a 64-stud baseplate measurement)
                 // doesn't get a heading-sized label.
-                QFont f(r.measureFont.familyName);
+                QFont f(mapFontFamily());
                 f.setBold(r.measureFont.styleString.contains(QStringLiteral("Bold")));
                 f.setItalic(r.measureFont.styleString.contains(QStringLiteral("Italic")));
                 const double targetLabelPx = std::clamp(len * 0.06, 9.0, 36.0);
@@ -654,6 +621,8 @@ void addRulerLayer(const core::LayerRuler& L, LayerSink& sink, int layerIndex,
                 selectableLine->setData(kBrickDataLayerIndex, layerIndex);
                 selectableLine->setData(kBrickDataGuid,       r.guid);
                 selectableLine->setData(kBrickDataKind,       QStringLiteral("ruler"));
+                selectableLine->setData(SceneBuilder::kRulerBandRole, QLineF(offsetP1, offsetP2));
+                selectableLine->setData(SceneBuilder::kRulerThicknessRole, static_cast<double>(r.lineThickness));
             }
 
             // Vanilla BlueBrick draws perpendicular tick caps on each end
@@ -754,6 +723,8 @@ void addRulerLayer(const core::LayerRuler& L, LayerSink& sink, int layerIndex,
             el->setData(kBrickDataLayerIndex, layerIndex);
             el->setData(kBrickDataGuid,       r.guid);
             el->setData(kBrickDataKind,       QStringLiteral("ruler"));
+            el->setData(SceneBuilder::kRulerBandRole, el->rect());
+            el->setData(SceneBuilder::kRulerThicknessRole, static_cast<double>(r.lineThickness));
             sink.add(el);
 
             // Radius label to the right of centre.
@@ -857,8 +828,9 @@ void SceneBuilder::addLayer(const core::Layer& L, int layerIndex) {
             break;
     }
 
-    // Apply per-layer transparency by scaling each item's opacity.
-    if (opacity < 1.0) {
+    // Apply per-layer transparency by scaling each item's opacity (a
+    // painted area already has it in its colours).
+    if (opacity < 1.0 && L.kind() != core::LayerKind::Area) {
         for (auto* it : list) it->setOpacity(opacity);
     }
 }

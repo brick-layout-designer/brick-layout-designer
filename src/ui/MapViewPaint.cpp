@@ -13,9 +13,13 @@
 #include "../core/LayerGrid.h"
 #include "../core/LayerRuler.h"
 #include "../core/Map.h"
+#include "../rendering/MapText.h"
 #include "../rendering/SceneBuilder.h"
 #include "MapViewInternal.h"
 #include "SelectionOverlay.h"
+#include "SelectionStyle.h"
+
+#include <QGraphicsDropShadowEffect>
 
 #include <QFont>
 #include <QGraphicsItem>
@@ -118,7 +122,7 @@ void MapView::drawBackground(QPainter* painter, const QRectF& rect) {
 void MapView::drawCellIndices(QPainter* painter, const QRectF& rect, const core::LayerGrid& g) {
     const double px = rendering::SceneBuilder::kPixelsPerStud;
     const double cellPx = std::max(1, g.gridSizeInStud) * px;
-    QFont f(g.cellIndexFont.familyName);
+    QFont f(rendering::mapFontFamily());
     f.setPixelSize(std::max(1, static_cast<int>(std::lround(g.cellIndexFont.sizePt * 4.0 / 3.0 * px))));
     f.setBold(g.cellIndexFont.styleString.contains(QStringLiteral("Bold")));
     f.setItalic(g.cellIndexFont.styleString.contains(QStringLiteral("Italic")));
@@ -172,19 +176,14 @@ void MapView::drawForeground(QPainter* painter, const QRectF& rect) {
                     const QPointF p2Scene(any.linear.point2.x() * pxPerStud,
                                            any.linear.point2.y() * pxPerStud);
                     painter->save();
-                    QPen pen(QColor(20, 20, 20));
-                    pen.setCosmetic(true); pen.setWidthF(1.5);
+                    // Round gold handles, as on the web (SelectionStyle.h).
+                    QPen pen(selection::kHandleStroke);
+                    pen.setCosmetic(true); pen.setWidthF(selection::kHandleStrokeWidth);
                     painter->setPen(pen);
-                    painter->setBrush(QColor(255, 220, 60));
-                    auto drawHandle = [painter](QPointF c){
-                        // 6×6-viewport-pixel square anchored on the
-                        // endpoint. setCosmetic on the pen keeps stroke
-                        // weight constant under zoom; the rect itself
-                        // scales because we draw in scene coords.
-                        const double sz = 0.8;  // studs at default zoom
-                        const double pxPerStud = rendering::SceneBuilder::kPixelsPerStud;
-                        const double s = sz * pxPerStud;
-                        painter->drawRect(QRectF(c.x() - s, c.y() - s, 2 * s, 2 * s));
+                    painter->setBrush(selection::kHandleFill);
+                    painter->setRenderHint(QPainter::Antialiasing, true);
+                    auto drawHandle = [painter](QPointF c) {
+                        painter->drawEllipse(c, selection::kHandleRadius, selection::kHandleRadius);
                     };
                     drawHandle(p1Scene);
                     drawHandle(p2Scene);
@@ -258,35 +257,45 @@ void MapView::refreshSelectionOverlay() {
     // rotated text label when displayDistance is on). Tagging every piece
     // with the same guid lets us union their scene bounding rects into a
     // single highlight instead of drawing one box per segment.
+    // As on the web (SelectionStyle.h): a ruler gets a band along its
+    // line, text and labels glow (selection effects, set as the selection
+    // changes), and everything else gets the outline 1 px outside it.
+    QList<SelectionOverlay::RulerBand> bands;
     QSet<QString> rulerGuidsSeen;
     for (QGraphicsItem* it : scene()->selectedItems()) {
         if (!it || it == selectionOverlay_) continue;
+        const QString kind = it->data(detail::kBrickDataKind).toString();
+        if (kind == QLatin1String("text") || kind == QLatin1String("label")) continue;
         if (isRulerItem(it)) {
             const QString guid = it->data(kBrickDataGuid).toString();
-            // Empty guid → every ruler would share it. Fall back to the
-            // single-item path so we highlight just the clicked piece.
-            if (!guid.isEmpty()) {
-                if (rulerGuidsSeen.contains(guid)) continue;
-                rulerGuidsSeen.insert(guid);
-                QRectF sbr;
-                for (QGraphicsItem* any : scene()->items()) {
-                    if (!isRulerItem(any)) continue;
-                    if (any->data(kBrickDataGuid).toString() != guid) continue;
-                    sbr = sbr.united(any->sceneBoundingRect());
+            if (!guid.isEmpty() && rulerGuidsSeen.contains(guid)) continue;
+            rulerGuidsSeen.insert(guid);
+            for (QGraphicsItem* any : scene()->items()) {
+                if (!isRulerItem(any) || any->data(kBrickDataGuid).toString() != guid) continue;
+                const QVariant geo = any->data(rendering::SceneBuilder::kRulerBandRole);
+                if (!geo.isValid()) continue;
+                SelectionOverlay::RulerBand band;
+                band.width = selection::rulerHaloWidth(any->data(rendering::SceneBuilder::kRulerThicknessRole).toDouble());
+                if (geo.typeId() == QMetaType::QLineF) {
+                    band.line = geo.toLineF();
+                } else {
+                    const QRectF r = geo.toRectF();
+                    band.circle = true;
+                    band.centre = r.center();
+                    band.radius = r.width() / 2;
                 }
-                if (sbr.width()  < 2.0) sbr.adjust(-3.0, 0.0, 3.0, 0.0);
-                if (sbr.height() < 2.0) sbr.adjust(0.0, -3.0, 0.0, 3.0);
-                if (!sbr.isEmpty()) polys.append(QPolygonF(sbr));
-                continue;
+                bands.append(band);
+                break;
             }
+            continue;
         }
         const QRectF local = it->boundingRect();
         const bool localThin = (local.width() < 1.0 || local.height() < 1.0);
         QPolygonF poly;
         if (!localThin && !local.isEmpty()) {
-            // Solid rect / pixmap: map the local rect to scene to
-            // preserve rotation for rotated bricks.
-            poly = it->mapToScene(local);
+            // The item's own rect, 1 scene px out (it may be scaled), turned with it.
+            const double pad = selection::kPartPadPx / std::max(1e-9, it->scale());
+            poly = it->mapToScene(local.adjusted(-pad, -pad, pad, pad));
         } else {
             // Thin items (lines, zero-height rect, etc.): scene-space
             // AABB inflated in whichever dimension is near zero.
@@ -299,9 +308,26 @@ void MapView::refreshSelectionOverlay() {
         }
         polys.append(poly);
     }
+    // Selected text and labels glow gold; the rest lose their glow.
+    for (QGraphicsItem* it : scene()->items()) {
+        const QString kind = it->data(detail::kBrickDataKind).toString();
+        if (kind != QLatin1String("text") && kind != QLatin1String("label")) continue;
+        const bool glow = it->isSelected();
+        if (glow == (it->graphicsEffect() != nullptr)) continue;
+        if (!glow) {
+            it->setGraphicsEffect(nullptr);
+            continue;
+        }
+        auto* effect = new QGraphicsDropShadowEffect();
+        effect->setColor(selection::kTextGlow);
+        effect->setBlurRadius(selection::kTextGlowBlur);
+        effect->setOffset(0, 0);
+        it->setGraphicsEffect(effect);
+    }
     auto* ov = static_cast<SelectionOverlay*>(selectionOverlay_);
     ov->setSnapState(liveSnapActive_, liveSnapPointScene_);
     ov->setOutlines(std::move(polys));
+    ov->setRulerBands(std::move(bands));
 }
 
 }  // namespace bld::ui

@@ -1,0 +1,65 @@
+{
+  "about": "Painted area cells as vanilla BlueBrick draws them (LayerArea.cs paintCell / AlphaValue): the cell's RGB at the sheet's alpha, (255 x transparency) / 100 in whole numbers; the cell's own alpha is replaced. Web render/AreaLayer.tsx areaCellCss, desktop rendering areaCellColor. Same file in both repos.",
+  "cases": [
+    {
+      "color": "FF00FF00",
+      "transparency": 60,
+      "expect": {
+        "r": 0,
+        "g": 255,
+        "b": 0,
+        "a": 153
+      }
+    },
+    {
+      "color": "80FF0000",
+      "transparency": 60,
+      "expect": {
+        "r": 255,
+        "g": 0,
+        "b": 0,
+        "a": 153
+      }
+    },
+    {
+      "color": "FF1E90FF",
+      "transparency": 100,
+      "expect": {
+        "r": 30,
+        "g": 144,
+        "b": 255,
+        "a": 255
+      }
+    },
+    {
+      "color": "001E90FF",
+      "transparency": 35,
+      "expect": {
+        "r": 30,
+        "g": 144,
+        "b": 255,
+        "a": 89
+      }
+    },
+    {
+      "color": "7F123456",
+      "transparency": 0,
+      "expect": {
+        "r": 18,
+        "g": 52,
+        "b": 86,
+        "a": 0
+      }
+    },
+    {
+      "color": "FFABCDEF",
+      "transparency": 99,
+      "expect": {
+        "r": 171,
+        "g": 205,
+        "b": 239,
+        "a": 252
+      }
+    }
+  ]
+}
