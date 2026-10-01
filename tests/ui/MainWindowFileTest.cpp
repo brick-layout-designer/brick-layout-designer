@@ -415,12 +415,13 @@ TEST_F(MainWindowFile, ShellHasTaskTabsSheetsAndThePieceCount) {
     EXPECT_EQ(sheets->windowTitle(), QStringLiteral("Sheets"));
     EXPECT_NE(sheets->titleBarWidget(), nullptr);
     EXPECT_EQ(window_->findChild<QDockWidget*>(QStringLiteral("dock.venueLibrary"))->windowTitle(),
-              QStringLiteral("Room library"));
+              QStringLiteral("Venue library"));
 
     auto* room = window_->findChild<QDockWidget*>(QStringLiteral("dock.venueLibrary"));
     room->hide();
     auto* roomTab = window_->findChild<QToolButton*>(QStringLiteral("task.room"));
     ASSERT_NE(roomTab, nullptr);
+    EXPECT_EQ(roomTab->text(), QStringLiteral("Venue"));
     roomTab->click();
     EXPECT_FALSE(room->isHidden());
     EXPECT_TRUE(roomTab->isChecked());

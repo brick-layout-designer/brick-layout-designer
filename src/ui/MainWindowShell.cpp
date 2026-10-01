@@ -1,9 +1,9 @@
 // The main window's friendlier shell (redesign phase a): a toolbar of
-// labelled tools, the Build / Room / Notes / Parts list task tabs, the same
+// labelled tools, the Build / Venue / Notes / Parts list task tabs, the same
 // header on every panel, and a status bar with the piece count, size,
 // current sheet and zoom. Every menu and action stays where it was; the
-// toolbar only gathers the everyday ones. UI text says "Sheets" for layers
-// and "Room" for the venue; code and files keep their names.
+// toolbar only gathers the everyday ones. UI text says "Sheets" for layers;
+// code and files keep their names.
 
 #include "MainWindow.h"
 
@@ -85,7 +85,7 @@ void MainWindow::setupShell() {
     // Panels: plain names and the same header everywhere, each with its
     // "?" (the web's panel help keys).
     layerPanel_->setWindowTitle(tr("Sheets"));
-    venueLibraryPanel_->setWindowTitle(tr("Room library"));
+    venueLibraryPanel_->setWindowTitle(tr("Venue library"));
     partUsagePanel_->setWindowTitle(tr("Parts list"));
     theme::PanelHeader::install(partsBrowser_, QStringLiteral("panel.parts"), prefs);
     theme::PanelHeader::install(layerPanel_, QStringLiteral("panel.sheets"), prefs);
@@ -338,7 +338,7 @@ void MainWindow::setupShell() {
     tabGroup->setExclusive(true);
     const std::tuple<QString, QString, QString> tasks[] = {
         { QStringLiteral("build"), tr("Build"), tr("Parts, sheets and views, for building the layout") },
-        { QStringLiteral("room"), tr("Room"), tr("The room the layout goes in") },
+        { QStringLiteral("room"), tr("Venue"), tr("The venue the layout goes in") },
         { QStringLiteral("notes"), tr("Notes"), tr("Author, club, event and notes for this layout") },
         { QStringLiteral("parts"), tr("Parts list"), tr("Every part this layout uses") },
     };
@@ -377,7 +377,7 @@ void MainWindow::setupShell() {
     tours::tag(menuBar(), QStringLiteral("help.menu"), true);
 
     // ----- Status bar: pieces and the current sheet on the left of the
-    // permanent readouts (size, selection, room, budget, autosave and the
+    // permanent readouts (size, selection, venue, budget, autosave and the
     // zoom follow).
     auto* pieces = new QLabel(this);
     pieces->setObjectName(QStringLiteral("PiecesLabel"));

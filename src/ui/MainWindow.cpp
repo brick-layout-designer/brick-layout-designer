@@ -704,12 +704,12 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
         }
         const auto violations = edit::validateVenue(*map);
         if (violations.isEmpty()) {
-            venueLabel->setText(tr("Room: fits"));
+            venueLabel->setText(tr("Venue: fits"));
             venueLabel->setStyleSheet(QString());
-            venueLabel->setToolTip(tr("No layout problems against the room"));
+            venueLabel->setToolTip(tr("No layout problems against the venue"));
         } else {
-            venueLabel->setText(violations.size() == 1 ? tr("Room: 1 problem")
-                                                      : tr("Room: %1 problems").arg(violations.size()));
+            venueLabel->setText(violations.size() == 1 ? tr("Venue: 1 problem")
+                                                      : tr("Venue: %1 problems").arg(violations.size()));
             venueLabel->setStyleSheet(QStringLiteral("color: %1; font-weight: bold;")
                                           .arg(palette().color(QPalette::BrightText).name()));
             QStringList lines;

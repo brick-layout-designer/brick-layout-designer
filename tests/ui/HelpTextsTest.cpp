@@ -81,7 +81,7 @@ TEST(HelpTexts, SpotChecksMatchTheWeb) {
     EXPECT_EQ(sheets->learnMoreUrl, QStringLiteral("/help#sheets"));
     const auto bbm = helpEntry(QStringLiteral("download.bbm"));
     ASSERT_TRUE(bbm);
-    EXPECT_EQ(bbm->more, QStringLiteral("BlueBrick can’t hold everything this app can, so the room, labels, modules "
+    EXPECT_EQ(bbm->more, QStringLiteral("BlueBrick can’t hold everything this app can, so the venue, labels, modules "
                                         "and background picture are left out. Your layout here keeps them."));
     const auto choice = helpEntry(QStringLiteral("partsDiffer.choice"));
     ASSERT_TRUE(choice);

@@ -379,7 +379,7 @@ void VenueDesignerDialog::refresh() {
     const int est = ev::estimateCount(v);
     estimates_->setText(est ? tr("%n estimate(s) left to measure", nullptr, est) : QString());
     if (const auto rs = ev::roomSize(v))
-        size_->setText(tr("Room %1 × %2 · %3 sq ft")
+        size_->setText(tr("Venue %1 × %2 · %3 sq ft")
                            .arg(ev::formatLength(rs->w, state_.unit), ev::formatLength(rs->h, state_.unit))
                            .arg(std::lround(rs->area / (kFt * kFt))));
     else size_->clear();
