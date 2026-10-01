@@ -376,6 +376,13 @@ TEST_F(ViewsInTheWindow, DeletingTheViewBeingLookedAtEndsIt) {
     view_->undoStack()->undo();
     EXPECT_EQ(view_->currentMap()->sidecar.views.size(), 2u);
     EXPECT_EQ(list->count(), 2);
+
+    // Gone some other way (redo here, or someone else on a live layout): it ends too.
+    emit list->itemClicked(list->item(1));
+    ASSERT_TRUE(view_->viewFilter());
+    view_->undoStack()->redo();
+    EXPECT_FALSE(view_->viewFilter());
+    EXPECT_TRUE(panel_->activeViewId().isEmpty());
 }
 
 TEST_F(ViewsInTheWindow, TheBuildTabShowsTheViewsPanelAndFileHasSharePicture) {
