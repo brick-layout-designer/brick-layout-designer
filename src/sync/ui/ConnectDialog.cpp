@@ -1,5 +1,6 @@
 #include "ConnectDialog.h"
 
+#include "OwnerFilter.h"
 #include "TokenStore.h"
 #include "ui/help/HelpButton.h"
 
@@ -14,6 +15,7 @@
 #include <QLocale>
 #include <QPushButton>
 #include <QSettings>
+#include <QSignalBlocker>
 #include <QStackedWidget>
 #include <QTreeWidget>
 #include <QVBoxLayout>
@@ -22,6 +24,9 @@ namespace bld::sync {
 
 namespace {
 const char* kAddressKey = "sync/serverAddress";
+const char* kShowKey = "sync/ownerFilter";  // the Show filter, kept between runs
+
+QString rememberedShow() { return QSettings().value(QLatin1String(kShowKey), kShowAll).toString(); }
 enum Page { AddressPage, CodePage, LayoutsPage, PublishPage };
 enum Column { TitleCol, OwnerCol, AccessCol, UpdatedCol };
 
@@ -116,12 +121,20 @@ ConnectDialog::ConnectDialog(ServerApi& api, TokenStore& tokens, std::function<v
     bottom->addWidget(signOut);
     bottom->addStretch(1);
     bottom->addWidget(openBtn_);
-    l->addWidget(filter_);
+    show_ = new QComboBox(layoutsPage);
+    show_->setObjectName(QStringLiteral("ownerFilter"));
+    show_->setToolTip(tr("Show everything, only yours, or one club's"));
+    setShowChoices({});
+    auto* filters = new QHBoxLayout();
+    filters->addWidget(filter_, 1);
+    filters->addWidget(new QLabel(tr("Show:"), layoutsPage));
+    filters->addWidget(bld::ui::help::withHelp(show_, QStringLiteral("owners.filter"), layoutsPage));
+    l->addLayout(filters);
     l->addWidget(layouts_, 1);
     l->addLayout(bottom);
     pages_->addWidget(layoutsPage);
 
-    // Publish: title and owner
+    // Publish: title and where it's saved
     auto* publishPage = new QWidget(pages_);
     auto* pf = new QFormLayout(publishPage);
     publishTitle_ = new QLineEdit(publishPage);
@@ -131,7 +144,7 @@ ConnectDialog::ConnectDialog(ServerApi& api, TokenStore& tokens, std::function<v
     publishBtn_ = new QPushButton(tr("Publish"), publishPage);
     publishBtn_->setObjectName(QStringLiteral("publish"));
     pf->addRow(tr("Title"), publishTitle_);
-    pf->addRow(tr("Owner"), bld::ui::help::withHelp(owner_, QStringLiteral("publish.owner"), publishPage));
+    pf->addRow(tr("Save to"), bld::ui::help::withHelp(owner_, QStringLiteral("publish.owner"), publishPage));
     pf->addRow(QString(), publishBtn_);
     pages_->addWidget(publishPage);
     connect(publishBtn_, &QPushButton::clicked, this, &ConnectDialog::publishNow);
@@ -153,6 +166,10 @@ ConnectDialog::ConnectDialog(ServerApi& api, TokenStore& tokens, std::function<v
     connect(layouts_, &QTreeWidget::itemSelectionChanged, this,
             [this] { openBtn_->setEnabled(!layouts_->selectedItems().isEmpty()); });
     connect(filter_, &QLineEdit::textChanged, this, &ConnectDialog::filterLayouts);
+    connect(show_, &QComboBox::activated, this, [this] {
+        QSettings().setValue(QLatin1String(kShowKey), show_->currentData().toString());
+        filterLayouts(filter_->text());
+    });
 
     connect(&api_, &ServerApi::versionReady, this, &ConnectDialog::onVersion);
     connect(&api_, &ServerApi::requestFailed, this, &ConnectDialog::onFailed);
@@ -236,7 +253,7 @@ void ConnectDialog::haveToken(const QString& token) {
     token_ = token;
     api_.setToken(token);
     if (purpose_ == Purpose::Publish) {
-        showMessage(tr("Loading your organisations…"));
+        showMessage(tr("Loading your clubs…"));
         api_.fetchOrgs();
         return;
     }
@@ -286,7 +303,7 @@ void ConnectDialog::onFailed(const QString& what, const QString& message, bool u
     pages_->setCurrentIndex(AddressPage);
     showMessage(what == QLatin1String("version")  ? tr("Could not reach %1: %2").arg(server_.host(), message)
                 : what == QLatin1String("venues") ? tr("Could not load the venues: %1").arg(message)
-                : what == QLatin1String("orgs")   ? tr("Could not load your organisations: %1").arg(message)
+                : what == QLatin1String("orgs")   ? tr("Could not load your clubs: %1").arg(message)
                                                   : tr("Could not load the layouts: %1").arg(message));
 }
 
@@ -299,8 +316,11 @@ void ConnectDialog::setPublishContent(const QByteArray& bbm, const QByteArray& s
 
 void ConnectDialog::showOrgs(const QList<OrgEntry>& orgs) {
     owner_->clear();
-    owner_->addItem(tr("You (personal)"), QString());
+    owner_->addItem(tr("Me"), QString());
     for (const auto& o : orgs) owner_->addItem(o.name, o.slug);
+    // Start at the club the lists were last showing, else Me.
+    const int shown = owner_->findData(rememberedShow());
+    owner_->setCurrentIndex(shown > 0 ? shown : 0);
     publishBtn_->setEnabled(true);
     pages_->setCurrentIndex(PublishPage);
     showMessage({});
@@ -318,12 +338,17 @@ void ConnectDialog::publishNow() {
 void ConnectDialog::showVenues(const QList<VenueEntry>& venues) {
     layouts_->setSortingEnabled(false);
     layouts_->clear();
+    QList<std::pair<QString, QString>> clubs;
     for (const auto& v : venues) {
         auto* item = new LayoutItem(layouts_);
+        const ItemOwner owner = itemOwner(v.ownerOrgSlug, v.ownerOrgId, v.ownerOrgName);
         item->setText(TitleCol, v.name);
-        item->setText(OwnerCol, v.ownerOrgId.isEmpty() ? tr("You") : tr("Organisation"));
+        item->setText(OwnerCol, owner.label);
+        item->setData(OwnerCol, Qt::UserRole, owner.key);
         item->setData(TitleCol, Qt::UserRole, v.id);
+        if (owner.key != kShowMine) clubs.append({ owner.key, owner.label });
     }
+    setShowChoices(clubs);
     layouts_->setSortingEnabled(true);
     filterLayouts(filter_->text());
     pages_->setCurrentIndex(LayoutsPage);
@@ -333,10 +358,14 @@ void ConnectDialog::showVenues(const QList<VenueEntry>& venues) {
 void ConnectDialog::showLayouts(const QList<LayoutEntry>& layouts) {
     layouts_->setSortingEnabled(false);
     layouts_->clear();
+    QList<std::pair<QString, QString>> clubs;
     for (const auto& e : layouts) {
         auto* item = new LayoutItem(layouts_);
+        const ItemOwner owner = itemOwner(e.ownerOrgSlug, QString(), e.ownerOrgName);
         item->setText(TitleCol, e.title);
-        item->setText(OwnerCol, e.ownerOrgName.isEmpty() ? tr("You") : e.ownerOrgName);
+        item->setText(OwnerCol, owner.label);
+        item->setData(OwnerCol, Qt::UserRole, owner.key);
+        if (owner.key != kShowMine) clubs.append({ owner.key, owner.label });
         item->setText(AccessCol, e.role == QLatin1String("viewer")  ? tr("View only")
                                  : e.role == QLatin1String("owner") ? tr("Owner")
                                                                     : tr("Edit"));
@@ -345,6 +374,7 @@ void ConnectDialog::showLayouts(const QList<LayoutEntry>& layouts) {
         item->setData(AccessCol, Qt::UserRole, e.role == QLatin1String("viewer"));
         item->setData(UpdatedCol, Qt::UserRole, e.updatedAt);
     }
+    setShowChoices(clubs);
     layouts_->setSortingEnabled(true);
     filterLayouts(filter_->text());
     pages_->setCurrentIndex(LayoutsPage);
@@ -353,11 +383,25 @@ void ConnectDialog::showLayouts(const QList<LayoutEntry>& layouts) {
 }
 
 void ConnectDialog::filterLayouts(const QString& text) {
+    const QString show = show_->currentData().toString();
     for (int i = 0; i < layouts_->topLevelItemCount(); ++i) {
         auto* item = layouts_->topLevelItem(i);
-        item->setHidden(!text.isEmpty() && !item->text(TitleCol).contains(text, Qt::CaseInsensitive)
-                        && !item->text(OwnerCol).contains(text, Qt::CaseInsensitive));
+        const bool textOk = text.isEmpty() || item->text(TitleCol).contains(text, Qt::CaseInsensitive)
+                            || item->text(OwnerCol).contains(text, Qt::CaseInsensitive);
+        item->setHidden(!textOk || !ownerMatches(show, item->data(OwnerCol, Qt::UserRole).toString()));
     }
+}
+
+void ConnectDialog::setShowChoices(const QList<std::pair<QString, QString>>& clubs) {
+    const QSignalBlocker block(show_);
+    show_->clear();
+    show_->addItem(tr("All"), kShowAll);
+    show_->addItem(tr("Mine"), kShowMine);
+    for (const auto& [key, name] : clubs)
+        if (show_->findData(key) < 0) show_->addItem(name, key);
+    // The last choice, while that club is still in the list; else All.
+    const int at = show_->findData(rememberedShow());
+    show_->setCurrentIndex(at >= 0 ? at : 0);
 }
 
 void ConnectDialog::openSelected() {

@@ -296,6 +296,14 @@ constexpr Raw kShared[] = {
       QT_TRANSLATE_NOOP("HelpTexts", "“Use the file’s” replaces the part for everyone on this server. "
                                      "“Keep both” adds the file’s under a new number, and only this "
                                      "layout uses it.") },
+
+    // Yours and your clubs'
+    { "owners.filter", "",
+      QT_TRANSLATE_NOOP("HelpTexts", "Whose things"),
+      QT_TRANSLATE_NOOP("HelpTexts", "Show everything you can use, only your own, or one club’s."),
+      QT_TRANSLATE_NOOP("HelpTexts", "Your own things and your clubs’ things sit in one list, each marked "
+                                     "with who owns it. Pick a club to see just its things; new things are "
+                                     "saved there too unless you choose otherwise.") },
 };
 
 // Controls only the desktop app has.
@@ -338,7 +346,7 @@ constexpr Raw kDesktopOnly[] = {
       QT_TRANSLATE_NOOP("HelpTexts", "Ask whoever runs your club’s server for it. You sign in once in "
                                      "your browser, and the app remembers you.") },
     { "publish.owner", "/help#sharing",
-      QT_TRANSLATE_NOOP("HelpTexts", "Owner"),
+      QT_TRANSLATE_NOOP("HelpTexts", "Save to"),
       QT_TRANSLATE_NOOP("HelpTexts", "Who the layout belongs to on the server: you, or your club."),
       QT_TRANSLATE_NOOP("HelpTexts", "Pick your club to keep the layout with the club, not with one "
                                      "person. The owner decides who else can see or change it.") },

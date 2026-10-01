@@ -62,7 +62,8 @@ struct Harness {
     ConnectDialog dialog;
 
     explicit Harness(ConnectDialog::Purpose purpose = ConnectDialog::Purpose::OpenLayout)
-        : dialog(api, tokens, [this](const QUrl& u) { opened << u; }, nullptr, purpose) {
+        : dialog((QSettings().remove(QStringLiteral("sync/ownerFilter")), api), tokens,
+                 [this](const QUrl& u) { opened << u; }, nullptr, purpose) {
         api.setPollIntervalScale(5);
         http.reply("/api/version", 200, version());
         dialog.setAddress(http.base().toString());
@@ -225,7 +226,8 @@ TEST(ConnectDialog, DownloadsThePickedVenuesAndSignsInAgainForTheVenueLibrary) {
     ASSERT_EQ(h.list()->topLevelItemCount(), 2);
     auto* lobby = h.list()->findItems(QStringLiteral("Grand Lobby"), Qt::MatchExactly).value(0);
     ASSERT_TRUE(lobby);
-    EXPECT_EQ(lobby->text(1), QStringLiteral("Organisation"));
+    // A server from before owner tags names no club.
+    EXPECT_EQ(lobby->text(1), QStringLiteral("Club"));
 
     // Both picked: both downloaded, then the dialog closes.
     h.list()->selectAll();
@@ -242,6 +244,124 @@ TEST(ConnectDialog, DownloadsThePickedVenuesAndSignsInAgainForTheVenueLibrary) {
     names.sort();
     EXPECT_EQ(names, (QStringList{ QStringLiteral("Garage"), QStringLiteral("Grand Lobby") }));
     EXPECT_FALSE(h.dialog.ConnectDialog::result().has_value());
+}
+
+namespace {
+QJsonObject venue(const char* id, const char* name, const char* orgSlug = "", const char* orgName = "") {
+    const bool club = *orgSlug != 0;
+    return { { QStringLiteral("id"), QString::fromLatin1(id) },
+             { QStringLiteral("name"), QString::fromLatin1(name) },
+             { QStringLiteral("ownerOrgId"), club ? QJsonValue(QStringLiteral("id-") + QString::fromLatin1(orgSlug))
+                                                  : QJsonValue(QJsonValue::Null) },
+             { QStringLiteral("ownerOrgSlug"), club ? QJsonValue(QString::fromLatin1(orgSlug)) : QJsonValue() },
+             { QStringLiteral("ownerOrgName"), club ? QJsonValue(QString::fromUtf8(orgName)) : QJsonValue() } };
+}
+QStringList shown(QTreeWidget* list) {
+    QStringList out;
+    for (int i = 0; i < list->topLevelItemCount(); ++i)
+        if (!list->topLevelItem(i)->isHidden()) out << list->topLevelItem(i)->text(0);
+    out.sort();
+    return out;
+}
+} // namespace
+
+// Yours and your clubs' things together: each venue says who owns it, and
+// Show narrows the list to Mine or one club; the choice is kept for next time.
+TEST(ConnectDialog, MarksEachVenuesOwnerAndShowsMineOrOneClub) {
+    {
+        Harness h(ConnectDialog::Purpose::DownloadVenues);
+        h.tokens.save(h.http.base(), QStringLiteral("bld_pat_saved"));
+        h.http.reply("/api/venues", 200,
+                     { { QStringLiteral("venues"),
+                         QJsonArray{ venue("v1", "Grand Lobby", "club", "Train Club"), venue("v2", "Garage"),
+                                     venue("v3", "Gym", "other", "Other Club") } } });
+        h.dialog.connectToServer();
+        ASSERT_TRUE(waitFor([&] { return h.listed(); }));
+        auto owner = [&](const char* name) {
+            return h.list()->findItems(QString::fromLatin1(name), Qt::MatchExactly).value(0)->text(1);
+        };
+        EXPECT_EQ(owner("Grand Lobby"), QStringLiteral("Train Club"));
+        EXPECT_EQ(owner("Garage"), QStringLiteral("Me"));
+
+        auto* show = h.dialog.findChild<QComboBox*>(QStringLiteral("ownerFilter"));
+        ASSERT_TRUE(show);
+        QStringList choices;
+        for (int i = 0; i < show->count(); ++i) choices << show->itemText(i);
+        EXPECT_EQ(choices, (QStringList{ QStringLiteral("All"), QStringLiteral("Mine"), QStringLiteral("Train Club"),
+                                         QStringLiteral("Other Club") }));
+        EXPECT_EQ(shown(h.list()).size(), 3);
+
+        show->setCurrentIndex(1);
+        emit show->activated(1);
+        EXPECT_EQ(shown(h.list()), QStringList{ QStringLiteral("Garage") });
+        show->setCurrentIndex(2);
+        emit show->activated(2);
+        EXPECT_EQ(shown(h.list()), QStringList{ QStringLiteral("Grand Lobby") });
+    }
+    // Kept for next time: the next list opens on the same club…
+    QSettings().setValue(QStringLiteral("sync/ownerFilter"), QStringLiteral("club"));
+    {
+        FakeHttp http;
+        ServerApi api;
+        MemoryTokenStore tokens;
+        ConnectDialog dialog(api, tokens, [](const QUrl&) {}, nullptr, ConnectDialog::Purpose::DownloadVenues);
+        api.setPollIntervalScale(5);
+        http.reply("/api/version", 200, version());
+        tokens.save(http.base(), QStringLiteral("bld_pat_saved"));
+        http.reply("/api/venues", 200,
+                   { { QStringLiteral("venues"),
+                       QJsonArray{ venue("v1", "Grand Lobby", "club", "Train Club"), venue("v2", "Garage") } } });
+        dialog.setAddress(http.base().toString());
+        dialog.connectToServer();
+        auto* list = dialog.findChild<QTreeWidget*>(QStringLiteral("layouts"));
+        ASSERT_TRUE(waitFor([&] { return list->topLevelItemCount() == 2; }));
+        EXPECT_EQ(dialog.findChild<QComboBox*>(QStringLiteral("ownerFilter"))->currentText(), QStringLiteral("Train Club"));
+        EXPECT_EQ(shown(list), QStringList{ QStringLiteral("Grand Lobby") });
+    }
+    QSettings().remove(QStringLiteral("sync/ownerFilter"));
+}
+
+// Layouts too, and Publish starts at the club the lists were showing.
+TEST(ConnectDialog, MarksLayoutOwnersAndPublishStartsAtTheShownClub) {
+    {
+        Harness h;
+        h.tokens.save(h.http.base(), QStringLiteral("bld_pat_saved"));
+        QJsonObject clubLayout = layout("L1", "Show 2026", "editor", "Train Club");
+        clubLayout.insert(QStringLiteral("ownerOrgSlug"), QStringLiteral("club"));
+        h.http.reply("/api/layouts", 200,
+                     { { QStringLiteral("layouts"), QJsonArray{ clubLayout, layout("L2", "Home", "owner") } } });
+        h.dialog.connectToServer();
+        ASSERT_TRUE(waitFor([&] { return h.listed(); }));
+        EXPECT_EQ(h.list()->findItems(QStringLiteral("Home"), Qt::MatchExactly).value(0)->text(1), QStringLiteral("Me"));
+        auto* show = h.dialog.findChild<QComboBox*>(QStringLiteral("ownerFilter"));
+        const int club = show->findText(QStringLiteral("Train Club"));
+        ASSERT_GE(club, 0);
+        show->setCurrentIndex(club);
+        emit show->activated(club);
+        EXPECT_EQ(shown(h.list()), QStringList{ QStringLiteral("Show 2026") });
+        EXPECT_EQ(QSettings().value(QStringLiteral("sync/ownerFilter")).toString(), QStringLiteral("club"));
+    }
+    {
+        FakeHttp http;
+        ServerApi api;
+        MemoryTokenStore tokens;
+        ConnectDialog dialog(api, tokens, [](const QUrl&) {}, nullptr, ConnectDialog::Purpose::Publish);
+        http.reply("/api/version", 200, version());
+        tokens.save(http.base(), QStringLiteral("bld_pat_saved"));
+        http.reply("/api/orgs", 200,
+                   { { QStringLiteral("orgs"),
+                       QJsonArray{ QJsonObject{ { QStringLiteral("slug"), QStringLiteral("club") },
+                                                { QStringLiteral("name"), QStringLiteral("Train Club") },
+                                                { QStringLiteral("myRole"), QStringLiteral("member") } } } } });
+        dialog.setAddress(http.base().toString());
+        dialog.setPublishContent(QByteArrayLiteral("<Map/>"), {}, QStringLiteral("x"));
+        dialog.connectToServer();
+        auto* owner = dialog.findChild<QComboBox*>(QStringLiteral("publishOwner"));
+        ASSERT_TRUE(waitFor([&] { return owner->count() == 2; }));
+        EXPECT_EQ(owner->itemText(0), QStringLiteral("Me"));
+        EXPECT_EQ(owner->currentText(), QStringLiteral("Train Club"));
+    }
+    QSettings().remove(QStringLiteral("sync/ownerFilter"));
 }
 
 TEST(ConnectDialog, PublishesALayoutPersonallyOrToAnOrganisation) {
@@ -308,6 +428,7 @@ TEST(ConnectDialog, HasHelpForTheAddressAndTheOwner) {
         if (b->key() == QLatin1String("connect.server")) server = b;
     }
     EXPECT_TRUE(keys.contains(QStringLiteral("publish.owner")));
+    EXPECT_TRUE(keys.contains(QStringLiteral("owners.filter")));
     ASSERT_NE(server, nullptr);
     EXPECT_EQ(server->target(), h.dialog.findChild<QLineEdit*>(QStringLiteral("serverAddress")));
 }

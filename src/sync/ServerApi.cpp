@@ -146,6 +146,13 @@ void ServerApi::fetchLayouts() {
             e.id = l.value(QLatin1String("id")).toString();
             e.title = l.value(QLatin1String("title")).toString();
             e.ownerOrgName = l.value(QLatin1String("ownerOrgName")).toString();
+            e.ownerOrgSlug = l.value(QLatin1String("ownerOrgSlug")).toString();
+            // Newer servers tag every item with its owner, a club shared with you included.
+            const QJsonObject owner = l.value(QLatin1String("owner")).toObject();
+            if (owner.value(QLatin1String("kind")).toString() == QLatin1String("org")) {
+                e.ownerOrgName = owner.value(QLatin1String("name")).toString(e.ownerOrgName);
+                e.ownerOrgSlug = owner.value(QLatin1String("slug")).toString(e.ownerOrgSlug);
+            }
             e.role = l.value(QLatin1String("role")).toString();
             const QJsonValue updated = l.value(QLatin1String("updatedAt"));
             e.updatedAt = updated.isDouble() ? QDateTime::fromMSecsSinceEpoch(static_cast<qint64>(updated.toDouble()))
@@ -230,7 +237,9 @@ void ServerApi::fetchVenues() {
         for (const auto& v : o->value(QLatin1String("venues")).toArray()) {
             const QJsonObject e = v.toObject();
             out << VenueEntry{ e.value(QLatin1String("id")).toString(), e.value(QLatin1String("name")).toString(),
-                               e.value(QLatin1String("ownerOrgId")).toString() };
+                               e.value(QLatin1String("ownerOrgId")).toString(),
+                               e.value(QLatin1String("ownerOrgName")).toString(),
+                               e.value(QLatin1String("ownerOrgSlug")).toString() };
         }
         emit venuesReady(out);
     });
