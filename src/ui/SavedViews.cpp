@@ -9,6 +9,7 @@
 #include "../core/LayerText.h"
 #include "../core/Map.h"
 #include "../core/Module.h"
+#include "../core/Sidecar.h"
 #include "../rendering/SceneBuilder.h"
 
 #include <QCoreApplication>
@@ -270,10 +271,28 @@ QImage PictureRenderer::render(const PictureSpec& spec, QSize size) {
     SceneImageOptions o;
     o.background = d_->map.backgroundColor.color;
     const core::LayerGrid* grid = spec.grid ? drawnGrid(d_->map) : nullptr;
-    if (grid) {
+    const core::Sidecar& side = d_->map.sidecar;
+    const QImage background = side.backgroundImagePath.isEmpty() ? QImage() : QImage(side.backgroundImagePath);
+    if (grid || !background.isNull()) {
         const QRectF region = spec.region;
-        o.underlay = [grid, region, size](QPainter& p) {
-            paintGrid(p, *grid, region, size.width() / region.width(), size.height() / region.height());
+        o.underlay = [grid, region, size, &side, background](QPainter& p) {
+            const double sx = size.width() / region.width(), sy = size.height() / region.height();
+            // The background image under the grid, as the map and the web's
+            // pictures draw it: at its rect in studs, or its own size at the
+            // origin (1 image px = 1 scene px).
+            if (!background.isNull()) {
+                const QRectF r = side.backgroundImageRectStuds.isNull()
+                                     ? QRectF(0, 0, background.width() / double(kPxPerStud),
+                                              background.height() / double(kPxPerStud))
+                                     : side.backgroundImageRectStuds;
+                p.save();
+                p.setOpacity(std::clamp(side.backgroundImageOpacity, 0.0, 1.0));
+                p.drawImage(QRectF((r.x() - region.x()) * sx, (r.y() - region.y()) * sy, r.width() * sx,
+                                   r.height() * sy),
+                            background, QRectF(background.rect()));
+                p.restore();
+            }
+            if (grid) paintGrid(p, *grid, region, sx, sy);
         };
     }
     const QRectF px(spec.region.x() * kPxPerStud, spec.region.y() * kPxPerStud, spec.region.width() * kPxPerStud,
