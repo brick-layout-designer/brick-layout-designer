@@ -37,6 +37,7 @@ struct ConnectResult {
     QString layoutId;
     QString title;
     bool readOnly = false; // view-only access
+    ServerInfo info;       // what the server said about itself
 };
 
 struct DownloadedVenue {
@@ -68,6 +69,8 @@ public:
 
 private:
     void showMessage(const QString& text);
+    // The server needs a newer app: say so, with a button to download it.
+    void showUpdateNeeded(const QString& text, const QString& downloadUrl);
     void onVersion(const ServerInfo& info);
     void haveToken(const QString& token);
     void onFailed(const QString& what, const QString& message, bool unauthorized);
@@ -94,6 +97,10 @@ private:
     QLineEdit* address_ = nullptr;
     QPushButton* connectBtn_ = nullptr;
     QLabel* message_ = nullptr;
+    // "Download the new version": shown when the server needs a newer app.
+    QPushButton* updateBtn_ = nullptr;
+    QUrl downloadUrl_;
+    ServerInfo info_;
     QLabel* code_ = nullptr;
     QLabel* codeHint_ = nullptr;
     QLineEdit* filter_ = nullptr;

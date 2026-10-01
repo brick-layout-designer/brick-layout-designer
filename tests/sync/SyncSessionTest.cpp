@@ -2,12 +2,17 @@
 // layout is open, against the in-process y-websocket server.
 
 #include "FakeSyncServer.h"
+#include "Compat.h"
+#include "ServerRefusal.h"
 #include "SyncSession.h"
 
 #include <gtest/gtest.h>
 
 #include <QJsonObject>
 #include <QTemporaryDir>
+
+#include <optional>
+#include <utility>
 
 using namespace bld;
 using namespace bld::synctest;
@@ -262,4 +267,54 @@ TEST(SyncSession, SharesPresenceWithEveryoneElseOnTheLayout) {
     // Leaving takes A off B's map.
     a.setPresence(std::nullopt);
     ASSERT_TRUE(waitFor([&] { return b.peers().isEmpty(); }));
+}
+
+// A layout written by a newer app (a document schema this build can't
+// read): the session stops instead of syncing it, and says why.
+TEST(SyncSession, ALayoutFromANewerVersionIsNotSynced) {
+    FakeServer server;
+    server.doc.setMeta(QStringLiteral("schemaVersion"), sync::kDocSchemaVersion + 1);
+    sync::SyncSession session;
+    std::optional<std::pair<int, QString>> ended;
+    int changed = 0;
+    QObject::connect(&session, &sync::SyncSession::ended, [&](int code, const QString& why) { ended = { code, why }; });
+    QObject::connect(&session, &sync::SyncSession::mapChanged, [&] { ++changed; });
+    session.open(server.url(), {}, false);
+    ASSERT_TRUE(waitFor([&] { return ended.has_value(); }));
+    EXPECT_EQ(ended->first, sync::kUnreadableDocCode);
+    EXPECT_FALSE(session.loaded());
+    EXPECT_EQ(changed, 0);
+    EXPECT_FALSE(sync::liveCloseText(ended->first, ended->second).isEmpty());
+}
+
+TEST(SyncSession, StopsWhenANewerVersionChangesTheLayoutMidSession) {
+    FakeServer server;
+    sync::SyncSession session;
+    std::optional<int> ended;
+    QObject::connect(&session, &sync::SyncSession::ended, [&](int code, const QString&) { ended = code; });
+    session.open(server.url(), {}, false);
+    ASSERT_TRUE(waitFor([&] { return session.status() == Status::Synced; }));
+    server.remoteMeta(QStringLiteral("schemaVersion"), 99);
+    ASSERT_TRUE(waitFor([&] { return ended.has_value(); }));
+    EXPECT_EQ(*ended, sync::kUnreadableDocCode);
+    ASSERT_TRUE(waitFor([&] { return session.status() == Status::Offline; }));
+}
+
+// The server turns away an app older than it allows (close code 4426):
+// the session ends for good, with words to show, and doesn't retry.
+TEST(SyncSession, AnAppTooOldForTheServerStopsForGood) {
+    FakeServer server;
+    sync::SyncSession session;
+    session.client().setReconnectDelays(20ms, 50ms);
+    std::optional<std::pair<int, QString>> ended;
+    QObject::connect(&session, &sync::SyncSession::ended, [&](int code, const QString& why) { ended = { code, why }; });
+    session.open(server.url(), {}, false);
+    ASSERT_TRUE(waitFor([&] { return session.status() == Status::Synced; }));
+    server.dropAll(static_cast<QWebSocketProtocol::CloseCode>(4426), QStringLiteral("update_required"));
+    ASSERT_TRUE(waitFor([&] { return ended.has_value(); }));
+    EXPECT_EQ(ended->first, 4426);
+    EXPECT_TRUE(sync::liveCloseText(4426, ended->second).contains(QStringLiteral("too old")));
+    waitFor([] { return false; }, 200);
+    EXPECT_EQ(session.status(), Status::Offline);
+    EXPECT_TRUE(server.peers.empty());
 }

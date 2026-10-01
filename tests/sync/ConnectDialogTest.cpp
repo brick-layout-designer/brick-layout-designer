@@ -172,6 +172,45 @@ TEST(ConnectDialog, RefusesBadAddressesAndServersItCantTalkTo) {
     EXPECT_TRUE(h.opened.isEmpty());
 }
 
+TEST(ConnectDialog, AnAppTooOldForTheServerIsAskedToUpdateBeforeSigningIn) {
+    const QString before = QCoreApplication::applicationVersion();
+    QCoreApplication::setApplicationVersion(QStringLiteral("1.1.0"));
+    Harness h;
+    QJsonObject v = version();
+    v.insert(QStringLiteral("desktop"), QJsonObject{ { QStringLiteral("minimum"), QStringLiteral("1.2.0") },
+                                                     { QStringLiteral("recommended"), QStringLiteral("1.3.0") },
+                                                     { QStringLiteral("downloadUrl"), QStringLiteral("https://example.org/get") } });
+    h.http.clear("/api/version");
+    h.http.reply("/api/version", 200, v);
+    h.dialog.connectToServer();
+    ASSERT_TRUE(waitFor([&] { return h.message().contains(QStringLiteral("1.2.0")); }));
+    QCoreApplication::setApplicationVersion(before);
+    EXPECT_EQ(h.message(), QStringLiteral("This server needs Brick Layout Designer 1.2.0 or newer, and you have 1.1.0. "
+                                          "Download the new version, install it, then connect again."));
+    // Nothing signed in or fetched: only the version was asked.
+    EXPECT_EQ(h.page(), 0);
+    EXPECT_TRUE(h.opened.isEmpty());
+    for (const auto& r : h.http.requests) EXPECT_EQ(r.path, QByteArray("/api/version"));
+    auto* update = h.dialog.findChild<QPushButton*>(QStringLiteral("downloadUpdate"));
+    ASSERT_NE(update, nullptr);
+    EXPECT_FALSE(update->isHidden());
+    update->click();
+    ASSERT_EQ(h.opened.size(), 1);
+    EXPECT_EQ(h.opened.first(), QUrl(QStringLiteral("https://example.org/get")));
+}
+
+TEST(ConnectDialog, VenuesFromAServerWithoutAVenueLibrarySaySo) {
+    Harness h(ConnectDialog::Purpose::DownloadVenues);
+    QJsonObject v = version();
+    v.insert(QStringLiteral("features"), QJsonArray{ QStringLiteral("liveSync"), QStringLiteral("signIn") });
+    h.http.clear("/api/version");
+    h.http.reply("/api/version", 200, v);
+    h.tokens.save(h.http.base(), QStringLiteral("bld_pat_saved"));
+    h.dialog.connectToServer();
+    ASSERT_TRUE(waitFor([&] { return h.message().contains(QStringLiteral("venue library")); }));
+    for (const auto& r : h.http.requests) EXPECT_EQ(r.path, QByteArray("/api/version"));
+}
+
 TEST(ConnectDialog, SignOutForgetsTheToken) {
     Harness h;
     h.tokens.save(h.http.base(), QStringLiteral("bld_pat_saved"));

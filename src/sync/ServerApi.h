@@ -17,6 +17,8 @@
 
 #include <optional>
 
+#include "Compat.h"
+
 class QNetworkReply;
 
 namespace bld::sync {
@@ -27,16 +29,35 @@ namespace bld::sync {
 QByteArray userAgent();
 
 // Newest shared-document schema this build reads (the web's DOC_SCHEMA_VERSION).
-constexpr int kSupportedSchemaVersion = 1;
+constexpr int kSupportedSchemaVersion = kDocSchemaVersion;
 
 struct ServerInfo {
     QString     version;
     int         schemaVersion = 0;
     QStringList protocols;
-    // The server speaks our sync protocol and a document schema we read.
+    // The oldest desktop the server accepts and the one it recommends
+    // (empty from servers before these checks), and where to get it.
+    QString desktopMinimum;
+    QString desktopRecommended;
+    QString downloadUrl;
+    // The oldest document schema the server reads (0: it didn't say).
+    int docMinReadable = 0;
+    // What the server can do; nullopt from servers before the list.
+    std::optional<QStringList> features;
+
+    // The server speaks our sync protocol, writes a document we read, and
+    // reads the documents we write.
     bool compatible() const {
-        return schemaVersion <= kSupportedSchemaVersion && protocols.contains(QStringLiteral("y-websocket/1"));
+        return protocols.contains(QStringLiteral("y-websocket/1")) && canReadDoc(schemaVersion > 0 ? std::optional<int>(schemaVersion) : std::nullopt) &&
+               (docMinReadable == 0 || kDocSchemaVersion >= docMinReadable);
     }
+    // Where this build (or `app`) stands with the server.
+    Standing standing(const QString& app) const { return desktopStanding(app, desktopMinimum, desktopRecommended); }
+    // The server has the feature; servers that list none are taken to have
+    // everything, as before (so nothing that worked stops working).
+    bool has(const QString& feature) const { return !features || features->contains(feature); }
+    // What this desktop uses that the server lacks (or, listing none, may lack).
+    QStringList missing() const { return missingFeatures(features); }
 };
 
 struct DeviceCode {

@@ -1,5 +1,9 @@
 #include "SyncSession.h"
 
+#include "Compat.h"
+
+#include <QJsonObject>
+
 #include "WebModel.h"
 
 #include "core/Map.h"
@@ -9,6 +13,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonDocument>
+#include <QJsonObject>
 #include <QSaveFile>
 #include <QRandomGenerator>
 #include <QTimer>
@@ -205,6 +210,15 @@ void SyncSession::holdRemoteChanges(bool hold) {
 }
 
 void SyncSession::remoteArrived() {
+    // A document written by a version that this one can't read (newer, or
+    // much older): stop rather than sync changes we don't understand.
+    const QJsonValue schema =
+        doc_.toJson().value(QLatin1String("meta")).toObject().value(QLatin1String("schemaVersion"));
+    if (schema.isDouble() && !canReadDoc(schema.toInt())) {
+        client_.close();
+        emit ended(kUnreadableDocCode, QStringLiteral("unreadable_doc"));
+        return;
+    }
     loaded_ = true;
     saveDocTimer_->start();
     // The editor keeps showing the offline edits until they're resolved.

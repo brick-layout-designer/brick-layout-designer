@@ -13,9 +13,13 @@
 #include "ui/LoadingCard.h"
 #include "ui/MainWindow.h"
 #include "ui/MapView.h"
+#include "ui/NoticeArea.h"
 #include "ui/UpdateCheck.h"
 
 #include <gtest/gtest.h>
+
+#include <QCoreApplication>
+#include <QLabel>
 
 #include <QAction>
 #include <QApplication>
@@ -153,7 +157,7 @@ protected:
         ASSERT_TRUE(view_ && live_);
         live_->session().client().setReconnectDelays(50ms, 200ms);
         window_->openLive({ http_.base(), QStringLiteral("bld_pat_test"), QStringLiteral("L1"),
-                           QStringLiteral("Show 2026"), false });
+                           QStringLiteral("Show 2026"), false, serverInfo() });
         ASSERT_TRUE(waitFor([&] { return session().status() == Status::Synced && view_->currentMap(); }));
         original_ = brickArea(ws_.doc, 0);
         otherOriginal_ = brickArea(ws_.doc, 1);
@@ -166,6 +170,9 @@ protected:
 
     // Before the window opens the live layout.
     virtual void beforeOpen() {}
+    // What the server said about itself (default: a server from before the
+    // version checks, which asks nothing and is taken to have everything).
+    virtual sync::ServerInfo serverInfo() const { return {}; }
 
     sync::SyncSession& session() { return live_->session(); }
     QAction* reviewAction() {
@@ -541,4 +548,63 @@ TEST_F(MainWindowLiveDownloadCard, DownloadingServerPartsShowsACountThenGoesAway
     }
     EXPECT_TRUE(midway) << all.toStdString();
     EXPECT_EQ(seen_.last(), QStringLiteral("hidden")) << all.toStdString();
+}
+
+// A server that suggests a newer app and lacks some features.
+class MainWindowLiveOlderServer : public MainWindowLive {
+protected:
+    void beforeOpen() override {
+        before_ = QCoreApplication::applicationVersion();
+        QCoreApplication::setApplicationVersion(QStringLiteral("1.3.0"));
+    }
+    void TearDown() override {
+        MainWindowLive::TearDown();
+        QCoreApplication::setApplicationVersion(before_);
+    }
+    QString before_;
+    sync::ServerInfo serverInfo() const override {
+        sync::ServerInfo info;
+        info.version = QStringLiteral("nightly-old");
+        info.schemaVersion = 1;
+        info.protocols = { QStringLiteral("y-websocket/1") };
+        info.desktopMinimum = QStringLiteral("0.1.0");
+        info.desktopRecommended = QStringLiteral("99.0.0");
+        info.downloadUrl = QStringLiteral("https://example.org/get");
+        info.features = QStringList{ QStringLiteral("liveSync"), QStringLiteral("signIn"), QStringLiteral("publish"),
+                                     QStringLiteral("clubs"), QStringLiteral("venues"), QStringLiteral("uploadParts"),
+                                     QStringLiteral("ownerTags"), QStringLiteral("partFilesWithToken") };
+        return info;
+    }
+};
+
+TEST_F(MainWindowLiveOlderServer, SaysToUpdateNamesWhatIsMissingAndDoesntAskForIt) {
+    auto* notices = window_->notices();
+    ASSERT_TRUE(notices->isShown(QStringLiteral("server-update")));
+    QWidget* update = notices->card(QStringLiteral("server-update"));
+    EXPECT_EQ(update->findChild<QLabel*>(QStringLiteral("NoticeTitle"))->text(),
+              QStringLiteral("Please update Brick Layout Designer"));
+    EXPECT_TRUE(update->findChild<QLabel*>(QStringLiteral("NoticeText"))->text().contains(QStringLiteral("99.0.0")));
+
+    ASSERT_TRUE(notices->isShown(QStringLiteral("server-features")));
+    const QString text =
+        notices->card(QStringLiteral("server-features"))->findChild<QLabel*>(QStringLiteral("NoticeText"))->text();
+    EXPECT_TRUE(text.contains(QStringLiteral("• Getting the server's parts"))) << text.toStdString();
+    EXPECT_TRUE(text.contains(QStringLiteral("• Your settings on every computer"))) << text.toStdString();
+    EXPECT_FALSE(text.contains(QStringLiteral("venue library"))) << text.toStdString();
+    // The live layout itself still works.
+    EXPECT_EQ(session().status(), Status::Synced);
+    // What the server lacks isn't asked for.
+    waitFor([] { return false; }, 200);
+    for (const auto& r : http_.requests) {
+        EXPECT_FALSE(r.path.startsWith("/api/parts/manifest")) << r.path.toStdString();
+        EXPECT_NE(r.path, QByteArray("/api/me/preferences"));
+    }
+}
+
+TEST_F(MainWindowLive, AServerFromBeforeTheChecksAsksNothing) {
+    // No "please update"; only a quiet note that it may not do everything.
+    EXPECT_FALSE(window_->notices()->isShown(QStringLiteral("server-update")));
+    ASSERT_TRUE(window_->notices()->isShown(QStringLiteral("server-features")));
+    EXPECT_EQ(window_->notices()->card(QStringLiteral("server-features"))->findChild<QLabel*>(QStringLiteral("NoticeTitle"))->text(),
+              QStringLiteral("This server may not do everything yet"));
 }

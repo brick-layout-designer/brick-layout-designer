@@ -130,6 +130,16 @@ void ServerApi::fetchVersion() {
         info.version = o.value(QLatin1String("version")).toString();
         info.schemaVersion = o.value(QLatin1String("schemaVersion")).toInt();
         for (const auto& p : o.value(QLatin1String("protocols")).toArray()) info.protocols << p.toString();
+        const QJsonObject desktop = o.value(QLatin1String("desktop")).toObject();
+        info.desktopMinimum = desktop.value(QLatin1String("minimum")).toString();
+        info.desktopRecommended = desktop.value(QLatin1String("recommended")).toString();
+        info.downloadUrl = desktop.value(QLatin1String("downloadUrl")).toString();
+        info.docMinReadable = o.value(QLatin1String("doc")).toObject().value(QLatin1String("minReadable")).toInt();
+        if (o.value(QLatin1String("features")).isArray()) {
+            QStringList features;
+            for (const auto& f : o.value(QLatin1String("features")).toArray()) features << f.toString();
+            info.features = features;
+        }
         emit versionReady(info);
     });
 }
@@ -170,7 +180,7 @@ std::optional<QJsonObject> ServerApi::okJson(QNetworkReply* r, const QString& wh
         // 403 is a token without the scope this needs (or one revoked since),
         // unless it is a usage limit or a read-only account.
         const ServerRefusal refusal = readRefusal(status, r->readAll(), r->errorString());
-        const QString message = isLimitRefusal(refusal) ? describe(refusal)
+        const QString message = isLimitRefusal(refusal) || isUpdateRequired(refusal) ? describe(refusal)
                                 : status == 0          ? r->errorString()
                                                        : tr("The server answered %1").arg(status);
         emit requestFailed(what, message, needsSignIn(refusal));

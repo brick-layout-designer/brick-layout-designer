@@ -18,6 +18,9 @@ struct ServerRefusal {
     QString message;     // the body's "message", when the server sent one
     QString limit;       // which limit (limit_reached only), e.g. storagePerClub
     QString networkError;
+    // update_required (426) only: the oldest version the server accepts, and where to get it.
+    QString minimum;
+    QString downloadUrl;
 };
 
 // Read a failed reply: its status, JSON body and Qt's network error text.
@@ -25,6 +28,9 @@ ServerRefusal readRefusal(int status, const QByteArray& body, const QString& net
 
 // A limit, a read-only account, a rate limit or an unconfirmed email.
 bool isLimitRefusal(const ServerRefusal& r);
+
+// This app is older than the server accepts (426 update_required).
+bool isUpdateRequired(const ServerRefusal& r);
 
 // The failure means this sign-in can't do it: sign in again.
 bool needsSignIn(const ServerRefusal& r);

@@ -3,6 +3,7 @@
 
 #include "LayerPanel.h"
 #include "BudgetSession.h"
+#include "NoticeArea.h"
 #include "UpdateCheck.h"
 #include "FindDialog.h"
 #include "LibraryPathsDialog.h"
@@ -54,6 +55,7 @@
 #include <QColorDialog>
 #include <QComboBox>
 #include <QCoreApplication>
+#include <QDesktopServices>
 #include <QDateEdit>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -120,6 +122,8 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
 
     mapView_ = new MapView(parts_, this);
     updates_ = new UpdateCheck(this);
+    notices_ = new NoticeArea(mapView_);
+    connect(updates_, &UpdateCheck::updateAvailable, this, &MainWindow::showUpdateNotice);
     // Once the window is up; not in headless runs (tests, CI smoke launches).
     if (QGuiApplication::platformName() != QLatin1String("offscreen") && !qEnvironmentVariableIsSet("BLD_NO_UPDATE_CHECK"))
         QTimer::singleShot(3000, updates_, &UpdateCheck::checkAtStartupIfDue);
@@ -1143,6 +1147,24 @@ void MainWindow::onFitToView() {
     if (!mapView_->currentMap() || mapView_->scene()->itemsBoundingRect().isEmpty()) return;
     mapView_->fitInView(mapView_->scene()->itemsBoundingRect().adjusted(-50, -50, 50, 50),
                          Qt::KeepAspectRatio);
+}
+
+void MainWindow::showUpdateNotice(const ReleaseInfo& release) {
+    const QString version = release.version;
+    const QString url = release.url;
+    QList<NoticeAction> actions;
+    actions << NoticeAction{ tr("Download"), [url] { QDesktopServices::openUrl(QUrl(url)); }, true };
+    if (!release.important)
+        actions << NoticeAction{ tr("Skip This Version"), [version] { UpdateCheck::skipVersion(version); } };
+    actions << NoticeAction{ tr("Later"), {} };
+    const QString mine = QCoreApplication::applicationVersion();
+    notices_->showNotice(
+        QStringLiteral("update"), tr("Version %1 is ready").arg(version),
+        release.important ? tr("This update fixes a security problem. Please install it soon. You have version %1.")
+                                .arg(mine)
+                          : tr("A new version of Brick Layout Designer is ready to download. You have version %1.")
+                                .arg(mine),
+        actions, release.notes, release.important);
 }
 
 }

@@ -12,6 +12,7 @@
 
 #ifdef BLD_SYNC
 #include "PartsUpload.h"
+#include "ServerApi.h"
 #include <QSet>
 #endif
 
@@ -198,6 +199,12 @@ private:
     class PartUsagePanel* partUsagePanel_ = nullptr;
     class BudgetSession* budget_ = nullptr;
     class UpdateCheck* updates_ = nullptr;
+    // Friendly notices over the map: updates, and what a server says.
+    class NoticeArea* notices_ = nullptr;
+    void showUpdateNotice(const struct ReleaseInfo& release);
+public:
+    class NoticeArea* notices() const { return notices_; }
+private:
 
     QString currentFilePath_;
     int     cleanUndoIndex_ = 0;   // index at which the stack is "clean"
@@ -230,6 +237,10 @@ private:
     void offerPartsUpload(bool quiet);
     QUrl liveServer_;
     QString liveToken_;
+    // What the live server said about itself (versions, features).
+    bld::sync::ServerInfo liveInfo_;
+    // "Please update" and "this server can't do everything yet" notices.
+    void showServerNotices(const bld::sync::ServerInfo& info);
     // Settings sync with the connected server's account.
     class PrefsSync* prefsSync_ = nullptr;
     QAction* uploadPartsAct_ = nullptr;
