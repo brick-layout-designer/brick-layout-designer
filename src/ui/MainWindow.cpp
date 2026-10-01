@@ -1,4 +1,5 @@
 #include "MainWindow.h"
+#include "LoadingCard.h"
 
 #include "LayerPanel.h"
 #include "BudgetSession.h"
@@ -823,6 +824,8 @@ MainWindow::~MainWindow() {
         live_->disconnect(this);
         live_->close();
     }
+    // A child of the map view, deleted after this destructor.
+    if (partsDownloadCard_) partsDownloadCard_->disconnect(this);
 #endif
 }
 

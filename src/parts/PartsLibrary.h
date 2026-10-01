@@ -189,6 +189,11 @@ public:
     // Lazy-load a decoded QPixmap for a part. Returns a null QPixmap if the
     // part isn't indexed or its .gif is missing.
     QPixmap pixmap(const QString& key);
+    // Whether pixmap(key) has been tried already (loaded or not), so it
+    // returns without touching the disk.
+    bool pixmapTried(const QString& key) const;
+    // Forget a loaded (or failed) picture so the next pixmap() reads it again.
+    void forgetPixmap(const QString& key);
 
     // Convex hull of the part's opaque pixels, in part-local STUD coords
     // (origin at the pixmap centre, x right, y down). Cached per-key.

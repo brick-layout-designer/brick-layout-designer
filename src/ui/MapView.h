@@ -42,6 +42,19 @@ public:
     void setBudget(class BudgetSession* budget) { budget_ = budget; }
     void rebuildScene();  // re-run SceneBuilder against current map (after edits)
 
+    // The loading card over the map (LoadingCard.h). "Opening layout…",
+    // painted at once; loadMap() takes it from there.
+    void showOpening(const QString& detail);
+    void hideOpening();
+    // After the parts library changed: reads the layout's pictures again
+    // with the loading card, then rebuilds the scene.
+    void reloadPictures();
+    class LoadingCard* loadingCard() const { return loadingCard_; }
+    // Parts in the layout whose picture couldn't be read (lower-case keys).
+    const QStringList& failedPictures() const { return failedPictures_; }
+    // How often the card repaints while pictures load (tests: 0, every one).
+    static void setPictureProgressStepMs(int ms);
+
     core::Map* currentMap() { return map_.get(); }
 
     // What a saved view shows on this screen only (never saved in the
@@ -204,6 +217,18 @@ private:
     // step so connections feel "sticky" even on a 1-stud grid.
     double connectionSnapThresholdStuds() const;
     std::vector<BrickOriginSnapshot> selectedBrickSnapshots() const;
+
+    // Reads the pictures `map` needs that weren't read yet, counting them
+    // on the loading card. False when a newer loadMap() ran meanwhile.
+    bool preloadPictures(const core::Map& map);
+    // Hides the card, or says which pictures couldn't load.
+    void finishLoading();
+    void retryFailedPictures();
+    class LoadingCard* loadingCard_ = nullptr;
+    QStringList failedPictures_;
+    QStringList shownFailures_;
+    bool preloading_ = false;
+    int loadGeneration_ = 0;
 
     parts::PartsLibrary& parts_;
     std::unique_ptr<core::Map> map_;

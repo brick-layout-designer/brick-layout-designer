@@ -34,6 +34,7 @@ add_library(bld_ui STATIC
     MapViewClipboard.cpp
     MapViewContextMenu.cpp
     MapViewPaint.cpp
+    MapViewLoading.cpp
     MapViewInternal.h
     ConnectionSnap.cpp
     ConnectionSnap.h
@@ -57,6 +58,8 @@ add_library(bld_ui STATIC
     SharePictureDialog.h
     ViewsPanel.cpp
     ViewsPanel.h
+    LoadingCard.cpp
+    LoadingCard.h
     LibraryPathsDialog.cpp
     LibraryPathsDialog.h
     BackgroundTask.h

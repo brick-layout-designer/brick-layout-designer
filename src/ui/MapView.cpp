@@ -1,4 +1,5 @@
 #include "MapView.h"
+#include "LoadingCard.h"
 
 #include "../core/Brick.h"
 #include "../core/Layer.h"
@@ -34,6 +35,7 @@
 #include "../saveload/BbmReader.h"
 
 #include <QDragEnterEvent>
+#include <QTimer>
 #include <QDragLeaveEvent>
 #include <QDragMoveEvent>
 #include <QDropEvent>
@@ -225,6 +227,12 @@ MapView::MapView(parts::PartsLibrary& parts, QWidget* parent)
         // point at the items the rebuild is about to delete.
         rebuildScene();
     });
+
+    loadingCard_ = new LoadingCard(this, LoadingCard::Place::Centre);
+    // Deferred: Retry rebuilds the scene, and never from inside the click.
+    connect(loadingCard_, &LoadingCard::retryRequested, this,
+            [this] { QTimer::singleShot(0, this, &MapView::retryFailedPictures); });
+    connect(loadingCard_, &QObject::destroyed, this, [this] { loadingCard_ = nullptr; });
 }
 
 MapView::~MapView() {
@@ -235,6 +243,9 @@ MapView::~MapView() {
     // survivors that may already be mid-destruction. Disconnect from
     // the scene signals BEFORE any of that runs.
     if (scene()) scene()->disconnect(this);
+    // The card, a child, is deleted after this destructor: its destroyed
+    // signal must not reach a MapView that's already gone.
+    if (loadingCard_) loadingCard_->disconnect(this);
     // The undo stack's destructor clears it, which says indexChanged: the
     // handler would rebuild the scene of a view being destroyed and tell
     // the main window, already gone, that the selection changed. Let it go
@@ -267,9 +278,15 @@ void MapView::loadMap(std::unique_ptr<core::Map> map) {
         dragPreviewKey_.clear();
     }
     clearRulerPreview();
+    // Read the new layout's pictures first, with the loading card. Live
+    // updates can arrive while it paints; a newer map loaded meanwhile wins.
+    const int generation = ++loadGeneration_;
+    if (map && !preloadPictures(*map)) return;
+    if (generation != loadGeneration_) return;
     map_ = std::move(map);
     if (!map_) {
         builder_->clear();
+        finishLoading();
         emit mapLoaded();
         return;
     }
@@ -300,6 +317,7 @@ void MapView::loadMap(std::unique_ptr<core::Map> map) {
         fitInView(content.adjusted(-50, -50, 50, 50), Qt::KeepAspectRatio);
     }
     viewport()->update();
+    finishLoading();
     emit selectionChanged();
     emit mapLoaded();
 }
