@@ -50,6 +50,7 @@ QString featureLabel(const QString& id) {
     if (id == QLatin1String("uploadParts")) return tr("Sending your own parts to the server");
     if (id == QLatin1String("preferences")) return tr("Your settings on every computer");
     if (id == QLatin1String("ownerTags")) return tr("Showing whose layouts and venues they are");
+    if (id == QLatin1String("limits")) return tr("Usage limits, with plain messages when one is reached");
     return id;
 }
 

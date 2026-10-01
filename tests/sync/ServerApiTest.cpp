@@ -106,6 +106,12 @@ TEST(ServerApi, ReadsTheDesktopVersionsAndFeaturesAServerWorksWith) {
     EXPECT_FALSE(info->has(QStringLiteral("preferences")));
     EXPECT_TRUE(info->missing().contains(QStringLiteral("preferences")));
     EXPECT_FALSE(info->missing().contains(QStringLiteral("venues")));
+    // No "limits" listed: this server doesn't refuse with limit_reached.
+    EXPECT_FALSE(info->hasLimits());
+    ServerInfo limited = *info;
+    limited.features->append(QStringLiteral("limits"));
+    EXPECT_TRUE(limited.hasLimits());
+    EXPECT_FALSE(ServerInfo{}.hasLimits());
     // A server that reads only newer documents than this build writes.
     ServerInfo strict = *info;
     strict.docMinReadable = kDocSchemaVersion + 1;

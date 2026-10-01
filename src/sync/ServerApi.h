@@ -56,6 +56,9 @@ struct ServerInfo {
     // The server has the feature; servers that list none are taken to have
     // everything, as before (so nothing that worked stops working).
     bool has(const QString& feature) const { return !features || features->contains(feature); }
+    // The server has usage limits, and may refuse with limit_reached and a
+    // sentence to show (ServerRefusal).
+    bool hasLimits() const { return features && features->contains(QStringLiteral("limits")); }
     // What this desktop uses that the server lacks (or, listing none, may lack).
     QStringList missing() const { return missingFeatures(features); }
 };

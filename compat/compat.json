@@ -24,9 +24,10 @@
     { "id": "partFilesWithToken", "label": "Downloading the server's part pictures" },
     { "id": "uploadParts", "label": "Sending your own parts to the server" },
     { "id": "preferences", "label": "Your settings on every computer" },
-    { "id": "ownerTags", "label": "Showing whose layouts and venues they are" }
+    { "id": "ownerTags", "label": "Showing whose layouts and venues they are" },
+    { "id": "limits", "label": "Usage limits, with plain messages when one is reached" }
   ],
-  "serverFeatures": ["liveSync", "signIn", "publish", "clubs", "venues", "partsManifest", "partFilesWithToken", "uploadParts", "preferences", "ownerTags"],
+  "serverFeatures": ["liveSync", "signIn", "publish", "clubs", "venues", "partsManifest", "partFilesWithToken", "uploadParts", "preferences", "ownerTags", "limits"],
   "desktopUses": ["liveSync", "signIn", "publish", "clubs", "venues", "partsManifest", "partFilesWithToken", "uploadParts", "preferences", "ownerTags"],
   "assumedWhenUnlisted": ["liveSync", "signIn"],
   "cases": {
@@ -60,7 +61,7 @@
       { "app": "1.0.0", "minimum": "", "recommended": "", "expect": "ok" }
     ],
     "missingFeatures": [
-      { "server": ["liveSync", "signIn", "publish", "clubs", "venues", "partsManifest", "partFilesWithToken", "uploadParts", "preferences", "ownerTags"], "expect": [] },
+      { "server": ["liveSync", "signIn", "publish", "clubs", "venues", "partsManifest", "partFilesWithToken", "uploadParts", "preferences", "ownerTags", "limits"], "expect": [] },
       { "server": ["liveSync", "signIn", "publish", "clubs", "partsManifest", "partFilesWithToken", "uploadParts", "ownerTags", "somethingNew"], "expect": ["venues", "preferences"] },
       { "server": null, "expect": ["publish", "clubs", "venues", "partsManifest", "partFilesWithToken", "uploadParts", "preferences", "ownerTags"] }
     ],
