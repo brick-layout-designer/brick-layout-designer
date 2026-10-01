@@ -50,6 +50,7 @@ struct LayoutEntry {
     QString   id;
     QString   title;
     QString   ownerOrgName;  // empty for personal layouts
+    QString   ownerOrgSlug;  // the club's slug; empty for personal layouts
     QString   role;          // owner / editor / viewer
     QDateTime updatedAt;
 };
@@ -58,6 +59,8 @@ struct VenueEntry {
     QString id;
     QString name;
     QString ownerOrgId;  // empty for personal venues
+    QString ownerOrgName;  // the club's name (servers before owner tags: empty)
+    QString ownerOrgSlug;  // the club's slug (servers before owner tags: empty)
 };
 
 struct OrgEntry {

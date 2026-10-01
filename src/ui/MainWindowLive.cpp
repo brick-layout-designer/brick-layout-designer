@@ -62,7 +62,7 @@ void MainWindow::setupLiveMenu(QMenu* file) {
     connect(disconnectAct_, &QAction::triggered, this, &MainWindow::onDisconnect);
     auto* publishAct = file->addAction(tr("&Publish to Server..."));
     publishAct->setToolTip(
-        tr("Put this layout on a server, yours or an organisation's, and keep editing it live"));
+        tr("Put this layout on a server, yours or a club's, and keep editing it live"));
     connect(publishAct, &QAction::triggered, this, &MainWindow::onPublishToServer);
     uploadPartsAct_ = file->addAction(tr("&Upload My Parts to Server..."));
     uploadPartsAct_->setToolTip(tr("Offer your own parts that the live layout's server doesn't have yet"));

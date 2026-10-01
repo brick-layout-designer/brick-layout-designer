@@ -8,7 +8,7 @@
 // The same steps serve File › Download Venues from Server…: then the list
 // is the server's venue library, several can be picked, and they are
 // downloaded as .bld-venue files (venues()). And File › Publish to
-// Server…: a title and an owner (you, or one of your organisations), and
+// Server…: a title and where it's saved (you, or one of your clubs), and
 // the layout is created on the server; result() is then the new layout.
 
 #include "ServerApi.h"
@@ -18,6 +18,7 @@
 
 #include <functional>
 #include <optional>
+#include <utility>
 
 class QComboBox;
 class QLabel;
@@ -76,6 +77,8 @@ private:
     void signInAgain();
     void openSelected();
     void filterLayouts(const QString& text);
+    // Fill the Show filter with All, Mine and the clubs in the list (key, name).
+    void setShowChoices(const QList<std::pair<QString, QString>>& clubs);
 
     ServerApi& api_;
     TokenStore& tokens_;
@@ -94,6 +97,7 @@ private:
     QLabel* code_ = nullptr;
     QLabel* codeHint_ = nullptr;
     QLineEdit* filter_ = nullptr;
+    QComboBox* show_ = nullptr;  // All / Mine / each club
     QTreeWidget* layouts_ = nullptr;
     QPushButton* openBtn_ = nullptr;
     QByteArray publishBbm_, publishSidecar_;
