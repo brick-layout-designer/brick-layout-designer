@@ -72,6 +72,10 @@ QPainterPath shape(const QString& name) {
         p.addRoundedRect(QRectF(3, 5, 18, 14), 2, 2);
         p.addEllipse(QPointF(9, 10), 1.6, 1.6);
         p.moveTo(21, 16); p.lineTo(16, 11); p.lineTo(8, 19);
+    } else if (name == QLatin1String("chevronDown")) {
+        p.moveTo(6, 9); p.lineTo(12, 15); p.lineTo(18, 9);
+    } else if (name == QLatin1String("chevronUp")) {
+        p.moveTo(6, 15); p.lineTo(12, 9); p.lineTo(18, 15);
     }
     return p;
 }

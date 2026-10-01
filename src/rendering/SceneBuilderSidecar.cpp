@@ -550,6 +550,8 @@ void SceneBuilder::addModuleLabels(const core::Map& map) {
         sink.add(bg);
         sink.add(label);
         placedLabels.push_back(bgRect);
+        // The frame, the name and its shadow, for fitting a view around them.
+        moduleAnnotationRects_.append({ mod.id, framePx.united(bgRect.adjusted(0, 0, 2, 2)) });
     }
 }
 

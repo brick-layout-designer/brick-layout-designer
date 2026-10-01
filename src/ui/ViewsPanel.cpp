@@ -1,23 +1,24 @@
 #include "ViewsPanel.h"
 
 #include "SavedViews.h"
+#include "theme/Icons.h"
 
 #include "../core/Layer.h"
 #include "../core/Map.h"
 
-#include <QApplication>
+#include <QAbstractButton>
 #include <QButtonGroup>
 #include <QCheckBox>
 #include <QEvent>
 #include <QHBoxLayout>
 #include <QInputDialog>
 #include <QLabel>
-#include <QListWidget>
 #include <QMessageBox>
 #include <QPainter>
 #include <QPushButton>
 #include <QScrollArea>
-#include <QStyledItemDelegate>
+#include <QStyle>
+#include <QToolButton>
 #include <QUuid>
 #include <QVBoxLayout>
 
@@ -27,61 +28,103 @@ namespace bld::ui {
 
 namespace {
 
-constexpr int kSummaryRole = Qt::UserRole + 1;
-constexpr int kIdRole = Qt::UserRole + 2;
-
-// A view's row: its name in bold over a muted one-line summary.
-class ViewRowDelegate : public QStyledItemDelegate {
+// A view's row, as one button: its name in bold over a muted one-line
+// summary, and "On screen now · tap to stop" while it shows (the web's).
+class ViewRowButton : public QAbstractButton {
 public:
-    using QStyledItemDelegate::QStyledItemDelegate;
+    ViewRowButton(QString name, QString summary, bool active, QWidget* parent)
+        : QAbstractButton(parent), name_(std::move(name)), summary_(std::move(summary)), active_(active) {
+        setText(name_);
+        setCursor(Qt::PointingHandCursor);
+        setFocusPolicy(Qt::StrongFocus);
+        setAttribute(Qt::WA_Hover);
+        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+        setAccessibleName(name_);
+        setAccessibleDescription(active_ ? summary_ + QStringLiteral(". ") + onScreenText() : summary_);
+    }
 
-    void paint(QPainter* p, const QStyleOptionViewItem& option, const QModelIndex& index) const override {
-        QStyleOptionViewItem o(option);
-        initStyleOption(&o, index);
-        const QString name = o.text;
-        const bool selected = o.state & QStyle::State_Selected;
-        const bool hovered = o.state & QStyle::State_MouseOver;
-        p->save();
-        p->setRenderHint(QPainter::Antialiasing);
-        // The picked view: a soft accent card, like the web's row.
-        const QRectF card = QRectF(o.rect).adjusted(1.5, 1.5, -1.5, -1.5);
-        if (selected) {
-            QColor fill = o.palette.color(QPalette::Highlight);
-            fill.setAlphaF(0.14);
-            p->setPen(QPen(o.palette.color(QPalette::Highlight), 1.2));
-            p->setBrush(fill);
-            p->drawRoundedRect(card, 8, 8);
-        } else if (hovered) {
-            p->setPen(Qt::NoPen);
-            p->setBrush(o.palette.color(QPalette::AlternateBase));
-            p->drawRoundedRect(card, 8, 8);
+    static QString onScreenText() { return ViewsPanel::tr("On screen now · tap to stop"); }
+
+    QSize sizeHint() const override {
+        const int lines = boldMetrics().height() + smallMetrics().height() + 2
+                          + (active_ ? smallMetrics().height() + 2 : 0);
+        return { 120, std::max(lines + 2 * kPadY, 40) };
+    }
+    QSize minimumSizeHint() const override { return { 60, sizeHint().height() }; }
+
+protected:
+    void paintEvent(QPaintEvent*) override {
+        QPainter p(this);
+        p.setRenderHint(QPainter::Antialiasing);
+        const QRectF card = QRectF(rect()).adjusted(1, 1, -1, -1);
+        if (underMouse() && !active_) {
+            p.setPen(Qt::NoPen);
+            p.setBrush(palette().color(QPalette::AlternateBase));
+            p.drawRoundedRect(card, 6, 6);
         }
-        const QRect r = o.rect.adjusted(12, 7, -12, -7);
-        QFont bold = o.font;
-        bold.setBold(true);
-        p->setFont(bold);
-        p->setPen(o.palette.color(QPalette::Text));
-        const QFontMetrics fmBold(bold);
-        p->drawText(QRect(r.left(), r.top(), r.width(), fmBold.height()), Qt::AlignLeft | Qt::AlignVCenter,
-                    fmBold.elidedText(name, Qt::ElideRight, r.width()));
-        QFont small = o.font;
-        small.setPointSizeF(std::max(7.0, o.font.pointSizeF() * 0.9));
-        p->setFont(small);
-        p->setPen(o.palette.color(QPalette::PlaceholderText));
-        const QFontMetrics fmSmall(small);
-        p->drawText(QRect(r.left(), r.top() + fmBold.height() + 2, r.width(), fmSmall.height()),
-                    Qt::AlignLeft | Qt::AlignVCenter,
-                    fmSmall.elidedText(index.data(kSummaryRole).toString(), Qt::ElideRight, r.width()));
-        p->restore();
+        if (hasFocus()) {
+            p.setPen(QPen(palette().color(QPalette::Highlight), 1.5));
+            p.setBrush(Qt::NoBrush);
+            p.drawRoundedRect(card, 6, 6);
+        }
+        const QRect r = rect().adjusted(kPadX, kPadY, -kPadX, -kPadY);
+        int y = r.top();
+        const auto line = [&](const QFont& f, const QColor& c, const QString& text) {
+            const QFontMetrics fm(f);
+            p.setFont(f);
+            p.setPen(c);
+            p.drawText(QRect(r.left(), y, r.width(), fm.height()), Qt::AlignLeft | Qt::AlignVCenter,
+                       fm.elidedText(text, Qt::ElideRight, r.width()));
+            y += fm.height() + 2;
+        };
+        line(boldFont(), palette().color(QPalette::Text), name_);
+        line(smallFont(), palette().color(QPalette::PlaceholderText), summary_);
+        if (active_) {
+            QFont f = smallFont();
+            f.setBold(true);
+            line(f, palette().color(QPalette::Link), onScreenText());
+        }
     }
 
-    QSize sizeHint(const QStyleOptionViewItem& option, const QModelIndex&) const override {
-        QFont bold = option.font;
-        bold.setBold(true);
-        const int h = QFontMetrics(bold).height() + QFontMetrics(option.font).height() + 16;
-        return { 120, std::max(h, 44) };
+private:
+    static constexpr int kPadX = 10;
+    static constexpr int kPadY = 6;
+    QFont boldFont() const {
+        QFont f = font();
+        f.setBold(true);
+        return f;
     }
+    QFont smallFont() const {
+        QFont f = font();
+        f.setPointSizeF(std::max(7.0, f.pointSizeF() * 0.9));
+        return f;
+    }
+    QFontMetrics boldMetrics() const { return QFontMetrics(boldFont()); }
+    QFontMetrics smallMetrics() const { return QFontMetrics(smallFont()); }
+
+    QString name_;
+    QString summary_;
+    bool active_;
 };
+
+// A small flat button on a view's row (share, Edit).
+QToolButton* rowTool(QWidget* parent, const QString& objectName) {
+    auto* b = new QToolButton(parent);
+    b->setObjectName(objectName);
+    b->setProperty("viewRowTool", true);
+    b->setAutoRaise(true);
+    b->setCursor(Qt::PointingHandCursor);
+    b->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
+    return b;
+}
+
+// Gone from the panel now (so nothing finds it), deleted once the event
+// loop runs: it may be the very button whose click asked for this.
+void retire(QWidget* w) {
+    w->hide();
+    w->setParent(nullptr);
+    w->deleteLater();
+}
 
 // Two buttons side by side, one of them on (the web's segmented control).
 QFrame* segmented(QWidget* parent, QPushButton* a, QPushButton* b, QButtonGroup* group) {
@@ -119,23 +162,29 @@ ViewsPanel::ViewsPanel(QWidget* parent) : QDockWidget(tr("Views"), parent) {
     empty_->setForegroundRole(QPalette::PlaceholderText);
     col->addWidget(empty_);
 
-    list_ = new QListWidget(host);
-    list_->setObjectName(QStringLiteral("ViewList"));
-    list_->setAccessibleName(tr("Saved views"));
-    list_->setItemDelegate(new ViewRowDelegate(list_));
-    list_->setSelectionMode(QAbstractItemView::SingleSelection);
-    list_->setUniformItemSizes(true);
-    list_->setFrameShape(QFrame::NoFrame);
-    list_->setMouseTracking(true);  // the hovered row lights up
-    list_->setSpacing(1);
-    list_->setMinimumHeight(60);
-    col->addWidget(list_, 1);
+    // The views, one card each.
+    scroll_ = new QScrollArea(host);
+    scroll_->setObjectName(QStringLiteral("ViewList"));
+    scroll_->setAccessibleName(tr("Saved views"));
+    scroll_->setWidgetResizable(true);
+    scroll_->setFrameShape(QFrame::NoFrame);
+    scroll_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    rowsHost_ = new QWidget(scroll_);
+    rowsHost_->setBackgroundRole(QPalette::Window);
+    rowsCol_ = new QVBoxLayout(rowsHost_);
+    rowsCol_->setContentsMargins(0, 0, 0, 0);
+    rowsCol_->setSpacing(6);
+    rowsCol_->addStretch(1);
+    scroll_->setWidget(rowsHost_);
+    scroll_->setMinimumHeight(60);
+    col->addWidget(scroll_, 1);
 
-    // The picked view's options.
+    // The open view's settings, shown in its card ("Edit").
     options_ = new QFrame(host);
     options_->setObjectName(QStringLiteral("ViewOptions"));
+    options_->hide();
     auto* opt = new QVBoxLayout(options_);
-    opt->setContentsMargins(10, 10, 10, 10);
+    opt->setContentsMargins(10, 8, 10, 10);
     opt->setSpacing(6);
     fitBtn_ = new QPushButton(tr("Fit whole layout"), options_);
     fitBtn_->setObjectName(QStringLiteral("viewFit"));
@@ -171,16 +220,17 @@ ViewsPanel::ViewsPanel(QWidget* parent) : QDockWidget(tr("Views"), parent) {
     auto* editRow = new QHBoxLayout();
     auto* renameBtn = new QPushButton(tr("Rename…"), options_);
     renameBtn->setObjectName(QStringLiteral("viewRename"));
-    auto* shareBtn = new QPushButton(tr("Share picture…"), options_);
-    shareBtn->setObjectName(QStringLiteral("viewShare"));
     auto* deleteBtn = new QPushButton(tr("Delete"), options_);
     deleteBtn->setObjectName(QStringLiteral("viewDelete"));
+    auto* doneBtn = new QPushButton(tr("Done"), options_);
+    doneBtn->setObjectName(QStringLiteral("viewDone"));
+    doneBtn->setProperty("accent", true);
+    doneBtn->setToolTip(tr("Close the settings for this view"));
     editRow->addWidget(renameBtn);
-    editRow->addWidget(shareBtn);
     editRow->addWidget(deleteBtn);
     editRow->addStretch(1);
+    editRow->addWidget(doneBtn);
     opt->addLayout(editRow);
-    col->addWidget(options_);
 
     auto* addRow = new QHBoxLayout();
     auto* addBtn = new QPushButton(tr("+ Add view"), host);
@@ -211,48 +261,38 @@ ViewsPanel::ViewsPanel(QWidget* parent) : QDockWidget(tr("Views"), parent) {
     };
     askName_ = [this](const QString& title, const QString& name) -> std::optional<QString> {
         bool ok = false;
-        const QString text = QInputDialog::getText(this, title, tr("Name:"), QLineEdit::Normal, name, &ok);
+        QString text = QInputDialog::getText(this, title, tr("Name:"), QLineEdit::Normal, name, &ok);
         if (!ok) return std::nullopt;
         return text;
     };
 
-    connect(list_, &QListWidget::itemClicked, this, [this](QListWidgetItem* item) {
-        const QString id = item->data(kIdRole).toString();
-        selectView(id);
-        if (const auto* v = find(id)) emit goToViewRequested(*v);
-    });
-    connect(list_, &QListWidget::currentItemChanged, this, [this](QListWidgetItem* item) {
-        if (updating_ || !item) return;
-        selectedId_ = item->data(kIdRole).toString();
-        refreshOptions();
-    });
-    connect(fitBtn_, &QPushButton::clicked, this, [this] { setFit(selectedId_, true); });
-    connect(areaBtn_, &QPushButton::clicked, this, [this] { setFit(selectedId_, false); });
+    connect(fitBtn_, &QPushButton::clicked, this, [this] { setFit(openId_, true); });
+    connect(areaBtn_, &QPushButton::clicked, this, [this] { setFit(openId_, false); });
     connect(gridChk_, &QCheckBox::toggled, this, [this](bool on) {
-        if (!updating_) setGrid(selectedId_, on);
+        if (!updating_) setGrid(openId_, on);
     });
     connect(labelsChk_, &QCheckBox::toggled, this, [this](bool on) {
-        if (!updating_) setLabels(selectedId_, on);
+        if (!updating_) setLabels(openId_, on);
     });
     connect(allSheetsChk_, &QCheckBox::toggled, this, [this](bool on) {
         if (updating_) return;
         if (on) {
-            setSheets(selectedId_, std::nullopt);
+            setSheets(openId_, std::nullopt);
             return;
         }
         QStringList all;
         for (const auto& [id, name] : sheetList()) all << id;
-        setSheets(selectedId_, all);
+        setSheets(openId_, all);
     });
     connect(renameBtn, &QPushButton::clicked, this, [this] {
-        const auto* v = find(selectedId_);
+        const QString id = openId_;
+        const auto* v = find(id);
         if (!v) return;
-        if (const auto name = askName_(tr("Rename view"), v->name)) renameView(selectedId_, *name);
+        const QString was = v->name;
+        if (const auto name = askName_(tr("Rename view"), was)) renameView(id, *name);
     });
-    connect(shareBtn, &QPushButton::clicked, this, [this] {
-        if (!selectedId_.isEmpty()) emit sharePictureRequested(selectedId_);
-    });
-    connect(deleteBtn, &QPushButton::clicked, this, [this] { deleteView(selectedId_); });
+    connect(deleteBtn, &QPushButton::clicked, this, [this] { deleteView(openId_); });
+    connect(doneBtn, &QPushButton::clicked, this, [this] { openView({}); });
     connect(addBtn, &QPushButton::clicked, this, [this] {
         if (!map_) return;
         const QString suggestion = tr("View %1").arg(views_.size() + 1);
@@ -267,25 +307,19 @@ ViewsPanel::ViewsPanel(QWidget* parent) : QDockWidget(tr("Views"), parent) {
 void ViewsPanel::setMap(const core::Map* map) {
     map_ = map;
     views_ = map ? map->sidecar.views : std::vector<core::SavedView>{};
-    if (!find(selectedId_)) selectedId_.clear();
+    if (!find(openId_)) openId_.clear();
     rebuildList();
-    refreshOptions();
 }
 
 void ViewsPanel::setActiveView(const QString& id) {
+    if (id == activeId_) return;
     activeId_ = id;
-    showAllBtn_->setVisible(!id.isEmpty());
-    if (!id.isEmpty()) selectView(id);
+    rebuildList();
 }
 
-void ViewsPanel::selectView(const QString& id) {
-    selectedId_ = find(id) ? id : QString();
-    updating_ = true;
-    for (int i = 0; i < list_->count(); ++i)
-        if (list_->item(i)->data(kIdRole).toString() == selectedId_) list_->setCurrentRow(i);
-    if (selectedId_.isEmpty()) list_->clearSelection();
-    updating_ = false;
-    refreshOptions();
+void ViewsPanel::openView(const QString& id) {
+    openId_ = find(id) ? id : QString();
+    rebuildList();
 }
 
 const core::SavedView* ViewsPanel::find(const QString& id) const {
@@ -304,19 +338,81 @@ std::vector<std::pair<QString, QString>> ViewsPanel::sheetList() const {
 }
 
 void ViewsPanel::rebuildList() {
-    updating_ = true;
-    list_->clear();
+    // The settings live on; the cards go (one may hold the button whose
+    // click got us here, so they go once the event loop runs).
+    options_->hide();
+    options_->setParent(widget());
+    for (QFrame* card : cards_) retire(card);
+    cards_.clear();
+
     const int sheets = static_cast<int>(sheetList().size());
+    int at = 0;
     for (const auto& v : views_) {
-        auto* item = new QListWidgetItem(v.name.isEmpty() ? tr("View") : v.name, list_);
-        item->setData(kIdRole, v.id);
-        item->setData(kSummaryRole, views::viewSummary(v, sheets));
-        item->setToolTip(tr("Show %1").arg(v.name));
-        if (v.id == selectedId_) list_->setCurrentItem(item);
+        const QString id = v.id;
+        const QString name = v.name.isEmpty() ? tr("View") : v.name;
+        const bool active = id == activeId_;
+        const bool open = id == openId_;
+
+        auto* card = new QFrame(rowsHost_);
+        card->setObjectName(QStringLiteral("viewCard:") + id);
+        card->setProperty("viewCard", true);
+        card->setProperty("active", active);
+        card->setFrameShape(QFrame::StyledPanel);
+        auto* cardCol = new QVBoxLayout(card);
+        cardCol->setContentsMargins(2, 2, 2, 2);
+        cardCol->setSpacing(0);
+        auto* head = new QHBoxLayout();
+        head->setSpacing(2);
+
+        auto* row = new ViewRowButton(name, views::viewSummary(v, sheets), active, card);
+        row->setObjectName(QStringLiteral("viewRow:") + id);
+        row->setToolTip(active ? tr("Showing %1. Click again to stop").arg(name) : tr("Show %1").arg(name));
+        connect(row, &QAbstractButton::clicked, this, [this, id] {
+            const auto* cur = find(id);
+            if (!cur) return;
+            if (id == activeId_) {
+                emit leaveViewRequested();
+                return;
+            }
+            const core::SavedView copy = *cur;  // the handler may change the list
+            emit goToViewRequested(copy);
+        });
+        head->addWidget(row, 1);
+
+        auto* share = rowTool(card, QStringLiteral("viewShare:") + id);
+        share->setIcon(theme::lineIcon(QStringLiteral("picture"), palette()));
+        share->setIconSize(QSize(20, 20));
+        share->setToolTip(tr("Share a picture"));
+        share->setAccessibleName(tr("Share a picture of %1").arg(name));
+        connect(share, &QToolButton::clicked, this, [this, id] { emit sharePictureRequested(id); });
+        head->addWidget(share);
+
+        auto* edit = rowTool(card, QStringLiteral("viewEdit:") + id);
+        edit->setText(tr("Edit"));
+        edit->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+        edit->setLayoutDirection(Qt::RightToLeft);  // the chevron after the word
+        edit->setIcon(theme::lineIcon(open ? QStringLiteral("chevronUp") : QStringLiteral("chevronDown"), palette()));
+        edit->setIconSize(QSize(16, 16));
+        edit->setCheckable(true);
+        edit->setChecked(open);
+        edit->setToolTip(open ? tr("Close the settings for this view") : tr("Change what this view shows"));
+        edit->setAccessibleName(tr("Change %1").arg(name));
+        connect(edit, &QToolButton::clicked, this, [this, id] { openView(openId_ == id ? QString() : id); });
+        head->addWidget(edit);
+        cardCol->addLayout(head);
+
+        if (open) {
+            options_->setParent(card);
+            cardCol->addWidget(options_);
+            options_->show();
+        }
+        rowsCol_->insertWidget(at++, card);
+        card->show();  // now, not when the layout gets round to it
+        cards_.push_back(card);
     }
-    updating_ = false;
+    refreshOptions();
     empty_->setVisible(views_.empty());
-    list_->setVisible(!views_.empty());
+    scroll_->setVisible(!views_.empty());
     showAllBtn_->setVisible(!activeId_.isEmpty());
     exportBtn_->setText(views_.empty() ? tr("Export a picture") : tr("Export all views"));
     exportBtn_->setEnabled(map_ != nullptr);
@@ -324,8 +420,7 @@ void ViewsPanel::rebuildList() {
 }
 
 void ViewsPanel::refreshOptions() {
-    const core::SavedView* v = find(selectedId_);
-    options_->setVisible(v != nullptr);
+    const core::SavedView* v = find(openId_);
     if (!v) return;
     updating_ = true;
     fitBtn_->setChecked(v->fit);
@@ -336,10 +431,7 @@ void ViewsPanel::refreshOptions() {
     allSheetsChk_->setChecked(!v->sheets);
     // Later: the box being toggled may be the one that asked for this.
     while (QLayoutItem* it = sheetsCol_->takeAt(0)) {
-        if (QWidget* w = it->widget()) {
-            w->hide();
-            w->deleteLater();
-        }
+        if (QWidget* w = it->widget()) retire(w);
         delete it;
     }
     if (v->sheets) {
@@ -348,14 +440,14 @@ void ViewsPanel::refreshOptions() {
             chk->setObjectName(QStringLiteral("viewSheet:") + id);
             chk->setChecked(v->sheets->contains(id));
             connect(chk, &QCheckBox::toggled, this, [this, sheetId = id](bool on) {
-                const core::SavedView* cur = find(selectedId_);
+                const core::SavedView* cur = find(openId_);
                 if (!cur) return;
                 QStringList next;
                 for (const auto& [sid, sname] : sheetList()) {
                     const bool shown = sid == sheetId ? on : (cur->sheets ? cur->sheets->contains(sid) : true);
                     if (shown) next << sid;
                 }
-                setSheets(selectedId_, next);
+                setSheets(openId_, next);
             });
             sheetsCol_->addWidget(chk);
         }
@@ -382,7 +474,6 @@ void ViewsPanel::addView(const QString& name) {
                                        gridShown_ ? gridShown_() : false);
     std::vector<core::SavedView> next = views_;
     next.push_back(v);
-    selectedId_ = v.id;
     emit viewsEdited(next, tr("Add view \"%1\"").arg(v.name));
     emit goToViewRequested(v);
 }
@@ -396,13 +487,16 @@ void ViewsPanel::renameView(const QString& id, const QString& name) {
 bool ViewsPanel::deleteView(const QString& id) {
     const auto* v = find(id);
     if (!v) return false;
-    if (!confirm_(tr("Delete the view \"%1\"? The layout itself doesn't change.").arg(v->name))) return false;
+    // Asking runs an event loop, in which the list may change: hold on to
+    // the name, not the view.
+    const QString name = v->name;
+    if (!confirm_(tr("Delete the view \"%1\"? The layout itself doesn't change.").arg(name))) return false;
+    if (!find(id)) return false;
     const bool wasActive = id == activeId_;
     std::vector<core::SavedView> next;
     for (const auto& x : views_)
         if (x.id != id) next.push_back(x);
-    const QString name = v->name;
-    if (selectedId_ == id) selectedId_.clear();
+    if (openId_ == id) openId_.clear();
     emit viewsEdited(next, tr("Delete view \"%1\"").arg(name));
     if (wasActive) emit showEverythingRequested();
     return true;

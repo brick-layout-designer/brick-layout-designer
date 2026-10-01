@@ -21,12 +21,21 @@
 #include <QStandardPaths>
 #include <QVBoxLayout>
 
+#include <algorithm>
+
 namespace bld::ui {
 
 namespace {
 
 const QString kFolderKey = QStringLiteral("views/exportFolder");
-const QString kScaleKey = QStringLiteral("views/exportScale");
+const QString kMaxSideKey = QStringLiteral("views/exportMaxSide");
+// Before sizes were by the longest side: a scale (1, 2 or 4).
+const QString kOldScaleKey = QStringLiteral("views/exportScale");
+
+bool offeredSize(int maxSide) {
+    const auto sizes = views::exportSizes();
+    return std::any_of(sizes.begin(), sizes.end(), [maxSide](const views::ExportSize& s) { return s.maxSide == maxSide; });
+}
 const QString kPictureFolderKey = QStringLiteral("views/pictureFolder");
 
 QString picturesFolder() {
@@ -52,15 +61,17 @@ ExportViewsPrefs loadExportViewsPrefs() {
     QSettings s;
     ExportViewsPrefs p;
     p.folder = s.value(kFolderKey).toString();
-    const double scale = s.value(kScaleKey, 2.0).toDouble();
-    p.scale = scale > 0 && scale <= 8 ? scale : 2.0;
+    bool ok = false;
+    const int maxSide = s.value(kMaxSideKey).toInt(&ok);
+    if (ok && offeredSize(maxSide)) p.maxSide = maxSide;
     return p;
 }
 
 void saveExportViewsPrefs(const ExportViewsPrefs& p) {
     QSettings s;
     s.setValue(kFolderKey, p.folder);
-    s.setValue(kScaleKey, p.scale);
+    s.setValue(kMaxSideKey, offeredSize(p.maxSide) ? p.maxSide : views::kDefaultExportMaxSide);
+    s.remove(kOldScaleKey);
 }
 
 QString runExportAllViews(QWidget* parent, const core::Map& map, parts::PartsLibrary& parts,
@@ -73,7 +84,7 @@ QString runExportAllViews(QWidget* parent, const core::Map& map, parts::PartsLib
         if (dir.isEmpty()) return {};
         prefs.folder = dir;
     }
-    const auto r = views::exportAllViews(map, parts, layoutTitle, prefs.scale, prefs.folder);
+    const auto r = views::exportAllViews(map, parts, layoutTitle, prefs.maxSide, prefs.folder);
     saveExportViewsPrefs(prefs);
     return exportMessage(r, prefs.folder);
 }
@@ -163,7 +174,7 @@ SharePictureDialog::SharePictureDialog(Input input, QWidget* parent) : QDialog(p
         scaleGroup_->addButton(b, i);
         segRow->addWidget(b);
     }
-    setExportScale(loadExportViewsPrefs().scale);
+    setExportMaxSide(loadExportViewsPrefs().maxSide);
     auto* exportBtn = new QPushButton(n > 0 ? tr("Export all views") : tr("Export picture"), this);
     exportBtn->setObjectName(QStringLiteral("exportAllViews"));
     exportRow->addWidget(seg);
@@ -211,13 +222,13 @@ SharePictureDialog::SharePictureDialog(Input input, QWidget* parent) : QDialog(p
     connect(copyBtn_, &QPushButton::clicked, this, &SharePictureDialog::copyPicture);
     connect(scaleGroup_, &QButtonGroup::idClicked, this, [this](int) {
         ExportViewsPrefs p = loadExportViewsPrefs();
-        p.scale = exportScale();
+        p.maxSide = exportMaxSide();
         saveExportViewsPrefs(p);
     });
     const auto runExport = [this](bool chooseFolder) {
         if (!in_.map || !in_.parts) return;
         ExportViewsPrefs p = loadExportViewsPrefs();
-        p.scale = exportScale();
+        p.maxSide = exportMaxSide();
         saveExportViewsPrefs(p);
         const QString msg = runExportAllViews(this, *in_.map, *in_.parts, in_.layoutTitle, chooseFolder);
         if (!msg.isEmpty()) status_->setText(msg);
@@ -260,7 +271,7 @@ void SharePictureDialog::choose(const QString& c) {
             core::SavedView view = views::wholeLayout();
             for (const auto& v : in_.map->sidecar.views)
                 if (v.id == c) view = v;
-            spec = views::viewPicture(view, *in_.map);
+            spec = views::viewPicture(view, *in_.map, renderer_ ? &renderer_->builder() : nullptr);
         }
     }
     if (spec && renderer_)
@@ -308,24 +319,27 @@ QString SharePictureDialog::status() const { return status_->text(); }
 views::ExportAllResult SharePictureDialog::exportAllTo(const QString& folder) {
     views::ExportAllResult r;
     if (!in_.map || !in_.parts) return r;
-    r = views::exportAllViews(*in_.map, *in_.parts, in_.layoutTitle, exportScale(), folder);
-    saveExportViewsPrefs({ folder, exportScale() });
+    r = views::exportAllViews(*in_.map, *in_.parts, in_.layoutTitle, exportMaxSide(), folder);
+    saveExportViewsPrefs({ folder, exportMaxSide() });
     status_->setText(exportMessage(r, folder));
     refreshFolder();
     return r;
 }
 
-double SharePictureDialog::exportScale() const {
+int SharePictureDialog::exportMaxSide() const {
     const auto sizes = views::exportSizes();
     const int id = scaleGroup_->checkedId();
-    return id >= 0 && id < static_cast<int>(sizes.size()) ? sizes[id].scale : 2.0;
+    return id >= 0 && id < static_cast<int>(sizes.size()) ? sizes[id].maxSide : views::kDefaultExportMaxSide;
 }
 
-void SharePictureDialog::setExportScale(double scale) {
+void SharePictureDialog::setExportMaxSide(int maxSide) {
+    // A size that isn't offered picks Medium.
     const auto sizes = views::exportSizes();
-    int pick = 1;
+    int pick = 0;
     for (int i = 0; i < static_cast<int>(sizes.size()); ++i)
-        if (qFuzzyCompare(sizes[i].scale, scale)) pick = i;
+        if (sizes[i].maxSide == views::kDefaultExportMaxSide) pick = i;
+    for (int i = 0; i < static_cast<int>(sizes.size()); ++i)
+        if (sizes[i].maxSide == maxSide) pick = i;
     if (auto* b = scaleGroup_->button(pick)) b->setChecked(true);
 }
 

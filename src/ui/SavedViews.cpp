@@ -8,6 +8,7 @@
 #include "../core/LayerRuler.h"
 #include "../core/LayerText.h"
 #include "../core/Map.h"
+#include "../core/Module.h"
 #include "../rendering/SceneBuilder.h"
 
 #include <QCoreApplication>
@@ -66,12 +67,14 @@ void paintGrid(QPainter& p, const core::LayerGrid& g, const QRectF& region, doub
         pen.setWidthF(std::max(1.0, thickness * std::min(pxPerStudX, pxPerStudY) / kPxPerStud));
         p.setPen(pen);
         const double w = region.width() * pxPerStudX, h = region.height() * pxPerStudY;
-        for (double x = std::ceil(region.x() / step) * step; x <= region.right(); x += step) {
-            const double px = (x - region.x()) * pxPerStudX;
+        // Counted in whole lines, so the steps don't drift.
+        const auto first = [step](double from) { return static_cast<long long>(std::ceil(from / step)); };
+        for (long long i = first(region.x()); static_cast<double>(i) * step <= region.right(); ++i) {
+            const double px = (static_cast<double>(i) * step - region.x()) * pxPerStudX;
             p.drawLine(QPointF(px, 0), QPointF(px, h));
         }
-        for (double y = std::ceil(region.y() / step) * step; y <= region.bottom(); y += step) {
-            const double py = (y - region.y()) * pxPerStudY;
+        for (long long i = first(region.y()); static_cast<double>(i) * step <= region.bottom(); ++i) {
+            const double py = (static_cast<double>(i) * step - region.y()) * pxPerStudY;
             p.drawLine(QPointF(0, py), QPointF(w, py));
         }
     };
@@ -103,13 +106,18 @@ bool sheetShown(const core::Layer& layer, const std::optional<QStringList>& shee
     return sheets ? sheets->contains(layer.guid) : layer.visible;
 }
 
-std::optional<QRectF> fitRegionStuds(const core::Map& map, const std::optional<QStringList>& sheets, bool labels) {
+std::optional<QRectF> fitRegionStuds(const core::Map& map, const std::optional<QStringList>& sheets, bool labels,
+                                     const rendering::SceneBuilder* drawn) {
     Bounds b;
+    QSet<QString> shownBricks;  // for the module frames and names
     for (const auto& lp : map.layers()) {
         if (!lp || !sheetShown(*lp, sheets)) continue;
         switch (lp->kind()) {
         case core::LayerKind::Brick:
-            for (const auto& br : static_cast<const core::LayerBrick&>(*lp).bricks) b.add(br.displayArea);
+            for (const auto& br : static_cast<const core::LayerBrick&>(*lp).bricks) {
+                b.add(br.displayArea);
+                if (drawn) shownBricks.insert(br.guid);
+            }
             break;
         case core::LayerKind::Text:
             for (const auto& c : static_cast<const core::LayerText&>(*lp).textCells) b.add(c.displayArea);
@@ -134,18 +142,32 @@ std::optional<QRectF> fitRegionStuds(const core::Map& map, const std::optional<Q
         for (const auto& l : map.sidecar.anchoredLabels)
             if (l.kind != core::AnchorKind::Brick) b.add(l.offset.x(), l.offset.y());
     }
+    if (drawn) {
+        // Module frames and names, which sit outside the modules.
+        const double k = rendering::SceneBuilder::kPixelsPerStud;
+        for (const auto& [moduleId, px] : drawn->moduleAnnotationRects()) {
+            const auto mod = std::find_if(map.sidecar.modules.begin(), map.sidecar.modules.end(),
+                                          [&](const core::Module& m) { return m.id == moduleId; });
+            if (mod == map.sidecar.modules.end()) continue;
+            const bool shown = std::any_of(mod->memberIds.begin(), mod->memberIds.end(),
+                                           [&](const QString& id) { return shownBricks.contains(id); });
+            if (shown) b.add(px.x() / k, px.y() / k, px.width() / k, px.height() / k);
+        }
+    }
     if (b.empty()) return std::nullopt;
     const double m = kFitMarginStuds;
     return QRectF(b.minX - m, b.minY - m, b.maxX - b.minX + 2 * m, b.maxY - b.minY + 2 * m);
 }
 
-std::optional<QRectF> viewRegionStuds(const core::SavedView& view, const core::Map& map) {
-    if (!view.fit && view.rect && view.rect->width() > 0 && view.rect->height() > 0) return *view.rect;
-    return fitRegionStuds(map, view.sheets, view.labels);
+std::optional<QRectF> viewRegionStuds(const core::SavedView& view, const core::Map& map,
+                                      const rendering::SceneBuilder* drawn) {
+    if (!view.fit && view.rect && view.rect->width() > 0 && view.rect->height() > 0) return view.rect;
+    return fitRegionStuds(map, view.sheets, view.labels, drawn);
 }
 
-std::optional<PictureSpec> viewPicture(const core::SavedView& view, const core::Map& map) {
-    const auto region = viewRegionStuds(view, map);
+std::optional<PictureSpec> viewPicture(const core::SavedView& view, const core::Map& map,
+                                       const rendering::SceneBuilder* drawn) {
+    const auto region = viewRegionStuds(view, map, drawn);
     if (!region) return std::nullopt;
     return PictureSpec{ *region, view.sheets, view.grid, view.labels };
 }
@@ -162,10 +184,14 @@ QSize pictureSize(const QRectF& region, double scale) {
     return { w, h };
 }
 
-double shareScale(const QRectF& region, double preferred, double maxSide) {
+double scaleForSide(const QRectF& region, double maxSide, double most) {
     const double longest = std::max(region.width(), region.height()) * kPxPerStud;
-    if (!(longest > 0)) return preferred;
-    return std::min(preferred, maxSide / longest);
+    if (!(longest > 0)) return most;
+    return std::min(most, maxSide / longest);
+}
+
+double shareScale(const QRectF& region, double preferred, double maxSide) {
+    return scaleForSide(region, maxSide, preferred);
 }
 
 QString safeFileName(const QString& name) {
@@ -191,7 +217,7 @@ QString viewSummary(const core::SavedView& view, int sheetCount) {
 }
 
 std::vector<ExportSize> exportSizes() {
-    return { { 1.0, tr("Small") }, { 2.0, tr("Medium") }, { 4.0, tr("Large") } };
+    return { { 1280, tr("Small") }, { kDefaultExportMaxSide, tr("Medium") }, { 5120, tr("Large") } };
 }
 
 QImage renderSceneImage(QGraphicsScene& scene, const QRectF& source, QSize size, const SceneImageOptions& o) {
@@ -231,6 +257,8 @@ PictureRenderer::PictureRenderer(const core::Map& map, parts::PartsLibrary& part
 
 PictureRenderer::~PictureRenderer() = default;
 
+const rendering::SceneBuilder& PictureRenderer::builder() const { return d_->builder; }
+
 QImage PictureRenderer::render(const PictureSpec& spec, QSize size) {
     const auto& layers = d_->map.layers();
     for (size_t i = 0; i < layers.size(); ++i)
@@ -253,7 +281,7 @@ QImage PictureRenderer::render(const PictureSpec& spec, QSize size) {
 }
 
 ExportAllResult exportAllViews(const core::Map& map, parts::PartsLibrary& parts, const QString& layoutTitle,
-                               double scale, const QString& folder) {
+                               int maxSide, const QString& folder) {
     ExportAllResult out;
     std::vector<core::SavedView> list = map.sidecar.views;
     if (list.empty()) list.push_back(wholeLayout());
@@ -261,16 +289,17 @@ ExportAllResult exportAllViews(const core::Map& map, parts::PartsLibrary& parts,
     QSet<QString> used;
     const QDir dir(folder);
     for (const auto& view : list) {
-        const auto spec = viewPicture(view, map);
-        if (!spec) {
+        const std::optional<PictureSpec> found = viewPicture(view, map, &renderer.builder());
+        if (!found.has_value()) {
             out.skipped << view.name;
             continue;
         }
+        const PictureSpec& spec = found.value();
         QString name = pictureFileName(layoutTitle, view.name);
         for (int n = 2; used.contains(name.toLower()); ++n)
             name = pictureFileName(layoutTitle, QStringLiteral("%1 (%2)").arg(view.name).arg(n));
         used.insert(name.toLower());
-        const QImage img = renderer.render(*spec, pictureSize(spec->region, scale));
+        const QImage img = renderer.render(spec, pictureSize(spec.region, scaleForSide(spec.region, maxSide)));
         QSaveFile f(dir.filePath(name));
         if (img.isNull() || !f.open(QIODevice::WriteOnly) || !img.save(&f, "PNG") || !f.commit()) {
             out.failed << name;

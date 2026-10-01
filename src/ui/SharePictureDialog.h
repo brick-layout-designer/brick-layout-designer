@@ -27,10 +27,12 @@ namespace bld::parts { class PartsLibrary; }
 namespace bld::ui {
 
 // Export all views' remembered choices (QSettings views/exportFolder and
-// views/exportScale).
+// views/exportMaxSide): the folder, and the pictures' longest side, one of
+// views::exportSizes(). An older remembered scale, or a size that isn't
+// offered, reads as the default (Medium).
 struct ExportViewsPrefs {
     QString folder;
-    double scale = 2.0;
+    int maxSide = views::kDefaultExportMaxSide;
 };
 ExportViewsPrefs loadExportViewsPrefs();
 void saveExportViewsPrefs(const ExportViewsPrefs& prefs);
@@ -73,8 +75,9 @@ public:
 
     // Export all views at the picked size into `folder`, remembering both.
     views::ExportAllResult exportAllTo(const QString& folder);
-    double exportScale() const;
-    void setExportScale(double scale);
+    // The picked size: the pictures' longest side in pixels.
+    int exportMaxSide() const;
+    void setExportMaxSide(int maxSide);
 
 signals:
     // "More options…": the caller opens Export as Image (the dialog closes).

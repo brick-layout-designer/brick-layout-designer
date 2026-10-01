@@ -12,14 +12,19 @@
 #include "core/LayerRuler.h"
 #include "core/LayerText.h"
 #include "core/Map.h"
+#include "core/Module.h"
 #include "import/LayoutFile.h"
 #include "parts/PartsLibrary.h"
+#include "rendering/SceneBuilder.h"
 
 #include <gtest/gtest.h>
 
 #include <QDir>
 #include <QFile>
+#include <QGraphicsScene>
 #include <QImage>
+#include <QSettings>
+#include <QStandardPaths>
 #include <QTemporaryDir>
 
 using namespace bld;
@@ -153,8 +158,24 @@ TEST(SavedViews, PictureSizesAndNames) {
     EXPECT_EQ(pictureSize(QRectF(0, 0, 10.06, 3), 1), QSize(80, 24));
     // Kept inside the largest picture, in proportion.
     EXPECT_EQ(pictureSize(QRectF(0, 0, 8192, 1024), 1), QSize(16384, 2048));
+    // Share picture: 16 px per stud, the longest side at most 2560 px.
     EXPECT_EQ(shareScale(QRectF(0, 0, 100, 50)), 2.0);
-    EXPECT_DOUBLE_EQ(shareScale(QRectF(0, 0, 1024, 50)), 0.5);  // 4096 px at most
+    EXPECT_DOUBLE_EQ(shareScale(QRectF(0, 0, 1024, 50)), 2560.0 / 8192);
+    EXPECT_EQ(pictureSize(QRectF(0, 0, 1024, 50), shareScale(QRectF(0, 0, 1024, 50))), QSize(2560, 125));
+    // A longest side, but never more than 32 px per stud.
+    EXPECT_DOUBLE_EQ(scaleForSide(QRectF(0, 0, 128, 88), 2560), 2.5);
+    EXPECT_DOUBLE_EQ(scaleForSide(QRectF(0, 0, 20, 10), 5120), 4.0);
+    EXPECT_DOUBLE_EQ(scaleForSide(QRectF(0, 0, 20, 10), 5120, 2), 2.0);
+    // Export all views' sizes, by the longest side.
+    const auto sizes = exportSizes();
+    ASSERT_EQ(sizes.size(), 3u);
+    EXPECT_EQ(sizes[0].maxSide, 1280);
+    EXPECT_EQ(sizes[0].label, QStringLiteral("Small"));
+    EXPECT_EQ(sizes[1].maxSide, 2560);
+    EXPECT_EQ(sizes[1].label, QStringLiteral("Medium"));
+    EXPECT_EQ(sizes[2].maxSide, 5120);
+    EXPECT_EQ(sizes[2].label, QStringLiteral("Large"));
+    EXPECT_EQ(kDefaultExportMaxSide, 2560);
 
     EXPECT_EQ(pictureFileName(QStringLiteral("Show 2026"), QStringLiteral("Station")), QStringLiteral("Show 2026 - Station.png"));
     EXPECT_EQ(pictureFileName(QStringLiteral("a/b:c"), QStringLiteral("x?*y")), QStringLiteral("a_b_c - x_y.png"));
@@ -205,31 +226,81 @@ TEST(SavedViews, ExportAllMakesOnePictureOfEachViewAtItsSize) {
     const QString out = dir.filePath(QStringLiteral("pictures"));
     ASSERT_TRUE(QDir().mkpath(out));
 
-    auto r = exportAllViews(*map, parts, QStringLiteral("Show"), 1, out);
+    // Small: the longest side 1280 px.
+    auto r = exportAllViews(*map, parts, QStringLiteral("Show"), 1280, out);
     ASSERT_EQ(r.files, (QStringList{ QStringLiteral("Show - Whole layout.png"), QStringLiteral("Show - Station.png") }));
     EXPECT_TRUE(r.skipped.isEmpty());
     EXPECT_TRUE(r.failed.isEmpty());
-    EXPECT_EQ(QImage(QDir(out).filePath(r.files[0])).size(), QSize(128 * 8, 88 * 8));
-    EXPECT_EQ(QImage(QDir(out).filePath(r.files[1])).size(), QSize(40 * 8, 30 * 8));
+    EXPECT_EQ(QImage(QDir(out).filePath(r.files[0])).size(), QSize(1280, 880));  // 128 x 88 studs
+    EXPECT_EQ(QImage(QDir(out).filePath(r.files[1])).size(), QSize(1280, 960));  // 40 x 30 studs
     EXPECT_EQ(QDir(out).entryList(QDir::Files).size(), 2);
 
-    // Again at Large after a change: the same names, overwritten.
+    // Again at Large after a change: the same names, overwritten. A small
+    // area stops at 32 px per stud instead of reaching 5120 px.
     map->sidecar.views[1].rect = QRectF(90, 40, 20, 10);
-    r = exportAllViews(*map, parts, QStringLiteral("Show"), 4, out);
+    r = exportAllViews(*map, parts, QStringLiteral("Show"), 5120, out);
     EXPECT_EQ(r.files.size(), 2);
+    EXPECT_EQ(QImage(QDir(out).filePath(QStringLiteral("Show - Whole layout.png"))).size(), QSize(128 * 32, 88 * 32));
     EXPECT_EQ(QImage(QDir(out).filePath(QStringLiteral("Show - Station.png"))).size(), QSize(20 * 32, 10 * 32));
     EXPECT_EQ(QDir(out).entryList(QDir::Files).size(), 2);
 
     // Two views of one name don't overwrite each other.
     map->sidecar.views[1].name = QStringLiteral("whole layout");
-    r = exportAllViews(*map, parts, QStringLiteral("Show"), 1, out);
+    r = exportAllViews(*map, parts, QStringLiteral("Show"), 1280, out);
     EXPECT_EQ(r.files, (QStringList{ QStringLiteral("Show - Whole layout.png"), QStringLiteral("Show - whole layout (2).png") }));
 
     // No saved views: one "Whole layout" picture.
     map->sidecar.views.clear();
     const QString empty = dir.filePath(QStringLiteral("none"));
     ASSERT_TRUE(QDir().mkpath(empty));
-    r = exportAllViews(*map, parts, QStringLiteral("Show"), 2, empty);
+    r = exportAllViews(*map, parts, QStringLiteral("Show"), 2560, empty);
     ASSERT_EQ(r.files, QStringList{ QStringLiteral("Show - Whole layout.png") });
-    EXPECT_EQ(QImage(QDir(empty).filePath(r.files[0])).size(), QSize(128 * 16, 88 * 16));
+    EXPECT_EQ(QImage(QDir(empty).filePath(r.files[0])).size(), QSize(2560, 1760));
+}
+
+// Module frames and names sit outside the modules: "Fit whole layout"
+// takes them in, as Fit to View does, for modules on a shown sheet.
+TEST(SavedViews, FitTakesInModuleFramesAndNames) {
+    QStandardPaths::setTestModeEnabled(true);
+    QSettings().setValue(QStringLiteral("view/moduleNames"), true);
+    core::Map map;
+    addBricks(map, QStringLiteral("track"), { QRectF(0, 0, 40, 10) });
+    addBricks(map, QStringLiteral("town"), { QRectF(200, 0, 10, 10) }).bricks[0].guid = QStringLiteral("t0");
+    core::Module mod;
+    mod.id = QStringLiteral("m1");
+    mod.name = QStringLiteral("Harbour");
+    mod.memberIds.insert(QStringLiteral("b0"));  // the track's brick
+    map.sidecar.modules.push_back(mod);
+    parts::PartsLibrary parts;
+    QGraphicsScene scene;
+    rendering::SceneBuilder builder(scene, parts);
+    builder.build(map);
+    ASSERT_EQ(builder.moduleAnnotationRects().size(), 1);
+    const QRectF drawnPx = builder.moduleAnnotationRects().first().second;
+    const QRectF drawn(drawnPx.x() / 8, drawnPx.y() / 8, drawnPx.width() / 8, drawnPx.height() / 8);
+
+    // Only the town: the module has no piece there, so it doesn't count.
+    EXPECT_EQ(fitRegionStuds(map, QStringList{ QStringLiteral("town") }, true, &builder),
+              fitRegionStuds(map, QStringList{ QStringLiteral("town") }, true));
+
+    const auto plain = fitRegionStuds(map, QStringList{ QStringLiteral("track") }, true);
+    const auto withNames = fitRegionStuds(map, QStringList{ QStringLiteral("track") }, true, &builder);
+    ASSERT_TRUE(plain && withNames);
+    // The name goes above or below the wide module, outside the bricks.
+    EXPECT_FALSE(plain->contains(drawn));
+    EXPECT_TRUE(withNames->contains(drawn.adjusted(0.01, 0.01, -0.01, -0.01)));
+    EXPECT_TRUE(withNames->contains(*plain));
+    // The same through a view and the picture renderer.
+    core::SavedView v = newView(QStringLiteral("v"), QStringLiteral("V"));
+    v.sheets = QStringList{ QStringLiteral("track") };
+    PictureRenderer renderer(map, parts);
+    EXPECT_EQ(viewRegionStuds(v, map, &renderer.builder()), withNames);
+
+    // Module names off: nothing drawn, nothing taken in.
+    QSettings().setValue(QStringLiteral("view/moduleNames"), false);
+    builder.build(map);
+    EXPECT_TRUE(builder.moduleAnnotationRects().isEmpty());
+    EXPECT_EQ(fitRegionStuds(map, QStringList{ QStringLiteral("track") }, true, &builder), plain);
+    QSettings().remove(QStringLiteral("view/moduleNames"));
+    QStandardPaths::setTestModeEnabled(false);
 }

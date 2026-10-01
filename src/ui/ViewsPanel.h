@@ -1,11 +1,12 @@
 #pragma once
 
 // The Views panel (the web's ViewsPanel.tsx): the layout's saved views.
-// Click a view to see it (only this screen changes, not the layout); add
-// one, rename it, choose "Fit whole layout" or "Use this area", pick its
-// sheets, grid and labels, share a picture of it, or delete it. Every
-// change goes out as viewsEdited with the whole new list, which the main
-// window applies as one undoable step.
+// Click a view to see it (only this screen changes, not the layout) and
+// click it again to stop. Each row shares a picture of its view, and its
+// "Edit" opens the view's settings under it: "Fit whole layout" or "Use
+// this area", its sheets, grid and labels, rename and delete, and "Done"
+// closes them. Every change goes out as viewsEdited with the whole new
+// list, which the main window applies as one undoable step.
 
 #include "../core/SavedView.h"
 
@@ -21,8 +22,8 @@
 class QButtonGroup;
 class QCheckBox;
 class QLabel;
-class QListWidget;
 class QPushButton;
+class QScrollArea;
 class QVBoxLayout;
 
 namespace bld::core { class Map; }
@@ -36,7 +37,7 @@ public:
 
     // The layout whose views it lists (null: none). Call again after any change.
     void setMap(const core::Map* map);
-    // The view being looked at, marked in the list; empty for none.
+    // The view being looked at, marked "On screen now" in the list; empty for none.
     void setActiveView(const QString& id);
     QString activeViewId() const { return activeId_; }
 
@@ -64,13 +65,18 @@ public:
     // Unset: every sheet as the layout has it.
     void setSheets(const QString& id, std::optional<QStringList> sheets);
 
-    // The view picked in the list (its options show below it), or empty.
-    QString selectedViewId() const { return selectedId_; }
-    void selectView(const QString& id);
+    // The view whose settings are open under its row ("Edit"), or empty.
+    QString openViewId() const { return openId_; }
+    // Opens a view's settings (closing any other's); empty closes them ("Done").
+    void openView(const QString& id);
 
 signals:
     void viewsEdited(const std::vector<core::SavedView>& views, const QString& what);
+    // A view's row was clicked: show it.
     void goToViewRequested(const core::SavedView& view);
+    // The row of the view on show was clicked again: stop showing it,
+    // leaving the map where it is.
+    void leaveViewRequested();
     void showEverythingRequested();
     void sharePictureRequested(const QString& viewId);
     void exportAllRequested();
@@ -86,7 +92,7 @@ private:
     const core::Map* map_ = nullptr;
     std::vector<core::SavedView> views_;
     QString activeId_;
-    QString selectedId_;
+    QString openId_;
     bool updating_ = false;
 
     std::function<std::optional<QRectF>()> screenRect_;
@@ -95,8 +101,11 @@ private:
     std::function<std::optional<QString>(const QString&, const QString&)> askName_;
 
     QLabel* empty_ = nullptr;
-    QListWidget* list_ = nullptr;
-    QFrame* options_ = nullptr;
+    QScrollArea* scroll_ = nullptr;
+    QWidget* rowsHost_ = nullptr;
+    QVBoxLayout* rowsCol_ = nullptr;
+    std::vector<QFrame*> cards_;  // one per view, in order
+    QFrame* options_ = nullptr;   // in the open view's card, else hidden
     QPushButton* fitBtn_ = nullptr;
     QPushButton* areaBtn_ = nullptr;
     QLabel* areaHint_ = nullptr;

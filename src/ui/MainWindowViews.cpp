@@ -57,19 +57,22 @@ void MainWindow::setupViews() {
             [this](const std::vector<core::SavedView>& views, const QString& what) {
                 core::Map* map = mapView_->currentMap();
                 if (!map) return;
-                const core::SavedView* before = findView(map, activeViewId_);
-                const std::optional<core::SavedView> was = before ? std::optional(*before) : std::nullopt;
+                // The view being looked at shows its new sheets, grid and
+                // labels (refreshViews, on the undo stack's change), but the
+                // map stays put: the user may be on the next area already,
+                // as on the web.
                 mapView_->undoStack()->push(new edit::SetViewsCommand(*map, views, what));
-                // The view being looked at follows its new settings, as on the web.
-                const core::SavedView* now = findView(map, activeViewId_);
-                if (was && now && (was->fit != now->fit || was->rect != now->rect || was->sheets != now->sheets
-                                   || was->grid != now->grid || was->labels != now->labels))
-                    goToView(*now);
             });
     connect(viewsPanel_, &ViewsPanel::goToViewRequested, this, [this](const core::SavedView& v) { goToView(v); });
+    // Clicking the view on show again: stop showing it, the map where it is.
+    connect(viewsPanel_, &ViewsPanel::leaveViewRequested, this, &MainWindow::clearActiveView);
     connect(viewsPanel_, &ViewsPanel::showEverythingRequested, this, &MainWindow::showEverything);
-    connect(viewsPanel_, &ViewsPanel::sharePictureRequested, this, [this](const QString& id) { openSharePicture(id); });
-    connect(viewsPanel_, &ViewsPanel::exportAllRequested, this, [this] { exportAllViews(false); });
+    // Queued: the dialog runs its own event loop, which mustn't run inside
+    // the click of a row button that a change to the views may replace.
+    connect(viewsPanel_, &ViewsPanel::sharePictureRequested, this, [this](const QString& id) { openSharePicture(id); },
+            Qt::QueuedConnection);
+    connect(viewsPanel_, &ViewsPanel::exportAllRequested, this, [this] { exportAllViews(false); },
+            Qt::QueuedConnection);
 
     viewIndicator_ = new ViewIndicator(mapView_);
     connect(viewIndicator_, &ViewIndicator::showEverythingRequested, this, &MainWindow::showEverything);
@@ -86,7 +89,9 @@ void MainWindow::goToView(const core::SavedView& view) {
     activeViewId_ = view.id;
     viewsPanel_->setActiveView(view.id);
     viewIndicator_->setViewName(view.name.isEmpty() ? tr("View") : view.name);
-    if (const auto region = views::viewRegionStuds(view, *map)) mapView_->showRegionStuds(*region);
+    // Module frames and names count, as they're drawn round the modules.
+    if (const auto region = views::viewRegionStuds(view, *map, mapView_->builder()))
+        mapView_->showRegionStuds(*region);
 }
 
 void MainWindow::clearActiveView() {

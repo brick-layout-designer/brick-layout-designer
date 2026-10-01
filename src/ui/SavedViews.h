@@ -28,6 +28,7 @@ class QGraphicsScene;
 
 namespace bld::core { class Layer; class Map; }
 namespace bld::parts { class PartsLibrary; }
+namespace bld::rendering { class SceneBuilder; }
 
 namespace bld::ui::views {
 
@@ -37,6 +38,11 @@ inline constexpr double kFitMarginStuds = 4.0;
 inline constexpr int kPxPerStud = 8;
 // The largest picture side and area, as on the web (its canvas limits).
 inline constexpr int kMaxPictureSide = 16384;
+// Share picture's longest side at most (phones and chat apps choke on
+// bigger pictures), as on the web.
+inline constexpr double kShareMaxSide = 2560;
+// The most a picture gets: 32 px per stud, the parts' own detail.
+inline constexpr double kMostScale = 4;
 
 // What a picture shows.
 struct PictureSpec {
@@ -60,18 +66,28 @@ bool sheetShown(const core::Layer& layer, const std::optional<QStringList>& shee
 // (bricks, text, rulers, painted areas, plus the World, Group and Module
 // labels when `labels`), grown by kFitMarginStuds on every side. Unset when
 // nothing is drawn. The room and the background picture don't count.
-std::optional<QRectF> fitRegionStuds(const core::Map& map, const std::optional<QStringList>& sheets, bool labels);
+// `drawn`, when given, is the scene the map is drawn in: module frames and
+// names (View > Module names) sit outside the modules, so they count too,
+// for each module with a piece on a shown sheet.
+std::optional<QRectF> fitRegionStuds(const core::Map& map, const std::optional<QStringList>& sheets, bool labels,
+                                     const rendering::SceneBuilder* drawn = nullptr);
 // The area a view's picture covers, in studs, or unset when there's nothing to show.
-std::optional<QRectF> viewRegionStuds(const core::SavedView& view, const core::Map& map);
+std::optional<QRectF> viewRegionStuds(const core::SavedView& view, const core::Map& map,
+                                      const rendering::SceneBuilder* drawn = nullptr);
 // The picture a view makes, or unset when there's nothing to show.
-std::optional<PictureSpec> viewPicture(const core::SavedView& view, const core::Map& map);
+std::optional<PictureSpec> viewPicture(const core::SavedView& view, const core::Map& map,
+                                       const rendering::SceneBuilder* drawn = nullptr);
 
 // Output size in pixels of `region` at `scale` (1 = 8 px per stud),
 // rounded to whole pixels and kept inside kMaxPictureSide.
 QSize pictureSize(const QRectF& region, double scale);
+// The scale (1 = 8 px per stud) that makes `region`'s longest side
+// `maxSide` pixels, but never more than `most`, so a small corner isn't
+// blown up past the parts' detail (the web's scaleForSide).
+double scaleForSide(const QRectF& region, double maxSide, double most = kMostScale);
 // A picture's scale for sharing: `preferred`, made smaller when the
 // longest side would pass `maxSide`.
-double shareScale(const QRectF& region, double preferred = 2.0, double maxSide = 4096.0);
+double shareScale(const QRectF& region, double preferred = 2.0, double maxSide = kShareMaxSide);
 
 // Safe as a file name: no \ / : * ? " < > | or control characters, at
 // most 80 characters; empty becomes "layout" (the web's sanitizeFilename).
@@ -82,12 +98,15 @@ QString pictureFileName(const QString& layoutTitle, const QString& viewName);
 // "Whole layout · all sheets", for the Views panel.
 QString viewSummary(const core::SavedView& view, int sheetCount);
 
-// Picture sizes for Export all views: Small 1×, Medium 2×, Large 4×.
+// Picture sizes for Export all views, by their longest side, so a big
+// layout doesn't make a giant picture: Small 1280, Medium 2560 and Large
+// 5120 pixels (the web's EXPORT_VIEWS_SIZES).
 struct ExportSize {
-    double scale;
+    int maxSide;
     QString label;
 };
 std::vector<ExportSize> exportSizes();
+inline constexpr int kDefaultExportMaxSide = 2560;
 
 // The map drawn from `source` (scene pixels) into a `size` image: the
 // renderer File > Export as Image uses, and every picture. `background`
@@ -116,6 +135,8 @@ public:
     // The picture at exactly `size` pixels: its sheets, its labels and
     // (when on) the grid, over the layout's background colour.
     QImage render(const PictureSpec& spec, QSize size);
+    // The scene the pictures are drawn from (fitRegionStuds' `drawn`).
+    const rendering::SceneBuilder& builder() const;
 
 private:
     struct Impl;
@@ -131,7 +152,8 @@ struct ExportAllResult {
 // "Export all views": one PNG per saved view (or one "Whole layout"
 // picture when there are none), named "<layout> - <view>.png", written
 // into `folder` over any earlier ones. Two views of one name get " (2)".
+// Each picture's longest side is `maxSide` pixels (scaleForSide).
 ExportAllResult exportAllViews(const core::Map& map, parts::PartsLibrary& parts, const QString& layoutTitle,
-                               double scale, const QString& folder);
+                               int maxSide, const QString& folder);
 
 }  // namespace bld::ui::views
