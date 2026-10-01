@@ -130,8 +130,12 @@ endif()
 
 # ----- Data files -------------------------------------------------------------
 if(BLD_INSTALL_PARTS AND EXISTS "${CMAKE_SOURCE_DIR}/parts/BlueBrickParts/parts")
+    # The upstream library keeps its maintainer's Windows packaging
+    # scripts (CreatePackage.bat) beside the parts; ship only the parts.
     install(DIRECTORY "${CMAKE_SOURCE_DIR}/parts/BlueBrickParts/parts"
-            DESTINATION "${BLD_INSTALL_DATADIR}/parts/BlueBrickParts")
+            DESTINATION "${BLD_INSTALL_DATADIR}/parts/BlueBrickParts"
+            PATTERN "*.bat" EXCLUDE
+            PATTERN "*.cmd" EXCLUDE)
     install(FILES "${CMAKE_SOURCE_DIR}/parts/BlueBrickParts/README.md"
             DESTINATION "${BLD_INSTALL_DATADIR}/parts/BlueBrickParts")
 endif()
