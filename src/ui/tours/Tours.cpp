@@ -300,8 +300,10 @@ void TourOverlay::follow() {
     QWidget* t = findTarget(host_, tour_.steps.at(step_).target);
     if (!t && tries_ < kLookTries) ++tries_;
     if (t != target_) {
+        // Forget the control if it goes away (one watch at a time).
+        disconnect(targetGone_);
         target_ = t;
-        if (t) connect(t, &QObject::destroyed, this, [this, t] { if (target_ == t) target_ = nullptr; }, Qt::UniqueConnection);
+        if (t) targetGone_ = connect(t, &QObject::destroyed, this, [this] { target_ = nullptr; });
     }
     place();
 }

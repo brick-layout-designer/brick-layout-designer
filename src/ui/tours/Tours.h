@@ -120,6 +120,7 @@ private:
     int tries_ = 0;
     bool done_ = false;
     QWidget* target_ = nullptr;
+    QMetaObject::Connection targetGone_;
     QRect hole_;
     QWidget* focusBefore_ = nullptr;
     QWidget* card_ = nullptr;

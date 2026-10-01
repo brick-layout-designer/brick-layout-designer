@@ -233,6 +233,12 @@ TEST_F(Tours, FollowsTheControlWhenItMoves) {
     QTest::qWait(500);
     EXPECT_EQ(o->target(), parts);
     EXPECT_EQ(o->hole(), QRect(194, 94, 132, 52));
+
+    // A control that goes away is let go at once.
+    delete parts;
+    EXPECT_EQ(o->target(), nullptr);
+    QTest::qWait(300);
+    EXPECT_TRUE(o->hole().isEmpty());
 }
 
 TEST_F(Tours, TheKeyboardStaysInTheCardAndEscCloses) {
