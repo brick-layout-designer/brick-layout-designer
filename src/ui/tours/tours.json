@@ -55,9 +55,10 @@
       "devices": "phone",
       "steps": [
         { "target": "map", "title": "Look around", "text": "Drag with one finger to move around. Pinch to zoom in and out." },
+        { "target": "view.edit", "title": "Make changes", "text": "Tap Edit to change the layout, if you are allowed to. Tap a piece to pick it, then drag it to move it." },
         { "target": "layout.menu", "title": "Saved views", "text": "Tap the layout's name to jump to a saved view, or to see the whole layout." },
         { "target": "share.picture", "title": "Share a picture", "text": "Make a picture of the layout to send to friends." },
-        { "target": "help.menu", "title": "Help is always here", "text": "Tap ? for tips. To change a layout, open it on a computer or tablet." }
+        { "target": "help.menu", "title": "Help is always here", "text": "Tap ? for tips, and to take the other tours." }
       ]
     }
   ]
