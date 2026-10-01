@@ -108,7 +108,8 @@ TEST(HelpTexts, MatchesTheWebCatalogueWordForWord) {
             const auto fm = f.next();
             fields.insert(fm.captured(1), fm.captured(2));
         }
-        const auto e = helpEntry(key);
+        // The web's words; the desktop's own overrides are checked below.
+        const auto e = sharedHelpEntry(key);
         ASSERT_TRUE(e) << key.toStdString();
         EXPECT_EQ(e->title, fields.value(QStringLiteral("title"))) << key.toStdString();
         EXPECT_EQ(e->shortText, fields.value(QStringLiteral("short"))) << key.toStdString();
@@ -116,6 +117,35 @@ TEST(HelpTexts, MatchesTheWebCatalogueWordForWord) {
         EXPECT_EQ(e->learnMoreUrl, fields.value(QStringLiteral("learnMoreUrl"))) << key.toStdString();
     }
     EXPECT_EQ(webKeys, sharedHelpKeys());
+}
+
+// A shared key shows the web's words unless it is in the one override
+// list (kDesktopOverrides in HelpTexts.cpp), and every override there
+// really changes something about a shared key.
+TEST(HelpTexts, SharedKeysUseTheWebsWordsExceptTheListedOverrides) {
+    const QStringList overridden = desktopOverriddenHelpKeys();
+    EXPECT_EQ(QSet<QString>(overridden.begin(), overridden.end()).size(), overridden.size());
+    for (const QString& key : sharedHelpKeys()) {
+        const auto shown = helpEntry(key);
+        const auto web = sharedHelpEntry(key);
+        ASSERT_TRUE(shown && web) << key.toStdString();
+        const bool same = shown->title == web->title && shown->shortText == web->shortText
+                          && shown->more == web->more && shown->learnMoreUrl == web->learnMoreUrl;
+        EXPECT_EQ(same, !overridden.contains(key)) << key.toStdString();
+    }
+    for (const QString& key : overridden) EXPECT_TRUE(sharedHelpKeys().contains(key)) << key.toStdString();
+    for (const QString& key : desktopOnlyHelpKeys()) EXPECT_FALSE(sharedHelpEntry(key)) << key.toStdString();
+}
+
+// The desktop exports every view into a folder, not a zip file.
+TEST(HelpTexts, ExportAllViewsSaysFolderOnTheDesktop) {
+    const auto shown = helpEntry(QStringLiteral("share.exportAllViews"));
+    const auto web = sharedHelpEntry(QStringLiteral("share.exportAllViews"));
+    ASSERT_TRUE(shown && web);
+    EXPECT_EQ(shown->shortText, QStringLiteral("One picture of every saved view, into a folder you choose."));
+    EXPECT_EQ(web->shortText, QStringLiteral("One picture of every saved view, all in one zip file."));
+    EXPECT_EQ(shown->title, web->title);
+    EXPECT_EQ(shown->more, web->more);
 }
 
 // Every key a "?" is given in the code (HelpButton, withHelp,

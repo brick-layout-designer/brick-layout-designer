@@ -25,7 +25,7 @@ steps, and screenshots before/after if visual. Ideally add a fixture to
 
 1. Launch `build/src/app/brick-layout-designer`.
 2. Verify the app opens without a crash, the Parts / Layers / Modules /
-   Module Library docks are all visible.
+   Module library docks are all visible.
 3. File → New → any template. Scene should show a blank layout with the
    template's default layers.
 4. File → Quit. Clean exit, no stderr warnings about dangling items.
@@ -300,7 +300,7 @@ custom install location, or stash the BlueBrick.1.9.2 folder under
 ### 5.6 Module library
 - [ ] Modules panel → Save to Library on a module writes a `.bbm` to
       the configured library folder.
-- [ ] Drag from Module Library panel onto the map imports the module at
+- [ ] Drag from Module library panel onto the map imports the module at
       the drop position.
 
 ### 5.7 Save Selection as Set (BrickTracks-style `.set.xml`)
@@ -491,7 +491,7 @@ Text / Ruler layers have no kind-specific extras beyond the base fields.
 - [ ] Refreshes automatically after any undo-stack change (add/delete
       a brick → counts update).
 
-## 11. Module Library panel
+## 11. Module library panel
 
 - [ ] Folder… opens the configured library folder in the OS file browser.
 - [ ] Save to Library writes current selection as a module `.bbm`.

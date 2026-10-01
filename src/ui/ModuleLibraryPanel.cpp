@@ -45,7 +45,7 @@ public:
 }
 
 ModuleLibraryPanel::ModuleLibraryPanel(QWidget* parent)
-    : QDockWidget(tr("Module Library"), parent) {
+    : QDockWidget(tr("Module library"), parent) {
     auto* host = new QWidget(this);
     auto* col = new QVBoxLayout(host);
     col->setContentsMargins(2, 2, 2, 2);

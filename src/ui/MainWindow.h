@@ -123,7 +123,7 @@ private:
     // Build / Room / Notes / Parts list: shortcuts onto the docks and dialogs.
     void showTask(const QString& task);
     // Every panel, in the web's Panels-menu order (PANEL_TITLES): Parts,
-    // Sheets, Views, Parts list, Modules, Module Library, Room library.
+    // Sheets, Views, Parts list, Modules, Module library, Room library.
     QList<class QDockWidget*> panelDocks() const;
     // View > Panels and the toolbar's Panels button: a tick per panel.
     class QMenu* panelsMenu_ = nullptr;

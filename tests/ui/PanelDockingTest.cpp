@@ -222,7 +222,7 @@ TEST_F(PanelsInMainWindow, PanelsMenuHasTheWebsListAndFirstLayout) {
     QStringList names;
     for (QAction* a : menu->actions()) names << a->text();
     // The web's PANEL_TITLES, in its order.
-    EXPECT_EQ(names, (QStringList{ "Parts", "Sheets", "Views", "Parts list", "Modules", "Module Library",
+    EXPECT_EQ(names, (QStringList{ "Parts", "Sheets", "Views", "Parts list", "Modules", "Module library",
                                    "Room library" }));
     // The toolbar's Panels button opens the same menu.
     auto* button = window_->findChild<QToolButton*>(QStringLiteral("tool.panels"));

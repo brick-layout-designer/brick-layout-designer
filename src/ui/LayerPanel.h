@@ -19,7 +19,8 @@ namespace bld::ui {
 //   - Clicking a row selects it as the "active" layer — new bricks / text /
 //     rulers added via MapView land on this layer, matching BlueBrick's
 //     selectedLayerIndex semantics.
-//   - Per-row prefix emoji indicates the layer's kind at a glance.
+//   - Each row shows the sheet's name; an icon shows its kind, and the
+//     tooltip has the kind, its number and its transparency.
 //   - Layer Options... (double-click or context menu) opens a property
 //     editor that edits name + transparency in-place. (Per-type extras
 //     like grid size / area cell size land next.)
@@ -33,6 +34,9 @@ public:
     // Currently-selected layer row, or -1 if none.
     int currentRow() const;
 
+    // The kind in plain words, e.g. "Parts sheet" for a brick layer.
+    static QString friendlyKindName(core::LayerKind kind);
+
 signals:
     // MainWindow handles these by pushing the corresponding undo commands.
     void addLayerRequested(core::LayerKind kind);
@@ -41,6 +45,9 @@ signals:
     void renameLayerRequested(int index, const QString& newName);
     void activeLayerChanged(int index);
     void layerOptionsRequested(int index);
+
+protected:
+    bool eventFilter(QObject* watched, QEvent* e) override;
 
 private:
     QListWidget* list_ = nullptr;

@@ -29,7 +29,8 @@ namespace bld::ui {
 namespace {
 
 // A view's row, as one button: its name in bold over a muted one-line
-// summary, and "On screen now · tap to stop" while it shows (the web's).
+// summary, and "On screen now · click to stop" while it shows (the web says
+// "tap"; on a computer it is a click).
 class ViewRowButton : public QAbstractButton {
 public:
     ViewRowButton(QString name, QString summary, bool active, QWidget* parent)
@@ -43,7 +44,7 @@ public:
         setAccessibleDescription(active_ ? summary_ + QStringLiteral(". ") + onScreenText() : summary_);
     }
 
-    static QString onScreenText() { return ViewsPanel::tr("On screen now · tap to stop"); }
+    static QString onScreenText() { return ViewsPanel::tr("On screen now · click to stop"); }
 
     QSize sizeHint() const override {
         const int lines = boldMetrics().height() + smallMetrics().height() + 2

@@ -6,12 +6,17 @@
 
 #include <QContextMenuEvent>
 #include <QCursor>
+#include <QEvent>
+#include <QFont>
+#include <QIcon>
 #include <QHBoxLayout>
 #include <QInputDialog>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QListWidgetItem>
 #include <QMenu>
+#include <QPainter>
+#include <QPixmap>
 #include <QPushButton>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -20,6 +25,8 @@ namespace bld::ui {
 
 namespace {
 
+// The file format's name for the kind, shown in the tooltip next to the
+// friendly one so the technical detail stays findable.
 const char* layerKindName(core::LayerKind k) {
     switch (k) {
         case core::LayerKind::Grid:         return "grid";
@@ -32,8 +39,9 @@ const char* layerKindName(core::LayerKind k) {
     return "?";
 }
 
-// Compact per-kind visual prefix so the user can tell layer types apart
-// at a glance. Unicode symbols keep this stateless / no-icon-resource.
+// Compact per-kind symbol so the user can tell sheet types apart at a
+// glance, drawn as the row's icon. Unicode symbols keep this free of icon
+// resources.
 QString layerKindGlyph(core::LayerKind k) {
     switch (k) {
         case core::LayerKind::Grid:         return QStringLiteral("◫");
@@ -46,6 +54,38 @@ QString layerKindGlyph(core::LayerKind k) {
     return QStringLiteral("?");
 }
 
+constexpr int kKindRole = Qt::UserRole + 1;
+
+// The kind's symbol in the list's text colour, so it suits light and dark.
+QIcon kindIcon(core::LayerKind k, const QWidget* list) {
+    const qreal dpr = list->devicePixelRatioF();
+    const int side = 16;
+    QPixmap pm(QSize(side, side) * dpr);
+    pm.setDevicePixelRatio(dpr);
+    pm.fill(Qt::transparent);
+    QPainter p(&pm);
+    p.setRenderHint(QPainter::TextAntialiasing);
+    QFont f = list->font();
+    f.setPixelSize(13);
+    p.setFont(f);
+    p.setPen(list->palette().color(QPalette::Text));
+    p.drawText(QRect(0, 0, side, side), Qt::AlignCenter, layerKindGlyph(k));
+    p.end();
+    return QIcon(pm);
+}
+
+}  // namespace
+
+QString LayerPanel::friendlyKindName(core::LayerKind k) {
+    switch (k) {
+        case core::LayerKind::Grid:         return tr("Grid sheet");
+        case core::LayerKind::Brick:        return tr("Parts sheet");
+        case core::LayerKind::Text:         return tr("Text sheet");
+        case core::LayerKind::Area:         return tr("Area sheet");
+        case core::LayerKind::Ruler:        return tr("Ruler sheet");
+        case core::LayerKind::AnchoredText: return tr("Label sheet");
+    }
+    return tr("Sheet");
 }
 
 LayerPanel::LayerPanel(QWidget* parent) : QDockWidget(tr("Layers"), parent) {
@@ -104,6 +144,7 @@ LayerPanel::LayerPanel(QWidget* parent) : QDockWidget(tr("Layers"), parent) {
 
     list_ = new QListWidget(host);
     list_->setContextMenuPolicy(Qt::CustomContextMenu);
+    list_->installEventFilter(this);
     col->addWidget(list_);
 
     setWidget(host);
@@ -178,11 +219,8 @@ LayerPanel::LayerPanel(QWidget* parent) : QDockWidget(tr("Layers"), parent) {
             auto* ren = menu.addAction(tr("Rename..."));
             connect(ren, &QAction::triggered, [this, row, item]{
                 bool ok = false;
-                // The display text starts with "glyph [N] kind — name"; strip
-                // to the current user-facing name for the prompt default.
-                const QString shown = item->text();
-                const int dash = shown.lastIndexOf(QStringLiteral(" — "));
-                const QString def = dash >= 0 ? shown.mid(dash + 3) : shown;
+                // The sheet's own name (the row may show "(untitled)").
+                const QString def = item->data(Qt::UserRole).toString();
                 const QString name = QInputDialog::getText(
                     this, tr("Rename layer"), tr("Layer name:"),
                     QLineEdit::Normal, def, &ok);
@@ -214,6 +252,17 @@ LayerPanel::LayerPanel(QWidget* parent) : QDockWidget(tr("Layers"), parent) {
     });
 }
 
+bool LayerPanel::eventFilter(QObject* watched, QEvent* e) {
+    // Redraw the kind icons in the list's new text colour (light / dark).
+    if (watched == list_ && e->type() == QEvent::PaletteChange) {
+        for (int i = 0; i < list_->count(); ++i) {
+            QListWidgetItem* item = list_->item(i);
+            item->setIcon(kindIcon(static_cast<core::LayerKind>(item->data(kKindRole).toInt()), list_));
+        }
+    }
+    return QDockWidget::eventFilter(watched, e);
+}
+
 int LayerPanel::currentRow() const { return list_->currentRow(); }
 
 void LayerPanel::setMap(core::Map* map, rendering::SceneBuilder* builder) {
@@ -225,22 +274,29 @@ void LayerPanel::setMap(core::Map* map, rendering::SceneBuilder* builder) {
         int i = 0;
         for (const auto& layer : map->layers()) {
             const bool isActive = (i == map->selectedLayerIndex);
-            auto* item = new QListWidgetItem(
-                QStringLiteral("%1  [%2] %3 — %4%5")
-                    .arg(layerKindGlyph(layer->kind()))
-                    .arg(i)
-                    .arg(layerKindName(layer->kind()))
-                    .arg(layer->name)
-                    .arg(layer->transparency < 100
-                            ? QStringLiteral("  (α%1)").arg(layer->transparency)
-                            : QString()));
+            // The row shows just the sheet's name, like the web's Sheets
+            // panel; the kind is the icon, and the kind, number and
+            // transparency are in the tooltip.
+            auto* item = new QListWidgetItem(layer->name.isEmpty() ? tr("(untitled)") : layer->name);
+            item->setData(Qt::UserRole, layer->name);
+            item->setData(kKindRole, static_cast<int>(layer->kind()));
+            item->setIcon(kindIcon(layer->kind(), list_));
             item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
             item->setCheckState(layer->visible ? Qt::Checked : Qt::Unchecked);
+            QStringList tip;
+            tip << tr("%1 · #%2 · %3")
+                       .arg(friendlyKindName(layer->kind()))
+                       .arg(i)
+                       .arg(QLatin1String(layerKindName(layer->kind())));
+            if (layer->transparency < 100) tip << tr("Transparency: %1%").arg(layer->transparency);
             if (isActive) {
                 QFont f = item->font(); f.setBold(true); item->setFont(f);
                 item->setBackground(QColor(60, 120, 200, 60));
-                item->setToolTip(tr("Active layer (receives new items)"));
+                tip << tr("Active sheet: new items are placed here.");
             }
+            tip << tr("Double-click for sheet options.");
+            item->setToolTip(tip.join(QLatin1Char('\n')));
+            item->setData(Qt::AccessibleDescriptionRole, friendlyKindName(layer->kind()));
             list_->addItem(item);
             ++i;
         }

@@ -367,16 +367,50 @@ constexpr Raw kDesktopOnly[] = {
                                      "them too. Pick your club as the owner to share them with the club.") },
 };
 
+// The desktop's own words for a few shared keys, where the web's would be
+// wrong here. This is the only list of them: HelpTextsTest lets exactly
+// these keys differ from the web. A null field keeps the web's words.
+struct Override {
+    const char* key;
+    const char* title;
+    const char* shortText;
+    const char* more;
+};
+
+constexpr Override kDesktopOverrides[] = {
+    // The desktop writes the pictures into a folder, not a zip file.
+    { "share.exportAllViews", nullptr,
+      QT_TRANSLATE_NOOP("HelpTexts", "One picture of every saved view, into a folder you choose."),
+      nullptr },
+};
+
 HelpEntry translated(const Raw& r) {
     const auto tr = [](const char* s) { return QCoreApplication::translate("HelpTexts", s); };
     return { tr(r.title), tr(r.shortText), tr(r.more), QString::fromLatin1(r.learnMoreUrl) };
 }
 
+HelpEntry withOverride(HelpEntry e, const Override& o) {
+    const auto tr = [](const char* s) { return QCoreApplication::translate("HelpTexts", s); };
+    if (o.title) e.title = tr(o.title);
+    if (o.shortText) e.shortText = tr(o.shortText);
+    if (o.more) e.more = tr(o.more);
+    return e;
+}
+
 }  // namespace
 
-std::optional<HelpEntry> helpEntry(const QString& key) {
+std::optional<HelpEntry> sharedHelpEntry(const QString& key) {
     for (const Raw& r : kShared)
         if (key == QLatin1String(r.key)) return translated(r);
+    return std::nullopt;
+}
+
+std::optional<HelpEntry> helpEntry(const QString& key) {
+    if (auto shared = sharedHelpEntry(key)) {
+        for (const Override& o : kDesktopOverrides)
+            if (key == QLatin1String(o.key)) return withOverride(*shared, o);
+        return shared;
+    }
     for (const Raw& r : kDesktopOnly)
         if (key == QLatin1String(r.key)) return translated(r);
     return std::nullopt;
@@ -391,6 +425,12 @@ QStringList sharedHelpKeys() {
 QStringList desktopOnlyHelpKeys() {
     QStringList keys;
     for (const Raw& r : kDesktopOnly) keys << QString::fromLatin1(r.key);
+    return keys;
+}
+
+QStringList desktopOverriddenHelpKeys() {
+    QStringList keys;
+    for (const Override& o : kDesktopOverrides) keys << QString::fromLatin1(o.key);
     return keys;
 }
 
