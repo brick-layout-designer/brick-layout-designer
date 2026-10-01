@@ -86,6 +86,9 @@ QWidget#PanelHeader { background: @panel; border-bottom: 1px solid @line; }
 QLabel#PanelTitle { color: @ink; }
 QToolButton#PanelClose { border: none; border-radius: 6px; color: @muted; padding: 0 4px; }
 QToolButton#PanelClose:hover { background: @soft; color: @ink; }
+QToolButton#PanelMenu { border: none; border-radius: 6px; color: @muted; padding: 0 4px; }
+QToolButton#PanelMenu:hover { background: @soft; color: @ink; }
+QToolButton#PanelMenu::menu-indicator { image: none; width: 0; }
 QDockWidget { color: @ink; }
 QFrame[viewCard="true"] { background: @panel; border: 1px solid @line; border-radius: @rcpx; }
 QFrame[viewCard="true"][active="true"] { background: @soft; border-color: @amain; }

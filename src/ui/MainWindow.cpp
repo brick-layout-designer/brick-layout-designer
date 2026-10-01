@@ -316,6 +316,21 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
     partUsagePanel_->bindMapView(mapView_);
     partUsagePanel_->setBudget(budget_);
     setupViews();
+    // Stable object names so saveState() / restoreState() know each dock.
+    layerPanel_->setObjectName(QStringLiteral("dock.layers"));
+    partsBrowser_->setObjectName(QStringLiteral("dock.parts"));
+    modulesPanel_->setObjectName(QStringLiteral("dock.modules"));
+    moduleLibraryPanel_->setObjectName(QStringLiteral("dock.moduleLibrary"));
+    venueLibraryPanel_->setObjectName(QStringLiteral("dock.venueLibrary"));
+    partUsagePanel_->setObjectName(QStringLiteral("dock.partUsage"));
+    // The web's first layout (dockLayout.ts DEFAULT_LAYOUT): Parts with
+    // Sheets under it on the right, the map on the left, and the other
+    // panels hidden until the Panels menu or a task tab shows them. A
+    // layout saved last time replaces this below.
+    addDockWidget(Qt::RightDockWidgetArea, partsBrowser_);
+    addDockWidget(Qt::RightDockWidgetArea, layerPanel_);
+    for (QDockWidget* d : panelDocks())
+        if (d != partsBrowser_ && d != layerPanel_) d->hide();
     connect(moduleLibraryPanel_, &ModuleLibraryPanel::moduleImportRequested,
             this, &MainWindow::onImportModuleFromLibraryPath);
     connect(venueLibraryPanel_, &VenueLibraryPanel::venueLoadRequested,
@@ -790,14 +805,8 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
     statusBar()->showMessage(
         tr("Parts library: %1 parts indexed").arg(parts_.partCount()));
 
-    // Restore the window geometry + dock layout the user left at last exit,
-    // and assign stable object names so Qt can identify each dock on save/restore.
-    layerPanel_->setObjectName(QStringLiteral("dock.layers"));
-    partsBrowser_->setObjectName(QStringLiteral("dock.parts"));
-    modulesPanel_->setObjectName(QStringLiteral("dock.modules"));
-    moduleLibraryPanel_->setObjectName(QStringLiteral("dock.moduleLibrary"));
-    venueLibraryPanel_->setObjectName(QStringLiteral("dock.venueLibrary"));
-    partUsagePanel_->setObjectName(QStringLiteral("dock.partUsage"));
+    // Restore the window geometry + dock layout the user left at last exit
+    // (each dock is known by its object name, set where it is made).
     QSettings s;
     s.beginGroup(QStringLiteral("ui"));
     const QByteArray geom = s.value(QStringLiteral("geometry")).toByteArray();

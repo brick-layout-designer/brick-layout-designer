@@ -474,7 +474,7 @@ Text / Ruler layers have no kind-specific extras beyond the base fields.
 
 ## 10.5 Used Parts panel
 
-- [ ] View → Used Parts Panel toggles the dock on/off.
+- [ ] View → Panels → Parts list (or the toolbar's Panels button) toggles the dock on/off; a hidden panel comes back on the right.
 - [ ] Table shows an icon, part number, count, description, budget,
       and over-budget delta for every part currently on the map.
 - [ ] Default sort is count descending.

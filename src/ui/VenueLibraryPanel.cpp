@@ -56,7 +56,7 @@ QString detailText(const bld::core::Venue& v) {
 }  // namespace
 
 VenueLibraryPanel::VenueLibraryPanel(QWidget* parent)
-    : QDockWidget(tr("Room Library"), parent) {
+    : QDockWidget(tr("Room library"), parent) {
     auto* host = new QWidget(this);
     auto* col  = new QVBoxLayout(host);
     col->setContentsMargins(4, 4, 4, 4);
