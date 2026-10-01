@@ -1,4 +1,5 @@
 #include "MainWindow.h"
+#include "LoadingCard.h"
 
 #include "LayerPanel.h"
 #include "BudgetSession.h"
