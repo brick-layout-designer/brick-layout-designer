@@ -169,6 +169,8 @@ jobs:
           xvfb-run -a "./$ARTIFACT.AppImage" --version | grep -F "$BLD_VERSION"
           xvfb-run -a ./dist/brick-layout-designer/brick-layout-designer --version | grep -F "$BLD_VERSION"
           test -d dist/brick-layout-designer/usr/share/brick-layout-designer/parts/BlueBrickParts/parts
+          # No scripts from the upstream parts library in the package.
+          if find dist -iname '*.bat' -o -iname '*.cmd' | grep .; then exit 1; fi
           test -f dist/brick-layout-designer/usr/share/brick-layout-designer/help/en/index.html
           # And natively under a headless Wayland compositor.
           export XDG_RUNTIME_DIR=$(mktemp -d)

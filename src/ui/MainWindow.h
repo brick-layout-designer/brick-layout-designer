@@ -17,6 +17,7 @@
 
 class QAction;
 class QLabel;
+class QToolButton;
 class QMenu;
 class QComboBox;
 
@@ -241,6 +242,12 @@ private:
     // Bring this server's parts into the library (in the background):
     // missing or changed ones are downloaded to a folder named after it.
     void syncServerParts(const QUrl& server, const QString& token);
+    // When server parts didn't all download, a button in the status bar
+    // says so (they draw as outlines until they do) and tries again.
+    QToolButton* partsSyncFailed_ = nullptr;
+    QAction* downloadPartsAct_ = nullptr;
+    bool partsSyncRunning_ = false;
+    void showPartsSyncFailed(const QString& summary, const QStringList& details);
     void onLiveReloaded();
     void updateLiveUi();
     // Back in step with offline edits: the compare window, then apply,

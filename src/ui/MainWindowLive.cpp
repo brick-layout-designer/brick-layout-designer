@@ -35,6 +35,7 @@
 #include <QLabel>
 #include <QMenu>
 #include <QMessageBox>
+#include <QToolButton>
 #include <QPointer>
 #include <QPushButton>
 #include <QStandardPaths>
@@ -66,6 +67,19 @@ void MainWindow::setupLiveMenu(QMenu* file) {
     uploadPartsAct_->setToolTip(tr("Offer your own parts that the live layout's server doesn't have yet"));
     uploadPartsAct_->setEnabled(false);
     connect(uploadPartsAct_, &QAction::triggered, this, [this] { offerPartsUpload(false); });
+    downloadPartsAct_ = file->addAction(tr("&Download Server Parts Again"));
+    downloadPartsAct_->setToolTip(tr("Fetch the live layout's server parts that are missing or changed"));
+    downloadPartsAct_->setEnabled(false);
+    connect(downloadPartsAct_, &QAction::triggered, this, [this] { syncServerParts(liveServer_, liveToken_); });
+    partsSyncFailed_ = new QToolButton(this);
+    partsSyncFailed_->setObjectName(QStringLiteral("partsSyncFailed"));
+    partsSyncFailed_->setAutoRaise(true);
+    partsSyncFailed_->setToolButtonStyle(Qt::ToolButtonTextOnly);
+    partsSyncFailed_->setVisible(false);
+    connect(partsSyncFailed_, &QToolButton::clicked, this, [this] {
+        if (live_->active()) syncServerParts(liveServer_, liveToken_);
+    });
+    statusBar()->addPermanentWidget(partsSyncFailed_);
     reviewOfflineAct_ = file->addAction(tr("Review &Offline Changes..."));
     reviewOfflineAct_->setToolTip(tr("Compare what you changed offline with the server's layout"));
     reviewOfflineAct_->setEnabled(false);
@@ -335,19 +349,29 @@ void MainWindow::onDownloadVenues() {
 }
 
 void MainWindow::syncServerParts(const QUrl& server, const QString& token) {
+    if (partsSyncRunning_) return;
+    partsSyncRunning_ = true;
+    partsSyncFailed_->setVisible(false);
+    downloadPartsAct_->setEnabled(false);
     const QString root = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
                          + QStringLiteral("/server-parts/")
                          + QString(server.host()).replace(QLatin1Char(':'), QLatin1Char('_'));
     auto* job = new sync::PartsSync(server, token, root, this);
+    const auto done = [this] {
+        partsSyncRunning_ = false;
+        updateLiveUi();
+    };
     connect(job, &sync::PartsSync::progress, this, [this](int done, int total) {
         statusBar()->showMessage(tr("Downloading server parts: %1 of %2").arg(done).arg(total), 2000);
     });
-    connect(job, &sync::PartsSync::failed, this, [this, job](const QString& message, bool) {
-        statusBar()->showMessage(tr("Could not read the server's parts: %1").arg(message), 6000);
+    connect(job, &sync::PartsSync::failed, this, [this, job, done](const QString& message, bool) {
         job->deleteLater();
+        done();
+        showPartsSyncFailed(tr("Couldn't get the server's parts"), { message });
     });
-    connect(job, &sync::PartsSync::finished, this, [this, job, root](const sync::PartsSyncResult& r) {
+    connect(job, &sync::PartsSync::finished, this, [this, job, root, done](const sync::PartsSyncResult& r) {
         job->deleteLater();
+        done();
         // The server's folder joins the library paths once, then the library reloads when anything came in.
         QStringList paths = loadUserLibraryPaths();
         const bool added = !paths.contains(root);
@@ -356,15 +380,25 @@ void MainWindow::syncServerParts(const QUrl& server, const QString& token) {
             saveUserLibraryPaths(paths);
         }
         if (added || r.downloaded > 0 || r.removed > 0) onReloadLibrary();
-        statusBar()->showMessage(
-            r.failed.isEmpty() ? tr("Server parts up to date (%n file(s) downloaded)", nullptr, r.downloaded)
-                               : tr("Server parts: %1 downloaded, %2 failed (%3)")
-                                     .arg(r.downloaded)
-                                     .arg(r.failed.size())
-                                     .arg(r.failed.first()),
-            6000);
+        if (r.failed.isEmpty()) {
+            statusBar()->showMessage(
+                tr("Server parts up to date (%n file(s) downloaded)", nullptr, r.downloaded), 6000);
+        } else {
+            showPartsSyncFailed(tr("%n server part file(s) didn't download", nullptr, static_cast<int>(r.failed.size())),
+                                r.failed);
+        }
     });
     job->start();
+}
+
+void MainWindow::showPartsSyncFailed(const QString& summary, const QStringList& details) {
+    // Stays until the next try: parts that didn't come draw as outlines.
+    partsSyncFailed_->setText(QStringLiteral("⚠ ") + summary + QStringLiteral(" · ") + tr("Try again"));
+    QStringList shown = details.mid(0, 8);
+    if (details.size() > shown.size()) shown << tr("…and %n more", nullptr, static_cast<int>(details.size() - shown.size()));
+    partsSyncFailed_->setToolTip(tr("Parts the server has but this computer doesn't show as outlines.\n\n")
+                                 + shown.join(QLatin1Char('\n')));
+    partsSyncFailed_->setVisible(live_->active());
 }
 
 void MainWindow::onDisconnect() {
@@ -392,6 +426,8 @@ void MainWindow::updateLiveUi() {
     liveStatus_->setText(on ? tr("Live: %1").arg(live_->statusText()) : QString());
     disconnectAct_->setEnabled(on);
     uploadPartsAct_->setEnabled(on);
+    downloadPartsAct_->setEnabled(on && !partsSyncRunning_);
+    if (!on) partsSyncFailed_->setVisible(false);
     undoAct_->setVisible(!on);
     redoAct_->setVisible(!on);
     liveUndoAct_->setVisible(on);

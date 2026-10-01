@@ -28,6 +28,7 @@
 #include <QPushButton>
 #include <QStandardPaths>
 #include <QTimer>
+#include <QToolButton>
 #include <QUndoStack>
 
 #include <functional>
@@ -414,4 +415,40 @@ TEST_F(MainWindowLiveMyPart, UploadSendsThePartToTheServer) {
     const QJsonObject body = QJsonDocument::fromJson(post->body).object();
     EXPECT_EQ(body.value(QStringLiteral("partNumber")).toString(), QStringLiteral("MYPART.1"));
     EXPECT_EQ(body.value(QStringLiteral("displayName")).toString(), QStringLiteral("My curve"));
+}
+
+namespace {
+
+// The server's parts list fails once, then works.
+class MainWindowLiveServerParts : public MainWindowLive {
+protected:
+    void beforeOpen() override {
+        http_.reply("/api/parts/manifest", 503, QJsonObject{});
+        http_.reply("/api/parts/manifest", 200,
+                    QJsonObject{ { QStringLiteral("libraries"), QJsonArray{} },
+                                 { QStringLiteral("customParts"), QJsonArray{} } });
+    }
+    QToolButton* failedButton() { return window_->findChild<QToolButton*>(QStringLiteral("partsSyncFailed")); }
+    int manifestGets() const {
+        int n = 0;
+        for (const auto& r : http_.requests)
+            if (r.path == "/api/parts/manifest") ++n;
+        return n;
+    }
+};
+
+}  // namespace
+
+TEST_F(MainWindowLiveServerParts, AFailedDownloadStaysInSightAndTryAgainFetchesThem) {
+    QToolButton* button = failedButton();
+    ASSERT_NE(button, nullptr);
+    ASSERT_TRUE(waitFor([&] { return button->isVisibleTo(window_.get()); }));
+    EXPECT_TRUE(button->text().contains(QStringLiteral("Try again"))) << button->text().toStdString();
+    EXPECT_TRUE(button->toolTip().contains(QStringLiteral("503"))) << button->toolTip().toStdString();
+    // It doesn't time out like a status message.
+    waitFor([] { return false; }, 300);
+    EXPECT_TRUE(button->isVisibleTo(window_.get()));
+
+    button->click();
+    ASSERT_TRUE(waitFor([&] { return manifestGets() == 2 && !button->isVisibleTo(window_.get()); }));
 }
