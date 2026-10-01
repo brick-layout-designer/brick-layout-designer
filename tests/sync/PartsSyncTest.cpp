@@ -106,7 +106,10 @@ TEST(PartsSync, DownloadsWhatChangedAndSkipsWhatDidnt) {
     EXPECT_EQ(read(dir.filePath(QStringLiteral("custom/MY.1.xml"))), kCustomXml);
     EXPECT_EQ(read(dir.filePath(QStringLiteral("custom/MY.1.png"))), kPng);
     for (const auto& r : http.requests) {
-        EXPECT_EQ(r.authorization, QByteArray("Bearer bld_pat_abc"));
+        // The token goes to the API, never with the public part files (the
+        // server refuses a token on routes that don't take one).
+        EXPECT_EQ(r.authorization, r.path.startsWith("/api/") ? QByteArray("Bearer bld_pat_abc") : QByteArray())
+            << r.path.toStdString();
         EXPECT_EQ(r.userAgent, userAgent());  // so a server's filters can tell the app apart
     }
 
