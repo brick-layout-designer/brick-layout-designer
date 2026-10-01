@@ -83,6 +83,34 @@
       "status": "server",
       "mine": "unchanged",
       "server": "added"
+    },
+    {
+      "key": "view:V-both",
+      "kind": "view",
+      "status": "conflict",
+      "mine": "edited",
+      "server": "edited"
+    },
+    {
+      "key": "view:V-gone",
+      "kind": "view",
+      "status": "server",
+      "mine": "unchanged",
+      "server": "deleted"
+    },
+    {
+      "key": "view:V-keep",
+      "kind": "view",
+      "status": "mine",
+      "mine": "edited",
+      "server": "unchanged"
+    },
+    {
+      "key": "view:V-mine",
+      "kind": "view",
+      "status": "mine",
+      "mine": "added",
+      "server": "unchanged"
     }
   ]
 }

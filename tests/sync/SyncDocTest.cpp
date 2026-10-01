@@ -307,6 +307,51 @@ TEST(SyncDocSidecar, VenueAndLabelsTravelInTheWebsSidecarCache) {
     EXPECT_FALSE(mapOf(doc)->sidecar.venue);
 }
 
+// Saved views live in meta.cache.views (references/LAYOUT-FILE.md "Saved
+// views"): written whole, read back with the fields this build doesn't know.
+TEST(SyncDocSidecar, SavedViewsTravelInTheSidecarCache) {
+    sync::SyncDoc doc;
+    ASSERT_TRUE(doc.applyUpdate(serverDoc()));
+    auto map = mapOf(doc);
+    EXPECT_TRUE(map->sidecar.views.empty());
+
+    core::SavedView whole;
+    whole.id = QStringLiteral("v1");
+    whole.name = QStringLiteral("Whole layout");
+    core::SavedView station;
+    station.id = QStringLiteral("v2");
+    station.name = QStringLiteral("Station");
+    station.fit = false;
+    station.rect = QRectF(90, 40, 40, 30);
+    station.sheets = QStringList{ QStringLiteral("sheet-town") };
+    station.grid = false;
+    station.labels = false;
+    station.extras.insert(QStringLiteral("webOnly"), QStringLiteral("kept"));
+    map->sidecar.views = { whole, station };
+    const QByteArray update = doc.writeMap(*map);
+    ASSERT_FALSE(update.isEmpty());
+
+    const QJsonArray cached = doc.toJson()
+                                  .value(QLatin1String("meta")).toObject()
+                                  .value(QLatin1String("cache")).toObject()
+                                  .value(QLatin1String("views")).toArray();
+    ASSERT_EQ(cached.size(), 2);
+    EXPECT_EQ(cached[1].toObject().value(QLatin1String("rect")).toObject().value(QLatin1String("w")).toDouble(), 40.0);
+
+    sync::SyncDoc other;
+    ASSERT_TRUE(other.applyUpdate(serverDoc()));
+    ASSERT_TRUE(other.applyUpdate(update));
+    const auto back = mapOf(other);
+    ASSERT_EQ(back->sidecar.views.size(), 2u);
+    EXPECT_EQ(back->sidecar.views[0], whole);
+    EXPECT_EQ(back->sidecar.views[1], station);
+
+    // Deleting every view empties the list.
+    map->sidecar.views.clear();
+    ASSERT_FALSE(doc.writeMap(*map).isEmpty());
+    EXPECT_TRUE(mapOf(doc)->sidecar.views.empty());
+}
+
 TEST(SyncDocSidecar, KeepsWhatTheDesktopDoesntHandle) {
     const QJsonObject webBackground{ { QStringLiteral("url"),
                                        QStringLiteral("/api/layouts/L1/background-image") },

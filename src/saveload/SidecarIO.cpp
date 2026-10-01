@@ -11,6 +11,9 @@
 #include <QJsonObject>
 #include <QJsonValue>
 #include <QSaveFile>
+#include <QSet>
+
+#include <cmath>
 
 namespace bld::saveload {
 
@@ -123,6 +126,88 @@ core::Module decodeModule(const QJsonObject& o) {
     if (!at.isEmpty()) m.importedAt = QDateTime::fromString(at, Qt::ISODate);
     return m;
 }
+
+// A view's area: {x, y, w, h}, or [x, y, w, h] as the web also accepts.
+std::optional<QRectF> decodeViewRect(const QJsonValue& v) {
+    double n[4];
+    const auto num = [](const QJsonValue& x, double& out) {
+        if (!x.isDouble() || !std::isfinite(x.toDouble())) return false;
+        out = x.toDouble();
+        return true;
+    };
+    if (v.isArray()) {
+        const QJsonArray a = v.toArray();
+        if (a.size() != 4) return std::nullopt;
+        for (int i = 0; i < 4; ++i)
+            if (!num(a[i], n[i])) return std::nullopt;
+    } else if (v.isObject()) {
+        const QJsonObject o = v.toObject();
+        const char* keys[] = { "x", "y", "w", "h" };
+        for (int i = 0; i < 4; ++i)
+            if (!num(o.value(QLatin1String(keys[i])), n[i])) return std::nullopt;
+    } else {
+        return std::nullopt;
+    }
+    return QRectF(n[0], n[1], n[2], n[3]);
+}
+
+const QStringList& viewKeys() {
+    static const QStringList keys{ QStringLiteral("id"),     QStringLiteral("name"),   QStringLiteral("fit"),
+                                   QStringLiteral("rect"),   QStringLiteral("sheets"), QStringLiteral("grid"),
+                                   QStringLiteral("labels") };
+    return keys;
+}
+}
+
+QJsonObject viewToJson(const core::SavedView& v) {
+    QJsonObject o = v.extras;
+    o[QStringLiteral("id")] = v.id;
+    o[QStringLiteral("name")] = v.name;
+    o[QStringLiteral("fit")] = v.fit;
+    if (!v.fit && v.rect) {
+        QJsonObject r;
+        r[QStringLiteral("x")] = v.rect->x();
+        r[QStringLiteral("y")] = v.rect->y();
+        r[QStringLiteral("w")] = v.rect->width();
+        r[QStringLiteral("h")] = v.rect->height();
+        o[QStringLiteral("rect")] = r;
+    } else {
+        o[QStringLiteral("rect")] = QJsonValue::Null;
+    }
+    if (v.sheets) o[QStringLiteral("sheets")] = QJsonArray::fromStringList(*v.sheets);
+    else o[QStringLiteral("sheets")] = QJsonValue::Null;
+    o[QStringLiteral("grid")] = v.grid;
+    o[QStringLiteral("labels")] = v.labels;
+    return o;
+}
+
+std::optional<core::SavedView> viewFromJson(const QJsonValue& raw) {
+    if (!raw.isObject()) return std::nullopt;
+    const QJsonObject o = raw.toObject();
+    const QString id = o.value(QLatin1String("id")).toString();
+    if (id.isEmpty()) return std::nullopt;
+    core::SavedView v;
+    v.id = id;
+    v.name = o.value(QLatin1String("name")).toString();
+    v.rect = decodeViewRect(o.value(QLatin1String("rect")));
+    // A view with no area can only be "fit"; one with an area is fit only when it says so.
+    const QJsonValue fit = o.value(QLatin1String("fit"));
+    v.fit = fit.isBool() ? (fit.toBool() || !v.rect) : !v.rect;
+    if (v.fit) v.rect.reset();
+    const QJsonValue sheets = o.value(QLatin1String("sheets"));
+    if (sheets.isArray()) {
+        QStringList list;
+        for (const auto& s : sheets.toArray())
+            if (s.isString()) list << s.toString();
+        v.sheets = list;
+    }
+    const QJsonValue grid = o.value(QLatin1String("grid"));
+    v.grid = grid.isBool() ? grid.toBool() : true;
+    const QJsonValue labels = o.value(QLatin1String("labels"));
+    v.labels = labels.isBool() ? labels.toBool() : true;
+    for (auto it = o.begin(); it != o.end(); ++it)
+        if (!viewKeys().contains(it.key())) v.extras.insert(it.key(), it.value());
+    return v;
 }
 
 QString sidecarPathFor(const QString& bbmPath) {
@@ -180,10 +265,20 @@ QJsonObject sidecarToJson(const core::Sidecar& sidecar) {
         }
         root[QStringLiteral("backgroundImage")] = bg;
     }
+
+    if (!sidecar.views.empty()) {
+        QJsonArray views;
+        for (const auto& v : sidecar.views) views.append(viewToJson(v));
+        root[QStringLiteral("views")] = views;
+    }
     return root;
 }
 
 void sidecarFromJson(const QJsonObject& root, core::Sidecar& out) {
+    out.views.clear();
+    for (const auto& v : root.value(QStringLiteral("views")).toArray())
+        if (auto view = viewFromJson(v)) out.views.push_back(std::move(*view));
+
     out.schemaVersion = root.value(QStringLiteral("schemaVersion")).toInt(core::Sidecar::kSchemaVersion);
     out.bbmContentHashSha256 = root.value(QStringLiteral("bbmHashSha256")).toString().toUtf8();
 
@@ -214,6 +309,26 @@ void sidecarFromJson(const QJsonObject& root, core::Sidecar& out) {
                     r[0].toDouble(), r[1].toDouble(), r[2].toDouble(), r[3].toDouble());
             }
         }
+    }
+}
+
+void renameSidecarIds(core::Sidecar& sidecar, const QHash<QString, QString>& renamed) {
+    if (renamed.isEmpty()) return;
+    const auto rename = [&](QString& id) {
+        const auto it = renamed.constFind(id);
+        if (it != renamed.constEnd()) id = it.value();
+    };
+    for (auto& v : sidecar.views)
+        if (v.sheets)
+            for (QString& id : *v.sheets) rename(id);
+    for (auto& l : sidecar.anchoredLabels) rename(l.targetId);
+    for (auto& m : sidecar.modules) {
+        QSet<QString> members;
+        for (QString id : m.memberIds) {
+            rename(id);
+            members.insert(id);
+        }
+        m.memberIds = members;
     }
 }
 

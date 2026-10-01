@@ -117,6 +117,7 @@ LayoutFileResult readLayoutFileBytes(const QByteArray& bytes, const QString& ass
         } else {
             const QJsonObject root = doc.object();
             saveload::sidecarFromJson(root, loaded.map->sidecar);
+            saveload::renameSidecarIds(loaded.map->sidecar, loaded.renamedIds);
             // The background image travels inside the file: unpack it.
             const QString file =
                 root.value(QLatin1String("backgroundImage")).toObject().value(QLatin1String("file")).toString();

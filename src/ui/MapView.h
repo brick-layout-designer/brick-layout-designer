@@ -10,7 +10,11 @@
 #include <QSet>
 #include <QString>
 
+#include <QRectF>
+#include <QStringList>
+
 #include <memory>
+#include <optional>
 #include <vector>
 
 class QDragLeaveEvent;
@@ -39,6 +43,21 @@ public:
     void rebuildScene();  // re-run SceneBuilder against current map (after edits)
 
     core::Map* currentMap() { return map_.get(); }
+
+    // What a saved view shows on this screen only (never saved in the
+    // layout): exactly `sheets` (unset: every sheet as the layout has it),
+    // the grid and the labels. It stays across rebuilds and live reloads.
+    struct ViewFilter {
+        std::optional<QStringList> sheets;
+        bool grid = true;
+        bool labels = true;
+    };
+    void setViewFilter(std::optional<ViewFilter> filter);
+    const std::optional<ViewFilter>& viewFilter() const { return viewFilter_; }
+    // The part of the map on screen now, in studs; unset with no map.
+    std::optional<QRectF> screenRectStuds() const;
+    // Fits `studs` into the window.
+    void showRegionStuds(const QRectF& studs);
     rendering::SceneBuilder* builder() { return builder_.get(); }
     QUndoStack* undoStack() { return undoStack_.get(); }
 
@@ -121,6 +140,8 @@ signals:
     // part of a paste across layers, an imported module created layers,
     // etc.) so MainWindow can refresh the LayerPanel.
     void layersChanged();
+    // A map was put in the view (opened, new, or a live layout reloaded).
+    void mapLoaded();
 
 protected:
     void wheelEvent(QWheelEvent* e) override;
@@ -187,6 +208,8 @@ private:
     parts::PartsLibrary& parts_;
     std::unique_ptr<core::Map> map_;
     std::unique_ptr<rendering::SceneBuilder> builder_;
+    std::optional<ViewFilter> viewFilter_;
+    void applyViewFilter();
     std::unique_ptr<QUndoStack> undoStack_;
 
     std::vector<BrickOriginSnapshot> dragStart_;

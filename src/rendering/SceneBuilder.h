@@ -4,7 +4,9 @@
 
 #include <QHash>
 #include <QList>
+#include <QPair>
 #include <QPointF>
+#include <QRectF>
 #include <QString>
 
 class QGraphicsItem;
@@ -49,6 +51,15 @@ public:
     // Toggle the visibility of a layer (by index). Returns false if out of range.
     bool setLayerVisible(int layerIndex, bool visible);
 
+    // Show or hide every anchored label (World, Brick, Group and Module
+    // labels), for a saved view with its labels off.
+    void setLabelsVisible(bool visible);
+
+    // Each module's frame and name as drawn (View > Module names), in
+    // scene pixels, by module id. The name usually sits outside the
+    // frame. Empty when module names are off.
+    const QList<QPair<QString, QRectF>>& moduleAnnotationRects() const { return moduleAnnotationRects_; }
+
 private:
     std::optional<double> venueLabelPx_;
     void addLayer(const core::Layer& layer, int layerIndex);
@@ -71,6 +82,7 @@ private:
     QList<QGraphicsItem*>             electricItems_;
     QList<QGraphicsItem*>             worldLabelItems_;
     QList<QGraphicsItem*>             moduleLabelItems_;
+    QList<QPair<QString, QRectF>>     moduleAnnotationRects_;
 };
 
 }

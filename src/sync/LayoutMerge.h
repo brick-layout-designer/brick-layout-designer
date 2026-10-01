@@ -13,7 +13,7 @@
 //   text:<layer>:<id|#index>   text cells
 //   area:<layer>:<x>,<y>       area cells
 //   ruler:<layer>:<hash>       rulers, keyed by content
-//   label:<id> module:<id> venue background   sidecar data
+//   label:<id> module:<id> view:<id> venue background   sidecar data
 
 #include <QHash>
 #include <QJsonObject>
@@ -49,7 +49,7 @@ enum class Choice { Mine, Server, Both };
 
 struct ItemChange {
     QString key;
-    QString kind;     // map, layer, brick, group, text, area, ruler, label, module, venue, background
+    QString kind;     // map, layer, brick, group, text, area, ruler, label, module, view, venue, background
     QString layerId;  // for layer items
     QString layerName;  // that layer's name, from mine, else the server's, else base
     Status status = Status::Mine;
@@ -59,7 +59,7 @@ struct ItemChange {
     QJsonValue base{ QJsonValue::Undefined }, mineValue{ QJsonValue::Undefined }, serverValue{ QJsonValue::Undefined };
 
     // Choices this change allows: Both only where both sides have the item
-    // and it can be copied (bricks, text cells, labels, modules).
+    // and it can be copied (bricks, text cells, labels, modules, views).
     bool allowsBoth() const;
     // What a merge does without being told: my change unless it clashes.
     Choice defaultChoice() const { return status == Status::Mine ? Choice::Mine : Choice::Server; }

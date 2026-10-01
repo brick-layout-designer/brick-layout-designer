@@ -235,6 +235,15 @@ MapView::~MapView() {
     // survivors that may already be mid-destruction. Disconnect from
     // the scene signals BEFORE any of that runs.
     if (scene()) scene()->disconnect(this);
+    // The undo stack's destructor clears it, which says indexChanged: the
+    // handler would rebuild the scene of a view being destroyed and tell
+    // the main window, already gone, that the selection changed. Let it go
+    // quietly, before anything else here is destroyed.
+    if (undoStack_) {
+        undoStack_->disconnect();
+        undoStack_->blockSignals(true);
+        undoStack_.reset();
+    }
 }
 
 void MapView::loadMap(std::unique_ptr<core::Map> map) {
@@ -259,7 +268,11 @@ void MapView::loadMap(std::unique_ptr<core::Map> map) {
     }
     clearRulerPreview();
     map_ = std::move(map);
-    if (!map_) { builder_->clear(); return; }
+    if (!map_) {
+        builder_->clear();
+        emit mapLoaded();
+        return;
+    }
 
     scene()->setBackgroundBrush(map_->backgroundColor.color);
     parts::placement::fixStaleAreas(*map_, parts_);
@@ -270,6 +283,7 @@ void MapView::loadMap(std::unique_ptr<core::Map> map) {
     // correct from the start.
     edit::rebuildConnectivity(*map_, parts_);
     builder_->build(*map_);
+    applyViewFilter();
     // Give the view a much bigger scene rect than the current content so
     // the user can pan well outside the existing bricks to add new ones
     // or extend the layout. ~50 000 px = ~6 250 studs on each side, which
@@ -287,6 +301,7 @@ void MapView::loadMap(std::unique_ptr<core::Map> map) {
     }
     viewport()->update();
     emit selectionChanged();
+    emit mapLoaded();
 }
 
 void MapView::rebuildScene() {
@@ -328,6 +343,7 @@ void MapView::rebuildScene() {
                           it->data(kBrickDataGuid).toString(), kind });
     }
     builder_->build(*map_);
+    applyViewFilter();
     // Reselect by (layer, guid, kind) — builds a quick index of the new
     // items once so each lookup is O(1).
     if (!preserve.isEmpty()) {
@@ -349,6 +365,40 @@ void MapView::rebuildScene() {
     refreshSelectionOverlay();
     viewport()->update();
     emit selectionChanged();
+}
+
+void MapView::setViewFilter(std::optional<ViewFilter> filter) {
+    viewFilter_ = std::move(filter);
+    applyViewFilter();
+}
+
+void MapView::applyViewFilter() {
+    if (!map_ || !builder_) return;
+    const auto& layers = map_->layers();
+    for (size_t i = 0; i < layers.size(); ++i) {
+        const auto& l = layers[i];
+        if (!l || l->kind() == core::LayerKind::Grid) continue;
+        const bool on = viewFilter_ && viewFilter_->sheets ? viewFilter_->sheets->contains(l->guid) : l->visible;
+        builder_->setLayerVisible(static_cast<int>(i), on);
+    }
+    builder_->setLabelsVisible(!viewFilter_ || viewFilter_->labels);
+    viewport()->update();
+}
+
+std::optional<QRectF> MapView::screenRectStuds() const {
+    if (!map_) return std::nullopt;
+    const QRectF px = mapToScene(viewport()->rect()).boundingRect();
+    const double k = rendering::SceneBuilder::kPixelsPerStud;
+    if (px.isEmpty()) return std::nullopt;
+    return QRectF(px.x() / k, px.y() / k, px.width() / k, px.height() / k);
+}
+
+void MapView::showRegionStuds(const QRectF& studs) {
+    const double k = rendering::SceneBuilder::kPixelsPerStud;
+    const QRectF px(studs.x() * k, studs.y() * k, studs.width() * k, studs.height() * k);
+    if (px.isEmpty()) return;
+    fitInView(px, Qt::KeepAspectRatio);
+    viewport()->update();
 }
 
 bool MapView::eventFilter(QObject* obj, QEvent* ev) {

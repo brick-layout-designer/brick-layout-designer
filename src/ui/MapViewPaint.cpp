@@ -68,7 +68,10 @@ void MapView::drawBackground(QPainter* painter, const QRectF& rect) {
         }
     }
 
+    // A saved view being looked at may turn the grid off.
+    const bool gridAllowed = !viewFilter_ || viewFilter_->grid;
     for (const auto& layer : map_->layers()) {
+        if (!gridAllowed) break;
         if (layer->kind() != core::LayerKind::Grid || !layer->visible) continue;
         const auto& g = static_cast<const core::LayerGrid&>(*layer);
         if (!g.displayGrid && !g.displaySubGrid && !g.displayCellIndex) continue;

@@ -800,6 +800,7 @@ void SceneBuilder::clear() {
     venueItems_.clear();
     worldLabelItems_.clear();
     moduleLabelItems_.clear();
+    moduleAnnotationRects_.clear();
     electricItems_.clear();
 }
 

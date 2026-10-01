@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QHash>
 #include <QString>
 
 #include <memory>
@@ -13,6 +14,11 @@ namespace bld::saveload {
 struct LoadResult {
     std::unique_ptr<core::Map> map;
     QString error; // non-empty may be a non-fatal warning when map != nullptr
+    // Ids that weren't BlueBrick's plain numbers, renumbered on reading
+    // (old -> new). The sidecar read beside the map follows them
+    // (saveload::renameSidecarIds), so its views, labels and modules still
+    // point at the right sheets and bricks.
+    QHash<QString, QString> renamedIds;
     bool ok() const { return map != nullptr; }
 };
 

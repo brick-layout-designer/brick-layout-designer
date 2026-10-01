@@ -1,10 +1,14 @@
 #pragma once
 
 #include <QByteArray>
+#include <QHash>
 #include <QJsonObject>
+#include <QJsonValue>
 #include <QString>
 
-namespace bld::core { struct Sidecar; }
+#include <optional>
+
+namespace bld::core { struct Sidecar; struct SavedView; }
 
 namespace bld::saveload {
 
@@ -35,6 +39,17 @@ bool writeSidecar(const QString& cldPath,
 // shape the web keeps in a live layout's shared document (meta.cache).
 QJsonObject sidecarToJson(const core::Sidecar& sidecar);
 void sidecarFromJson(const QJsonObject& root, core::Sidecar& out);
+
+// One saved view as JSON and back (references/LAYOUT-FILE.md "Saved
+// views"). Unknown fields ride along in SavedView::extras. A fit view's
+// rect is written as null. viewFromJson returns nothing for a value that
+// isn't a view at all (no id).
+QJsonObject viewToJson(const core::SavedView& view);
+std::optional<core::SavedView> viewFromJson(const QJsonValue& value);
+
+// Points the sidecar's references (views' sheets, labels' targets, module
+// members) at the ids the map was renumbered to (LoadResult::renamedIds).
+void renameSidecarIds(core::Sidecar& sidecar, const QHash<QString, QString>& renamed);
 
 // Compute SHA-256 of the bytes (hex-encoded lowercase).
 QByteArray sha256Hex(const QByteArray& bytes);

@@ -87,6 +87,18 @@ QLabel#PanelTitle { color: @ink; }
 QToolButton#PanelClose { border: none; border-radius: 6px; color: @muted; padding: 0 4px; }
 QToolButton#PanelClose:hover { background: @soft; color: @ink; }
 QDockWidget { color: @ink; }
+QFrame[viewCard="true"] { background: @panel; border: 1px solid @line; border-radius: @rcpx; }
+QFrame[viewCard="true"][active="true"] { background: @soft; border-color: @amain; }
+QFrame#ViewOptions { background: transparent; border: none; border-top: 1px solid @line; }
+QToolButton[viewRowTool="true"] { background: transparent; border: none; border-radius: @rcpx; color: @muted; font-weight: 600; padding: 2px 6px; }
+QToolButton[viewRowTool="true"]:hover { background: @soft; color: @ink; }
+QToolButton[viewRowTool="true"]:checked { color: @ink; }
+QFrame#Segmented { background: @soft; border-radius: @rcpx; }
+QFrame#Segmented QPushButton { background: transparent; border: none; color: @muted; padding: 5px 10px; }
+QFrame#Segmented QPushButton:checked { background: @panel; color: @ink; font-weight: 700; border: 1px solid @line; }
+QFrame#ViewIndicator { background: @panel; border: 1px solid @line; border-radius: 16px; }
+QFrame#ViewIndicator QPushButton { background: transparent; border: none; color: @atext; font-weight: 600; padding: 4px 10px; }
+QFrame#ViewIndicator QPushButton:hover { background: @soft; }
 QPushButton { background: @panel; color: @ink; border: 1px solid @border; border-radius: @rcpx; padding: 6px 14px; min-height: 20px; }
 QPushButton:hover { background: @soft; }
 QPushButton:pressed { background: @line; }

@@ -131,7 +131,7 @@ bool isNumericId(const QString& s) {
     return true;
 }
 
-void migrateNonNumericIds(core::Map& map) {
+QHash<QString, QString> migrateNonNumericIds(core::Map& map) {
     QHash<QString, QString> remap;  // old -> new
 
     // Item/layer identity. Empty is NOT a valid item id — older .bbm
@@ -206,6 +206,7 @@ void migrateNonNumericIds(core::Map& map) {
             }
         }
     }
+    return remap;
 }
 
 }
@@ -215,7 +216,7 @@ LoadResult readBbm(QIODevice& input) {
     while (r.readNextStartElement()) {
         if (r.name() == QStringLiteral("Map")) {
             LoadResult result = readMapElement(r);
-            if (result.map) migrateNonNumericIds(*result.map);
+            if (result.map) result.renamedIds = migrateNonNumericIds(*result.map);
             return result;
         }
         r.skipCurrentElement();

@@ -75,6 +75,19 @@ int brickCount(const core::Map& map) {
     return n;
 }
 
+// "id=name" for each saved view, in list order.
+QStringList viewNames(const core::Map& map) {
+    QStringList out;
+    for (const auto& v : map.sidecar.views) out << v.id + QLatin1Char('=') + v.name;
+    return out;
+}
+
+const core::SavedView* view(const core::Map& map, const QString& id) {
+    for (const auto& v : map.sidecar.views)
+        if (v.id == id) return &v;
+    return nullptr;
+}
+
 QStringList labelTexts(const core::Map& map) {
     QStringList out;
     for (const auto& l : map.sidecar.anchoredLabels) out << l.text;
@@ -130,6 +143,17 @@ TEST(LayoutMerge, ByDefaultKeepsMyChangesAndTheServersOnClashes) {
             for (const auto& t : static_cast<const core::LayerText&>(*l).textCells) edited |= t.text == QStringLiteral("Edited offline");
     EXPECT_TRUE(edited);
     EXPECT_EQ(brickCount(*merged), brickCount(*c.base) - 2 + 1);
+    // Saved views: the server's name on the clash and its delete, my
+    // changed area (with the field this build doesn't know) and my new view.
+    EXPECT_EQ(viewNames(*merged), (QStringList{ QStringLiteral("V-both=Server calls it this"),
+                                                QStringLiteral("V-keep=Mine changes this"),
+                                                QStringLiteral("V-mine=Added offline") }));
+    const core::SavedView* keep = view(*merged, QStringLiteral("V-keep"));
+    ASSERT_NE(keep, nullptr);
+    EXPECT_FALSE(keep->fit);
+    EXPECT_EQ(keep->rect, QRectF(10, 20, 30, 40));
+    EXPECT_EQ(keep->sheets, QStringList{ QStringLiteral("211") });
+    EXPECT_EQ(keep->extras.value(QLatin1String("note")).toString(), QStringLiteral("kept"));
 
     // Merged, it's the server's layout plus my changes: comparing it with
     // the server as "mine" shows only those.
@@ -138,7 +162,8 @@ TEST(LayoutMerge, ByDefaultKeepsMyChangesAndTheServersOnClashes) {
     for (const auto& ch : after) keys << ch.key;
     EXPECT_EQ(keys.join(QLatin1Char(' ')).toStdString(), (QStringList{ QStringLiteral("brick:211:222"), QStringLiteral("brick:211:223"),
                                   QStringLiteral("brick:211:mine-new-brick"), QStringLiteral("label:L-mine"),
-                                  QStringLiteral("text:3144:T0") })
+                                  QStringLiteral("text:3144:T0"), QStringLiteral("view:V-keep"),
+                                  QStringLiteral("view:V-mine") })
                                     .join(QLatin1Char(' '))
                                     .toStdString());
 }
@@ -151,6 +176,8 @@ TEST(LayoutMerge, TakesTheChoicesMadeForClashes) {
         { QStringLiteral("map"), Choice::Mine },
         { QStringLiteral("venue"), Choice::Mine },  // mine has none: the server's goes
         { QStringLiteral("brick:211:222"), Choice::Server },  // my own change dropped
+        { QStringLiteral("view:V-both"), Choice::Mine },
+        { QStringLiteral("view:V-keep"), Choice::Server },
     };
     const auto merged = mergeLayouts(c.m, c.s, c.changes, choices);
     ASSERT_TRUE(merged);
@@ -159,6 +186,10 @@ TEST(LayoutMerge, TakesTheChoicesMadeForClashes) {
     EXPECT_FALSE(merged->sidecar.venue.has_value());
     EXPECT_EQ(labelTexts(*merged), (QStringList{ QStringLiteral("Added offline"), QStringLiteral("Mine says this") }));
     EXPECT_EQ(brick(*merged, QStringLiteral("222"))->orientation, brick(*c.server, QStringLiteral("222"))->orientation);
+    EXPECT_EQ(viewNames(*merged), (QStringList{ QStringLiteral("V-both=Mine calls it this"),
+                                                QStringLiteral("V-keep=Mine changes this"),
+                                                QStringLiteral("V-mine=Added offline") }));
+    EXPECT_TRUE(view(*merged, QStringLiteral("V-keep"))->fit);  // the server's, unchanged
     // Both: the server's stays, mine comes in again as a copy.
     EXPECT_EQ(brick(*merged, QStringLiteral("224"))->displayArea, brick(*c.server, QStringLiteral("224"))->displayArea);
     const core::Brick* copy = nullptr;
@@ -236,9 +267,11 @@ TEST(LayoutMerge, SaysWhatEachChangeIs) {
         QStringLiteral("Text \"Edited offline\" at (332.6, 212.1) on \"Building labels\": you changed it")));
     EXPECT_TRUE(lines.contains(QStringLiteral("Label \"Added offline\": you added it")));
     EXPECT_TRUE(lines.contains(QStringLiteral("Venue: the server added it")));
+    EXPECT_TRUE(lines.contains(QStringLiteral("View \"Added offline\": you added it")));
     for (const auto& ch : c.changes) {
         const bool copyable = ch.kind == QLatin1String("brick") || ch.kind == QLatin1String("text")
-                           || ch.kind == QLatin1String("label") || ch.kind == QLatin1String("module");
+                           || ch.kind == QLatin1String("label") || ch.kind == QLatin1String("module")
+                           || ch.kind == QLatin1String("view");
         EXPECT_EQ(ch.allowsBoth(), copyable && !ch.mineValue.isUndefined() && !ch.serverValue.isUndefined())
             << ch.key.toStdString();
     }

@@ -143,6 +143,7 @@ bool MainWindow::openFile(const QString& path) {
             return false;
         }
         const int layerCount = static_cast<int>(ldraw.map->layers().size());
+        clearActiveView();
         mapView_->loadMap(std::move(ldraw.map));
         layerPanel_->setMap(mapView_->currentMap(), mapView_->builder());
         modulesPanel_->setMap(mapView_->currentMap());
@@ -188,6 +189,7 @@ bool MainWindow::openFile(const QString& path) {
         QByteArray bbmBytes;
         if (bf.open(QIODevice::ReadOnly)) bbmBytes = bf.readAll();
         auto sres = saveload::readSidecar(sidecarPath, bbmBytes, result.map->sidecar);
+        saveload::renameSidecarIds(result.map->sidecar, result.renamedIds);
         if (sres.ok && sres.hashMismatch) {
             statusBar()->showMessage(
                 tr("Sidecar hash mismatch — .bbm was modified externally. Fork-only metadata preserved but may drift."), 8000);
@@ -203,6 +205,7 @@ bool MainWindow::openFile(const QString& path) {
 void MainWindow::showLoadedMap(std::unique_ptr<core::Map> map, const QString& path, const QStringList& warnings) {
     const int layerCount = static_cast<int>(map->layers().size());
     const int nbItems = map->nbItems;
+    clearActiveView();
     mapView_->loadMap(std::move(map));
     layerPanel_->setMap(mapView_->currentMap(), mapView_->builder());
     modulesPanel_->setMap(mapView_->currentMap());
@@ -545,6 +548,7 @@ bool MainWindow::newDocument() {
     if (!templatePath.isEmpty() && QFile::exists(templatePath)) {
         auto res = saveload::readBbm(templatePath);
         if (res.ok() && res.map) {
+            clearActiveView();
             mapView_->loadMap(std::move(res.map));
             layerPanel_->setMap(mapView_->currentMap(), mapView_->builder());
             modulesPanel_->setMap(mapView_->currentMap());
@@ -575,6 +579,7 @@ bool MainWindow::newDocument() {
     blank->layers().push_back(std::move(layer));
     blank->selectedLayerIndex = static_cast<int>(blank->layers().size()) - 1;
     blank->nbItems = 0;
+    clearActiveView();
     mapView_->loadMap(std::move(blank));
     layerPanel_->setMap(mapView_->currentMap(), mapView_->builder());
     modulesPanel_->setMap(mapView_->currentMap());
@@ -766,6 +771,7 @@ bool MainWindow::restoreAutosaveIfAny(const QString& lastFile) {
         return false;
     }
 
+    clearActiveView();
     mapView_->loadMap(std::move(result.map));
     layerPanel_->setMap(mapView_->currentMap(), mapView_->builder());
     modulesPanel_->setMap(mapView_->currentMap());

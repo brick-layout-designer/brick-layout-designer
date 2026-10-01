@@ -18,6 +18,8 @@ add_executable(bld_ui_tests
     SettingsDialogTest.cpp
     HelpButtonTest.cpp
     HelpTextsTest.cpp
+    SavedViewsTest.cpp
+    ViewsPanelTest.cpp
 )
 
 target_compile_definitions(bld_ui_tests PRIVATE

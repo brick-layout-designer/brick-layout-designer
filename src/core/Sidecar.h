@@ -2,6 +2,7 @@
 
 #include "AnchoredLabel.h"
 #include "Module.h"
+#include "SavedView.h"
 #include "Venue.h"
 
 #include <QByteArray>
@@ -38,9 +39,12 @@ struct Sidecar {
     QRectF  backgroundImageRectStuds;  // null = stretch to scene bounds
     double  backgroundImageOpacity = 0.5;
 
+    // Saved views, in the order the Views panel shows them.
+    std::vector<SavedView> views;
+
     bool isEmpty() const {
         return anchoredLabels.empty() && modules.empty() && !venue.has_value()
-            && backgroundImagePath.isEmpty();
+            && backgroundImagePath.isEmpty() && views.empty();
     }
 };
 

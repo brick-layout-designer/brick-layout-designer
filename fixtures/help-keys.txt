@@ -7,6 +7,7 @@ panel.partsList
 panel.modules
 panel.moduleLibrary
 panel.roomLibrary
+panel.views
 topbar.saveStatus
 topbar.tasks
 people.here
@@ -33,6 +34,8 @@ share.pending
 share.transfer
 share.publicLink
 share.history
+share.picture
+share.exportAllViews
 settings.sync
 settings.colour
 settings.largeText
