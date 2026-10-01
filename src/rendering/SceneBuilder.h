@@ -2,6 +2,7 @@
 
 #include <optional>
 
+#include <QColor>
 #include <QHash>
 #include <QList>
 #include <QPair>
@@ -24,6 +25,10 @@ namespace bld::rendering {
 // hit-testing / selection never gets intercepted by a parent group. We
 // track per-layer items in a QHash<int, QList<QGraphicsItem*>> for
 // visibility toggling.
+// A painted area cell's colour: its RGB at the sheet's alpha, as vanilla
+// BlueBrick and the web draw it (render-parity/areas.json).
+QColor areaCellColor(const QColor& cell, int transparency);
+
 class SceneBuilder {
 public:
     static constexpr int kPixelsPerStud = 8;

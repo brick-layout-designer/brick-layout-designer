@@ -30,6 +30,7 @@
 #include <QDir>
 #include <QFile>
 #include <QGraphicsItem>
+#include <QGraphicsRectItem>
 #include <QGraphicsScene>
 #include <QImage>
 #include <QJsonArray>
@@ -163,6 +164,41 @@ TEST(RenderParity, UnknownPartsMatchTheSharedDescription) {
     }
 }
 
+TEST(RenderParity, AreaCellsMatchTheSharedDescription) {
+    const QJsonArray cases = readJson(kDir + QStringLiteral("/areas.json"))[QLatin1String("cases")].toArray();
+    ASSERT_FALSE(cases.isEmpty());
+    for (const QJsonValue& v : cases) {
+        const QJsonObject c = v.toObject();
+        const QString hex = c[QLatin1String("color")].toString();
+        const QColor cell = QColor::fromRgba(hex.toUInt(nullptr, 16));
+        const QColor got = rendering::areaCellColor(cell, c[QLatin1String("transparency")].toInt());
+        const QJsonObject want = c[QLatin1String("expect")].toObject();
+        EXPECT_EQ(got.red(), want[QLatin1String("r")].toInt()) << hex.toStdString();
+        EXPECT_EQ(got.green(), want[QLatin1String("g")].toInt()) << hex.toStdString();
+        EXPECT_EQ(got.blue(), want[QLatin1String("b")].toInt()) << hex.toStdString();
+        EXPECT_EQ(got.alpha(), want[QLatin1String("a")].toInt()) << hex.toStdString();
+    }
+}
+
+// A painted sheet's alpha is in its cells' colours only, not faded again.
+TEST(RenderParity, SceneFadesAreaCellsOnce) {
+    QTemporaryDir dir;
+    auto read = import::readLayoutFile(kDir + QStringLiteral("/rulers-areas.bld-layout"), dir.path());
+    ASSERT_TRUE(read.ok()) << read.error.toStdString();
+    parts::PartsLibrary parts;
+    QGraphicsScene scene;
+    rendering::SceneBuilder builder(scene, parts);
+    builder.build(*read.map);
+    int cells = 0;
+    for (QGraphicsItem* it : scene.items()) {
+        auto* r = dynamic_cast<QGraphicsRectItem*>(it);
+        if (!r || r->brush().style() != Qt::SolidPattern || r->brush().color().alpha() != 153) continue;
+        ++cells;  // the Zones sheet is 60%: alpha 153
+        EXPECT_DOUBLE_EQ(r->opacity(), 1.0);
+    }
+    EXPECT_EQ(cells, 3);
+}
+
 // The drawn scene: one dashed frame and one outlined name per module, no
 // white box behind it.
 TEST(RenderParity, SceneDrawsTheWebsModuleLook) {
@@ -185,39 +221,43 @@ TEST(RenderParity, SceneDrawsTheWebsModuleLook) {
     EXPECT_EQ(names, static_cast<int>(read.map->sidecar.modules.size()));
 }
 
-// Each saved view's picture, as Export all views (Small) makes it.
+// Each saved view's picture, as Export all views (Small) makes it, for
+// every parity layout (parity: modules, a see-through sheet, text, the
+// room; rulers-areas: rulers and painted areas).
 TEST(RenderParity, PicturesMatchTheGoldens) {
     QSettings().remove(QStringLiteral("view/moduleNames"));
-    QTemporaryDir dir;
-    auto read = import::readLayoutFile(kDir + QStringLiteral("/parity.bld-layout"), dir.path());
-    ASSERT_TRUE(read.ok()) << read.error.toStdString();
+    const QString out = qEnvironmentVariable("BLD_PARITY_OUT");
+    const bool compare = qEnvironmentVariableIntValue("BLD_ENABLE_RENDER_GOLDENS") == 1;
     parts::PartsLibrary parts;
     parts.addSearchPath(QStringLiteral(BLD_PARTS_LIBRARY_ROOT));
     parts.scan();
-    ui::views::PictureRenderer renderer(*read.map, parts);
-    const QString out = qEnvironmentVariable("BLD_PARITY_OUT");
-    const bool compare = qEnvironmentVariableIntValue("BLD_ENABLE_RENDER_GOLDENS") == 1;
-    ASSERT_FALSE(read.map->sidecar.views.empty());
-    for (const auto& view : read.map->sidecar.views) {
-        const auto spec = ui::views::viewPicture(view, *read.map, &renderer.builder());
-        ASSERT_TRUE(spec.has_value()) << view.name.toStdString();
-        const QSize size = ui::views::pictureSize(spec->region, ui::views::scaleForSide(spec->region, 1280));
-        const QImage img = renderer.render(*spec, size).convertToFormat(QImage::Format_ARGB32);
-        ASSERT_EQ(img.size(), size);
-        if (!out.isEmpty()) img.save(QDir(out).filePath(view.name + QStringLiteral(".png")));
-        if (!compare) continue;
-        const QImage golden(kDir + QStringLiteral("/desktop/") + view.name + QStringLiteral(".png"));
-        ASSERT_FALSE(golden.isNull()) << view.name.toStdString();
-        const QImage want = golden.convertToFormat(QImage::Format_ARGB32);
-        ASSERT_EQ(want.size(), img.size());
-        long long off = 0;
-        for (int y = 0; y < img.height(); ++y)
-            for (int x = 0; x < img.width(); ++x) {
-                const QRgb a = img.pixel(x, y), b = want.pixel(x, y);
-                if (std::abs(qRed(a) - qRed(b)) > 8 || std::abs(qGreen(a) - qGreen(b)) > 8 ||
-                    std::abs(qBlue(a) - qBlue(b)) > 8)
-                    ++off;
-            }
-        EXPECT_LE(static_cast<double>(off) / (img.width() * img.height()), 0.002) << view.name.toStdString();
+    for (const QString& stem : { QStringLiteral("parity"), QStringLiteral("rulers-areas") }) {
+        QTemporaryDir dir;
+        auto read = import::readLayoutFile(kDir + QLatin1Char('/') + stem + QStringLiteral(".bld-layout"), dir.path());
+        ASSERT_TRUE(read.ok()) << read.error.toStdString();
+        ui::views::PictureRenderer renderer(*read.map, parts);
+        ASSERT_FALSE(read.map->sidecar.views.empty());
+        for (const auto& view : read.map->sidecar.views) {
+            const auto spec = ui::views::viewPicture(view, *read.map, &renderer.builder());
+            ASSERT_TRUE(spec.has_value()) << view.name.toStdString();
+            const QSize size = ui::views::pictureSize(spec->region, ui::views::scaleForSide(spec->region, 1280));
+            const QImage img = renderer.render(*spec, size).convertToFormat(QImage::Format_ARGB32);
+            ASSERT_EQ(img.size(), size);
+            if (!out.isEmpty()) img.save(QDir(out).filePath(view.name + QStringLiteral(".png")));
+            if (!compare) continue;
+            const QImage golden(kDir + QStringLiteral("/desktop/") + view.name + QStringLiteral(".png"));
+            ASSERT_FALSE(golden.isNull()) << view.name.toStdString();
+            const QImage want = golden.convertToFormat(QImage::Format_ARGB32);
+            ASSERT_EQ(want.size(), img.size());
+            long long off = 0;
+            for (int y = 0; y < img.height(); ++y)
+                for (int x = 0; x < img.width(); ++x) {
+                    const QRgb a = img.pixel(x, y), b = want.pixel(x, y);
+                    if (std::abs(qRed(a) - qRed(b)) > 8 || std::abs(qGreen(a) - qGreen(b)) > 8 ||
+                        std::abs(qBlue(a) - qBlue(b)) > 8)
+                        ++off;
+                }
+            EXPECT_LE(static_cast<double>(off) / (img.width() * img.height()), 0.002) << view.name.toStdString();
+        }
     }
 }

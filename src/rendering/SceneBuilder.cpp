@@ -420,23 +420,25 @@ void addTextLayer(const core::LayerText& L, LayerSink& sink, int layerIndex) {
     }
 }
 
+}  // namespace
+
+QColor areaCellColor(const QColor& cell, int transparency) {
+    QColor c = cell;
+    c.setAlpha((255 * std::clamp(transparency, 0, 100)) / 100);
+    return c;
+}
+
+namespace {
+
 void addAreaLayer(const core::LayerArea& L, LayerSink& sink) {
     const double sizePx = studToPx(L.areaCellSizeInStud);
-    // Vanilla BlueBrick applies the area layer's transparency on top of
-    // each cell's own colour. The layer-level transparency multiplies
-    // every cell's own alpha; we mirror that. When the layer's
-    // transparency is the file-format default of 100 ("fully opaque")
-    // we use 1.0 — letting the cell's own alpha control opacity. The
-    // earlier 0.5-when-100 hack was load-bearing only for legacy .bbm
-    // files where the cell colour was QColor(rgb) (alpha 255) and the
-    // user expected ~50% blend — but that broke fresh paint where
-    // cells are also alpha-255 and need to actually be visible.
-    const double alpha = std::clamp(L.transparency, 0, 100) / 100.0;
+    // Vanilla BlueBrick draws a cell in its RGB at the sheet's alpha,
+    // (255 * transparency) / 100 in whole numbers, replacing the cell's own
+    // alpha (LayerArea.cs paintCell / AlphaValue); the web does the same.
     for (const auto& cell : L.cells) {
         auto* r = new QGraphicsRectItem(cell.x * sizePx, cell.y * sizePx, sizePx, sizePx);
         r->setPen(Qt::NoPen);
-        QColor c = cell.color;
-        c.setAlpha(static_cast<int>(c.alpha() * alpha));
+        const QColor c = areaCellColor(cell.color, L.transparency);
         r->setBrush(QBrush(c));
         sink.add(r);
     }
@@ -822,8 +824,9 @@ void SceneBuilder::addLayer(const core::Layer& L, int layerIndex) {
             break;
     }
 
-    // Apply per-layer transparency by scaling each item's opacity.
-    if (opacity < 1.0) {
+    // Apply per-layer transparency by scaling each item's opacity (a
+    // painted area already has it in its colours).
+    if (opacity < 1.0 && L.kind() != core::LayerKind::Area) {
         for (auto* it : list) it->setOpacity(opacity);
     }
 }
