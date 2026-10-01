@@ -15,6 +15,8 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFont>
+#include <QGraphicsItem>
+#include <QGraphicsLineItem>
 #include <QGraphicsScene>
 #include <QPainter>
 #include <QPen>
@@ -25,6 +27,8 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <utility>
+#include <vector>
 
 namespace bld::ui::views {
 
@@ -235,7 +239,28 @@ QImage renderSceneImage(QGraphicsScene& scene, const QRectF& source, QSize size,
         o.underlay(p);
         p.restore();
     }
+    // A picture is the map at zoom 1, scaled (the web's pictures render the
+    // stage at scale 1 with a pixel ratio): lines that keep their width on
+    // screen (module frames, hulls, the room) are as wide as at zoom 1, so
+    // they grow and shrink with the picture instead of staying N pixels.
+    std::vector<std::pair<QAbstractGraphicsShapeItem*, QPen>> shapes;
+    std::vector<std::pair<QGraphicsLineItem*, QPen>> lines;
+    const auto zoomOne = [](QPen pen) {
+        pen.setCosmetic(false);
+        return pen;
+    };
+    for (QGraphicsItem* it : scene.items()) {
+        if (auto* shape = dynamic_cast<QAbstractGraphicsShapeItem*>(it); shape && shape->pen().isCosmetic()) {
+            shapes.emplace_back(shape, shape->pen());
+            shape->setPen(zoomOne(shape->pen()));
+        } else if (auto* line = dynamic_cast<QGraphicsLineItem*>(it); line && line->pen().isCosmetic()) {
+            lines.emplace_back(line, line->pen());
+            line->setPen(zoomOne(line->pen()));
+        }
+    }
     scene.render(&p, QRectF(0, 0, size.width(), size.height()), source, o.aspect);
+    for (auto& [shape, pen] : shapes) shape->setPen(pen);
+    for (auto& [line, pen] : lines) line->setPen(pen);
     if (!o.watermark.isEmpty()) {
         QFont f;
         f.setPointSize(std::max(8, size.height() / 60));
