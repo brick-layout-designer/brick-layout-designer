@@ -10,6 +10,7 @@
 #include "../core/Map.h"
 #include "../core/Module.h"
 #include "../core/Sidecar.h"
+#include "../rendering/MapText.h"
 #include "../rendering/SceneBuilder.h"
 
 #include <QCoreApplication>
@@ -87,6 +88,36 @@ void paintGrid(QPainter& p, const core::LayerGrid& g, const QRectF& region, doub
         pass(static_cast<double>(g.gridSizeInStud) / std::max(2, g.subDivisionNumber), g.subGridColor.color,
              g.subGridThickness);
     if (g.displayGrid) pass(g.gridSizeInStud, g.gridColor.color, g.gridThickness);
+    if (!g.displayCellIndex || g.gridSizeInStud <= 0) return;
+    // The cell indices, as BlueBrick's exported pictures and the web's show
+    // them: the origin row's and column's labels centred in their cells,
+    // in the map font at pt x 4/3 scene px per stud, scaled with the picture.
+    const double cell = g.gridSizeInStud;
+    const double scale = std::min(pxPerStudX, pxPerStudY) / kPxPerStud;
+    const QFont f = rendering::mapFont(g.cellIndexFont.styleString, std::lround(g.cellIndexFont.sizePt * 4.0 / 3.0 * kPxPerStud));
+    p.save();
+    p.setFont(f);
+    p.setPen(g.cellIndexColor.color);
+    const QPoint c = g.cellIndexCorner;
+    const auto label = [&](int cx, int cy, const QString& text) {
+        if (text.isEmpty()) return;
+        const QPointF centre(((cx + 0.5) * cell - region.x()) * pxPerStudX, ((cy + 0.5) * cell - region.y()) * pxPerStudY);
+        p.save();
+        p.translate(centre);
+        p.scale(scale, scale);
+        p.drawText(QRectF(-cell * kPxPerStud, -cell * kPxPerStud, 2 * cell * kPxPerStud, 2 * cell * kPxPerStud),
+                   Qt::AlignCenter, text);
+        p.restore();
+    };
+    if ((c.y() + 1) * cell > region.top() && c.y() * cell < region.bottom())
+        for (int x = std::max(c.x(), static_cast<int>(std::floor(region.left() / cell)));
+             x <= static_cast<int>(std::ceil(region.right() / cell)); ++x)
+            label(x, c.y(), core::LayerGrid::cellIndexLabel(x - c.x(), g.cellIndexColumnType == core::CellIndexType::Letters));
+    if ((c.x() + 1) * cell > region.left() && c.x() * cell < region.right())
+        for (int y = std::max(c.y(), static_cast<int>(std::floor(region.top() / cell)));
+             y <= static_cast<int>(std::ceil(region.bottom() / cell)); ++y)
+            label(c.x(), y, core::LayerGrid::cellIndexLabel(y - c.y(), g.cellIndexRowType == core::CellIndexType::Letters));
+    p.restore();
 }
 
 }  // namespace
