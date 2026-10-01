@@ -27,6 +27,8 @@
 #include "ConnectionSnap.h"
 #include "MapViewInternal.h"
 #include "SelectionOverlay.h"
+#include "SelectionStyle.h"
+#include "TouchMode.h"
 #include "EditDialogs.h"
 #include "ModuleLibraryPanel.h"   // kModuleDragMimeType
 #include "PartsBrowser.h"         // kPartMimeType
@@ -81,10 +83,8 @@ using detail::isLabelItem;
 using detail::isVenueItem;
 using detail::studToPx;
 
-namespace {
-constexpr double kMinZoom = 0.02;
-constexpr double kMaxZoom = 40.0;
-}  // namespace
+using detail::kMinZoom;
+using detail::kMaxZoom;
 
 MapView::MapView(parts::PartsLibrary& parts, QWidget* parent)
     : QGraphicsView(parent), parts_(parts) {
@@ -227,6 +227,13 @@ MapView::MapView(parts::PartsLibrary& parts, QWidget* parent)
         // point at the items the rebuild is about to delete.
         rebuildScene();
     });
+
+    // Touch: fingers reach the viewport as touches (pinch, pan, long
+    // press); the touch action bar follows touch mode and the selection.
+    viewport()->setAttribute(Qt::WA_AcceptTouchEvents);
+    setProperty("bldNoTouchScroll", true);
+    connect(this, &MapView::selectionChanged, this, &MapView::refreshTouchBar);
+    connect(&TouchMode::instance(), &TouchMode::changed, this, &MapView::refreshTouchBar);
 
     loadingCard_ = new LoadingCard(this, LoadingCard::Place::Centre);
     // Deferred: Retry rebuilds the scene, and never from inside the click.
@@ -472,6 +479,69 @@ void MapView::wheelEvent(QWheelEvent* e) {
 // computations, commitDragIfMoved) live in MapViewDrag.cpp. Clipboard
 // ops live in MapViewClipboard.cpp.
 
+bool MapView::wouldDragGridOrigin(QPoint viewPos) const {
+    if (!map_ || tool_ != Tool::Select || map_->selectedLayerIndex < 0
+        || map_->selectedLayerIndex >= static_cast<int>(map_->layers().size()))
+        return false;
+    auto* L = map_->layers()[map_->selectedLayerIndex].get();
+    QGraphicsItem* under = itemAt(viewPos);
+    while (under && under->parentItem()) under = under->parentItem();
+    const bool onItem = under && (isBrickItem(under) || isTextItem(under) || isRulerItem(under)
+                                  || isLabelItem(under) || isVenueItem(under));
+    return L && L->kind() == core::LayerKind::Grid && L->visible && !onItem
+        && static_cast<core::LayerGrid&>(*L).displayCellIndex;
+}
+
+double MapView::handleRadiusScenePx(double screenPx) const {
+    const double scale = std::max(1e-6, transform().m11());
+    return std::max(selection::kHandleRadius, screenPx / scale);
+}
+
+bool MapView::rulerEndpointAt(QPointF clickScene, bool startDrag) {
+    if (!map_ || tool_ != Tool::Select) return false;
+    QSet<QString> selRulerGuids;
+    for (QGraphicsItem* it : scene()->selectedItems()) {
+        if (!it) continue;
+        if (it->data(2).toString() == QStringLiteral("ruler"))
+            selRulerGuids.insert(it->data(1).toString());
+    }
+    if (selRulerGuids.size() != 1) return false;
+    const QString g = *selRulerGuids.constBegin();
+    const double pxPerStud = rendering::SceneBuilder::kPixelsPerStud;
+    // A generous radius; in touch mode at least a fingertip on screen.
+    double hitR = 0.8 * pxPerStud * 1.5;
+    if (TouchMode::instance().active()) hitR = std::max(hitR, handleRadiusScenePx(TouchMode::kMinTarget));
+    for (int li = 0; li < static_cast<int>(map_->layers().size()); ++li) {
+        auto* L = map_->layers()[li].get();
+        if (!L || L->kind() != core::LayerKind::Ruler) continue;
+        const auto& RL = static_cast<const core::LayerRuler&>(*L);
+        for (const auto& any : RL.rulers) {
+            if (any.kind != core::RulerKind::Linear) continue;
+            if (any.linear.guid != g) continue;
+            const QPointF p1(any.linear.point1.x() * pxPerStud, any.linear.point1.y() * pxPerStud);
+            const QPointF p2(any.linear.point2.x() * pxPerStud, any.linear.point2.y() * pxPerStud);
+            auto near = [&](QPointF h) {
+                const QPointF d = h - clickScene;
+                return std::hypot(d.x(), d.y()) <= hitR;
+            };
+            int idx = -1;
+            if (near(p1)) idx = 0;
+            else if (near(p2)) idx = 1;
+            if (idx < 0) continue;
+            if (startDrag) {
+                draggingRulerEndpoint_ = true;
+                rulerEndpointIndex_ = idx;
+                rulerEndpointLayer_ = li;
+                rulerEndpointGuid_ = g;
+                rulerEndpointDragLast_ = clickScene;
+                rulerEndpointOriginalStuds_ = (idx == 0) ? any.linear.point1 : any.linear.point2;
+            }
+            return true;
+        }
+    }
+    return false;
+}
+
 void MapView::mousePressEvent(QMouseEvent* e) {
     if (e->button() == Qt::LeftButton && scene()) {
         pressSelection_.clear();
@@ -488,74 +558,24 @@ void MapView::mousePressEvent(QMouseEvent* e) {
         e->accept();
         return;
     }
-    if (e->button() == Qt::LeftButton && map_ && tool_ == Tool::Select
-        && map_->selectedLayerIndex >= 0 && map_->selectedLayerIndex < static_cast<int>(map_->layers().size())) {
+    if (e->button() == Qt::LeftButton && wouldDragGridOrigin(e->pos())) {
         auto* L = map_->layers()[map_->selectedLayerIndex].get();
-        QGraphicsItem* under = itemAt(e->pos());
-        while (under && under->parentItem()) under = under->parentItem();
-        const bool onItem = under && (isBrickItem(under) || isTextItem(under) || isRulerItem(under)
-                                      || isLabelItem(under) || isVenueItem(under));
-        if (L && L->kind() == core::LayerKind::Grid && L->visible && !onItem
-            && static_cast<core::LayerGrid&>(*L).displayCellIndex) {
-            gridOriginDragging_ = true;
-            gridLayer_ = map_->selectedLayerIndex;
-            gridOriginBefore_ = static_cast<core::LayerGrid&>(*L).cellIndexCorner;
-            gridDragStartCell_ = gridDragLastCell_ = gridCellAt(lastMouseScenePos_);
-            setCursor(Qt::SizeAllCursor);
-            e->accept();
-            return;
-        }
+        gridOriginDragging_ = true;
+        gridLayer_ = map_->selectedLayerIndex;
+        gridOriginBefore_ = static_cast<core::LayerGrid&>(*L).cellIndexCorner;
+        gridDragStartCell_ = gridDragLastCell_ = gridCellAt(lastMouseScenePos_);
+        setCursor(Qt::SizeAllCursor);
+        e->accept();
+        return;
     }
 
     // Endpoint-handle hit-test: if exactly one linear ruler is selected
-    // and the click lands on one of its 0.8-stud handles, capture the
-    // drag and skip Qt's default selection / rubber-band path. Mirrors
-    // BlueBrick's "drag the handle to reshape the ruler" behaviour.
-    if (e->button() == Qt::LeftButton && map_ && tool_ == Tool::Select) {
-        const auto sel = scene()->selectedItems();
-        QSet<QString> selRulerGuids;
-        for (QGraphicsItem* it : sel) {
-            if (!it) continue;
-            if (it->data(2).toString() == QStringLiteral("ruler"))
-                selRulerGuids.insert(it->data(1).toString());
-        }
-        if (selRulerGuids.size() == 1) {
-            const QString g = *selRulerGuids.constBegin();
-            const double pxPerStud = rendering::SceneBuilder::kPixelsPerStud;
-            const double hitR = 0.8 * pxPerStud * 1.5;  // generous radius
-            const QPointF clickScene = mapToScene(e->pos());
-            for (int li = 0; li < static_cast<int>(map_->layers().size()); ++li) {
-                auto* L = map_->layers()[li].get();
-                if (!L || L->kind() != core::LayerKind::Ruler) continue;
-                const auto& RL = static_cast<const core::LayerRuler&>(*L);
-                for (const auto& any : RL.rulers) {
-                    if (any.kind != core::RulerKind::Linear) continue;
-                    if (any.linear.guid != g) continue;
-                    const QPointF p1(any.linear.point1.x() * pxPerStud,
-                                      any.linear.point1.y() * pxPerStud);
-                    const QPointF p2(any.linear.point2.x() * pxPerStud,
-                                      any.linear.point2.y() * pxPerStud);
-                    auto near = [&](QPointF h){
-                        const QPointF d = h - clickScene;
-                        return std::hypot(d.x(), d.y()) <= hitR;
-                    };
-                    int idx = -1;
-                    if (near(p1)) idx = 0;
-                    else if (near(p2)) idx = 1;
-                    if (idx >= 0) {
-                        draggingRulerEndpoint_ = true;
-                        rulerEndpointIndex_ = idx;
-                        rulerEndpointLayer_ = li;
-                        rulerEndpointGuid_ = g;
-                        rulerEndpointDragLast_ = clickScene;
-                        rulerEndpointOriginalStuds_ = (idx == 0)
-                            ? any.linear.point1 : any.linear.point2;
-                        e->accept();
-                        return;
-                    }
-                }
-            }
-        }
+    // and the click lands on one of its handles, capture the drag and skip
+    // Qt's default selection / rubber-band path. Mirrors BlueBrick's "drag
+    // the handle to reshape the ruler" behaviour.
+    if (e->button() == Qt::LeftButton && rulerEndpointAt(mapToScene(e->pos()), true)) {
+        e->accept();
+        return;
     }
 
     if (e->button() == Qt::MiddleButton) {

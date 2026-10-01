@@ -1,5 +1,7 @@
 #include "ThemeManager.h"
 
+#include "../TouchMode.h"
+
 #include <QApplication>
 #include <QFontDatabase>
 #include <QStyle>
@@ -64,7 +66,7 @@ QPalette buildPalette(Mode mode, const Accent& accent) {
     return p;
 }
 
-QString buildStyleSheet(Mode mode, const Accent& a) {
+QString buildStyleSheet(Mode mode, const Accent& a, bool touch) {
     const Neutrals& n = neutrals(mode);
     QString css = QStringLiteral(R"(
 QMainWindow::separator { background: @line; width: 1px; height: 1px; }
@@ -142,6 +144,16 @@ QMenuBar { background: @panel; color: @ink; border-bottom: 1px solid @line; }
 QMenuBar::item { padding: 6px 10px; background: transparent; border-radius: 6px; }
 QMenuBar::item:selected { background: @soft; }
 )");
+    // Touch mode: dividers a finger can grab (at least 24 px), taller
+    // buttons and fields.
+    if (touch)
+        css += QStringLiteral(R"(
+QMainWindow::separator { background: @panel; width: 24px; height: 24px; }
+QSplitter::handle:horizontal { width: 24px; }
+QSplitter::handle:vertical { height: 24px; }
+QPushButton { min-height: 36px; }
+QComboBox, QLineEdit, QSpinBox, QDoubleSpinBox { min-height: 32px; }
+)");
     const QList<std::pair<const char*, QColor>> vars{
         { "@panel", n.panel }, { "@line", n.line }, { "@border", n.border }, { "@ink", n.ink },
         { "@muted", n.muted }, { "@soft", n.soft }, { "@tourBg", n.tourBg }, { "@tourInk", n.tourInk },
@@ -158,6 +170,7 @@ ThemeManager::ThemeManager(PrefsStore& store, QObject* parent) : QObject(parent)
     connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged, this,
             &ThemeManager::onColorSchemeChanged);
     connect(&store_, &PrefsStore::changed, this, [this] { apply(); });
+    connect(&TouchMode::instance(), &TouchMode::changed, this, [this] { apply(); });
     loadFonts();
     baseFont_ = QApplication::font();
     if (QFontDatabase::hasFamily(QLatin1String(kBodyFamily))) baseFont_.setFamily(QLatin1String(kBodyFamily));
@@ -185,7 +198,7 @@ void ThemeManager::apply() {
     }
     QApplication::setFont(f);
     QApplication::setPalette(buildPalette(mode_, a));
-    qApp->setStyleSheet(buildStyleSheet(mode_, a));
+    qApp->setStyleSheet(buildStyleSheet(mode_, a, TouchMode::instance().active()));
     emit applied();
 }
 

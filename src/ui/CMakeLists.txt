@@ -34,6 +34,11 @@ add_library(bld_ui STATIC
     MapViewClipboard.cpp
     MapViewContextMenu.cpp
     MapViewPaint.cpp
+    MapViewTouch.cpp
+    TouchActionBar.cpp
+    TouchActionBar.h
+    TouchMode.cpp
+    TouchMode.h
     MapViewLoading.cpp
     MapViewInternal.h
     ConnectionSnap.cpp

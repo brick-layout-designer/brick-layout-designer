@@ -1,5 +1,7 @@
 #include "PanelHeader.h"
 
+#include "../TouchMode.h"
+
 #include "AppPrefs.h"
 #include "Tokens.h"
 #include "ui/help/HelpButton.h"
@@ -136,6 +138,14 @@ PanelHeader::PanelHeader(QDockWidget* dock, const QString& helpKey, PrefsStore& 
     close->setAccessibleName(tr("Hide %1").arg(dock->windowTitle()));
     row->addWidget(close);
     connect(close, &QToolButton::clicked, dock, &QDockWidget::close);
+    // Touch mode: header buttons a finger can hit.
+    auto touch = [this](bool on) {
+        const QSize min = on ? QSize(kTouchButton, kTouchButton) : QSize(0, 0);
+        for (auto* b : findChildren<QToolButton*>()) b->setMinimumSize(min);
+        updateGeometry();
+    };
+    connect(&TouchMode::instance(), &TouchMode::changed, this, touch);
+    touch(TouchMode::instance().active());
     connect(dock, &QDockWidget::windowTitleChanged, title_, &QLabel::setText);
     connect(dock, &QDockWidget::windowTitleChanged, menuButton_, [this](const QString& t) {
         menuButton_->setAccessibleName(tr("Move or hide %1").arg(t));

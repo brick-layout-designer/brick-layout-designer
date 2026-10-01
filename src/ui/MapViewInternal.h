@@ -11,6 +11,10 @@
 
 namespace bld::ui::detail {
 
+// The zoom range (view scale) for the wheel, pinch and trackpad.
+constexpr double kMinZoom = 0.02;
+constexpr double kMaxZoom = 40.0;
+
 // Keep these in sync with SceneBuilder.cpp (anonymous namespace).
 constexpr int kBrickDataLayerIndex = 0;
 constexpr int kBrickDataGuid       = 1;

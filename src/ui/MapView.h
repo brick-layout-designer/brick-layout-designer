@@ -3,6 +3,7 @@
 #include "../core/Brick.h"
 
 #include <QColor>
+#include <QEvent>
 #include <QGraphicsView>
 #include <QHash>
 #include <QPoint>
@@ -18,6 +19,11 @@
 #include <vector>
 
 class QDragLeaveEvent;
+class QNativeGestureEvent;
+class QPointingDevice;
+class QTimer;
+class QTouchEvent;
+class QVariantAnimation;
 class QGraphicsItem;
 class QGraphicsPixmapItem;
 class QUndoStack;
@@ -143,6 +149,24 @@ public:
     void setTool(Tool t) { tool_ = t; }
     Tool tool() const { return tool_; }
 
+    // Touch: a part picked by a tap in the parts panel waits for a tap on
+    // the map (the action bar says so, with Cancel).
+    void armPartPlacement(const QString& partKey);
+    void cancelPartPlacement();
+    const QString& armedPart() const { return armedPart_; }
+    // Touch: a part dragged out of the parts panel by a finger (the parts
+    // panel keeps the touch, so it reports where it is, in global coords).
+    // The ghost follows while over the map; a drop there places it exactly
+    // as a mouse drop does. False when the finger ended off the map.
+    void touchPartDragTo(const QString& partKey, QPoint globalPos);
+    bool touchPartDropAt(const QString& partKey, QPoint globalPos);
+    void touchPartDragCancel();
+    class TouchActionBar* touchActionBar() const { return touchBar_; }
+    // The ring filling under a resting finger, until the menu opens.
+    bool longPressRingShown() const;
+    // How long a finger rests for the context menu.
+    static constexpr int kLongPressMs = 500;
+
     // Area paint state (read by the paint handler).
     void setPaintColor(QColor c) { paintColor_ = c; }
     QColor paintColor() const { return paintColor_; }
@@ -155,8 +179,14 @@ signals:
     void layersChanged();
     // A map was put in the view (opened, new, or a live layout reloaded).
     void mapLoaded();
+    // The touch bar's Add part: show the parts panel.
+    void addPartRequested();
 
 protected:
+    // Touch (pinch, two-finger pan, tap, drag, long press) and trackpad
+    // gestures, before QGraphicsView sees them.
+    bool viewportEvent(QEvent* e) override;
+    void resizeEvent(QResizeEvent* e) override;
     void wheelEvent(QWheelEvent* e) override;
     // Viewport event filter — installed on viewport() so wheel events
     // funnel through our wheelEvent() only and never reach the
@@ -202,6 +232,42 @@ private:
         QString labelId;
         QPointF scenePosAtPress;
     };
+
+    // True when a left press at `viewPos` would start moving the grid's
+    // cell-index origin.
+    bool wouldDragGridOrigin(QPoint viewPos) const;
+    // A selected linear ruler's endpoint handle under `clickScene`; with
+    // `startDrag`, the endpoint drag begins.
+    bool rulerEndpointAt(QPointF clickScene, bool startDrag);
+    // `screenPx` in scene px at the current zoom, never under the handle size.
+    double handleRadiusScenePx(double screenPx) const;
+
+    // Touch. One finger on a part (or with a drawing tool) is the mouse's
+    // left button, through the same press / move / release code, so
+    // selecting, moving, grid and connection snapping are the mouse's. One
+    // finger on empty map pans; two pinch and pan.
+    enum class TouchState { None, Press, PanOrTap, Pan, Pinch, LongPressed };
+    bool handleTouch(QTouchEvent* e);
+    bool handleNativeGesture(QNativeGestureEvent* e);
+    void sendTouchMouse(QEvent::Type type, QPointF viewPos);
+    // Lets go of a one-finger press without a click: a moved part goes back.
+    void cancelTouchPress();
+    void longPressFired();
+    void panBy(QPointF delta);
+    // Scale by `factor`, keeping the scene point under `from` (viewport
+    // coords) under `to`.
+    void zoomAt(QPointF from, QPointF to, double factor);
+    void refreshTouchBar();
+    TouchState touchState_ = TouchState::None;
+    QPointF touchStart_, touchLast_, pinchCentre_;
+    double  pinchDist_ = 0.0;
+    bool    touchMoved_ = false;
+    QTimer* longPressTimer_ = nullptr;
+    QVariantAnimation* longPressAnim_ = nullptr;  // the filling ring
+    void stopLongPressRing();
+    void paintLongPressRing(QPainter* painter);
+    class TouchActionBar* touchBar_ = nullptr;
+    QString armedPart_;
 
     void captureDragStart();
     void commitDragIfMoved();

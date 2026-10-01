@@ -18,6 +18,7 @@
 #include "MapViewInternal.h"
 #include "SelectionOverlay.h"
 #include "SelectionStyle.h"
+#include "TouchMode.h"
 
 #include <QGraphicsDropShadowEffect>
 
@@ -149,6 +150,7 @@ void MapView::drawCellIndices(QPainter* painter, const QRectF& rect, const core:
 
 void MapView::drawForeground(QPainter* painter, const QRectF& rect) {
     QGraphicsView::drawForeground(painter, rect);
+    paintLongPressRing(painter);
 
     // Endpoint handles for any selected single linear ruler. drawn in
     // scene coords so they pin to the actual endpoints regardless of
@@ -182,9 +184,10 @@ void MapView::drawForeground(QPainter* painter, const QRectF& rect) {
                     painter->setPen(pen);
                     painter->setBrush(selection::kHandleFill);
                     painter->setRenderHint(QPainter::Antialiasing, true);
-                    auto drawHandle = [painter](QPointF c) {
-                        painter->drawEllipse(c, selection::kHandleRadius, selection::kHandleRadius);
-                    };
+                    // Bigger under a finger: at least half a touch target across.
+                    const double r = TouchMode::instance().active()
+                        ? handleRadiusScenePx(TouchMode::kMinTarget / 2.0) : selection::kHandleRadius;
+                    auto drawHandle = [painter, r](QPointF c) { painter->drawEllipse(c, r, r); };
                     drawHandle(p1Scene);
                     drawHandle(p2Scene);
                     painter->restore();

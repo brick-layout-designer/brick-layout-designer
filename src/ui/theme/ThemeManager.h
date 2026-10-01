@@ -22,7 +22,8 @@ bool loadFonts();
 Mode resolveMode(ThemeChoice choice, Qt::ColorScheme system);
 
 QPalette buildPalette(Mode mode, const Accent& accent);
-QString buildStyleSheet(Mode mode, const Accent& accent);
+// `touch`: touch mode's bigger dividers (TouchMode.h).
+QString buildStyleSheet(Mode mode, const Accent& accent, bool touch = false);
 
 class ThemeManager : public QObject {
     Q_OBJECT

@@ -25,6 +25,7 @@ add_executable(bld_ui_tests
     LoadingCardTest.cpp
     LayerPanelTest.cpp
     ToursTest.cpp
+    TouchTest.cpp
 )
 
 target_compile_definitions(bld_ui_tests PRIVATE
