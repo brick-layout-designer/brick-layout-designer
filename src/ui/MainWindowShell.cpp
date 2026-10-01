@@ -42,6 +42,7 @@
 #include <QPainter>
 #include <QSettings>
 #include <QStatusBar>
+#include <QMenuBar>
 #include <QTimer>
 #include <QToolBar>
 #include <QToolButton>
@@ -218,6 +219,8 @@ void MainWindow::setupShell() {
     // Share picture: File > Share Picture…, one click away.
     auto* picture = addTool(QStringLiteral("picture"), tr("Picture"), tr("Share a picture of the layout"), [this] { openSharePicture(); });
     tours::tag(toolbar->widgetForAction(picture), QStringLiteral("share.picture"));
+    // Folded away in a narrow window: the toolbar, where its » button finds it.
+    tours::tag(toolbar, QStringLiteral("share.picture"), true);
     // What the editor tour points at for the map and for saving.
     tours::tag(mapView_, QStringLiteral("map"));
     tours::tag(statusBar(), QStringLiteral("topbar.saveStatus"));
@@ -370,6 +373,8 @@ void MainWindow::setupShell() {
     help->setMenu(helpMenu_);
     toolbar->addWidget(help);
     tours::tag(help, QStringLiteral("help.menu"));
+    // When a narrow window folds the toolbar's "?" away, the menu bar's Help is still there.
+    tours::tag(menuBar(), QStringLiteral("help.menu"), true);
 
     // ----- Status bar: pieces and the current sheet on the left of the
     // permanent readouts (size, selection, room, budget, autosave and the

@@ -70,8 +70,10 @@ QString stepCount(int n, int total);
 
 // The widget a step points at inside `host`, or null when it isn't showing.
 QWidget* findTarget(QWidget* host, const QString& id);
-// Tag `w` as the control a tour step called `id` points at.
-void tag(QWidget* w, const QString& id);
+// Tag `w` as the control a tour step called `id` points at. A fallback
+// is used only while nothing else for `id` is showing (a narrow window
+// folds toolbar buttons away).
+void tag(QWidget* w, const QString& id, bool fallback = false);
 
 bool seen(const theme::PrefsStore& store, const QString& id);
 void markSeen(theme::PrefsStore& store, const QString& id);

@@ -125,6 +125,11 @@ TEST_F(Tours, EveryEditorStepFindsItsControl) {
         QApplication::processEvents();
         for (const auto& s : tours::findTour(QStringLiteral("editor"))->steps)
             EXPECT_NE(tours::findTarget(&w, s.target), nullptr) << s.target.toStdString();
+        // A narrow window folds the toolbar's "?" away: the menu bar's Help stands in.
+        w.resize(640, 700);
+        QApplication::processEvents();
+        EXPECT_NE(tours::findTarget(&w, QStringLiteral("help.menu")), nullptr);
+        EXPECT_NE(tours::findTarget(&w, QStringLiteral("share.picture")), nullptr);
         // Help › Tour: … for each desktop tour.
         for (const auto* t : tours::desktopTours())
             EXPECT_NE(w.findChild<QAction*>(QStringLiteral("help.tour.") + t->id), nullptr) << t->id.toStdString();
@@ -140,6 +145,23 @@ TEST_F(Tours, EveryRoomStepFindsItsControl) {
     QApplication::processEvents();
     for (const auto& s : tours::findTour(QStringLiteral("rooms"))->steps)
         EXPECT_NE(tours::findTarget(&dlg, s.target), nullptr) << s.target.toStdString();
+}
+
+TEST_F(Tours, AFallbackStandsInOnlyWhileTheControlIsHidden) {
+    QWidget window;
+    window.resize(900, 600);
+    // The fallback comes first, as the toolbar comes before its buttons.
+    auto* bar = new QWidget(&window);
+    bar->setGeometry(0, 500, 900, 40);
+    tours::tag(bar, QStringLiteral("share.picture"), true);
+    auto* button = new QPushButton(QStringLiteral("Picture"), &window);
+    button->setGeometry(20, 20, 100, 40);
+    tours::tag(button, QStringLiteral("share.picture"));
+    window.show();
+    QApplication::processEvents();
+    EXPECT_EQ(tours::findTarget(&window, QStringLiteral("share.picture")), button);
+    button->hide();
+    EXPECT_EQ(tours::findTarget(&window, QStringLiteral("share.picture")), bar);
 }
 
 TEST_F(Tours, NextBackAndDoneRememberTheTour) {

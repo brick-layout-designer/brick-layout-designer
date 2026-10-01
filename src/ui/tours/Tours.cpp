@@ -36,6 +36,7 @@ constexpr int kFollowMs = 250;
 constexpr int kLookTries = 8;  // two seconds to find a control that is still opening
 
 const char* const kTargetProperty = "tourTarget";
+const char* const kFallbackProperty = "tourTargetFallback";
 
 theme::Mode modeOf(const QWidget* w) {
     return w->palette().color(QPalette::Window).lightness() < 128 ? theme::Mode::Dark : theme::Mode::Light;
@@ -154,8 +155,8 @@ QString stepCount(int n, int total) {
 
 // ---- targets and the seen list ----------------------------------------------
 
-void tag(QWidget* w, const QString& id) {
-    if (w) w->setProperty(kTargetProperty, id);
+void tag(QWidget* w, const QString& id, bool fallback) {
+    if (w) w->setProperty(fallback ? kFallbackProperty : kTargetProperty, id);
 }
 
 QWidget* findTarget(QWidget* host, const QString& id) {
@@ -167,6 +168,8 @@ QWidget* findTarget(QWidget* host, const QString& id) {
         auto* b = qobject_cast<help::HelpButton*>(w);
         if (b && b->key() == id && showing(b->target())) return b->target();
     }
+    for (auto* w : all)
+        if (w->property(kFallbackProperty).toString() == id && showing(w)) return w;
     return nullptr;
 }
 
