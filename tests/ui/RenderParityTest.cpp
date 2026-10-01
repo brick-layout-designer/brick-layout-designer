@@ -19,6 +19,8 @@
 #include "core/Module.h"
 #include "import/LayoutFile.h"
 #include "parts/PartsLibrary.h"
+#include "core/TextCell.h"
+#include "rendering/MapText.h"
 #include "rendering/ModuleLabels.h"
 #include "rendering/SceneBuilder.h"
 
@@ -102,6 +104,46 @@ TEST(RenderParity, ModuleStyleMatchesTheSharedDescription) {
     // The name's outline: fontPx / 12, at least 2 px.
     EXPECT_DOUBLE_EQ(rendering::moduleNameStrokePx(12), 2.0);
     EXPECT_DOUBLE_EQ(rendering::moduleNameStrokePx(120), 10.0);
+}
+
+TEST(RenderParity, TextCellLayoutsMatchTheSharedDescription) {
+    const QJsonObject spec = readJson(kDir + QStringLiteral("/text.json"));
+    const double charWidth = spec[QLatin1String("charWidth")].toDouble();
+    EXPECT_DOUBLE_EQ(rendering::kMapLineHeight, spec[QLatin1String("lineHeight")].toDouble());
+    EXPECT_EQ(rendering::mapFontFamily(), spec[QLatin1String("fontFamily")].toString());
+    const QJsonArray cases = spec[QLatin1String("cases")].toArray();
+    ASSERT_FALSE(cases.isEmpty());
+    for (const QJsonValue& v : cases) {
+        const QJsonObject c = v.toObject();
+        core::TextCell cell;
+        cell.text = c[QLatin1String("text")].toString();
+        cell.displayArea = rectOf(c[QLatin1String("displayArea")].toObject());
+        cell.orientation = static_cast<float>(c[QLatin1String("orientation")].toDouble());
+        const QString align = c[QLatin1String("textAlignment")].toString();
+        cell.alignment = align == QLatin1String("Near")  ? core::TextAlignment::Near
+                         : align == QLatin1String("Far") ? core::TextAlignment::Far
+                                                         : core::TextAlignment::Center;
+        const auto got = rendering::textCellLayout(
+            cell, [charWidth](const QString& line, double px) { return line.size() * charWidth * px; });
+        const QJsonObject want = c[QLatin1String("expect")].toObject();
+        const std::string what = cell.text.toStdString();
+        EXPECT_DOUBLE_EQ(got.fontPx, want[QLatin1String("fontPx")].toDouble()) << what;
+        EXPECT_DOUBLE_EQ(got.width, want[QLatin1String("width")].toDouble()) << what;
+        EXPECT_DOUBLE_EQ(got.height, want[QLatin1String("height")].toDouble()) << what;
+        const QJsonObject centre = want[QLatin1String("centre")].toObject();
+        EXPECT_DOUBLE_EQ(got.centre.x(), centre[QLatin1String("x")].toDouble()) << what;
+        EXPECT_DOUBLE_EQ(got.centre.y(), centre[QLatin1String("y")].toDouble()) << what;
+        EXPECT_DOUBLE_EQ(got.rotation, want[QLatin1String("rotation")].toDouble()) << what;
+        const QJsonArray lines = want[QLatin1String("lines")].toArray();
+        ASSERT_EQ(got.lines.size(), static_cast<size_t>(lines.size())) << what;
+        for (qsizetype i = 0; i < lines.size(); ++i) {
+            const QJsonObject l = lines[i].toObject();
+            const auto& g = got.lines[static_cast<size_t>(i)];
+            EXPECT_EQ(g.text, l[QLatin1String("text")].toString()) << what;
+            EXPECT_DOUBLE_EQ(g.x, l[QLatin1String("x")].toDouble()) << what;
+            EXPECT_DOUBLE_EQ(g.y, l[QLatin1String("y")].toDouble()) << what;
+        }
+    }
 }
 
 // The drawn scene: one dashed frame and one outlined name per module, no

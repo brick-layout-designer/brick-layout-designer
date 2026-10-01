@@ -13,6 +13,7 @@
 #include "../core/LayerGrid.h"
 #include "../core/LayerRuler.h"
 #include "../core/Map.h"
+#include "../rendering/MapText.h"
 #include "../rendering/SceneBuilder.h"
 #include "MapViewInternal.h"
 #include "SelectionOverlay.h"
@@ -118,7 +119,7 @@ void MapView::drawBackground(QPainter* painter, const QRectF& rect) {
 void MapView::drawCellIndices(QPainter* painter, const QRectF& rect, const core::LayerGrid& g) {
     const double px = rendering::SceneBuilder::kPixelsPerStud;
     const double cellPx = std::max(1, g.gridSizeInStud) * px;
-    QFont f(g.cellIndexFont.familyName);
+    QFont f(rendering::mapFontFamily());
     f.setPixelSize(std::max(1, static_cast<int>(std::lround(g.cellIndexFont.sizePt * 4.0 / 3.0 * px))));
     f.setBold(g.cellIndexFont.styleString.contains(QStringLiteral("Bold")));
     f.setItalic(g.cellIndexFont.styleString.contains(QStringLiteral("Italic")));

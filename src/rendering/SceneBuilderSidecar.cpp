@@ -9,6 +9,7 @@
 
 #include "SceneBuilder.h"
 #include "SceneBuilderInternal.h"
+#include "MapText.h"
 #include "ModuleLabels.h"
 #include "VenueDraw.h"
 
@@ -152,7 +153,7 @@ void SceneBuilder::addVenue(const core::Map& map) {
                                               + normal * kLabelOffsetPx;
 
                 auto* lbl = new QGraphicsSimpleTextItem(txt);
-                QFont f(QStringLiteral("Sans"));
+                QFont f(mapFontFamily());
                 f.setBold(true);
                 // Font size is user-configurable via Preferences
                 // (settings key venue/labelPx). Default 28 px stays
@@ -202,7 +203,7 @@ void SceneBuilder::addVenue(const core::Map& map) {
     const auto text = [&](const QString& s, QPointF studs, double px, const QColor& color, bool italic,
                           double angle, bool centred) {
         auto* t = new QGraphicsSimpleTextItem(s);
-        QFont f(QStringLiteral("Sans"));
+        QFont f(mapFontFamily());
         f.setPixelSize(std::max(8, static_cast<int>(px)));
         f.setItalic(italic);
         t->setFont(f);
@@ -286,7 +287,7 @@ void SceneBuilder::addAnchoredLabels(const core::Map& map) {
 
     for (const auto& lbl : map.sidecar.anchoredLabels) {
         auto* t = new QGraphicsSimpleTextItem(lbl.text);
-        QFont f(lbl.font.familyName, static_cast<int>(lbl.font.sizePt));
+        QFont f(mapFontFamily(), static_cast<int>(lbl.font.sizePt));
         f.setBold(lbl.font.styleString.contains(QStringLiteral("Bold")));
         f.setItalic(lbl.font.styleString.contains(QStringLiteral("Italic")));
         t->setFont(f);
@@ -335,8 +336,6 @@ void SceneBuilder::addModuleLabels(const core::Map& map) {
 
     // The web's look (ModuleOverlay.tsx): one light-blue dashed frame and
     // an outlined light-blue bold name per module.
-    QFont font(QStringLiteral("Arial"));
-    font.setBold(true);
     for (const auto& mod : map.sidecar.modules) {
         QRectF studs;
         // Pieces on hidden sheets don't frame or name their module.
@@ -347,11 +346,8 @@ void SceneBuilder::addModuleLabels(const core::Map& map) {
         }
         if (studs.isEmpty()) continue;
         const QString name = mod.name.isEmpty() ? QStringLiteral("(module)") : mod.name;
-        const auto widthAt = [&font, &name](double fontPx) {
-            QFont f(font);
-            f.setPixelSize(std::max(1, static_cast<int>(std::lround(fontPx))));
-            return QFontMetricsF(f).horizontalAdvance(name);
-        };
+        const LineWidthAt lineWidth = mapLineWidth(QStringLiteral("Bold"));
+        const auto widthAt = [&lineWidth, &name](double fontPx) { return lineWidth(name, fontPx); };
         const ModuleLabelLayout at = moduleLabelLayout(studs, name, labelPercent, widthAt);
 
         auto* frame = new QGraphicsRectItem(at.frame);
@@ -368,12 +364,9 @@ void SceneBuilder::addModuleLabels(const core::Map& map) {
 
         // The name, centred in its box and vertically centred on the line
         // (Konva's "middle" baseline), the outline drawn under the fill.
-        QFont f(font);
-        f.setPixelSize(std::max(1, static_cast<int>(std::lround(at.fontPx))));
-        const QFontMetricsF fm(f);
-        QPainterPath path;
-        path.addText((at.width - fm.horizontalAdvance(name)) / 2.0,
-                     at.fontPx / 2.0 + (fm.ascent() - fm.descent()) / 2.0, f, name);
+        const QFont f = mapFont(QStringLiteral("Bold"), at.fontPx);
+        const QPainterPath path =
+            textPath(f, { { name, (at.width - lineWidth(name, at.fontPx)) / 2.0, 0.0 } }, 1.0);
         QTransform tr;
         tr.translate(at.textPos.x(), at.textPos.y());
         tr.rotate(at.rotation);

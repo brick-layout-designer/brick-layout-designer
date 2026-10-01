@@ -6,6 +6,8 @@ add_library(bld_rendering STATIC
     SceneBuilderSidecar.cpp
     ModuleLabels.cpp
     ModuleLabels.h
+    MapText.cpp
+    MapText.h
     VenueDraw.cpp
     VenueDraw.h
     MapScene.h
@@ -19,4 +21,15 @@ target_link_libraries(bld_rendering
         Qt6::Core
         Qt6::Gui
         Qt6::Widgets
+)
+
+# The one font the map's text is drawn in, on every machine, the same as
+# the web's (Liberation Sans, SIL OFL 1.1, see fonts/LICENSE).
+qt_add_resources(bld_rendering "bld_map_fonts"
+    PREFIX "/bld"
+    FILES
+        fonts/LiberationSans-Regular.ttf
+        fonts/LiberationSans-Bold.ttf
+        fonts/LiberationSans-Italic.ttf
+        fonts/LiberationSans-BoldItalic.ttf
 )

@@ -1,4 +1,5 @@
 #include "SceneBuilder.h"
+#include "MapText.h"
 #include "SceneBuilderInternal.h"
 
 #include "../core/Layer.h"
@@ -354,7 +355,7 @@ void addBrickLayer(const core::LayerBrick& L, LayerSink& sink, parts::PartsLibra
         // DisplayBrickElevation (LayerBrick.cs ~line 806).
         if (displayElev && std::abs(brick.altitude) > 0.001f) {
             auto* alt = new QGraphicsSimpleTextItem(QString::number(brick.altitude, 'f', 1));
-            QFont f(QStringLiteral("Sans"));
+            QFont f(mapFontFamily());
             f.setPixelSize(10);
             alt->setFont(f);
             alt->setBrush(QBrush(QColor(40, 40, 40)));
@@ -397,55 +398,17 @@ void addBrickLayer(const core::LayerBrick& L, LayerSink& sink, parts::PartsLibra
 
 void addTextLayer(const core::LayerText& L, LayerSink& sink, int layerIndex) {
     for (const auto& cell : L.textCells) {
-        auto* t = new QGraphicsSimpleTextItem(cell.text);
-        QFont f(cell.font.familyName);
-        f.setBold(cell.font.styleString.contains(QStringLiteral("Bold")));
-        f.setItalic(cell.font.styleString.contains(QStringLiteral("Italic")));
-
-        // Upstream BlueBrick stores the text's *pixel* bounding box (converted
-        // to studs) in displayArea. The nominal Font.Size field is the
-        // typographic size used to render that pixmap, not the scene-scale
-        // size. We ignore font.sizePt and instead pick a pixel font size so
-        // the rendered text fills the displayArea's short axis. For rotated
-        // text (orientation != 0/180) the short axis is displayArea.width.
-        const float orient = std::fmod(cell.orientation, 360.0f);
-        const bool rot90 = (std::abs(std::abs(orient) - 90.0f)  < 1.0f ||
-                            std::abs(std::abs(orient) - 270.0f) < 1.0f);
-        // Unrotated target box in pixels. For 90° rotations the displayArea
-        // AABB's width is the rendered height and vice versa.
-        const double boxWpx = (rot90 ? cell.displayArea.height()
-                                     : cell.displayArea.width()) * kPx;
-        const double boxHpx = (rot90 ? cell.displayArea.width()
-                                     : cell.displayArea.height()) * kPx;
-
-        // Probe at a reference size, measure, then pick the pixel size that
-        // makes the rendered bounding box fit entirely inside (boxWpx, boxHpx).
-        // This preserves vanilla's per-label aspect without letting text
-        // overflow into neighbours when labels are tightly packed.
-        constexpr int kProbe = 100;
-        f.setPixelSize(kProbe);
-        t->setFont(f);
-        const QRectF probeRect = t->boundingRect();
-        if (probeRect.width() > 0 && probeRect.height() > 0) {
-            const double scaleW = boxWpx / probeRect.width();
-            const double scaleH = boxHpx / probeRect.height();
-            const double scale  = std::min(scaleW, scaleH);
-            const int finalPx = std::max(1, static_cast<int>(kProbe * scale));
-            f.setPixelSize(finalPx);
-            t->setFont(f);
-        }
+        // The web's text (MapText.h): the bundled font, fitted into the
+        // display area BlueBrick measured, lines aligned as the cell says.
+        const TextCellLayout at = textCellLayout(cell, mapLineWidth(cell.font.styleString));
+        const QFont f = mapFont(cell.font.styleString, at.fontPx);
+        auto* t = new QGraphicsPathItem(textPath(f, at.lines, kMapLineHeight));
+        t->setPen(Qt::NoPen);
         t->setBrush(QBrush(cell.fontColor.color));
-
-        // Centre the text on the displayArea centre, rotated in place. We
-        // translate by centre, rotate, then offset by -bbox.center so the
-        // item's local centre lands on the scene centre.
-        const QRectF localBbox = t->boundingRect();
-        const QPointF centerPx(studToPx(cell.displayArea.center().x()),
-                                studToPx(cell.displayArea.center().y()));
         QTransform tr;
-        tr.translate(centerPx.x(), centerPx.y());
-        tr.rotate(cell.orientation);
-        tr.translate(-localBbox.width() / 2.0, -localBbox.height() / 2.0);
+        tr.translate(at.centre.x(), at.centre.y());
+        tr.rotate(at.rotation);
+        tr.translate(-at.width / 2.0, -at.height / 2.0);
         t->setTransform(tr);
         t->setFlag(QGraphicsItem::ItemIsSelectable, true);
         t->setData(kBrickDataLayerIndex, layerIndex);
@@ -499,7 +462,7 @@ void addRulerLabel(LayerSink& sink, const QString& text,
                    const core::FontSpec& fontSpec, const core::ColorSpec& colorSpec) {
     if (text.isEmpty()) return;
     auto* t = new QGraphicsSimpleTextItem(text);
-    QFont f(fontSpec.familyName);
+    QFont f(mapFontFamily());
     f.setBold(fontSpec.styleString.contains(QStringLiteral("Bold")));
     f.setItalic(fontSpec.styleString.contains(QStringLiteral("Italic")));
     f.setPixelSize(std::max(6, static_cast<int>(fontSpec.sizePt * 1.6)));
@@ -590,7 +553,7 @@ void addRulerLayer(const core::LayerRuler& L, LayerSink& sink, int layerIndex,
                 // ruler's pixel length for readout height, capped so a
                 // huge ruler (like a 64-stud baseplate measurement)
                 // doesn't get a heading-sized label.
-                QFont f(r.measureFont.familyName);
+                QFont f(mapFontFamily());
                 f.setBold(r.measureFont.styleString.contains(QStringLiteral("Bold")));
                 f.setItalic(r.measureFont.styleString.contains(QStringLiteral("Italic")));
                 const double targetLabelPx = std::clamp(len * 0.06, 9.0, 36.0);
