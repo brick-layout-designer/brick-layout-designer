@@ -24,6 +24,8 @@
 #include <QJsonObject>
 #include <QTemporaryDir>
 
+#include <vector>
+
 using namespace bld;
 using namespace bld::import;
 
@@ -544,4 +546,62 @@ TEST(LayoutFile, RenamingAPartTouchesOnlyThatPart) {
     EXPECT_TRUE(layer.groups[1].partNumber.isEmpty());
     EXPECT_EQ(layer.groups[2].partNumber, QStringLiteral("KIT.1"));
     EXPECT_EQ(renamePartInMap(*map, QStringLiteral("NONE.1"), QStringLiteral("X.1")), 0);
+}
+
+// fixtures/layouts/views.bld-layout, copied from the web repo's
+// packages/bbm/tests/fixtures (made by its viewsFixture.test.ts): two
+// sheets, a label and two saved views, one fitting the whole layout and one
+// keeping an area of one sheet.
+static std::vector<core::SavedView> fixtureViews(const QString& town = QStringLiteral("sheet-town")) {
+    core::SavedView whole;
+    whole.id = QStringLiteral("view-whole");
+    whole.name = QStringLiteral("Whole layout");
+    whole.grid = true;
+    core::SavedView station;
+    station.id = QStringLiteral("view-station");
+    station.name = QStringLiteral("Station");
+    station.fit = false;
+    station.rect = QRectF(90, 40, 40, 30);
+    station.sheets = QStringList{ town };
+    station.grid = false;
+    station.labels = false;
+    return { whole, station };
+}
+
+TEST(LayoutFile, ReadsTheWebsSavedViewsFixture) {
+    QTemporaryDir dir;
+    const auto read = readLayoutFile(kSource + QStringLiteral("/fixtures/layouts/views.bld-layout"), dir.path());
+    ASSERT_TRUE(read.ok()) << read.error.toStdString();
+    EXPECT_TRUE(read.warnings.isEmpty()) << read.warnings.join(QLatin1Char('\n')).toStdString();
+    ASSERT_EQ(read.map->layers().size(), 2u);
+    EXPECT_EQ(read.map->layers()[0]->name, QStringLiteral("Track"));
+    EXPECT_EQ(read.map->layers()[1]->name, QStringLiteral("Town"));
+    // The web's "sheet-town" isn't a BlueBrick id: it's renumbered on
+    // reading, and the view's sheet follows it.
+    const QString town = read.map->layers()[1]->guid;
+    EXPECT_NE(town, QStringLiteral("sheet-town"));
+    EXPECT_EQ(read.map->sidecar.views, fixtureViews(town));
+    ASSERT_EQ(read.map->sidecar.anchoredLabels.size(), 1u);
+}
+
+// Written again (as Save does) and read back: the same views, unknown
+// fields included.
+TEST(LayoutFile, KeepsSavedViewsThroughASave) {
+    QTemporaryDir dir;
+    auto read = readLayoutFile(kSource + QStringLiteral("/fixtures/layouts/views.bld-layout"), dir.path());
+    ASSERT_TRUE(read.ok());
+    auto views = fixtureViews(read.map->layers()[1]->guid);
+    views[1].extras.insert(QStringLiteral("fromANewerBuild"), true);
+    read.map->sidecar.views = views;
+    const QString path = dir.filePath(QStringLiteral("again.bld-layout"));
+    QString error;
+    ASSERT_TRUE(writeLayoutFile(*read.map, path, &error)) << error.toStdString();
+    const auto again = readLayoutFile(path, dir.path());
+    ASSERT_TRUE(again.ok());
+    EXPECT_EQ(again.map->sidecar.views, views);
+
+    // A layout whose only fork data is a view still writes sidecar.json.
+    read.map->sidecar.anchoredLabels.clear();
+    ASSERT_TRUE(writeLayoutFile(*read.map, path, &error));
+    EXPECT_EQ(readLayoutFile(path, dir.path()).map->sidecar.views, views);
 }

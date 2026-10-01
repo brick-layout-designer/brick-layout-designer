@@ -27,6 +27,7 @@ add_library(bld_ui STATIC
     MainWindowMapMenu.cpp
     MainWindowMenus.cpp
     MainWindowToolsMenu.cpp
+    MainWindowViews.cpp
     MapView.cpp
     MapView.h
     MapViewDrag.cpp
@@ -50,6 +51,12 @@ add_library(bld_ui STATIC
     PartDifferencesDialog.h
     PartUsagePanel.cpp
     PartUsagePanel.h
+    SavedViews.cpp
+    SavedViews.h
+    SharePictureDialog.cpp
+    SharePictureDialog.h
+    ViewsPanel.cpp
+    ViewsPanel.h
     LibraryPathsDialog.cpp
     LibraryPathsDialog.h
     BackgroundTask.h

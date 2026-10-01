@@ -199,6 +199,7 @@ void MainWindow::openLive(const sync::ConnectResult& r) {
     if (live_->active()) live_->close();
     api.setBase(r.server);
     currentFilePath_.clear();
+    clearActiveView();
     // The layout and any offline edits are kept per server and layout.
     const QString cacheDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
                              + QStringLiteral("/live/")

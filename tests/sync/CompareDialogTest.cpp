@@ -69,9 +69,11 @@ TEST(CompareDialog, ListsClashesThenMineThenTheServers) {
             if (c.key == key) order << c.status;
     }
     ASSERT_EQ(order.size(), changes.size());
-    const QList<Status> expected = { Status::Conflict, Status::Conflict, Status::Conflict, Status::Mine,
+    // The saved views add a clash (view:V-both), two of mine and one of the server's.
+    const QList<Status> expected = { Status::Conflict, Status::Conflict, Status::Conflict, Status::Conflict,
                                      Status::Mine,     Status::Mine,     Status::Mine,     Status::Mine,
-                                     Status::Same,     Status::Server,   Status::Server,   Status::Server };
+                                     Status::Mine,     Status::Mine,     Status::Mine,     Status::Same,
+                                     Status::Server,   Status::Server,   Status::Server,   Status::Server };
     EXPECT_EQ(order, expected);
 
     const QColor grey = dlg.palette().color(QPalette::Disabled, QPalette::Text);
@@ -82,7 +84,7 @@ TEST(CompareDialog, ListsClashesThenMineThenTheServers) {
             EXPECT_EQ(list->topLevelItem(i)->foreground(0).color(), grey);
         }
     }
-    EXPECT_EQ(dlg.choices().size(), 8);
+    EXPECT_EQ(dlg.choices().size(), 11);
 }
 
 TEST(CompareDialog, ClashesDefaultToTheServerAndMineToApply) {
@@ -107,8 +109,8 @@ TEST(CompareDialog, OffersKeepBothOnlyWhereAllowed) {
         EXPECT_EQ(offered, c.status == Status::Conflict && c.allowsBoth()) << c.key.toStdString();
         both += offered;
     }
-    // brick:211:224 and label:L-both, not the map header.
-    EXPECT_EQ(both, 2);
+    // brick:211:224, label:L-both and view:V-both, not the map header.
+    EXPECT_EQ(both, 3);
     EXPECT_LT(comboFor(dlg, QStringLiteral("map"))->findData(static_cast<int>(Choice::Both)), 0);
 }
 

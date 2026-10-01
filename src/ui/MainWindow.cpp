@@ -315,6 +315,7 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
     addDockWidget(Qt::RightDockWidgetArea, partUsagePanel_);
     partUsagePanel_->bindMapView(mapView_);
     partUsagePanel_->setBudget(budget_);
+    setupViews();
     connect(moduleLibraryPanel_, &ModuleLibraryPanel::moduleImportRequested,
             this, &MainWindow::onImportModuleFromLibraryPath);
     connect(venueLibraryPanel_, &VenueLibraryPanel::venueLoadRequested,

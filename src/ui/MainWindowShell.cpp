@@ -15,6 +15,7 @@
 #include "PartsBrowser.h"
 #include "SettingsDialog.h"
 #include "VenueLibraryPanel.h"
+#include "ViewsPanel.h"
 #include "help/HelpButton.h"
 #include "theme/AppPrefs.h"
 #include "theme/Icons.h"
@@ -86,6 +87,7 @@ void MainWindow::setupShell() {
     partUsagePanel_->setWindowTitle(tr("Parts list"));
     theme::PanelHeader::install(partsBrowser_, QStringLiteral("panel.parts"), prefs);
     theme::PanelHeader::install(layerPanel_, QStringLiteral("panel.sheets"), prefs);
+    theme::PanelHeader::install(viewsPanel_, QStringLiteral("panel.views"), prefs);
     theme::PanelHeader::install(partUsagePanel_, QStringLiteral("panel.partsList"), prefs);
     theme::PanelHeader::install(modulesPanel_, QStringLiteral("panel.modules"), prefs);
     theme::PanelHeader::install(moduleLibraryPanel_, QStringLiteral("panel.moduleLibrary"), prefs);
@@ -212,6 +214,9 @@ void MainWindow::setupShell() {
     });
     addTool(QStringLiteral("delete"), tr("Delete"), tr("Remove the selected pieces"), [this] { mapView_->deleteSelected(); });
     toolbar->addSeparator();
+    // Share picture: File > Share Picture…, one click away.
+    addTool(QStringLiteral("picture"), tr("Picture"), tr("Share a picture of the layout"), [this] { openSharePicture(); });
+    toolbar->addSeparator();
 
     // Snap: click turns it on or off, the arrow picks the step (vanilla's
     // off + 32/16/8/4/2/1/0.5 studs).
@@ -313,7 +318,7 @@ void MainWindow::setupShell() {
     auto* tabGroup = new QButtonGroup(tabs);
     tabGroup->setExclusive(true);
     const std::tuple<QString, QString, QString> tasks[] = {
-        { QStringLiteral("build"), tr("Build"), tr("Parts and sheets, for building the layout") },
+        { QStringLiteral("build"), tr("Build"), tr("Parts, sheets and views, for building the layout") },
         { QStringLiteral("room"), tr("Room"), tr("The room the layout goes in") },
         { QStringLiteral("notes"), tr("Notes"), tr("Author, club, event and notes for this layout") },
         { QStringLiteral("parts"), tr("Parts list"), tr("Every part this layout uses") },
@@ -428,6 +433,7 @@ void MainWindow::showTask(const QString& task) {
     if (task == QLatin1String("build")) {
         show(partsBrowser_);
         show(layerPanel_);
+        show(viewsPanel_);
     } else if (task == QLatin1String("room")) {
         show(venueLibraryPanel_);
     } else if (task == QLatin1String("parts")) {

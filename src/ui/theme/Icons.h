@@ -11,7 +11,7 @@
 namespace bld::ui::theme {
 
 // select, measure, circle, paint, erase, undo, redo, new, open, save,
-// delete, turnLeft, turnRight, snap, angle. An unknown name draws nothing.
+// delete, turnLeft, turnRight, snap, angle, picture. An unknown name draws nothing.
 QIcon lineIcon(const QString& name, const QPalette& palette);
 
 }  // namespace bld::ui::theme

@@ -20,7 +20,7 @@ class QLabel;
 class QMenu;
 class QComboBox;
 
-namespace bld::core { struct Venue; class Map; }
+namespace bld::core { struct Venue; class Map; struct SavedView; }
 namespace bld::sync {
 struct ConnectResult;
 namespace merge { struct Snapshot; }
@@ -158,6 +158,29 @@ private:
     bool chooseSaveFormat();
     bool saveFormatChosen_ = false;
     void onExportBbm();
+
+    // Saved views and pictures (MainWindowViews.cpp).
+    void setupViews();
+    // Shows a saved view on this screen only: its sheets, grid and labels,
+    // fitted to its area.
+    void goToView(const core::SavedView& view);
+    // Back to the layout as it is.
+    void showEverything();
+    // Drops the view being looked at without moving the map (a new document).
+    void clearActiveView();
+    // After the views or the map changed: the panel's list, and the view
+    // being looked at follows its saved settings (or ends if it was deleted).
+    void refreshViews();
+    // File > Share Picture…, with `choice` picked (a view's id, or empty).
+    void openSharePicture(const QString& choice = {});
+    // Export all views into the remembered folder (asking when `chooseFolder`).
+    void exportAllViews(bool chooseFolder);
+    // The layout's name for picture files: the live layout's title, else the file's name.
+    QString layoutTitle() const;
+    class ViewsPanel* viewsPanel_ = nullptr;
+    class ViewIndicator* viewIndicator_ = nullptr;
+    QString activeViewId_;
+    QAction* exportImageAct_ = nullptr;  // File > Export as Image ("More options…")
 
     parts::PartsLibrary& parts_;
     MapView*      mapView_     = nullptr;

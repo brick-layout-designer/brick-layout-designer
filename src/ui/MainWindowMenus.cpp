@@ -10,10 +10,12 @@
 #include "MapView.h"
 #include "ModuleLibraryPanel.h"
 #include "VenueLibraryPanel.h"
+#include "ViewsPanel.h"
 #include "ModulesPanel.h"
 #include "PartsBrowser.h"
 #include "PartUsagePanel.h"
 #include "PreferencesDialog.h"
+#include "SavedViews.h"
 #include "VenueDialog.h"
 #include "VenueDimensionsDialog.h"
 #include "help/HelpButton.h"
@@ -110,6 +112,7 @@ void MainWindow::setupMenus() {
     exportBbmAct->setToolTip(tr("A copy BlueBrick can open, with what BlueBrick supports"));
     connect(exportBbmAct, &QAction::triggered, this, &MainWindow::onExportBbm);
     auto* exportAct = file->addAction(tr("Export as &Image..."));
+    exportImageAct_ = exportAct;
     connect(exportAct, &QAction::triggered, this, [this]{
         if (!mapView_->currentMap()) return;
         auto* scene = mapView_->scene();
@@ -179,29 +182,16 @@ void MainWindow::setupMenus() {
         const int height = keepAspect->isChecked()
             ? std::max(64, static_cast<int>(width * (bounds.height() / bounds.width())))
             : heightSpin->value();
-        QImage img(width, height,
-                   transparentChk->isChecked() ? QImage::Format_ARGB32 : QImage::Format_RGB32);
-        img.fill(transparentChk->isChecked()
-                     ? Qt::transparent
-                     : mapView_->currentMap()->backgroundColor.color);
-        {
-            QPainter p(&img);
-            if (antialiasChk->isChecked()) {
-                p.setRenderHint(QPainter::Antialiasing);
-                p.setRenderHint(QPainter::SmoothPixmapTransform);
-            }
-            scene->render(&p, QRectF(0, 0, width, height), bounds,
-                          keepAspect->isChecked() ? Qt::KeepAspectRatio : Qt::IgnoreAspectRatio);
-            if (watermarkChk->isChecked()) {
-                const auto* m = mapView_->currentMap();
-                const QString stamp = tr("%1 / %2 / %3").arg(m->author, m->lug, m->event);
-                QFont f; f.setPointSize(std::max(8, height / 60));
-                p.setFont(f);
-                p.setPen(QColor(0, 0, 0, 140));
-                p.drawText(QRectF(0, 0, width, height).adjusted(10, 0, -10, -10),
-                           Qt::AlignRight | Qt::AlignBottom, stamp);
-            }
+        views::SceneImageOptions opts;
+        opts.background = mapView_->currentMap()->backgroundColor.color;
+        opts.transparent = transparentChk->isChecked();
+        opts.antialias = antialiasChk->isChecked();
+        opts.aspect = keepAspect->isChecked() ? Qt::KeepAspectRatio : Qt::IgnoreAspectRatio;
+        if (watermarkChk->isChecked()) {
+            const auto* m = mapView_->currentMap();
+            opts.watermark = tr("%1 / %2 / %3").arg(m->author, m->lug, m->event);
         }
+        const QImage img = views::renderSceneImage(*scene, bounds, QSize(width, height), opts);
         if (!img.save(path)) {
             QMessageBox::warning(this, tr("Export failed"), tr("Could not write %1").arg(path));
             return;
@@ -215,6 +205,17 @@ void MainWindow::setupMenus() {
         s.setValue(QStringLiteral("export/antialias"),   antialiasChk->isChecked());
         statusBar()->showMessage(tr("Exported %1x%2 to %3").arg(width).arg(height).arg(path), 5000);
     });
+
+    // A picture of the layout or a saved view, with no questions; the
+    // detailed Export as Image above is its "More options…".
+    auto* shareAct = file->addAction(tr("Share &Picture…"));
+    shareAct->setObjectName(QStringLiteral("action.sharePicture"));
+    shareAct->setToolTip(tr("Save or copy a picture of the layout, what's on screen or a saved view"));
+    connect(shareAct, &QAction::triggered, this, [this] { openSharePicture(); });
+    auto* exportViewsAct = file->addAction(tr("Export All &Views…"));
+    exportViewsAct->setObjectName(QStringLiteral("action.exportAllViews"));
+    exportViewsAct->setToolTip(tr("One picture of each saved view, in a folder"));
+    connect(exportViewsAct, &QAction::triggered, this, [this] { exportAllViews(false); });
 
     auto* pdfAct = file->addAction(tr("Export as P&DF..."));
     connect(pdfAct, &QAction::triggered, this, [this]{
@@ -538,6 +539,7 @@ void MainWindow::setupMenus() {
     };
     addDockToggle(partsBrowser_,       tr("&Parts Panel"));
     addDockToggle(layerPanel_,         tr("&Sheets Panel"));
+    addDockToggle(viewsPanel_,         tr("&Views Panel"));
     addDockToggle(modulesPanel_,       tr("&Modules Panel"));
     addDockToggle(moduleLibraryPanel_, tr("Module Li&brary Panel"));
     addDockToggle(venueLibraryPanel_,  tr("&Room Library Panel"));

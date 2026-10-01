@@ -67,6 +67,11 @@ QPainterPath shape(const QString& name) {
         p.moveTo(18, 5); p.lineTo(5, 19); p.lineTo(20, 19);
         p.arcMoveTo(QRectF(-3, 11, 16, 16), 0);
         p.arcTo(QRectF(-3, 11, 16, 16), 0, 48);
+    } else if (name == QLatin1String("picture")) {
+        // The web's PictureIcon: a frame, the sun and a hill.
+        p.addRoundedRect(QRectF(3, 5, 18, 14), 2, 2);
+        p.addEllipse(QPointF(9, 10), 1.6, 1.6);
+        p.moveTo(21, 16); p.lineTo(16, 11); p.lineTo(8, 19);
     }
     return p;
 }

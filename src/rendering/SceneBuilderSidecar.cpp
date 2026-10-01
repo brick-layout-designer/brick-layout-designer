@@ -310,6 +310,12 @@ void SceneBuilder::addAnchoredLabels(const core::Map& map) {
     }
 }
 
+void SceneBuilder::setLabelsVisible(bool visible) {
+    // Brick labels are children of their brick, so walk the scene.
+    for (QGraphicsItem* it : scene_.items())
+        if (it->data(kBrickDataKind).toString() == QLatin1String("label")) it->setVisible(visible);
+}
+
 void SceneBuilder::addModuleLabels(const core::Map& map) {
     if (map.sidecar.modules.empty()) return;
     // User-controlled via View > Module Names. Default = on so the user

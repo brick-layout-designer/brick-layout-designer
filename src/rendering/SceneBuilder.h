@@ -49,6 +49,10 @@ public:
     // Toggle the visibility of a layer (by index). Returns false if out of range.
     bool setLayerVisible(int layerIndex, bool visible);
 
+    // Show or hide every anchored label (World, Brick, Group and Module
+    // labels), for a saved view with its labels off.
+    void setLabelsVisible(bool visible);
+
 private:
     std::optional<double> venueLabelPx_;
     void addLayer(const core::Layer& layer, int layerIndex);

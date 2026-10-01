@@ -52,6 +52,13 @@ constexpr Raw kShared[] = {
       QT_TRANSLATE_NOOP("HelpTexts", "Rooms and halls saved to your account or your club."),
       QT_TRANSLATE_NOOP("HelpTexts", "Put a room under your layout to check that it fits, with space to "
                                      "walk around. Anyone in your club can use the club’s rooms.") },
+    { "panel.views", "",
+      QT_TRANSLATE_NOOP("HelpTexts", "Views"),
+      QT_TRANSLATE_NOOP("HelpTexts", "Saved views remember a part of the layout, so you can show it again "
+                                     "in one tap."),
+      QT_TRANSLATE_NOOP("HelpTexts", "A view can fit the whole layout or keep one area, and show only some "
+                                     "sheets. Share a picture of any view, or export a picture of every "
+                                     "view at once after a change.") },
     // Top bar
     { "topbar.saveStatus", "",
       QT_TRANSLATE_NOOP("HelpTexts", "Saving"),
@@ -197,6 +204,18 @@ constexpr Raw kShared[] = {
                                      "a copy of it."),
       QT_TRANSLATE_NOOP("HelpTexts", "It helps you see who has been working on the layout. It doesn’t "
                                      "list every piece that moved.") },
+    { "share.picture", "",
+      QT_TRANSLATE_NOOP("HelpTexts", "Share a picture"),
+      QT_TRANSLATE_NOOP("HelpTexts", "Send a picture of the layout to anyone, even people without an "
+                                     "account."),
+      QT_TRANSLATE_NOOP("HelpTexts", "Pick the whole layout, what is on screen, or a saved view. On a phone "
+                                     "it opens your share menu; on a computer it saves the picture or "
+                                     "copies it.") },
+    { "share.exportAllViews", "",
+      QT_TRANSLATE_NOOP("HelpTexts", "Export all views"),
+      QT_TRANSLATE_NOOP("HelpTexts", "One picture of every saved view, all in one zip file."),
+      QT_TRANSLATE_NOOP("HelpTexts", "After you change the layout, do it again to get fresh pictures with "
+                                     "the same names. The size you pick is remembered.") },
     // Settings
     { "settings.sync", "",
       QT_TRANSLATE_NOOP("HelpTexts", "Where settings are kept"),
