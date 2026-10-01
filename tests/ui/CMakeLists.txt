@@ -20,6 +20,7 @@ add_executable(bld_ui_tests
     HelpTextsTest.cpp
     SavedViewsTest.cpp
     ViewsPanelTest.cpp
+    PanelDockingTest.cpp
 )
 
 target_compile_definitions(bld_ui_tests PRIVATE

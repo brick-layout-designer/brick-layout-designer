@@ -22,6 +22,7 @@
 #include "help/HelpPages.h"
 #include "help/ShortcutsDialog.h"
 #include "theme/AppPrefs.h"
+#include "theme/PanelHeader.h"
 #include "../core/AnchoredLabel.h"
 #include "../core/ColorSpec.h"
 #include "../core/Ids.h"
@@ -68,6 +69,7 @@
 #include <QPrinter>
 #include <QLineEdit>
 #include <QMenu>
+#include <QTimer>
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QPainter>
@@ -530,20 +532,28 @@ void MainWindow::setupMenus() {
     connect(fit, &QAction::triggered, this, &MainWindow::onFitToView);
 
     view->addSeparator();
-    auto addDockToggle = [view](QDockWidget* d, const QString& label){
-        auto* act = view->addAction(label);
+    // The web's Panels menu: tick a panel to show it (a hidden one comes
+    // back on the right side), untick to hide it.
+    panelsMenu_ = view->addMenu(tr("&Panels"));
+    panelsMenu_->setObjectName(QStringLiteral("PanelsMenu"));
+    for (QDockWidget* d : panelDocks()) {
+        auto* act = panelsMenu_->addAction(d->windowTitle());
+        act->setObjectName(QStringLiteral("panels.") + d->objectName());
         act->setCheckable(true);
-        act->setChecked(d->isVisible());
-        QObject::connect(act, &QAction::toggled, d, &QDockWidget::setVisible);
-        QObject::connect(d, &QDockWidget::visibilityChanged, act, &QAction::setChecked);
-    };
-    addDockToggle(partsBrowser_,       tr("&Parts Panel"));
-    addDockToggle(layerPanel_,         tr("&Sheets Panel"));
-    addDockToggle(viewsPanel_,         tr("&Views Panel"));
-    addDockToggle(modulesPanel_,       tr("&Modules Panel"));
-    addDockToggle(moduleLibraryPanel_, tr("Module Li&brary Panel"));
-    addDockToggle(venueLibraryPanel_,  tr("&Room Library Panel"));
-    addDockToggle(partUsagePanel_,     tr("Parts &List Panel"));
+        act->setChecked(!d->isHidden());
+        connect(d, &QDockWidget::windowTitleChanged, act, &QAction::setText);
+        // Shown or hidden once the menu has closed.
+        connect(act, &QAction::triggered, d, [d](bool on) {
+            QTimer::singleShot(0, d, [d, on] { theme::PanelHeader::setShown(d, on); });
+        });
+    }
+    // Ticks as they are now.
+    connect(panelsMenu_, &QMenu::aboutToShow, this, [this] {
+        const QList<QDockWidget*> docks = panelDocks();
+        const QList<QAction*> acts = panelsMenu_->actions();
+        for (qsizetype i = 0; i < docks.size() && i < acts.size(); ++i)
+            acts[i]->setChecked(!docks[i]->isHidden());
+    });
 
     view->addSeparator();
     auto* statusToggle = view->addAction(tr("&Status Bar"));

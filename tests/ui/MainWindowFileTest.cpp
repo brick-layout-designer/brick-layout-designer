@@ -415,7 +415,7 @@ TEST_F(MainWindowFile, ShellHasTaskTabsSheetsAndThePieceCount) {
     EXPECT_EQ(sheets->windowTitle(), QStringLiteral("Sheets"));
     EXPECT_NE(sheets->titleBarWidget(), nullptr);
     EXPECT_EQ(window_->findChild<QDockWidget*>(QStringLiteral("dock.venueLibrary"))->windowTitle(),
-              QStringLiteral("Room Library"));
+              QStringLiteral("Room library"));
 
     auto* room = window_->findChild<QDockWidget*>(QStringLiteral("dock.venueLibrary"));
     room->hide();

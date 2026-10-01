@@ -83,7 +83,7 @@ void MainWindow::setupShell() {
     // Panels: plain names and the same header everywhere, each with its
     // "?" (the web's panel help keys).
     layerPanel_->setWindowTitle(tr("Sheets"));
-    venueLibraryPanel_->setWindowTitle(tr("Room Library"));
+    venueLibraryPanel_->setWindowTitle(tr("Room library"));
     partUsagePanel_->setWindowTitle(tr("Parts list"));
     theme::PanelHeader::install(partsBrowser_, QStringLiteral("panel.parts"), prefs);
     theme::PanelHeader::install(layerPanel_, QStringLiteral("panel.sheets"), prefs);
@@ -288,6 +288,17 @@ void MainWindow::setupShell() {
     shellIcons_.append({ toolbar->addWidget(rotBtn), QStringLiteral("angle") });
     help::HelpButton::addTo(toolbar, QStringLiteral("toolbar.rotateStep"), rotBtn);
 
+    // Panels: the web's toolbar menu, the same one as View > Panels.
+    auto* panelsBtn = new QToolButton(toolbar);
+    panelsBtn->setObjectName(QStringLiteral("tool.panels"));
+    panelsBtn->setText(tr("Panels"));
+    panelsBtn->setToolTip(tr("Show or hide the side panels"));
+    panelsBtn->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
+    panelsBtn->setPopupMode(QToolButton::InstantPopup);
+    panelsBtn->setMenu(panelsMenu_);
+    shellIcons_.append({ toolbar->addWidget(panelsBtn), QStringLiteral("panels") });
+    help::HelpButton::addTo(toolbar, QStringLiteral("toolbar.panels"), panelsBtn);
+
     // The steps saved last time.
     {
         QSettings s;
@@ -426,8 +437,9 @@ void MainWindow::changeEvent(QEvent* e) {
 }
 
 void MainWindow::showTask(const QString& task) {
+    // Like the web: a hidden panel comes back on the right side.
     const auto show = [](QDockWidget* d) {
-        d->show();
+        theme::PanelHeader::setShown(d, true);
         d->raise();
     };
     if (task == QLatin1String("build")) {
@@ -441,6 +453,11 @@ void MainWindow::showTask(const QString& task) {
     } else if (task == QLatin1String("notes")) {
         if (generalInfoAct_) generalInfoAct_->trigger();
     }
+}
+
+QList<QDockWidget*> MainWindow::panelDocks() const {
+    return { partsBrowser_, layerPanel_, viewsPanel_, partUsagePanel_,
+             modulesPanel_, moduleLibraryPanel_, venueLibraryPanel_ };
 }
 
 void MainWindow::openSettings() {
