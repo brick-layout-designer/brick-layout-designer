@@ -258,7 +258,26 @@ QImage renderSceneImage(QGraphicsScene& scene, const QRectF& source, QSize size,
             line->setPen(zoomOne(line->pen()));
         }
     }
-    scene.render(&p, QRectF(0, 0, size.width(), size.height()), source, o.aspect);
+    // Parts are drawn from 32 px per stud pictures; shrinking one a lot in
+    // one step leaves moire, where the web's canvas filters it (it shrinks
+    // pictures in halving steps). Draw the map k times bigger and shrink it
+    // smoothly, so a part loses its detail the same way.
+    const double shrink = 4.0 * source.width() / std::max(1, size.width());  // part px per picture px
+    int k = o.antialias ? std::clamp(static_cast<int>(std::ceil(shrink)), 1, 8) : 1;
+    while (k > 1 && static_cast<double>(size.width()) * size.height() * k * k * 4 > 256.0 * 1024 * 1024) --k;
+    if (k > 1) {
+        QImage big(size * k, QImage::Format_ARGB32_Premultiplied);
+        big.fill(Qt::transparent);
+        {
+            QPainter bp(&big);
+            bp.setRenderHint(QPainter::Antialiasing);
+            bp.setRenderHint(QPainter::SmoothPixmapTransform);
+            scene.render(&bp, QRectF(0, 0, big.width(), big.height()), source, o.aspect);
+        }
+        p.drawImage(QPoint(0, 0), big.scaled(size, Qt::IgnoreAspectRatio, Qt::SmoothTransformation));
+    } else {
+        scene.render(&p, QRectF(0, 0, size.width(), size.height()), source, o.aspect);
+    }
     for (auto& [shape, pen] : shapes) shape->setPen(pen);
     for (auto& [line, pen] : lines) line->setPen(pen);
     if (!o.watermark.isEmpty()) {
