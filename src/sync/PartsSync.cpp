@@ -70,7 +70,10 @@ bool PartsSync::safeRelativePath(const QString& path) {
 QNetworkReply* PartsSync::get(const QUrl& url) {
     QNetworkRequest req(url);
     req.setHeader(QNetworkRequest::UserAgentHeader, userAgent());
-    if (!token_.isEmpty() && url.host() == server_.host() && url.port() == server_.port())
+    // The token goes to the server's API only: part files are public, and
+    // the server refuses a token on routes that don't take one.
+    if (!token_.isEmpty() && url.host() == server_.host() && url.port() == server_.port()
+        && url.path().startsWith(QLatin1String("/api/")))
         req.setRawHeader("Authorization", "Bearer " + token_.toUtf8());
     return net_.get(req);
 }
