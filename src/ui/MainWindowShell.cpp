@@ -14,6 +14,7 @@
 #include "PartUsagePanel.h"
 #include "PartsBrowser.h"
 #include "SettingsDialog.h"
+#include "tours/Tours.h"
 #include "VenueLibraryPanel.h"
 #include "ViewsPanel.h"
 #include "help/HelpButton.h"
@@ -215,7 +216,11 @@ void MainWindow::setupShell() {
     addTool(QStringLiteral("delete"), tr("Delete"), tr("Remove the selected pieces"), [this] { mapView_->deleteSelected(); });
     toolbar->addSeparator();
     // Share picture: File > Share Picture…, one click away.
-    addTool(QStringLiteral("picture"), tr("Picture"), tr("Share a picture of the layout"), [this] { openSharePicture(); });
+    auto* picture = addTool(QStringLiteral("picture"), tr("Picture"), tr("Share a picture of the layout"), [this] { openSharePicture(); });
+    tours::tag(toolbar->widgetForAction(picture), QStringLiteral("share.picture"));
+    // What the editor tour points at for the map and for saving.
+    tours::tag(mapView_, QStringLiteral("map"));
+    tours::tag(statusBar(), QStringLiteral("topbar.saveStatus"));
     toolbar->addSeparator();
 
     // Snap: click turns it on or off, the arrow picks the step (vanilla's
@@ -364,6 +369,7 @@ void MainWindow::setupShell() {
     help->setPopupMode(QToolButton::InstantPopup);
     help->setMenu(helpMenu_);
     toolbar->addWidget(help);
+    tours::tag(help, QStringLiteral("help.menu"));
 
     // ----- Status bar: pieces and the current sheet on the left of the
     // permanent readouts (size, selection, room, budget, autosave and the
@@ -462,8 +468,55 @@ QList<QDockWidget*> MainWindow::panelDocks() const {
 
 void MainWindow::openSettings() {
     SettingsDialog dialog(theme::PrefsStore::instance(), syncedHost(),
-                          [this] { if (preferencesAct_) preferencesAct_->trigger(); }, this);
+                          [this] { if (preferencesAct_) preferencesAct_->trigger(); }, this,
+                          // Once Settings has closed.
+                          [this](const QString& id) {
+                              QTimer::singleShot(0, this, [this, id] { startTourNamed(id); });
+                          });
     dialog.exec();
+}
+
+void MainWindow::startTourNamed(const QString& id) {
+    auto& store = theme::PrefsStore::instance();
+    if (id == QLatin1String("rooms") && mapView_->currentMap()) {
+        if (auto* designer = findChild<QAction*>(QStringLiteral("map.roomDesigner"))) {
+            tours::startTourOnNext("bld::ui::VenueDesignerDialog", id, store);
+            QTimer::singleShot(0, designer, &QAction::trigger);
+            return;
+        }
+    }
+#ifdef BLD_SYNC
+    if (id == QLatin1String("clubs")) {
+        tours::startTourOnNext("bld::sync::ConnectDialog", id, store);
+        QTimer::singleShot(0, this, &MainWindow::onConnectToServer);
+        return;
+    }
+#endif
+    tours::startTour(this, id, store);
+}
+
+void MainWindow::showWelcomeIfNew() {
+    auto& store = theme::PrefsStore::instance();
+    const QString id = tours::catalogue().welcome.id;
+    if (id.isEmpty() || tours::seen(store, id)) return;
+    tours::WelcomeDialog welcome(this);
+    welcome.exec();
+    tours::markSeen(store, id);
+    switch (welcome.choice()) {
+    case tours::WelcomeDialog::Choice::Layout:
+        if (auto* open = findChild<QAction*>(QStringLiteral("file.open"))) QTimer::singleShot(0, open, &QAction::trigger);
+        break;
+    case tours::WelcomeDialog::Choice::Club:
+#ifdef BLD_SYNC
+        QTimer::singleShot(0, this, &MainWindow::onConnectToServer);
+#endif
+        break;
+    case tours::WelcomeDialog::Choice::Tour:
+        QTimer::singleShot(0, this, [this] { startTourNamed(QStringLiteral("editor")); });
+        break;
+    case tours::WelcomeDialog::Choice::None:
+        break;
+    }
 }
 
 QString MainWindow::syncedHost() const {

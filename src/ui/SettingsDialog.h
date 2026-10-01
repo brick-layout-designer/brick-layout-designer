@@ -24,8 +24,11 @@ public:
     // `syncedHost`: the host of the server these settings sync with right
     // now, or empty when not connected. `openMoreOptions` opens the
     // Preferences dialog (the button is left out when it is empty).
+    // `startTour` runs a tour (by id) once this dialog has closed; without
+    // it there are no tour buttons.
     SettingsDialog(theme::PrefsStore& store, const QString& syncedHost,
-                   const std::function<void()>& openMoreOptions = {}, QWidget* parent = nullptr);
+                   const std::function<void()>& openMoreOptions = {}, QWidget* parent = nullptr,
+                   const std::function<void(const QString&)>& startTour = {});
 
     // The note under the options: synced with the host, or kept here.
     QLabel* syncNote() const { return syncNote_; }
@@ -34,6 +37,8 @@ private:
     void load();
     theme::PrefsStore& store_;
     QLabel* syncNote_ = nullptr;
+    QLabel* toursNote_ = nullptr;
+    class QPushButton* showToursAgain_ = nullptr;
     bool loading_ = false;
 };
 

@@ -103,6 +103,9 @@ add_library(bld_ui STATIC
     theme/PanelHeader.cpp
     theme/PanelHeader.h
     theme/theme.qrc
+    tours/Tours.cpp
+    tours/Tours.h
+    tours/tours.qrc
     help/ShortcutsDialog.cpp
     help/ShortcutsDialog.h
 )

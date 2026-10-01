@@ -41,6 +41,9 @@ public:
     explicit MainWindow(parts::PartsLibrary& parts, QWidget* parent = nullptr);
     ~MainWindow() override;
 
+    // The first-launch welcome, unless it was put away before (toursSeen).
+    void showWelcomeIfNew();
+
     bool openFile(const QString& path);
 
     // Seed a blank document if none is loaded. Call once after the
@@ -129,6 +132,9 @@ private:
     class QMenu* panelsMenu_ = nullptr;
     // Edit > Settings...: the look and help settings.
     void openSettings();
+    // Help › Tour: …: runs the tour, opening the room designer or the
+    // server window first for the Rooms and Clubs tours.
+    void startTourNamed(const QString& id);
     // The server the settings sync with now, or empty.
     QString syncedHost() const;
     void setupMapMenu();           // in MainWindowMapMenu.cpp

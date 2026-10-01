@@ -1,0 +1,64 @@
+{
+  "_about": "Welcome card and guided tours. The same file is in both apps: apps/web/src/tours/tours.json in the web repo and src/ui/tours/tours.json in the desktop repo. Keep the two identical; each app's tests check its copy.",
+  "welcome": {
+    "id": "welcome",
+    "title": "Welcome to Brick Layout Designer",
+    "text": "Plan a LEGO layout for your next show, on your own or with your club.",
+    "actions": {
+      "layout": { "label": "Start or open a layout", "text": "Begin with an empty map, or open a file from this app or BlueBrick." },
+      "club": { "label": "Join a club", "text": "Share layouts, rooms and parts with the people you build with." },
+      "tour": { "label": "Take the tour", "text": "A few short steps that show you the main buttons." }
+    },
+    "dismiss": "Not now"
+  },
+  "buttons": { "next": "Next", "back": "Back", "skip": "Skip", "done": "Done", "of": "{n} of {total}" },
+  "tours": [
+    {
+      "id": "editor",
+      "title": "The editor",
+      "devices": "large",
+      "steps": [
+        { "target": "panel.parts", "title": "All your pieces live here", "text": "Search by name, or pick a group like Train track. Drag a piece onto the map to place it." },
+        { "target": "panel.sheets", "title": "Sheets", "text": "A layout is built on sheets, like see-through pages. Hide one to see what is under it." },
+        { "target": "map", "title": "Place and move", "text": "Click a piece to pick it, then drag it to move it. Drag a box around pieces to pick several." },
+        { "target": "topbar.saveStatus", "title": "Saving and live sync", "text": "This shows whether your changes are saved. In a shared layout, everyone's changes appear live." },
+        { "target": "share.picture", "title": "Share a picture", "text": "Make a picture of your layout to post, print or send to your club." },
+        { "target": "help.menu", "title": "Help is always here", "text": "Click a ? for a quick tip. The Help menu has the other tours and all help topics." }
+      ]
+    },
+    {
+      "id": "rooms",
+      "title": "Rooms",
+      "devices": "all",
+      "steps": [
+        { "target": "room.tools", "title": "Draw your room", "text": "Draw the walls first, then add doors, openings and things in the way, like pillars." },
+        { "target": "room.units", "title": "Real sizes", "text": "Type sizes in feet and inches or metres. The app works out the studs for you." },
+        { "target": "room.snap", "title": "Straight walls", "text": "Snap keeps walls straight and corners square while you draw." },
+        { "target": "room.floorPlan", "title": "Trace a floor plan", "text": "Have a plan of the hall? Put the picture underneath and draw over it." },
+        { "target": "roomDesigner.save", "title": "Save the room", "text": "Save it, and start new layouts from it whenever you show there." }
+      ]
+    },
+    {
+      "id": "clubs",
+      "title": "Clubs",
+      "devices": "all",
+      "steps": [
+        { "target": "owners.filter", "title": "Mine and my clubs'", "text": "Pick All, Mine or a club to see just those layouts, rooms and parts." },
+        { "target": "publish.owner", "title": "Save to", "text": "When you make or publish a layout, Save to picks whether it is yours or your club's." },
+        { "target": "clubs.page", "title": "Your club's page", "text": "The club page shows who is in the club. Admins invite people from there." },
+        { "target": "clubs.join", "title": "Joining a club", "text": "A club admin sends you an invite link. Open it to join, and the club's things show up here." }
+      ]
+    },
+    {
+      "id": "view",
+      "title": "Looking at a layout",
+      "devices": "phone",
+      "steps": [
+        { "target": "map", "title": "Look around", "text": "Drag with one finger to move around. Pinch to zoom in and out." },
+        { "target": "layout.menu", "title": "Saved views", "text": "Tap the layout's name to jump to a saved view, or to see the whole layout." },
+        { "target": "share.picture", "title": "Share a picture", "text": "Make a picture of the layout to send to friends." },
+        { "target": "help.menu", "title": "Help is always here", "text": "Tap ? for tips. To change a layout, open it on a computer or tablet." }
+      ]
+    }
+  ]
+}
