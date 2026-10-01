@@ -3915,7 +3915,7 @@ Restore it?</source>
     <name>bld::ui::ModuleLibraryPanel</name>
     <message>
         <location filename="../src/ui/ModuleLibraryPanel.cpp" line="48"/>
-        <source>Module Library</source>
+        <source>Module library</source>
         <translation>Biblioteca de módulos</translation>
     </message>
     <message>
@@ -4048,7 +4048,7 @@ Restore it?</source>
     </message>
     <message>
         <location filename="../src/ui/ModulesPanel.cpp" line="131"/>
-        <source>Save to Module Library</source>
+        <source>Save to Module library</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

@@ -128,7 +128,7 @@ ModulesPanel::ModulesPanel(QWidget* parent)
         connect(cloneAct, &QAction::triggered, [this, id]{ emit cloneRequested(id); });
 
         menu.addSeparator();
-        auto* saveLib = menu.addAction(tr("Save to Module Library"));
+        auto* saveLib = menu.addAction(tr("Save to Module library"));
         connect(saveLib, &QAction::triggered, [this, id]{ emit saveToLibraryRequested(id); });
 
         menu.addSeparator();
