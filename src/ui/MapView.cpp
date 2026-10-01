@@ -235,6 +235,15 @@ MapView::~MapView() {
     // survivors that may already be mid-destruction. Disconnect from
     // the scene signals BEFORE any of that runs.
     if (scene()) scene()->disconnect(this);
+    // The undo stack's destructor clears it, which says indexChanged: the
+    // handler would rebuild the scene of a view being destroyed and tell
+    // the main window, already gone, that the selection changed. Let it go
+    // quietly, before anything else here is destroyed.
+    if (undoStack_) {
+        undoStack_->disconnect();
+        undoStack_->blockSignals(true);
+        undoStack_.reset();
+    }
 }
 
 void MapView::loadMap(std::unique_ptr<core::Map> map) {
