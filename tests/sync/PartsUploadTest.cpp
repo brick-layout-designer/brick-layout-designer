@@ -269,3 +269,65 @@ TEST(PartsUpload, FetchesTheCatalogsKnownPartsUpperCased) {
     ASSERT_TRUE(waitFor([&] { return got; }));
     EXPECT_EQ(known, (QSet<QString>{ QStringLiteral("MY.1"), QStringLiteral("MY") }));
 }
+
+// A usage limit stops the rest (they'd be refused the same way) and shows
+// the server's sentence, but is no reason to sign in again; a file too big
+// on its own only fails that file.
+TEST(PartsUpload, ShowsTheServersLimitMessageWithoutAskingToSignInAgain) {
+    FakeHttp http;
+    const QString msg = QStringLiteral("You have 2,000 custom parts, the most allowed. Ask the site admin if you need more.");
+    http.reply("/api/custom-parts", 403,
+               { { QStringLiteral("error"), QStringLiteral("limit_reached") },
+                 { QStringLiteral("limit"), QStringLiteral("customPartsPerUser") },
+                 { QStringLiteral("message"), msg } });
+    QTemporaryDir dir;
+    write(dir.filePath(QStringLiteral("A.xml")), "<part/>");
+    write(dir.filePath(QStringLiteral("A.gif")), "G");
+    write(dir.filePath(QStringLiteral("B.xml")), "<part/>");
+    write(dir.filePath(QStringLiteral("B.gif")), "G");
+    PartsUpload upload(http.base(), QStringLiteral("t"));
+    int count = -1;
+    QStringList failures;
+    QString failedWith;
+    bool unauthorized = true;
+    QObject::connect(&upload, &PartsUpload::failed, [&](const QString& m, bool u) {
+        failedWith = m;
+        unauthorized = u;
+    });
+    QObject::connect(&upload, &PartsUpload::uploaded, [&](int c, const QStringList& f) {
+        count = c;
+        failures = f;
+    });
+    upload.upload(PartsUpload::scanFolder(dir.path()), {});
+    ASSERT_TRUE(waitFor([&] { return count >= 0; }));
+    EXPECT_EQ(failures.size(), 1);
+    EXPECT_TRUE(failures.value(0).endsWith(msg));
+    EXPECT_EQ(failedWith, msg);
+    EXPECT_FALSE(unauthorized);
+}
+
+TEST(PartsUpload, AFileTooBigOnItsOwnOnlyFailsThatFile) {
+    FakeHttp http;
+    http.reply("/api/custom-parts", 413,
+               { { QStringLiteral("error"), QStringLiteral("limit_reached") },
+                 { QStringLiteral("limit"), QStringLiteral("uploadBytes") },
+                 { QStringLiteral("message"), QStringLiteral("That file is 60 MB; the most you can send at once is 50 MB.") } });
+    http.reply("/api/custom-parts", 201, { { QStringLiteral("id"), QStringLiteral("p2") } });
+    QTemporaryDir dir;
+    write(dir.filePath(QStringLiteral("A.xml")), "<part/>");
+    write(dir.filePath(QStringLiteral("A.gif")), "G");
+    write(dir.filePath(QStringLiteral("B.xml")), "<part/>");
+    write(dir.filePath(QStringLiteral("B.gif")), "G");
+    PartsUpload upload(http.base(), QStringLiteral("t"));
+    int count = -1;
+    QStringList failures;
+    QObject::connect(&upload, &PartsUpload::uploaded, [&](int c, const QStringList& f) {
+        count = c;
+        failures = f;
+    });
+    upload.upload(PartsUpload::scanFolder(dir.path()), {});
+    ASSERT_TRUE(waitFor([&] { return count >= 0; }));
+    EXPECT_EQ(count, 1);
+    ASSERT_EQ(failures.size(), 1);
+    EXPECT_TRUE(failures.value(0).contains(QStringLiteral("the most you can send at once is 50 MB")));
+}

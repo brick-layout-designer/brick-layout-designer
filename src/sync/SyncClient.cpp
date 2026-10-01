@@ -68,8 +68,10 @@ void SyncClient::onDisconnected() {
         setStatus(Status::Offline);
         return;
     }
-    // Revoked sign-in / unauthorized, or the layout is gone or no longer shared.
-    if (code == 1008 || code == 4404) {
+    // Revoked sign-in / unauthorized, the layout is gone or no longer shared,
+    // or the server's limit on people in one layout (retrying would only
+    // be refused again; the person reopens it later).
+    if (code == 1008 || code == 4404 || (code == 4429 && reason == QLatin1String("limit_reached"))) {
         wantOpen_ = false;
         setStatus(Status::Offline);
         emit closedForGood(code, reason);

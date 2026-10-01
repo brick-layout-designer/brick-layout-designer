@@ -1,4 +1,5 @@
 #include "PartsUpload.h"
+#include "ServerRefusal.h"
 
 #include "ServerApi.h"
 
@@ -184,14 +185,20 @@ void PartsUpload::uploadNext() {
         const int status = r->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         if (status == 201 || status == 200) ++done_;
         else {
-            const QString err =
-                QJsonDocument::fromJson(r->readAll()).object().value(QLatin1String("error")).toString();
-            failures_ << tr("%1: %2").arg(key,
-                                          err.isEmpty() ? tr("the server answered %1").arg(status) : err);
-            if (status == 401 || status == 403) {
-                // Every other upload would be refused the same way.
+            const ServerRefusal refusal = readRefusal(status, r->readAll(), r->errorString());
+            const QString err = refusal.code.isEmpty() && !isLimitRefusal(refusal) && status != 0
+                                    ? tr("the server answered %1").arg(status)
+                                    : describe(refusal);
+            failures_ << tr("%1: %2").arg(key, err);
+            // A limit on the number of parts or on space, a read-only account,
+            // a rate limit or a refused sign-in: every other upload would be
+            // refused the same way. (A file too big on its own, 413, is just
+            // that file.)
+            const bool stopAll = status == 401 || status == 403 || refusal.code == QLatin1String("rate_limited");
+            if (stopAll) {
                 queue_.clear();
-                emit failed(err.isEmpty() ? tr("The server refused the upload") : err, true);
+                emit failed(refusal.code.isEmpty() ? tr("The server refused the upload") : describe(refusal),
+                            needsSignIn(refusal));
             }
         }
         uploadNext();

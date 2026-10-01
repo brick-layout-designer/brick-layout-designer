@@ -69,6 +69,8 @@ add_library(bld_sync STATIC
     SyncClient.cpp
     ServerApi.h
     ServerApi.cpp
+    ServerRefusal.h
+    ServerRefusal.cpp
     SyncSession.h
     SyncSession.cpp
     Awareness.h
