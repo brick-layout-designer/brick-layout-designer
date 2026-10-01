@@ -228,3 +228,25 @@ TEST(Sidecar, ReadsViewsWrittenByOtherBuilds) {
     // No views: none written.
     EXPECT_FALSE(saveload::sidecarToJson(core::Sidecar{}).contains(QLatin1String("views")));
 }
+
+// The map's ids renumbered on reading (BbmReader's renamedIds): the
+// sidecar's references follow, and the rest are left alone.
+TEST(Sidecar, ReferencesFollowRenumberedIds) {
+    core::Sidecar sc;
+    core::SavedView v;
+    v.id = QStringLiteral("v");
+    v.sheets = QStringList{ QStringLiteral("sheet-town"), QStringLiteral("42") };
+    sc.views = { v, core::SavedView{} };
+    core::AnchoredLabel l;
+    l.targetId = QStringLiteral("brick-a");
+    sc.anchoredLabels = { l };
+    core::Module m;
+    m.memberIds = { QStringLiteral("brick-a"), QStringLiteral("7") };
+    sc.modules = { m };
+    saveload::renameSidecarIds(sc, { { QStringLiteral("sheet-town"), QStringLiteral("111") },
+                                     { QStringLiteral("brick-a"), QStringLiteral("222") } });
+    EXPECT_EQ(sc.views[0].sheets, (QStringList{ QStringLiteral("111"), QStringLiteral("42") }));
+    EXPECT_FALSE(sc.views[1].sheets);
+    EXPECT_EQ(sc.anchoredLabels[0].targetId, QStringLiteral("222"));
+    EXPECT_EQ(sc.modules[0].memberIds, (QSet<QString>{ QStringLiteral("222"), QStringLiteral("7") }));
+}

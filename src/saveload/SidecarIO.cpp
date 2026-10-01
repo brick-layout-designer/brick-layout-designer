@@ -11,6 +11,7 @@
 #include <QJsonObject>
 #include <QJsonValue>
 #include <QSaveFile>
+#include <QSet>
 
 #include <cmath>
 
@@ -308,6 +309,26 @@ void sidecarFromJson(const QJsonObject& root, core::Sidecar& out) {
                     r[0].toDouble(), r[1].toDouble(), r[2].toDouble(), r[3].toDouble());
             }
         }
+    }
+}
+
+void renameSidecarIds(core::Sidecar& sidecar, const QHash<QString, QString>& renamed) {
+    if (renamed.isEmpty()) return;
+    const auto rename = [&](QString& id) {
+        const auto it = renamed.constFind(id);
+        if (it != renamed.constEnd()) id = it.value();
+    };
+    for (auto& v : sidecar.views)
+        if (v.sheets)
+            for (QString& id : *v.sheets) rename(id);
+    for (auto& l : sidecar.anchoredLabels) rename(l.targetId);
+    for (auto& m : sidecar.modules) {
+        QSet<QString> members;
+        for (QString id : m.memberIds) {
+            rename(id);
+            members.insert(id);
+        }
+        m.memberIds = members;
     }
 }
 

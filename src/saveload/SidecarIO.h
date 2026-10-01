@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QByteArray>
+#include <QHash>
 #include <QJsonObject>
 #include <QJsonValue>
 #include <QString>
@@ -45,6 +46,10 @@ void sidecarFromJson(const QJsonObject& root, core::Sidecar& out);
 // isn't a view at all (no id).
 QJsonObject viewToJson(const core::SavedView& view);
 std::optional<core::SavedView> viewFromJson(const QJsonValue& value);
+
+// Points the sidecar's references (views' sheets, labels' targets, module
+// members) at the ids the map was renumbered to (LoadResult::renamedIds).
+void renameSidecarIds(core::Sidecar& sidecar, const QHash<QString, QString>& renamed);
 
 // Compute SHA-256 of the bytes (hex-encoded lowercase).
 QByteArray sha256Hex(const QByteArray& bytes);
