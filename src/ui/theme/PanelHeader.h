@@ -46,6 +46,8 @@ public:
     // The "⋯" button and its menu (filled each time it opens).
     QToolButton* menuButton() const { return menuButton_; }
     QMenu* menu() const { return menu_; }
+    // The header's buttons in touch mode, square, in px.
+    static constexpr int kTouchButton = 40;
 
     struct Target {
         PanelPlace place;

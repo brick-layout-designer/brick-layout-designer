@@ -47,6 +47,8 @@
 #include "../saveload/BbmWriter.h"
 #include "../saveload/SetIO.h"
 #include "../saveload/SidecarIO.h"
+#include "TouchMode.h"
+#include "theme/PanelHeader.h"
 
 #include <QAction>
 #include <QActionGroup>
@@ -120,6 +122,7 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
     }
     rescanLibrary(allPaths);
 
+    TouchMode::instance().install();
     mapView_ = new MapView(parts_, this);
     updates_ = new UpdateCheck(this);
     notices_ = new NoticeArea(mapView_);
@@ -294,6 +297,19 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
     connect(mapView_, &MapView::layersChanged, this, recountBudget);
     connect(partsBrowser_, &PartsBrowser::partActivated,
             mapView_, &MapView::addPartAtViewCenter);
+    // Touch: tap a part then the map, or drag it out with a finger; the
+    // map's touch bar "Add part" brings the parts panel forward.
+    connect(partsBrowser_, &PartsBrowser::partTapped, mapView_, &MapView::armPartPlacement);
+    connect(partsBrowser_, &PartsBrowser::touchDragMoved, mapView_, &MapView::touchPartDragTo);
+    connect(partsBrowser_, &PartsBrowser::touchDragDropped, mapView_, &MapView::touchPartDropAt);
+    connect(partsBrowser_, &PartsBrowser::touchDragCancelled, mapView_, &MapView::touchPartDragCancel);
+    connect(mapView_, &MapView::addPartRequested, this, [this] {
+        // Not inside the bar button's own click.
+        QTimer::singleShot(0, this, [this] {
+            theme::PanelHeader::setShown(partsBrowser_, true);
+            partsBrowser_->raise();
+        });
+    });
     // After the user deletes an imported part the on-disk files are
     // gone, but the in-memory parts library still has the entry. Run
     // a full rescan against every configured library path so the

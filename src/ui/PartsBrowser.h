@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QDockWidget>
+#include <QPoint>
 #include <QHash>
 #include <QString>
 #include <QStringList>
@@ -12,6 +13,7 @@ class QLineEdit;
 class QListWidget;
 class QListWidgetItem;
 class QTimer;
+class QTouchEvent;
 
 namespace bld::core  { class Map; }
 namespace bld::parts { class PartsLibrary; }
@@ -59,6 +61,14 @@ signals:
     // "Re-import from Source" on an imported part.
     void reimportRequested(const QString& key);
 
+    // Touch: a part tapped (to place with a tap on the map), or dragged out
+    // sideways by a finger. The panel keeps the finger, so it says where it
+    // is (global coords) until it lifts or the touch is cancelled.
+    void partTapped(const QString& key);
+    void touchDragMoved(const QString& key, QPoint globalPos);
+    void touchDragDropped(const QString& key, QPoint globalPos);
+    void touchDragCancelled();
+
 public:
     // The thumbnails are read a few at a time after rebuild(), so a library
     // of thousands of parts doesn't freeze the window; these say how far.
@@ -66,7 +76,18 @@ public:
     int iconsWanted() const { return iconsTotal_; }
     class LoadingCard* loadingCard() const { return loading_; }
 
+    QListWidget* grid() const { return grid_; }
+
+protected:
+    bool eventFilter(QObject* obj, QEvent* ev) override;
+
 private:
+    // A finger on the grid: undecided, scrolling it, or dragging a part out.
+    enum class TouchState { None, Undecided, Scroll, Drag };
+    TouchState touch_ = TouchState::None;
+    QPointF touchStart_;
+    QString touchKey_;
+    bool handleTouch(QTouchEvent* e);
     void applyFilter();
     void loadSomeIcons();
     QString categoryForPath(const QString& absPath) const;

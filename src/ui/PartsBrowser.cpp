@@ -28,6 +28,10 @@
 #include <QVBoxLayout>
 #include <QElapsedTimer>
 #include <QTimer>
+#include <QScroller>
+#include <QTouchEvent>
+#include <cmath>
+#include "TouchMode.h"
 #include <QWidget>
 
 namespace bld::ui {
@@ -153,6 +157,14 @@ PartsBrowser::PartsBrowser(parts::PartsLibrary& lib, QWidget* parent)
     connect(grid_, &QListWidget::itemActivated, this, [this](QListWidgetItem* it) {
         if (it) emit partActivated(it->data(kPartKeyRole).toString());
     });
+
+    // Touch: tap a part, then the map; or drag it sideways out onto the
+    // map; up and down flicks the grid (eventFilter).
+    grid_->setProperty("bldNoTouchScroll", true);
+    grid_->viewport()->setAttribute(Qt::WA_AcceptTouchEvents);
+    grid_->viewport()->installEventFilter(this);
+    QScroller::scroller(grid_->viewport());
+    grid_->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
 
     grid_->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(grid_, &QWidget::customContextMenuRequested, this, [this](const QPoint& pos){
@@ -448,6 +460,71 @@ void PartsBrowser::applyFilter() {
         // Re-enable alphabetical ordering when the filter is empty.
         grid_->setSortingEnabled(true);
         grid_->sortItems(Qt::AscendingOrder);
+    }
+}
+
+bool PartsBrowser::eventFilter(QObject* obj, QEvent* ev) {
+    if (grid_ && obj == grid_->viewport()) {
+        switch (ev->type()) {
+        case QEvent::TouchBegin:
+        case QEvent::TouchUpdate:
+        case QEvent::TouchEnd:
+        case QEvent::TouchCancel:
+            if (handleTouch(static_cast<QTouchEvent*>(ev))) return true;
+            break;
+        default:
+            break;
+        }
+    }
+    return QDockWidget::eventFilter(obj, ev);
+}
+
+bool PartsBrowser::handleTouch(QTouchEvent* e) {
+    if (!TouchMode::fromTouchScreen(e) || e->points().isEmpty()) return false;
+    e->accept();
+    const QEventPoint& p = e->points().first();
+    const QPointF pos = p.position();
+    QScroller* scroller = QScroller::scroller(grid_->viewport());
+    const auto ts = static_cast<qint64>(e->timestamp());
+    switch (e->type()) {
+    case QEvent::TouchBegin: {
+        touch_ = TouchState::Undecided;
+        touchStart_ = pos;
+        QListWidgetItem* it = grid_->itemAt(pos.toPoint());
+        touchKey_ = it ? it->data(kPartKeyRole).toString() : QString();
+        scroller->stop();
+        return true;
+    }
+    case QEvent::TouchUpdate: {
+        const QPointF d = pos - touchStart_;
+        if (touch_ == TouchState::Undecided && d.manhattanLength() > 12) {
+            // Sideways off a part: take the part along; otherwise scroll.
+            if (!touchKey_.isEmpty() && std::abs(d.x()) > std::abs(d.y())) {
+                touch_ = TouchState::Drag;
+            } else {
+                touch_ = TouchState::Scroll;
+                scroller->handleInput(QScroller::InputPress, touchStart_, ts);
+            }
+        }
+        if (touch_ == TouchState::Drag) emit touchDragMoved(touchKey_, p.globalPosition().toPoint());
+        else if (touch_ == TouchState::Scroll) scroller->handleInput(QScroller::InputMove, pos, ts);
+        return true;
+    }
+    case QEvent::TouchEnd:
+        if (touch_ == TouchState::Drag) {
+            emit touchDragDropped(touchKey_, p.globalPosition().toPoint());
+        } else if (touch_ == TouchState::Scroll) {
+            scroller->handleInput(QScroller::InputRelease, pos, ts);
+        } else if (touch_ == TouchState::Undecided && !touchKey_.isEmpty()) {
+            if (QListWidgetItem* it = grid_->itemAt(touchStart_.toPoint())) grid_->setCurrentItem(it);
+            emit partTapped(touchKey_);
+        }
+        touch_ = TouchState::None;
+        return true;
+    default:  // TouchCancel
+        if (touch_ == TouchState::Drag) emit touchDragCancelled();
+        touch_ = TouchState::None;
+        return true;
     }
 }
 
