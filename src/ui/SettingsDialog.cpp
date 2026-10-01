@@ -3,6 +3,7 @@
 #include "help/HelpButton.h"
 #include "theme/AppPrefs.h"
 #include "theme/Tokens.h"
+#include "tours/Tours.h"
 
 #include <QApplication>
 #include <QButtonGroup>
@@ -93,7 +94,8 @@ QIcon swatch(const QColor& colour, const QColor& ringGap, bool chosen) {
 }  // namespace
 
 SettingsDialog::SettingsDialog(PrefsStore& store, const QString& syncedHost,
-                               const std::function<void()>& openMoreOptions, QWidget* parent)
+                               const std::function<void()>& openMoreOptions, QWidget* parent,
+                               const std::function<void(const QString&)>& startTour)
     : QDialog(parent), store_(store) {
     setObjectName(QStringLiteral("SettingsDialog"));
     setWindowTitle(tr("Settings"));
@@ -221,6 +223,41 @@ SettingsDialog::SettingsDialog(PrefsStore& store, const QString& syncedHost,
             p.helpIcons = on;
             store_.update(p);
         });
+
+        // Tours: how many are done, Show tours again, and one button per tour.
+        auto* toursRow = new QHBoxLayout;
+        auto* toursText = new QVBoxLayout;
+        auto* toursTitle = new QLabel(tr("Tours"), this);
+        toursTitle->setStyleSheet(QStringLiteral("font-weight: 600;"));
+        toursText->addWidget(help::withHelp(toursTitle, QStringLiteral("settings.tours"), this));
+        toursNote_ = new QLabel(this);
+        toursNote_->setObjectName(QStringLiteral("Muted"));
+        toursText->addWidget(toursNote_);
+        toursRow->addLayout(toursText, 1);
+        showToursAgain_ = new QPushButton(tr("Show tours again"), this);
+        showToursAgain_->setObjectName(QStringLiteral("showToursAgain"));
+        showToursAgain_->setAutoDefault(false);
+        connect(showToursAgain_, &QPushButton::clicked, this, [this] { tours::forgetSeen(store_); });
+        toursRow->addWidget(showToursAgain_);
+        v->addLayout(toursRow);
+        if (startTour) {
+            auto* take = new QHBoxLayout;
+            auto* takeLabel = new QLabel(tr("Take a tour:"), this);
+            takeLabel->setObjectName(QStringLiteral("Muted"));
+            take->addWidget(takeLabel);
+            for (const tours::Tour* t : tours::desktopTours()) {
+                auto* b = new QPushButton(t->title, this);
+                b->setObjectName(QStringLiteral("tour.") + t->id);
+                b->setAutoDefault(false);
+                connect(b, &QPushButton::clicked, this, [this, startTour, id = t->id] {
+                    accept();
+                    startTour(id);
+                });
+                take->addWidget(b);
+            }
+            take->addStretch(1);
+            v->addLayout(take);
+        }
     }
 
     syncNote_ = new QLabel(page);
@@ -274,6 +311,10 @@ void SettingsDialog::load() {
     }
     findChild<QCheckBox*>(QStringLiteral("largeText"))->setChecked(p.largeText);
     findChild<QCheckBox*>(QStringLiteral("helpIcons"))->setChecked(p.helpIcons);
+    const auto done = p.toursSeen.size();
+    toursNote_->setText(done == 0 ? tr("You haven't finished any tours yet.")
+                                  : done == 1 ? tr("You've seen one tour.") : tr("You've seen %1 tours.").arg(done));
+    showToursAgain_->setEnabled(done > 0);
 
     const Accent& a = accent(p.accent);
     QString css = QStringLiteral(

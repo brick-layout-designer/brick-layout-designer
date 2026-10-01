@@ -2,6 +2,7 @@
 
 #include "VenueDesignerView.h"
 #include "ui/help/HelpButton.h"
+#include "ui/tours/Tours.h"
 
 #include "saveload/VenueJson.h"
 
@@ -159,6 +160,7 @@ VenueDesignerDialog::VenueDesignerDialog(core::Venue initial, const QString& sub
     saveBtn_ = new QPushButton(saveLabel, this);
     saveBtn_->setDefault(false);
     saveBtn_->setAutoDefault(false);
+    tours::tag(saveBtn_, QStringLiteral("roomDesigner.save"));
     connect(saveBtn_, &QPushButton::clicked, this, [this] { saveNow(); });
     header->addWidget(saveBtn_);
     auto* closeBtn = new QPushButton(tr("Close"), this);

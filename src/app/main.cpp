@@ -13,6 +13,7 @@
 #include <QLibraryInfo>
 #include <QLocale>
 #include <QSettings>
+#include <QTimer>
 #include <QTranslator>
 
 namespace {
@@ -107,6 +108,8 @@ int main(int argc, char** argv) {
     FileOpenFilter fileOpenFilter(window);
     app.installEventFilter(&fileOpenFilter);
     window.show();
+    // First launch: the welcome, once the window is up.
+    QTimer::singleShot(0, &window, [&window] { window.showWelcomeIfNew(); });
 
     const QStringList files = parser.positionalArguments();
     if (!files.isEmpty()) {

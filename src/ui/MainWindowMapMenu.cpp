@@ -160,6 +160,7 @@ void MainWindow::setupMapMenu() {
     mapMenu->addSeparator();
     auto* venueMenu = mapMenu->addMenu(tr("&Room"));
     auto* designerAct = venueMenu->addAction(tr("Open Room &Designer..."));
+    designerAct->setObjectName(QStringLiteral("map.roomDesigner"));
     designerAct->setToolTip(
         tr("Design this layout's venue: walls, doors, openings, columns, stairs, power, measurements."));
     connect(designerAct, &QAction::triggered, this, [this] {

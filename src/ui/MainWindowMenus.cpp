@@ -21,6 +21,7 @@
 #include "help/HelpButton.h"
 #include "help/HelpPages.h"
 #include "help/ShortcutsDialog.h"
+#include "tours/Tours.h"
 #include "theme/AppPrefs.h"
 #include "theme/PanelHeader.h"
 #include "../core/AnchoredLabel.h"
@@ -91,6 +92,7 @@ void MainWindow::setupMenus() {
     connect(newAct, &QAction::triggered, this, &MainWindow::onNew);
 
     auto* openAct = file->addAction(tr("&Open..."));
+    openAct->setObjectName(QStringLiteral("file.open"));
     openAct->setShortcut(QKeySequence::Open);
     connect(openAct, &QAction::triggered, this, &MainWindow::onOpen);
 
@@ -630,6 +632,12 @@ void MainWindow::setupMenus() {
         help::openHelpPage(QUrl(QStringLiteral(
             "https://github.com/brick-layout-designer/brick-layout-designer/tree/main/help/en")));
     });
+    // The guided tours (the same ones, and the same words, as the web app).
+    for (const tours::Tour* t : tours::desktopTours()) {
+        auto* a = help->addAction(tr("Tour: %1").arg(t->title));
+        a->setObjectName(QStringLiteral("help.tour.") + t->id);
+        connect(a, &QAction::triggered, this, [this, id = t->id] { startTourNamed(id); });
+    }
     auto* contentsAct = help->addAction(tr("&Contents"));
     helpContentsAct_ = contentsAct;
     contentsAct->setShortcut(QKeySequence::HelpContents);

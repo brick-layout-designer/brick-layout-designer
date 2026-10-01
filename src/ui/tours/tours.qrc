@@ -1,0 +1,8 @@
+<!DOCTYPE RCC>
+<RCC version="1.0">
+    <!-- The welcome card and the guided tours: the same file as the web
+         app's apps/web/src/tours/tours.json. -->
+    <qresource prefix="/bld/tours">
+        <file>tours.json</file>
+    </qresource>
+</RCC>
