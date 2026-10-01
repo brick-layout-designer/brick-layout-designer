@@ -145,12 +145,13 @@ std::optional<QRectF> fitRegionStuds(const core::Map& map, const std::optional<Q
     if (drawn) {
         // Module frames and names, which sit outside the modules.
         const double k = rendering::SceneBuilder::kPixelsPerStud;
-        for (const auto& [moduleId, px] : drawn->moduleAnnotationRects()) {
-            const auto mod = std::find_if(map.sidecar.modules.begin(), map.sidecar.modules.end(),
-                                          [&](const core::Module& m) { return m.id == moduleId; });
-            if (mod == map.sidecar.modules.end()) continue;
-            const bool shown = std::any_of(mod->memberIds.begin(), mod->memberIds.end(),
-                                           [&](const QString& id) { return shownBricks.contains(id); });
+        for (const QPair<QString, QRectF>& drawnModule : drawn->moduleAnnotationRects()) {
+            const QRectF& px = drawnModule.second;
+            bool shown = false;
+            for (const core::Module& mod : map.sidecar.modules) {
+                if (mod.id != drawnModule.first) continue;
+                for (const QString& member : mod.memberIds) shown = shown || shownBricks.contains(member);
+            }
             if (shown) b.add(px.x() / k, px.y() / k, px.width() / k, px.height() / k);
         }
     }
