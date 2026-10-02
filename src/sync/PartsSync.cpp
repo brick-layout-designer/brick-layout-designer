@@ -136,7 +136,7 @@ void PartsSync::onManifest(const QJsonObject& manifest) {
             if (r->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 200)
                 onLibrary(slug, QJsonDocument::fromJson(r->readAll()).object());
             else {
-                result_.failed << tr("library %1: %2").arg(slug, r->errorString());
+                result_.failed << tr("parts library %1: %2").arg(slug, r->errorString());
                 failedLibraries_.insert(slug);
             }
             next();
@@ -155,7 +155,7 @@ void PartsSync::onLibrary(const QString& slug, const QJsonObject& lib) {
         const QString path = f.value(QLatin1String("path")).toString(),
                       sha = f.value(QLatin1String("sha256")).toString();
         if (!safeRelativePath(path)) {
-            result_.failed << tr("library %1: refused the path %2").arg(slug, path);
+            result_.failed << tr("parts library %1: refused the path %2").arg(slug, path);
             failedLibraries_.insert(slug);
             continue;
         }

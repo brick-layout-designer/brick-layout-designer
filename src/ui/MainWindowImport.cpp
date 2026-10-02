@@ -97,7 +97,7 @@ void MainWindow::importModelFile(const QString& path) {
     const QString key = writeImportedPart(result, dlg.partName(), dir, author,
                                           dlg.replaceExisting(), &err);
     if (key.isEmpty()) {
-        QMessageBox::warning(this, result.kindLabel, tr("Could not write library part: %1").arg(err));
+        QMessageBox::warning(this, result.kindLabel, tr("Could not save the custom part: %1").arg(err));
         return;
     }
     const QString libKey = registerImportedPart(QDir(dir).filePath(key + QStringLiteral(".xml")));
@@ -145,7 +145,7 @@ bool MainWindow::reimportPart(const QString& key, bool interactive) {
     QString err;
     const QString written = writeImportedPart(part, name, dir, author, /*replaceExisting=*/true, &err);
     if (written.isEmpty()) {
-        if (interactive) QMessageBox::warning(this, part.kindLabel, tr("Could not write library part: %1").arg(err));
+        if (interactive) QMessageBox::warning(this, part.kindLabel, tr("Could not save the custom part: %1").arg(err));
         return false;
     }
     registerImportedPart(QDir(dir).filePath(written + QStringLiteral(".xml")));
@@ -194,7 +194,7 @@ void MainWindow::onBatchImport() {
     QDialog opts(this);
     opts.setWindowTitle(tr("Batch Import"));
     auto* form = new QFormLayout(&opts);
-    form->addRow(new QLabel(tr("Import %n file(s) as library parts.", nullptr, files.size()), &opts));
+    form->addRow(new QLabel(tr("Import %n file(s) as custom parts.", nullptr, files.size()), &opts));
     auto* category = new QComboBox(&opts);
     category->setEditable(true);
     category->addItems(importCategories(root));

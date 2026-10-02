@@ -605,11 +605,13 @@ void MainWindow::setupMenus() {
     setupBudgetMenu();
 
     auto* modules = menuBar()->addMenu(tr("&Modules"));
-    auto* createModAct = modules->addAction(tr("Create from &Selection..."));
+    auto* createModAct = modules->addAction(tr("&Group Selection as Module..."));
+    createModAct->setToolTip(tr("Keep the selected parts together as a module in this layout"));
     connect(createModAct, &QAction::triggered, this, &MainWindow::onCreateModuleFromSelection);
     auto* importModAct = modules->addAction(tr("&Import .bbm as Module..."));
     connect(importModAct, &QAction::triggered, this, &MainWindow::onImportBbmAsModule);
     auto* saveModAct = modules->addAction(tr("&Save Selection as Module..."));
+    saveModAct->setToolTip(tr("Save the selected parts to your Module library, to insert them in other layouts"));
     connect(saveModAct, &QAction::triggered, this, &MainWindow::onSaveSelectionAsModule);
     auto* saveSetAct = modules->addAction(tr("Save Selection as &Set..."));
     saveSetAct->setToolTip(tr("Export the current brick selection as a "

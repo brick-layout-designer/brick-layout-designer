@@ -130,7 +130,7 @@
     </message>
     <message>
         <location filename="../src/edit/ModuleCommands.cpp" line="45"/>
-        <source>Create module %1 (%2 members)</source>
+        <source>Group as module %1 (%2 parts)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -155,7 +155,7 @@
     </message>
     <message>
         <location filename="../src/edit/ModuleCommands.cpp" line="227"/>
-        <source>Clone module</source>
+        <source>Duplicate module</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -165,18 +165,18 @@
     </message>
     <message>
         <location filename="../src/edit/ModuleCommands.cpp" line="317"/>
-        <source>Flatten module</source>
+        <source>Ungroup module</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/edit/ModuleCommands.cpp" line="341"/>
-        <source>Re-scan module (%1 bricks)</source>
+        <source>Update module (%1 parts)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/edit/ModuleCommands.cpp" line="415"/>
         <location filename="../src/edit/ModuleCommands.cpp" line="437"/>
-        <source>Import module (%1 bricks)</source>
+        <source>Import module (%1 parts)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -655,7 +655,7 @@
     </message>
     <message>
         <location filename="../src/ui/PreferencesDialog.cpp" line="262"/>
-        <source>Additional parts library paths</source>
+        <source>Extra parts folders</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -670,7 +670,7 @@
     </message>
     <message>
         <location filename="../src/ui/PreferencesDialog.cpp" line="275"/>
-        <source>Add parts library path</source>
+        <source>Add a parts folder</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1394,7 +1394,7 @@
     </message>
     <message>
         <location filename="../src/ui/ImportPreviewDialog.cpp" line="197"/>
-        <source>Parts panel category (a folder in your imports library)</source>
+        <source>Parts panel category (a folder of your custom parts)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1404,7 +1404,7 @@
     </message>
     <message>
         <location filename="../src/ui/ImportPreviewDialog.cpp" line="204"/>
-        <source>Save as Library Part</source>
+        <source>Save as Custom Part</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1598,7 +1598,7 @@
     <name>bld::ui::LibraryPathsDialog</name>
     <message>
         <location filename="../src/ui/LibraryPathsDialog.cpp" line="16"/>
-        <source>Parts Library Paths</source>
+        <source>Parts Folders</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1628,7 +1628,7 @@
     </message>
     <message>
         <location filename="../src/ui/LibraryPathsDialog.cpp" line="65"/>
-        <source>Select parts library folder</source>
+        <source>Choose a parts folder</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -1760,7 +1760,7 @@ existing cells at their old indexing — paint over to clean up.</source>
         <location filename="../src/ui/MainWindow.cpp" line="518"/>
         <location filename="../src/ui/MainWindow.cpp" line="524"/>
         <location filename="../src/ui/MainWindow.cpp" line="536"/>
-        <source>Save to library</source>
+        <source>Save to Module library</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1801,7 +1801,7 @@ Target path:
     </message>
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="553"/>
-        <source>Saved module &apos;%1&apos; to library (%2 bricks)</source>
+        <source>Saved module &apos;%1&apos; to the Module library (%2 parts)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2040,14 +2040,14 @@ Target path:
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="1074"/>
         <location filename="../src/ui/MainWindow.cpp" line="1080"/>
-        <source>Create module</source>
+        <source>Group as module</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="1075"/>
         <location filename="../src/ui/MainWindow.cpp" line="1110"/>
         <location filename="../src/ui/MainWindow.cpp" line="1203"/>
-        <source>Select one or more bricks first.</source>
+        <source>Select one or more parts first.</source>
         <translation>Bitte zuerst einen oder mehrere Bausteine auswählen.</translation>
     </message>
     <message>
@@ -2058,7 +2058,7 @@ Target path:
     </message>
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="1085"/>
-        <source>Module created</source>
+        <source>Grouped as a module</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2409,7 +2409,7 @@ Restore it?</source>
     <message>
         <location filename="../src/ui/MainWindowLibrary.cpp" line="44"/>
         <location filename="../src/ui/MainWindowLibrary.cpp" line="137"/>
-        <source>Reloaded library: %1 parts across %2 path(s)</source>
+        <source>Reloaded parts: %1 parts in %2 folder(s)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -3235,12 +3235,12 @@ Restore it?</source>
     </message>
     <message>
         <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="93"/>
-        <source>Show Only Budgeted &amp;Parts</source>
+        <source>Show Only &amp;Parts in the Budget</source>
         <translation>Nur budgetierte Teile anzeigen</translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="95"/>
-        <source>Hide parts without a budget from the parts library</source>
+        <source>Hide parts without a budget from the Parts panel</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -3250,27 +3250,27 @@ Restore it?</source>
     </message>
     <message>
         <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="99"/>
-        <source>Show how many of each part are used and allowed in the parts library</source>
+        <source>Show how many of each part are used and allowed in the Parts panel</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="101"/>
-        <source>Use Budget &amp;Limitation</source>
+        <source>Stop at the Budget &amp;Limits</source>
         <translation>Budget benutzen</translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="103"/>
-        <source>Refuse to place parts beyond their budget</source>
+        <source>Don&apos;t let anyone place more of a part than its budget allows</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="109"/>
-        <source>Budget limitation</source>
+        <source>Budget limits</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowBudgetMenu.cpp" line="110"/>
-        <source>Do you also want to show the budget numbers in the parts library?</source>
+        <source>Do you also want to show the budget numbers in the Parts panel?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -3290,7 +3290,7 @@ Restore it?</source>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMenus.cpp" line="571"/>
-        <source>Create from &amp;Selection...</source>
+        <source>&amp;Group Selection as Module...</source>
         <translation>Aus &amp;Auswahl erstellen...</translation>
     </message>
     <message>
@@ -3360,7 +3360,7 @@ Restore it?</source>
     </message>
     <message>
         <location filename="../src/ui/MainWindowToolsMenu.cpp" line="68"/>
-        <source>Turn many LDraw / Studio / LDD files into library parts at once</source>
+        <source>Turn many LDraw / Studio / LDD files into custom parts at once</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -3405,7 +3405,7 @@ Restore it?</source>
     </message>
     <message>
         <location filename="../src/ui/MainWindowToolsMenu.cpp" line="111"/>
-        <source>Installed %1 package(s); library reloaded.</source>
+        <source>Installed %1 package(s); parts reloaded.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -3416,7 +3416,7 @@ Restore it?</source>
     <message>
         <location filename="../src/ui/MainWindowImport.cpp" line="100"/>
         <location filename="../src/ui/MainWindowImport.cpp" line="148"/>
-        <source>Could not write library part: %1</source>
+        <source>Could not save the custom part: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message numerus="yes">
@@ -3490,7 +3490,7 @@ Restore it?</source>
     </message>
     <message numerus="yes">
         <location filename="../src/ui/MainWindowImport.cpp" line="197"/>
-        <source>Import %n file(s) as library parts.</source>
+        <source>Import %n file(s) as custom parts.</source>
         <translation type="unfinished">
             <numerusform></numerusform>
             <numerusform></numerusform>
@@ -3963,12 +3963,12 @@ Restore it?</source>
     </message>
     <message>
         <location filename="../src/ui/ModulesPanel.cpp" line="32"/>
-        <source>Create</source>
+        <source>Group Selection</source>
         <translation>Erstellen</translation>
     </message>
     <message>
         <location filename="../src/ui/ModulesPanel.cpp" line="33"/>
-        <source>Create a module from the current selection</source>
+        <source>Keep the selected parts together as a module in this layout</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -3983,12 +3983,12 @@ Restore it?</source>
     </message>
     <message>
         <location filename="../src/ui/ModulesPanel.cpp" line="36"/>
-        <source>Save to Library</source>
+        <source>Save to Module library</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/ModulesPanel.cpp" line="37"/>
-        <source>Save the selected module as a .bbm in the module library folder</source>
+        <source>Save the selected module to your Module library, to insert it in other layouts</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -4003,7 +4003,7 @@ Restore it?</source>
     </message>
     <message>
         <location filename="../src/ui/ModulesPanel.cpp" line="95"/>
-        <source>Select Members</source>
+        <source>Select Its Parts</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -4043,22 +4043,17 @@ Restore it?</source>
     </message>
     <message>
         <location filename="../src/ui/ModulesPanel.cpp" line="127"/>
-        <source>Clone Module</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/ui/ModulesPanel.cpp" line="131"/>
-        <source>Save to Module library</source>
+        <source>Duplicate</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/ModulesPanel.cpp" line="135"/>
-        <source>Flatten (dissolve module)</source>
+        <source>Ungroup (keep the parts)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/ModulesPanel.cpp" line="137"/>
-        <source>Re-scan from source</source>
+        <source>Update from the Module library</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -4221,7 +4216,7 @@ This removes:
     </message>
     <message>
         <location filename="../src/ui/PreferencesDialog.cpp" line="537"/>
-        <source>Library</source>
+        <source>Parts</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -4468,7 +4463,7 @@ This removes:
     </message>
     <message>
         <location filename="../src/ui/VenueLibraryPanel.cpp" line="173"/>
-        <source>Save venue to library</source>
+        <source>Save venue to the Venue library</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -4509,7 +4504,7 @@ This removes:
     </message>
     <message>
         <location filename="../src/ui/VenueLibraryPanel.cpp" line="229"/>
-        <source>Delete &quot;%1&quot; from the library?</source>
+        <source>Delete &quot;%1&quot; from the Venue library?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

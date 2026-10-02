@@ -78,7 +78,7 @@ void MainWindow::setupToolsMenu() {
               tr("LDD (*.lxf *.lxfml);;All files (*)"));
     importMenu->addSeparator();
     auto* batchAct = importMenu->addAction(tr("&Batch Import..."));
-    batchAct->setToolTip(tr("Turn many LDraw / Studio / LDD files into library parts at once"));
+    batchAct->setToolTip(tr("Turn many LDraw / Studio / LDD files into custom parts at once"));
     connect(batchAct, &QAction::triggered, this, &MainWindow::onBatchImport);
     auto* reimportAct = importMenu->addAction(tr("&Re-import Changed Parts..."));
     reimportAct->setToolTip(tr("Re-import every imported part whose source model changed since"));
@@ -118,7 +118,7 @@ void MainWindow::setupToolsMenu() {
             }
             rescanLibrary(userPaths);
             statusBar()->showMessage(
-                tr("Installed %1 package(s); library reloaded.")
+                tr("Installed %1 package(s); parts reloaded.")
                     .arg(dlg.installedCount()), 5000);
         }
     });

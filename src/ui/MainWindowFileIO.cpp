@@ -339,7 +339,7 @@ MainWindow::LayoutPartsTaken MainWindow::takeInLayoutParts(const QMap<QString, Q
     LayoutPartsTaken taken;
     taken.differing = installed.differing;
     if (!installed.newParts.isEmpty())
-        taken.notes << tr("%n part(s) from the layout added to your library", nullptr,
+        taken.notes << tr("%n part(s) from the layout added to your parts", nullptr,
                           static_cast<int>(installed.newParts.size()));
     if (!installed.failed.isEmpty())
         taken.notes << tr("could not save %1").arg(installed.failed.join(QStringLiteral(", ")));

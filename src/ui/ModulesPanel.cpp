@@ -29,12 +29,12 @@ ModulesPanel::ModulesPanel(QWidget* parent)
 
     auto* row = new QHBoxLayout();
     row->setSpacing(2);
-    auto* createBtn = new QPushButton(tr("Create"), host);
-    createBtn->setToolTip(tr("Create a module from the current selection"));
+    auto* createBtn = new QPushButton(tr("Group Selection"), host);
+    createBtn->setToolTip(tr("Keep the selected parts together as a module in this layout"));
     auto* importBtn = new QPushButton(tr("Import…"), host);
     importBtn->setToolTip(tr("Import a .bbm file as a module"));
-    auto* saveLibBtn = new QPushButton(tr("Save to Library"), host);
-    saveLibBtn->setToolTip(tr("Save the selected module as a .bbm in the module library folder"));
+    auto* saveLibBtn = new QPushButton(tr("Save to Module library"), host);
+    saveLibBtn->setToolTip(tr("Save the selected module to your Module library, to insert it in other layouts"));
     saveLibBtn->setEnabled(false);
     auto* deleteBtn = new QPushButton(tr("Delete"), host);
     deleteBtn->setToolTip(tr("Delete the selected module"));
@@ -92,7 +92,7 @@ ModulesPanel::ModulesPanel(QWidget* parent)
         if (id.isEmpty()) return;
         QMenu menu(this);
 
-        auto* selAct = menu.addAction(tr("Select Members"));
+        auto* selAct = menu.addAction(tr("Select Its Parts"));
         connect(selAct, &QAction::triggered, [this, id]{ emit selectMembersRequested(id); });
 
         menu.addSeparator();
@@ -124,7 +124,7 @@ ModulesPanel::ModulesPanel(QWidget* parent)
         menu.addSeparator();
         auto* renameAct = menu.addAction(tr("Rename..."));
         connect(renameAct, &QAction::triggered, [this, id]{ emit renameRequested(id); });
-        auto* cloneAct = menu.addAction(tr("Clone Module"));
+        auto* cloneAct = menu.addAction(tr("Duplicate"));
         connect(cloneAct, &QAction::triggered, [this, id]{ emit cloneRequested(id); });
 
         menu.addSeparator();
@@ -132,9 +132,9 @@ ModulesPanel::ModulesPanel(QWidget* parent)
         connect(saveLib, &QAction::triggered, [this, id]{ emit saveToLibraryRequested(id); });
 
         menu.addSeparator();
-        auto* flatAct = menu.addAction(tr("Flatten (dissolve module)"));
+        auto* flatAct = menu.addAction(tr("Ungroup (keep the parts)"));
         connect(flatAct, &QAction::triggered, [this, id]{ emit flattenRequested(id); });
-        auto* rescan = menu.addAction(tr("Re-scan from source"));
+        auto* rescan = menu.addAction(tr("Update from the Module library"));
         connect(rescan, &QAction::triggered, [this, id]{ emit rescanRequested(id); });
 
         menu.addSeparator();

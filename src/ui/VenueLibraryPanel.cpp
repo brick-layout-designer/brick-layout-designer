@@ -189,7 +189,7 @@ void VenueLibraryPanel::saveVenue(const std::optional<core::Venue>& venue) {
 
     const QString defName = venue->name.isEmpty() ? tr("Venue") : venue->name;
     bool ok = false;
-    const QString raw = QInputDialog::getText(this, tr("Save venue to library"),
+    const QString raw = QInputDialog::getText(this, tr("Save venue to the Venue library"),
         tr("Name for this venue:"), QLineEdit::Normal, defName, &ok);
     if (!ok || raw.trimmed().isEmpty()) return;
 
@@ -268,7 +268,7 @@ void VenueLibraryPanel::onDesign() {
 
 void VenueLibraryPanel::design(core::Venue venue, QString path) {
     VenueDesignerDialog dlg(
-        std::move(venue), tr("Venue in the library folder %1").arg(path_), tr("Save Venue"),
+        std::move(venue), tr("Venue in the Venue library folder %1").arg(path_), tr("Save Venue"),
         [this, &path](const core::Venue& v) {
             QDir().mkpath(path_);
             if (path.isEmpty()) {
@@ -296,7 +296,7 @@ void VenueLibraryPanel::onDelete() {
     if (p.isEmpty()) return;
     const QString name = QFileInfo(p).completeBaseName();
     const auto btn = QMessageBox::question(this, tr("Delete venue"),
-        tr("Delete \"%1\" from the library?").arg(name));
+        tr("Delete \"%1\" from the Venue library?").arg(name));
     if (btn != QMessageBox::Yes) return;
     if (!QFile::remove(p)) {
         QMessageBox::warning(this, tr("Delete venue"),
