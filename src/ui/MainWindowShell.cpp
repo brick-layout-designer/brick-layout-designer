@@ -508,9 +508,13 @@ void MainWindow::showWelcomeIfNew() {
     welcome.exec();
     tours::markSeen(store, id);
     switch (welcome.choice()) {
-    case tours::WelcomeDialog::Choice::Layout:
+    case tours::WelcomeDialog::Choice::NewLayout:
+        QTimer::singleShot(0, this, &MainWindow::onNew);
+        break;
+    case tours::WelcomeDialog::Choice::OpenFile:
         if (auto* open = findChild<QAction*>(QStringLiteral("file.open"))) QTimer::singleShot(0, open, &QAction::trigger);
         break;
+    case tours::WelcomeDialog::Choice::Server:
     case tours::WelcomeDialog::Choice::Club:
 #ifdef BLD_SYNC
         QTimer::singleShot(0, this, &MainWindow::onConnectToServer);

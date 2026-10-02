@@ -487,14 +487,46 @@ WelcomeDialog::WelcomeDialog(QWidget* parent) : QDialog(parent) {
         for (auto* lab : { l, a }) lab->setAttribute(Qt::WA_TransparentForMouseEvents);
         inner->addWidget(l);
         inner->addWidget(a);
-        connect(b, &QAbstractButton::clicked, this, [this, c] {
-            choice_ = c;
-            accept();
-        });
+        if (c != Choice::None) {
+            connect(b, &QAbstractButton::clicked, this, [this, c] {
+                choice_ = c;
+                accept();
+            });
+        }
         row->addWidget(b);
         return b;
     };
-    auto* layout = tile(QStringLiteral("WelcomeLayout"), w.layoutLabel, w.layoutText, Choice::Layout);
+    auto* layout = tile(QStringLiteral("WelcomeLayout"), w.layoutLabel, w.layoutText, Choice::None);
+    // Its three ways, shown under it once it's picked.
+    auto* ways = new QWidget(this);
+    ways->setObjectName(QStringLiteral("WelcomeLayoutWays"));
+    auto* waysRow = new QHBoxLayout(ways);
+    waysRow->setContentsMargins(14, 0, 14, 0);
+    waysRow->setSpacing(8);
+    const auto way = [&](const QString& name, const QString& label, Choice c) {
+        auto* b = new QPushButton(label, ways);
+        b->setObjectName(name);
+        b->setAutoDefault(false);
+        connect(b, &QPushButton::clicked, this, [this, c] {
+            choice_ = c;
+            accept();
+        });
+        waysRow->addWidget(b);
+        return b;
+    };
+    auto* fresh = way(QStringLiteral("WelcomeNewLayout"), tr("New layout"), Choice::NewLayout);
+    way(QStringLiteral("WelcomeOpenFile"), tr("Open a file…"), Choice::OpenFile);
+#ifdef BLD_SYNC
+    way(QStringLiteral("WelcomeServer"), tr("Connect to a server…"), Choice::Server);
+#endif
+    waysRow->addStretch(1);
+    ways->hide();
+    row->addWidget(ways);
+    connect(layout, &QAbstractButton::clicked, this, [this, ways, fresh] {
+        ways->show();
+        fresh->setFocus(Qt::OtherFocusReason);
+        adjustSize();
+    });
     tile(QStringLiteral("WelcomeClub"), w.clubLabel, w.clubText, Choice::Club);
     tile(QStringLiteral("WelcomeTour"), w.tourLabel, w.tourText, Choice::Tour);
     col->addLayout(row);
