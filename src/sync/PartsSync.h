@@ -86,7 +86,7 @@ private:
  * `lastSyncMs` < 0: never checked with this server, so it doesn't offer
  * parts (connecting decides that, from the server's features).
  */
-constexpr qint64 kPartsRecheckMs = 5 * 60 * 1000;
+constexpr qint64 kPartsRecheckMs = qint64{ 5 } * 60 * 1000;
 inline bool partsRecheckDue(qint64 lastSyncMs, qint64 nowMs) {
     return lastSyncMs >= 0 && nowMs - lastSyncMs >= kPartsRecheckMs;
 }
