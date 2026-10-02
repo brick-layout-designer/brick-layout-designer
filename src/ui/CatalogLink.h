@@ -20,4 +20,17 @@ inline QUrl catalogWebUrl(const QUrl& server, bool parts) {
     return u;
 }
 
+// "Your modules on the web…": the server's Home page, which lists the
+// modules saved there (the desktop's Module library is a folder on this
+// computer; the two are separate).
+inline QUrl serverHomeUrl(const QUrl& server) {
+    QUrl u = server;
+    QString path = u.path();
+    while (path.endsWith(QLatin1Char('/'))) path.chop(1);
+    u.setPath(path + QLatin1Char('/'));
+    u.setQuery(QUrlQuery());
+    u.setFragment({});
+    return u;
+}
+
 }  // namespace bld::ui

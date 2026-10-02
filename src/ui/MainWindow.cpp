@@ -334,6 +334,7 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
     // The public catalogs live on the server's website.
     moduleLibraryPanel_->setCatalogLinkVisible(true);
     connect(moduleLibraryPanel_, &ModuleLibraryPanel::browseCatalogRequested, this, [this] { openCatalogOnWeb(false); });
+    connect(moduleLibraryPanel_, &ModuleLibraryPanel::webModulesRequested, this, [this] { openServerHomeOnWeb(); });
     partsBrowser_->setCatalogLinkVisible(true);
     connect(partsBrowser_, &PartsBrowser::browseCatalogRequested, this, [this] { openCatalogOnWeb(true); });
 #endif

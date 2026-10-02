@@ -30,6 +30,7 @@
 #include <QIcon>
 #include <QImage>
 #include <QSet>
+#include <QLabel>
 #include <QListWidget>
 #include <QMainWindow>
 #include <QMenu>
@@ -652,4 +653,39 @@ TEST_F(TouchTest, CatalogLinksInThePanelsAskToBrowse) {
     p->click();
     EXPECT_EQ(askM.count(), 1);
     EXPECT_EQ(askP.count(), 1);
+}
+
+// The desktop's Module library is a folder on this computer; modules made on
+// the website are on the server. The panel says which, and links to the web.
+TEST(ModuleLibraryWords, SaysOnThisComputerAndLinksToTheWeb) {
+    const QString keep = QSettings().value(QStringLiteral("modules/libraryPath")).toString();
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    ui::ModuleLibraryPanel panel;
+    panel.setLibraryPath(dir.path());
+    QStringList labels;
+    for (QLabel* l : panel.findChildren<QLabel*>()) labels << l->text();
+    EXPECT_TRUE(labels.contains(QStringLiteral("On this computer: ") + QDir(dir.path()).dirName()))
+        << labels.join(QStringLiteral(" | ")).toStdString();
+    // An empty folder says what to do next.
+    auto* list = panel.findChild<QListWidget*>();
+    ASSERT_TRUE(list && list->count() == 1);
+    EXPECT_TRUE(list->item(0)->text().contains(QStringLiteral("Save Selection as Module")));
+
+    auto* web = panel.findChild<QPushButton*>(QStringLiteral("webModules"));
+    ASSERT_TRUE(web);
+    EXPECT_TRUE(web->isHidden());
+    panel.setCatalogLinkVisible(true);
+    EXPECT_FALSE(web->isHidden());
+    QSignalSpy ask(&panel, &ui::ModuleLibraryPanel::webModulesRequested);
+    web->click();
+    EXPECT_EQ(ask.count(), 1);
+    QSettings().setValue(QStringLiteral("modules/libraryPath"), keep);
+}
+
+TEST(CatalogLink, ServerHomeIsTheSitesRoot) {
+    EXPECT_EQ(ui::serverHomeUrl(QUrl(QStringLiteral("https://collab.example.org"))).toString(),
+              QStringLiteral("https://collab.example.org/"));
+    EXPECT_EQ(ui::serverHomeUrl(QUrl(QStringLiteral("https://collab.example.org/club/?x=1#y"))).toString(),
+              QStringLiteral("https://collab.example.org/club/"));
 }

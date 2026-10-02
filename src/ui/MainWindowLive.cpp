@@ -710,6 +710,20 @@ void MainWindow::showBrick(const QString& guid) {
 
 } // namespace bld::ui
 
+void bld::ui::MainWindow::openServerHomeOnWeb() {
+    const sync::ServerList servers = sync::ServerList::load();
+    const sync::ServerEntry* server = servers.lastUsed();
+    if (!server) {
+        QTimer::singleShot(0, this, [this] {
+            QMessageBox::information(this, tr("Your modules on the web"),
+                                     tr("Modules saved on the website are on your club's server. Connect to a "
+                                        "server first (File › Servers…), then try again."));
+        });
+        return;
+    }
+    QDesktopServices::openUrl(serverHomeUrl(server->url));
+}
+
 void bld::ui::MainWindow::openCatalogOnWeb(bool parts) {
     const sync::ServerList servers = sync::ServerList::load();
     const sync::ServerEntry* server = servers.lastUsed();
