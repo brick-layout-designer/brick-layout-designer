@@ -6,6 +6,7 @@
 class QLabel;
 class QListWidget;
 class QListWidgetItem;
+class QTouchEvent;
 
 namespace bld::ui {
 
@@ -28,9 +29,19 @@ public:
     QString libraryPath() const;
     void setLibraryPath(const QString& dir);
     void refresh();
+    QListWidget* list() const { return list_; }
 
 signals:
     void moduleImportRequested(const QString& bbmPath);
+    // By touch, a finger slid sideways off a module carries it (screen
+    // coordinates) until it lifts or the touch is cancelled; MainWindow
+    // hands these to the map. Up and down scrolls the list instead.
+    void touchDragMoved(const QString& bbmPath, QPoint globalPos);
+    void touchDragDropped(const QString& bbmPath, QPoint globalPos);
+    void touchDragCancelled();
+
+protected:
+    bool eventFilter(QObject* obj, QEvent* ev) override;
 
 private slots:
     void onChooseFolder();
@@ -40,6 +51,11 @@ private:
     QLabel*      header_ = nullptr;
     QListWidget* list_   = nullptr;
     QString      path_;
+    enum class TouchState { None, Undecided, Scroll, Drag };
+    TouchState touch_ = TouchState::None;
+    QPointF touchStart_;
+    QString touchPath_;
+    bool handleTouch(QTouchEvent* e);
 };
 
 }

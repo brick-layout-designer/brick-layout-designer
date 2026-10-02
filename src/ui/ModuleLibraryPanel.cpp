@@ -1,4 +1,7 @@
 #include "ModuleLibraryPanel.h"
+#include "TouchMode.h"
+
+#include <cmath>
 
 #include <QDir>
 #include <QFileDialog>
@@ -8,6 +11,8 @@
 #include <QListWidgetItem>
 #include <QMenu>
 #include <QMimeData>
+#include <QScroller>
+#include <QTouchEvent>
 #include <QPushButton>
 #include <QSettings>
 #include <QStandardPaths>
@@ -66,6 +71,13 @@ ModuleLibraryPanel::ModuleLibraryPanel(QWidget* parent)
     list_ = new ModuleListWidget(host);
     list_->setDragEnabled(true);
     list_->setDragDropMode(QAbstractItemView::DragOnly);
+    // Touch: drag a module sideways out onto the map; up and down flicks
+    // the list (eventFilter), as in the Parts panel.
+    list_->setProperty("bldNoTouchScroll", true);
+    list_->viewport()->setAttribute(Qt::WA_AcceptTouchEvents);
+    list_->viewport()->installEventFilter(this);
+    QScroller::scroller(list_->viewport());
+    list_->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
     col->addWidget(list_);
 
     setWidget(host);
@@ -92,6 +104,70 @@ ModuleLibraryPanel::ModuleLibraryPanel(QWidget* parent)
 }
 
 QString ModuleLibraryPanel::libraryPath() const { return path_; }
+
+bool ModuleLibraryPanel::eventFilter(QObject* obj, QEvent* ev) {
+    if (list_ && obj == list_->viewport()) {
+        switch (ev->type()) {
+        case QEvent::TouchBegin:
+        case QEvent::TouchUpdate:
+        case QEvent::TouchEnd:
+        case QEvent::TouchCancel:
+            if (handleTouch(static_cast<QTouchEvent*>(ev))) return true;
+            break;
+        default:
+            break;
+        }
+    }
+    return QDockWidget::eventFilter(obj, ev);
+}
+
+bool ModuleLibraryPanel::handleTouch(QTouchEvent* e) {
+    if (!TouchMode::fromTouchScreen(e) || e->points().isEmpty()) return false;
+    e->accept();
+    const QEventPoint& p = e->points().first();
+    const QPointF pos = p.position();
+    QScroller* scroller = QScroller::scroller(list_->viewport());
+    const auto ts = static_cast<qint64>(e->timestamp());
+    switch (e->type()) {
+    case QEvent::TouchBegin: {
+        touch_ = TouchState::Undecided;
+        touchStart_ = pos;
+        QListWidgetItem* it = list_->itemAt(pos.toPoint());
+        touchPath_ = it ? it->data(Qt::UserRole).toString() : QString();
+        scroller->stop();
+        return true;
+    }
+    case QEvent::TouchUpdate: {
+        const QPointF d = pos - touchStart_;
+        if (touch_ == TouchState::Undecided && d.manhattanLength() > 12) {
+            // Sideways off a module: take it along; otherwise scroll.
+            if (!touchPath_.isEmpty() && std::abs(d.x()) > std::abs(d.y())) {
+                touch_ = TouchState::Drag;
+            } else {
+                touch_ = TouchState::Scroll;
+                scroller->handleInput(QScroller::InputPress, touchStart_, ts);
+            }
+        }
+        if (touch_ == TouchState::Drag) emit touchDragMoved(touchPath_, p.globalPosition().toPoint());
+        else if (touch_ == TouchState::Scroll) scroller->handleInput(QScroller::InputMove, pos, ts);
+        return true;
+    }
+    case QEvent::TouchEnd:
+        if (touch_ == TouchState::Drag) {
+            emit touchDragDropped(touchPath_, p.globalPosition().toPoint());
+        } else if (touch_ == TouchState::Scroll) {
+            scroller->handleInput(QScroller::InputRelease, pos, ts);
+        } else if (touch_ == TouchState::Undecided) {
+            if (QListWidgetItem* it = list_->itemAt(touchStart_.toPoint())) list_->setCurrentItem(it);
+        }
+        touch_ = TouchState::None;
+        return true;
+    default:  // TouchCancel
+        if (touch_ == TouchState::Drag) emit touchDragCancelled();
+        touch_ = TouchState::None;
+        return true;
+    }
+}
 
 void ModuleLibraryPanel::setLibraryPath(const QString& dir) {
     path_ = dir;

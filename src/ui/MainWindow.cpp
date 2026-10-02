@@ -352,6 +352,10 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
     addDockWidget(Qt::RightDockWidgetArea, layerPanel_);
     for (QDockWidget* d : panelDocks())
         if (d != partsBrowser_ && d != layerPanel_) d->hide();
+    // A module dragged out of the library by touch lands where the finger lifts.
+    connect(moduleLibraryPanel_, &ModuleLibraryPanel::touchDragMoved, mapView_, &MapView::touchModuleDragTo);
+    connect(moduleLibraryPanel_, &ModuleLibraryPanel::touchDragDropped, mapView_, &MapView::touchModuleDropAt);
+    connect(moduleLibraryPanel_, &ModuleLibraryPanel::touchDragCancelled, mapView_, &MapView::touchPartDragCancel);
     connect(moduleLibraryPanel_, &ModuleLibraryPanel::moduleImportRequested,
             this, &MainWindow::onImportModuleFromLibraryPath);
     connect(venueLibraryPanel_, &VenueLibraryPanel::venueLoadRequested,

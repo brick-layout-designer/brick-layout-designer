@@ -5,6 +5,7 @@
 #include "ui/MapView.h"
 #include "ui/MapViewInternal.h"
 #include "ui/PartsBrowser.h"
+#include "ui/ModuleLibraryPanel.h"
 #include "ui/TouchActionBar.h"
 #include "ui/TouchMode.h"
 #include "ui/theme/AppPrefs.h"
@@ -31,7 +32,9 @@
 #include <QNativeGestureEvent>
 #include <QPointingDevice>
 #include <QScroller>
+#include <QSettings>
 #include <QSignalSpy>
+#include <QTemporaryDir>
 #include <QStyle>
 #include <QTest>
 #include <QTimer>
@@ -418,6 +421,110 @@ TEST_F(TouchTest, PartsPanelTapAndSidewaysDrag) {
     touchDrag(grid->viewport(), at, at + QPoint(0, -120));
     EXPECT_EQ(dropped.count(), 1);
     EXPECT_EQ(tapped.count(), 1);
+}
+
+TEST_F(TouchTest, PartsPanelLongPressOpensTheRightClickMenu) {
+    if (parts_.keys().isEmpty()) GTEST_SKIP() << "no parts library";
+    ui::PartsBrowser browser(parts_);
+    browser.resize(400, 600);
+    browser.show();
+    ASSERT_TRUE(QTest::qWaitForWindowExposed(&browser));
+    browser.rebuild();
+    QListWidget* grid = browser.grid();
+    QListWidgetItem* first = nullptr;
+    for (int i = 0; i < grid->count() && !first; ++i)
+        if (!grid->item(i)->isHidden()) first = grid->item(i);
+    ASSERT_NE(first, nullptr);
+    const QPoint at = grid->visualItemRect(first).center();
+    // The right-click menu, for comparison.
+    QStringList rightClick;
+    QStringList held;
+    QStringList* into = &rightClick;
+    QTimer closer;
+    closer.setInterval(20);
+    QObject::connect(&closer, &QTimer::timeout, [&] {
+        if (auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget())) {
+            for (QAction* a : menu->actions())
+                if (!a->isSeparator()) *into << a->text();
+            menu->close();
+        }
+    });
+    closer.start();
+    emit grid->customContextMenuRequested(at);
+    ASSERT_FALSE(rightClick.isEmpty());
+
+    into = &held;
+    QSignalSpy tapped(&browser, &ui::PartsBrowser::partTapped);
+    QTest::touchEvent(grid->viewport(), touchScreen()).press(0, at);
+    QTest::qWait(ui::PartsBrowser::kLongPressMs / 2);
+    EXPECT_TRUE(held.isEmpty()) << "not before it has been held long enough";
+    QTest::qWait(ui::PartsBrowser::kLongPressMs / 2 + 300);
+    QTest::touchEvent(grid->viewport(), touchScreen()).release(0, at);
+    EXPECT_EQ(held, rightClick);
+    EXPECT_EQ(tapped.count(), 0) << "a long press isn't a tap";
+    EXPECT_EQ(grid->currentItem(), first);
+
+    // A short press is still a tap, with no menu.
+    held.clear();
+    tap(grid->viewport(), at);
+    QTest::qWait(ui::PartsBrowser::kLongPressMs + 100);
+    EXPECT_EQ(tapped.count(), 1);
+    EXPECT_TRUE(held.isEmpty());
+}
+
+TEST_F(TouchTest, ModuleLibraryDragByTouchDropsTheModuleOnTheMap) {
+    const QString module = QStringLiteral(BLD_SOURCE_DIR "/fixtures/bluebrick-oracle/flex-in.bbm");
+    auto loaded = saveload::readBbm(module);
+    ASSERT_TRUE(loaded.ok());
+    size_t moduleBricks = 0;
+    for (const auto& l : loaded.map->layers())
+        if (l->kind() == core::LayerKind::Brick) moduleBricks += static_cast<const core::LayerBrick&>(*l).bricks.size();
+    ASSERT_GT(moduleBricks, 0u);
+    QTemporaryDir dir;
+    ASSERT_TRUE(QFile::copy(module, dir.filePath(QStringLiteral("Station.bbm"))));
+    const QVariant keep = QSettings().value(QStringLiteral("modules/libraryPath"));
+
+    ui::ModuleLibraryPanel panel;
+    panel.setLibraryPath(dir.path());
+    panel.resize(300, 400);
+    panel.show();
+    ASSERT_TRUE(QTest::qWaitForWindowExposed(&panel));
+    // As MainWindow wires them.
+    QObject::connect(&panel, &ui::ModuleLibraryPanel::touchDragMoved, view_.get(), &ui::MapView::touchModuleDragTo);
+    QObject::connect(&panel, &ui::ModuleLibraryPanel::touchDragDropped, view_.get(), &ui::MapView::touchModuleDropAt);
+    QObject::connect(&panel, &ui::ModuleLibraryPanel::touchDragCancelled, view_.get(), &ui::MapView::touchPartDragCancel);
+    QListWidget* list = panel.list();
+    ASSERT_EQ(list->count(), 1);
+    const QPoint from = list->visualItemRect(list->item(0)).center();
+    QSignalSpy moved(&panel, &ui::ModuleLibraryPanel::touchDragMoved);
+    QSignalSpy dropped(&panel, &ui::ModuleLibraryPanel::touchDragDropped);
+
+    // Up and down scrolls the list: nothing lands.
+    const size_t before = allBricks(*view_->currentMap()).size();
+    const int undo = view_->undoStack()->count();
+    touchDrag(list->viewport(), from, from + QPoint(0, 120));
+    EXPECT_EQ(dropped.count(), 0);
+    EXPECT_EQ(allBricks(*view_->currentMap()).size(), before);
+
+    // Sideways out onto the map: the module lands where the finger lifts, in one undo step.
+    const QPoint spotOnMap = emptySpot(*view_);
+    const QPoint to = list->viewport()->mapFromGlobal(view_->viewport()->mapToGlobal(spotOnMap));
+    const QPoint side = from + QPoint(to.x() > from.x() ? 40 : -40, 0);
+    QTest::touchEvent(list->viewport(), touchScreen()).press(0, from);
+    QTest::touchEvent(list->viewport(), touchScreen()).move(0, side);
+    QTest::touchEvent(list->viewport(), touchScreen()).move(0, to);
+    QTest::touchEvent(list->viewport(), touchScreen()).release(0, to);
+    EXPECT_GE(moved.count(), 1);
+    ASSERT_EQ(dropped.count(), 1);
+    EXPECT_EQ(dropped.first().at(0).toString(), dir.filePath(QStringLiteral("Station.bbm")));
+    EXPECT_EQ(allBricks(*view_->currentMap()).size(), before + moduleBricks);
+    EXPECT_EQ(view_->undoStack()->count(), undo + 1);
+    // Off the map, a module doesn't land.
+    EXPECT_FALSE(view_->touchModuleDropAt(dir.filePath(QStringLiteral("Station.bbm")),
+                                          view_->viewport()->mapToGlobal(QPoint(-50, -50))));
+    EXPECT_EQ(allBricks(*view_->currentMap()).size(), before + moduleBricks);
+    if (keep.isValid()) QSettings().setValue(QStringLiteral("modules/libraryPath"), keep);
+    else QSettings().remove(QStringLiteral("modules/libraryPath"));
 }
 
 TEST(TouchModeTest, FollowsTheLastInput) {

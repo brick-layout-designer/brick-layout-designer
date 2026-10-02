@@ -161,6 +161,12 @@ public:
     void touchPartDragTo(const QString& partKey, QPoint globalPos);
     bool touchPartDropAt(const QString& partKey, QPoint globalPos);
     void touchPartDragCancel();
+    // The same for a module dragged out of the Module library by touch.
+    void touchModuleDragTo(const QString& bbmPath, QPoint globalPos);
+    bool touchModuleDropAt(const QString& bbmPath, QPoint globalPos);
+    // Places the module saved at `bbmPath` with its centre at `scenePos`
+    // (a drop from the Module library); false when it can't be read.
+    bool dropModuleAt(const QString& bbmPath, QPointF scenePos);
     class TouchActionBar* touchActionBar() const { return touchBar_; }
     // The ring filling under a resting finger, until the menu opens.
     bool longPressRingShown() const;
