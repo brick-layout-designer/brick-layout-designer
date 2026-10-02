@@ -121,6 +121,13 @@ void mouse(QWidget* w, QEvent::Type type, QPoint pos, Qt::MouseButtons buttons) 
 }  // namespace
 
 TEST_F(MapViewTest, DoubleClickDragBendsFlexTrackInOneUndoStep) {
+    // The flex chain is found through the parts' connection points, so the
+    // track parts must be in the library (an uninitialised submodule leaves
+    // an empty folder).
+    for (const char* part : { "2865.8", "88492.8", "88493.8" }) {
+        if (!parts_.metadata(QString::fromLatin1(part)))
+            GTEST_SKIP() << "the BlueBrickParts library isn't checked out (run git submodule update --init); missing " << part;
+    }
     auto loaded = saveload::readBbm(QStringLiteral(BLD_SOURCE_DIR "/fixtures/bluebrick-oracle/flex-in.bbm"));
     ASSERT_TRUE(loaded.ok());
     view_->loadMap(std::move(loaded.map));
