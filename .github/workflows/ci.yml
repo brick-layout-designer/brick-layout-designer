@@ -62,7 +62,7 @@ jobs:
         include:
           - { os: ubuntu-22.04, name: linux }
           - { os: windows-2022, name: windows }
-          - { os: macos-14, name: macos }
+          - { os: macos-15, name: macos }
     runs-on: ${{ matrix.os }}
     env:
       QT_QPA_PLATFORM: offscreen
