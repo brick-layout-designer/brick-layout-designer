@@ -24,6 +24,7 @@
 #include "PartsSync.h"
 #include "ServerApi.h"
 #include "ServerList.h"
+#include "CatalogLink.h"
 #include "ServersDialog.h"
 #include "TokenStore.h"
 #include "PrefsSync.h"
@@ -708,3 +709,18 @@ void MainWindow::showBrick(const QString& guid) {
 }
 
 } // namespace bld::ui
+
+void bld::ui::MainWindow::openCatalogOnWeb(bool parts) {
+    const sync::ServerList servers = sync::ServerList::load();
+    const sync::ServerEntry* server = servers.lastUsed();
+    if (!server) {
+        // Not from inside the click: a message box of its own, queued.
+        QTimer::singleShot(0, this, [this] {
+            QMessageBox::information(this, tr("Catalog"),
+                                     tr("The catalog is on your club's server. Connect to a server first "
+                                        "(File › Servers…), then try again."));
+        });
+        return;
+    }
+    QDesktopServices::openUrl(catalogWebUrl(server->url, parts));
+}

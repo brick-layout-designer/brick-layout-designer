@@ -84,6 +84,15 @@ ModuleLibraryPanel::ModuleLibraryPanel(QWidget* parent)
     list_->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
     list_->setIconSize(QSize(48, 48));
     col->addWidget(list_);
+    catalogLink_ = new QPushButton(tr("Browse the catalog on the web…"), host);
+    catalogLink_->setObjectName(QStringLiteral("browseCatalog"));
+    catalogLink_->setFlat(true);
+    catalogLink_->setCursor(Qt::PointingHandCursor);
+    catalogLink_->setToolTip(tr("Modules people shared for everyone, on your server's website"));
+    catalogLink_->setVisible(false);
+
+    connect(catalogLink_, &QPushButton::clicked, this, &ModuleLibraryPanel::browseCatalogRequested);
+    col->addWidget(catalogLink_, 0, Qt::AlignLeft);
 
     setWidget(host);
 
@@ -179,6 +188,8 @@ void ModuleLibraryPanel::setLibraryPath(const QString& dir) {
     QSettings().setValue(QString::fromLatin1(kSettingsKey), path_);
     refresh();
 }
+
+void ModuleLibraryPanel::setCatalogLinkVisible(bool visible) { catalogLink_->setVisible(visible); }
 
 void ModuleLibraryPanel::setParts(parts::PartsLibrary* parts) {
     parts_ = parts;

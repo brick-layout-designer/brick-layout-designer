@@ -256,6 +256,9 @@ private:
     void onPublishToServer();
     // File › Servers…: your servers (add, rename, remove, sign in, Main).
     void onManageServers();
+    // "Browse the catalog on the web…" in the Parts panel and Module library:
+    // the last-used server's catalog page in the browser.
+    void openCatalogOnWeb(bool parts);
 protected:
     // Open a server layout live in this window. Protected so tests can open
     // one without the connect dialog.

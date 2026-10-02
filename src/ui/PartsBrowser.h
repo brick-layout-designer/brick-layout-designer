@@ -15,6 +15,8 @@ class QListWidgetItem;
 class QTimer;
 class QTouchEvent;
 
+class QPushButton;
+
 namespace bld::core  { class Map; }
 namespace bld::parts { class PartsLibrary; }
 
@@ -49,8 +51,13 @@ public:
     // Recount after the layout changed.
     void refreshBudget();
 
+    // "Browse the catalog on the web…" (builds that talk to a server).
+    void setCatalogLinkVisible(bool visible);
+
 signals:
     void partActivated(const QString& key);
+    // "Browse the catalog on the web…" was clicked.
+    void browseCatalogRequested();
 
     // Emitted when the user deletes an imported part from disk via
     // the right-click menu. MainWindow listens to trigger a parts-
@@ -82,6 +89,7 @@ protected:
     bool eventFilter(QObject* obj, QEvent* ev) override;
 
 private:
+    QPushButton* catalogLink_ = nullptr;
     // A finger on the grid: undecided, scrolling it, or dragging a part out.
     enum class TouchState { None, Undecided, Scroll, Drag, Held };
     TouchState touch_ = TouchState::None;
