@@ -1,6 +1,7 @@
 #include "ConnectDialog.h"
 
 #include "OwnerFilter.h"
+#include "RefreshOnFocus.h"
 #include "ServerList.h"
 #include "ServersDialog.h"
 #include "TokenStore.h"
@@ -244,6 +245,8 @@ ConnectDialog::ConnectDialog(ServerApi& api, TokenStore& tokens, std::function<v
     connect(&api_, &ServerApi::layoutsReady, this, &ConnectDialog::showLayouts);
     connect(&api_, &ServerApi::venuesReady, this, &ConnectDialog::showVenues);
     connect(&api_, &ServerApi::orgsReady, this, &ConnectDialog::showOrgs);
+    // Back from the web (where a layout or venue may have just been added): list again.
+    new RefreshOnFocus(this, [this] { refreshList(); });
     connect(&api_, &ServerApi::published, this, [this](const QString& id, const QString& title) {
         if (purpose_ != Purpose::Publish) return;
         result_ = ConnectResult{ server_, token_, id, title, false, info_ };
@@ -503,7 +506,30 @@ void ConnectDialog::publishNow() {
                        owner_->currentData().toString());
 }
 
+void ConnectDialog::refreshList() {
+    if (token_.isEmpty() || pages_->currentIndex() != LayoutsPage) return;
+    if (purpose_ == Purpose::DownloadVenues) api_.fetchVenues();
+    else if (purpose_ == Purpose::OpenLayout) api_.fetchLayouts();
+}
+
+QStringList ConnectDialog::pickedIds() const {
+    QStringList ids;
+    for (const auto* item : layouts_->selectedItems()) ids << item->data(TitleCol, Qt::UserRole).toString();
+    return ids;
+}
+
+void ConnectDialog::pickAgain(const QStringList& ids) {
+    if (ids.isEmpty()) return;
+    for (int i = 0; i < layouts_->topLevelItemCount(); ++i) {
+        auto* item = layouts_->topLevelItem(i);
+        if (!ids.contains(item->data(TitleCol, Qt::UserRole).toString())) continue;
+        item->setSelected(true);
+        if (!layouts_->currentItem() || !layouts_->currentItem()->isSelected()) layouts_->setCurrentItem(item, 0, QItemSelectionModel::NoUpdate);
+    }
+}
+
 void ConnectDialog::showVenues(const QList<VenueEntry>& venues) {
+    const QStringList keep = pickedIds();
     layouts_->setSortingEnabled(false);
     layouts_->clear();
     QList<std::pair<QString, QString>> clubs;
@@ -519,11 +545,13 @@ void ConnectDialog::showVenues(const QList<VenueEntry>& venues) {
     setShowChoices(clubs);
     layouts_->setSortingEnabled(true);
     filterLayouts(filter_->text());
+    pickAgain(keep);
     pages_->setCurrentIndex(LayoutsPage);
     showMessage(venues.isEmpty() ? tr("No saved venues on this server yet.") : QString());
 }
 
 void ConnectDialog::showLayouts(const QList<LayoutEntry>& layouts) {
+    const QStringList keep = pickedIds();
     layouts_->setSortingEnabled(false);
     layouts_->clear();
     QList<std::pair<QString, QString>> clubs;
@@ -545,6 +573,7 @@ void ConnectDialog::showLayouts(const QList<LayoutEntry>& layouts) {
     setShowChoices(clubs);
     layouts_->setSortingEnabled(true);
     filterLayouts(filter_->text());
+    pickAgain(keep);
     pages_->setCurrentIndex(LayoutsPage);
     showMessage(layouts.isEmpty() ? tr("No layouts yet. Create one on the web, or publish one from here.")
                                   : QString());

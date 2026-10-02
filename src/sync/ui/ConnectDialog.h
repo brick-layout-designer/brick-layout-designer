@@ -75,6 +75,9 @@ public:
     void openRecent(const QUrl& server, const QString& layoutId);
     // Fill the server list again (after File › Servers… changed it).
     void refreshServers();
+    // Ask the server for the listed layouts or venues again, keeping what
+    // is picked (done when you come back to the window, see RefreshOnFocus).
+    void refreshList();
     // How to open File › Servers… from here (the app's; tests replace it).
     void setManageServers(std::function<void()> manage) { manageServers_ = std::move(manage); }
 
@@ -94,6 +97,9 @@ private:
     // Fill the Show filter with All, Mine and the clubs in the list (key, name).
     void setShowChoices(const QList<std::pair<QString, QString>>& clubs);
     void onServerPicked();
+    // The ids of the picked rows, and picking them again after a refill.
+    QStringList pickedIds() const;
+    void pickAgain(const QStringList& ids);
 
     ServerApi& api_;
     TokenStore& tokens_;
