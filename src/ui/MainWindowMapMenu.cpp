@@ -257,7 +257,7 @@ void MainWindow::setupMapMenu() {
 
     venueMenu->addSeparator();
 
-    auto* showLibraryAct = venueMenu->addAction(tr("Venue &Library..."));
+    auto* showLibraryAct = venueMenu->addAction(tr("Venue &library..."));
     showLibraryAct->setToolTip(tr("Open the Venue library panel to browse, load, or save venues."));
     connect(showLibraryAct, &QAction::triggered, this, [this]{
         venueLibraryPanel_->show();

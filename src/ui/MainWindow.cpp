@@ -199,7 +199,7 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
         QCheckBox* showCellIdx = nullptr;
         if (layer.kind() == core::LayerKind::Grid) {
             auto& G = static_cast<core::LayerGrid&>(layer);
-            form->addRow(new QLabel(QStringLiteral("<b>%1</b>").arg(tr("Grid layer")), &dlg));
+            form->addRow(new QLabel(QStringLiteral("<b>%1</b>").arg(tr("Grid sheet")), &dlg));
             gridSize = new QSpinBox(&dlg);
             gridSize->setRange(1, 512); gridSize->setSuffix(tr(" studs"));
             gridSize->setValue(G.gridSizeInStud);
@@ -230,7 +230,7 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
         QCheckBox* brickElev = nullptr;
         if (layer.kind() == core::LayerKind::Brick) {
             auto& B = static_cast<core::LayerBrick&>(layer);
-            form->addRow(new QLabel(QStringLiteral("<b>%1</b>").arg(tr("Brick layer")), &dlg));
+            form->addRow(new QLabel(QStringLiteral("<b>%1</b>").arg(tr("Parts sheet")), &dlg));
             brickElev = new QCheckBox(tr("Display brick elevation labels"), &dlg);
             brickElev->setChecked(B.displayBrickElevation);
             form->addRow(brickElev);
@@ -240,13 +240,13 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
         QSpinBox* areaCell = nullptr;
         if (layer.kind() == core::LayerKind::Area) {
             auto& A = static_cast<core::LayerArea&>(layer);
-            form->addRow(new QLabel(QStringLiteral("<b>%1</b>").arg(tr("Area layer")), &dlg));
+            form->addRow(new QLabel(QStringLiteral("<b>%1</b>").arg(tr("Area sheet")), &dlg));
             areaCell = new QSpinBox(&dlg);
             areaCell->setRange(1, 256); areaCell->setSuffix(tr(" studs"));
             areaCell->setValue(A.areaCellSizeInStud);
             form->addRow(tr("Paint cell size:"), areaCell);
             form->addRow(new QLabel(
-                tr("Changing cell size on a layer with painted cells will leave\n"
+                tr("Changing cell size on a sheet with painted cells will leave\n"
                    "existing cells at their old indexing — paint over to clean up."), &dlg));
         }
 
@@ -656,7 +656,7 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
         }
         if (fresh.empty()) {
             QMessageBox::information(this, tr("Re-scan module"),
-                tr("Source file has no brick layers to import."));
+                tr("Source file has no parts sheets to import."));
             return;
         }
         mapView_->undoStack()->push(new edit::RescanModuleCommand(
@@ -1153,7 +1153,7 @@ void MainWindow::onImportBbmAsModule() {
     auto batches = batchesFromModuleMap(*loaded.map);
     if (batches.empty()) {
         QMessageBox::information(this, tr("Import module"),
-            tr("The selected file has no brick layers to import."));
+            tr("The selected file has no parts sheets to import."));
         return;
     }
     int imported = 0;

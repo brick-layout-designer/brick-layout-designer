@@ -1926,15 +1926,15 @@ void MapView::showDropTargetHint() {
     }
 
     if (target < 0) {
-        sb->showMessage(tr("No brick layer — add one before dropping parts"), 0);
+        sb->showMessage(tr("No parts sheet — add one before dropping parts"), 0);
         return;
     }
 
     const QString name = layers[target]->name;
     const bool isActive = (target == map_->selectedLayerIndex);
     const QString msg = isActive
-        ? tr("Drop onto: %1 (active layer)").arg(name)
-        : tr("Drop onto: %1 (active layer is not a brick layer)").arg(name);
+        ? tr("Drop onto: %1 (active sheet)").arg(name)
+        : tr("Drop onto: %1 (the active sheet is not a parts sheet)").arg(name);
     sb->showMessage(msg, 0);
 }
 

@@ -118,7 +118,7 @@ void MapView::pasteClipboard() {
     if (refused > 0) reportBudgetRefusal();
     if (layerOrder.isEmpty()) return;
 
-    undoStack_->beginMacro(tr("Paste (%1 bricks across %2 layer(s))")
+    undoStack_->beginMacro(tr("Paste (%1 parts across %2 sheet(s))")
                                .arg(clipboard_.size()).arg(layerOrder.size()));
     for (const QString& name : layerOrder) {
         const int li = findOrCreateLayer(name);

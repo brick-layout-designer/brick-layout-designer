@@ -88,7 +88,7 @@ QString LayerPanel::friendlyKindName(core::LayerKind k) {
     return tr("Sheet");
 }
 
-LayerPanel::LayerPanel(QWidget* parent) : QDockWidget(tr("Layers"), parent) {
+LayerPanel::LayerPanel(QWidget* parent) : QDockWidget(tr("Sheets"), parent) {
     auto* host = new QWidget(this);
     auto* col = new QVBoxLayout(host);
     col->setContentsMargins(2, 2, 2, 2);
@@ -98,15 +98,15 @@ LayerPanel::LayerPanel(QWidget* parent) : QDockWidget(tr("Layers"), parent) {
     row->setSpacing(2);
     auto* showAll = new QPushButton(tr("Show all"), host);
     auto* hideOthers = new QPushButton(tr("Solo"), host);
-    hideOthers->setToolTip(tr("Show only the selected layer"));
+    hideOthers->setToolTip(tr("Show only the selected sheet"));
     auto* addBtn = new QPushButton(tr("+"), host);
-    addBtn->setToolTip(tr("Add a new layer"));
+    addBtn->setToolTip(tr("Add a new sheet"));
     auto* delBtn = new QPushButton(tr("−"), host);
-    delBtn->setToolTip(tr("Delete the selected layer"));
+    delBtn->setToolTip(tr("Delete the selected sheet"));
     auto* upBtn  = new QPushButton(tr("▲"), host);
-    upBtn->setToolTip(tr("Move selected layer up"));
+    upBtn->setToolTip(tr("Move selected sheet up"));
     auto* dnBtn  = new QPushButton(tr("▼"), host);
-    dnBtn->setToolTip(tr("Move selected layer down"));
+    dnBtn->setToolTip(tr("Move selected sheet down"));
     row->addWidget(showAll);
     row->addWidget(hideOthers);
     row->addStretch();
@@ -122,11 +122,11 @@ LayerPanel::LayerPanel(QWidget* parent) : QDockWidget(tr("Layers"), parent) {
             auto* a = m.addAction(label);
             connect(a, &QAction::triggered, [this, k]{ emit addLayerRequested(k); });
         };
-        add(tr("Grid Layer"),  core::LayerKind::Grid);
-        add(tr("Brick Layer"), core::LayerKind::Brick);
-        add(tr("Text Layer"),  core::LayerKind::Text);
-        add(tr("Area Layer"),  core::LayerKind::Area);
-        add(tr("Ruler Layer"), core::LayerKind::Ruler);
+        add(tr("Grid sheet"),  core::LayerKind::Grid);
+        add(tr("Parts sheet"), core::LayerKind::Brick);
+        add(tr("Text sheet"),  core::LayerKind::Text);
+        add(tr("Area sheet"),  core::LayerKind::Area);
+        add(tr("Ruler sheet"), core::LayerKind::Ruler);
         m.exec(QCursor::pos());
     });
     connect(delBtn, &QPushButton::clicked, this, [this]{
@@ -194,7 +194,7 @@ LayerPanel::LayerPanel(QWidget* parent) : QDockWidget(tr("Layers"), parent) {
         if (item) {
             const int row = list_->row(item);
             const bool visible = (item->checkState() == Qt::Checked);
-            auto* setActive = menu.addAction(tr("Make Active Layer"));
+            auto* setActive = menu.addAction(tr("Make Active Sheet"));
             connect(setActive, &QAction::triggered, [this, row]{
                 list_->setCurrentRow(row);
             });
@@ -203,18 +203,18 @@ LayerPanel::LayerPanel(QWidget* parent) : QDockWidget(tr("Layers"), parent) {
             connect(toggle, &QAction::triggered, [item, visible]{
                 item->setCheckState(visible ? Qt::Unchecked : Qt::Checked);
             });
-            auto* allOn = menu.addAction(tr("Show all layers"));
+            auto* allOn = menu.addAction(tr("Show all sheets"));
             connect(allOn, &QAction::triggered, [this]{
                 for (int i = 0; i < list_->count(); ++i) list_->item(i)->setCheckState(Qt::Checked);
             });
-            auto* allOff = menu.addAction(tr("Hide all other layers"));
+            auto* allOff = menu.addAction(tr("Hide all other sheets"));
             connect(allOff, &QAction::triggered, [this, item]{
                 for (int i = 0; i < list_->count(); ++i) {
                     list_->item(i)->setCheckState(list_->item(i) == item ? Qt::Checked : Qt::Unchecked);
                 }
             });
             menu.addSeparator();
-            auto* opts = menu.addAction(tr("Layer Options..."));
+            auto* opts = menu.addAction(tr("Sheet options..."));
             connect(opts, &QAction::triggered, [this, row]{ emit layerOptionsRequested(row); });
             auto* ren = menu.addAction(tr("Rename..."));
             connect(ren, &QAction::triggered, [this, row, item]{
@@ -222,7 +222,7 @@ LayerPanel::LayerPanel(QWidget* parent) : QDockWidget(tr("Layers"), parent) {
                 // The sheet's own name (the row may show "(untitled)").
                 const QString def = item->data(Qt::UserRole).toString();
                 const QString name = QInputDialog::getText(
-                    this, tr("Rename layer"), tr("Layer name:"),
+                    this, tr("Rename sheet"), tr("Sheet name:"),
                     QLineEdit::Normal, def, &ok);
                 if (ok && !name.isEmpty()) emit renameLayerRequested(row, name);
             });
@@ -231,22 +231,22 @@ LayerPanel::LayerPanel(QWidget* parent) : QDockWidget(tr("Layers"), parent) {
             auto* dn = menu.addAction(tr("Move Down"));
             connect(dn, &QAction::triggered, [this, row]{ emit moveLayerRequested(row, -1); });
             menu.addSeparator();
-            auto* del = menu.addAction(tr("Delete layer"));
+            auto* del = menu.addAction(tr("Delete sheet"));
             connect(del, &QAction::triggered, [this, row]{ emit deleteLayerRequested(row); });
             menu.addSeparator();
         }
 
         // "Add Layer" submenu — available whether or not a row is under the cursor.
-        auto* addMenu = menu.addMenu(tr("Add Layer"));
+        auto* addMenu = menu.addMenu(tr("Add Sheet"));
         auto addKind = [&](const QString& label, core::LayerKind k){
             auto* a = addMenu->addAction(label);
             connect(a, &QAction::triggered, [this, k]{ emit addLayerRequested(k); });
         };
-        addKind(tr("Grid Layer"),  core::LayerKind::Grid);
-        addKind(tr("Brick Layer"), core::LayerKind::Brick);
-        addKind(tr("Text Layer"),  core::LayerKind::Text);
-        addKind(tr("Area Layer"),  core::LayerKind::Area);
-        addKind(tr("Ruler Layer"), core::LayerKind::Ruler);
+        addKind(tr("Grid sheet"),  core::LayerKind::Grid);
+        addKind(tr("Parts sheet"), core::LayerKind::Brick);
+        addKind(tr("Text sheet"),  core::LayerKind::Text);
+        addKind(tr("Area sheet"),  core::LayerKind::Area);
+        addKind(tr("Ruler sheet"), core::LayerKind::Ruler);
 
         menu.exec(list_->mapToGlobal(pos));
     });
