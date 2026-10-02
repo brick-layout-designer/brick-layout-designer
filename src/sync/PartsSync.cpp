@@ -1,4 +1,5 @@
 #include "PartsSync.h"
+#include "ServerRefusal.h"
 
 #include "ServerApi.h"
 
@@ -86,8 +87,8 @@ void PartsSync::start() {
         r->deleteLater();
         const int status = r->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         if (status != 200) {
-            emit failed(status == 0 ? r->errorString() : tr("The server answered %1").arg(status),
-                        status == 401 || status == 403);
+            const ServerRefusal refusal = readRefusal(status, r->readAll(), r->errorString());
+            emit failed(failureText(refusal), needsSignIn(refusal));
             return;
         }
         onManifest(QJsonDocument::fromJson(r->readAll()).object());

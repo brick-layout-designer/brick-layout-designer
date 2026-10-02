@@ -121,8 +121,8 @@ void PartsUpload::getCatalog(std::function<void(const QSet<QString>&)> done) {
         r->deleteLater();
         const int status = r->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         if (status != 200) {
-            emit failed(status == 0 ? r->errorString() : tr("The server answered %1").arg(status),
-                        status == 401 || status == 403);
+            const ServerRefusal refusal = readRefusal(status, r->readAll(), r->errorString());
+            emit failed(failureText(refusal), needsSignIn(refusal));
             return;
         }
         QSet<QString> known;
@@ -186,7 +186,7 @@ void PartsUpload::uploadNext() {
         if (status == 201 || status == 200) ++done_;
         else {
             const ServerRefusal refusal = readRefusal(status, r->readAll(), r->errorString());
-            const QString err = refusal.code.isEmpty() && !isLimitRefusal(refusal) && status != 0
+            const QString err = refusal.code.isEmpty() && !isLimitRefusal(refusal) && !isFirewallBlock(refusal) && status != 0
                                     ? tr("the server answered %1").arg(status)
                                     : describe(refusal);
             failures_ << tr("%1: %2").arg(key, err);
@@ -197,7 +197,8 @@ void PartsUpload::uploadNext() {
             const bool stopAll = status == 401 || status == 403 || refusal.code == QLatin1String("rate_limited");
             if (stopAll) {
                 queue_.clear();
-                emit failed(refusal.code.isEmpty() ? tr("The server refused the upload") : describe(refusal),
+                emit failed(refusal.code.isEmpty() && !isFirewallBlock(refusal) ? tr("The server refused the upload")
+                                                                                 : describe(refusal),
                             needsSignIn(refusal));
             }
         }

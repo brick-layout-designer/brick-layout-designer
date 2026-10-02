@@ -21,6 +21,8 @@ struct ServerRefusal {
     // update_required (426) only: the oldest version the server accepts, and where to get it.
     QString minimum;
     QString downloadUrl;
+    // The body was a JSON object: the app itself answered.
+    bool jsonBody = false;
 };
 
 // Read a failed reply: its status, JSON body and Qt's network error text.
@@ -32,8 +34,17 @@ bool isLimitRefusal(const ServerRefusal& r);
 // This app is older than the server accepts (426 update_required).
 bool isUpdateRequired(const ServerRefusal& r);
 
+// A 403 the app never saw: an empty or non-JSON body means the site's
+// firewall (WAF) answered, not the server. Not a permissions problem, and
+// not a reason to sign in again.
+bool isFirewallBlock(const ServerRefusal& r);
+
 // The failure means this sign-in can't do it: sign in again.
 bool needsSignIn(const ServerRefusal& r);
+
+// What to show for a failed request, in plain words: the firewall message,
+// a limit's own sentence, "The server answered 500", or Qt's network error.
+QString failureText(const ServerRefusal& r);
 
 // One sentence to show.
 QString describe(const ServerRefusal& r);
