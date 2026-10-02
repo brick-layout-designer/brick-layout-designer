@@ -66,7 +66,7 @@ QString readLayersInto(QXmlStreamReader& r, core::Map& map, int dataVersion) {
         }
     }
     if (skipped == 0) return {};
-    return QStringLiteral("%1 layer(s) skipped (unsupported type)").arg(skipped);
+    return QStringLiteral("%1 sheet(s) skipped (unsupported type)").arg(skipped);
 }
 
 LoadResult readMapElement(QXmlStreamReader& r) {

@@ -486,7 +486,7 @@ void MainWindow::onDownloadVenues() {
     }
     if (!saved.isEmpty())
         statusBar()->showMessage(
-            tr("Added %n venue(s) to the Venue Library", nullptr, static_cast<int>(saved.size())), 5000);
+            tr("Added %n venue(s) to the Venue library", nullptr, static_cast<int>(saved.size())), 5000);
 }
 
 void MainWindow::syncServerParts(const QUrl& server, const QString& token) {

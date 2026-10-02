@@ -488,7 +488,7 @@ LayerReadOutcome readLayer(QXmlStreamReader& r, int dataVersion) {
     else if (type == QStringLiteral("ruler")) { auto l = readLayerRuler(r, dataVersion); l->guid = guid; out.layer = std::move(l); }
     else {
         r.skipCurrentElement();
-        out.warning = QStringLiteral("Unknown layer type '%1'; skipped.").arg(type);
+        out.warning = QStringLiteral("Unknown sheet type '%1'; skipped.").arg(type);
     }
     return out;
 }

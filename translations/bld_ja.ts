@@ -80,37 +80,37 @@
     </message>
     <message>
         <location filename="../src/edit/LayerCommands.cpp" line="40"/>
-        <source>New Layer</source>
+        <source>New Sheet</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/edit/LayerCommands.cpp" line="41"/>
-        <source>Add layer &apos;%1&apos;</source>
+        <source>Add sheet &apos;%1&apos;</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/edit/LayerCommands.cpp" line="67"/>
-        <source>Delete layer</source>
+        <source>Delete sheet</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/edit/LayerCommands.cpp" line="90"/>
-        <source>Move layer up</source>
+        <source>Move sheet up</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/edit/LayerCommands.cpp" line="90"/>
-        <source>Move layer down</source>
+        <source>Move sheet down</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/edit/LayerCommands.cpp" line="121"/>
-        <source>Rename layer</source>
+        <source>Rename sheet</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/edit/LayerCommands.cpp" line="146"/>
-        <source>Change layer transparency</source>
+        <source>Change sheet transparency</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1433,7 +1433,7 @@
     <name>bld::ui::LayerPanel</name>
     <message>
         <location filename="../src/ui/LayerPanel.cpp" line="51"/>
-        <source>Layers</source>
+        <source>Sheets</source>
         <translation>レイヤー</translation>
     </message>
     <message>
@@ -1448,7 +1448,7 @@
     </message>
     <message>
         <location filename="../src/ui/LayerPanel.cpp" line="61"/>
-        <source>Show only the selected layer</source>
+        <source>Show only the selected sheet</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1458,7 +1458,7 @@
     </message>
     <message>
         <location filename="../src/ui/LayerPanel.cpp" line="63"/>
-        <source>Add a new layer</source>
+        <source>Add a new sheet</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1468,7 +1468,7 @@
     </message>
     <message>
         <location filename="../src/ui/LayerPanel.cpp" line="65"/>
-        <source>Delete the selected layer</source>
+        <source>Delete the selected sheet</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1478,7 +1478,7 @@
     </message>
     <message>
         <location filename="../src/ui/LayerPanel.cpp" line="67"/>
-        <source>Move selected layer up</source>
+        <source>Move selected sheet up</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1488,42 +1488,42 @@
     </message>
     <message>
         <location filename="../src/ui/LayerPanel.cpp" line="69"/>
-        <source>Move selected layer down</source>
+        <source>Move selected sheet down</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/LayerPanel.cpp" line="85"/>
         <location filename="../src/ui/LayerPanel.cpp" line="207"/>
-        <source>Grid Layer</source>
+        <source>Grid sheet</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/LayerPanel.cpp" line="86"/>
         <location filename="../src/ui/LayerPanel.cpp" line="208"/>
-        <source>Brick Layer</source>
+        <source>Parts sheet</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/LayerPanel.cpp" line="87"/>
         <location filename="../src/ui/LayerPanel.cpp" line="209"/>
-        <source>Text Layer</source>
+        <source>Text sheet</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/LayerPanel.cpp" line="88"/>
         <location filename="../src/ui/LayerPanel.cpp" line="210"/>
-        <source>Area Layer</source>
+        <source>Area sheet</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/LayerPanel.cpp" line="89"/>
         <location filename="../src/ui/LayerPanel.cpp" line="211"/>
-        <source>Ruler Layer</source>
+        <source>Ruler sheet</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/LayerPanel.cpp" line="156"/>
-        <source>Make Active Layer</source>
+        <source>Make Active Sheet</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1538,17 +1538,17 @@
     </message>
     <message>
         <location filename="../src/ui/LayerPanel.cpp" line="165"/>
-        <source>Show all layers</source>
+        <source>Show all sheets</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/LayerPanel.cpp" line="169"/>
-        <source>Hide all other layers</source>
+        <source>Hide all other sheets</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/LayerPanel.cpp" line="176"/>
-        <source>Layer Options...</source>
+        <source>Sheet options...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1558,12 +1558,12 @@
     </message>
     <message>
         <location filename="../src/ui/LayerPanel.cpp" line="187"/>
-        <source>Rename layer</source>
+        <source>Rename sheet</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/LayerPanel.cpp" line="187"/>
-        <source>Layer name:</source>
+        <source>Sheet name:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1578,12 +1578,12 @@
     </message>
     <message>
         <location filename="../src/ui/LayerPanel.cpp" line="196"/>
-        <source>Delete layer</source>
+        <source>Delete sheet</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/LayerPanel.cpp" line="202"/>
-        <source>Add Layer</source>
+        <source>Add Sheet</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1665,7 +1665,7 @@
     </message>
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="186"/>
-        <source>Grid layer</source>
+        <source>Grid sheet</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1706,7 +1706,7 @@
     </message>
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="217"/>
-        <source>Brick layer</source>
+        <source>Parts sheet</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1716,7 +1716,7 @@
     </message>
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="227"/>
-        <source>Area layer</source>
+        <source>Area sheet</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1726,7 +1726,7 @@
     </message>
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="233"/>
-        <source>Changing cell size on a layer with painted cells will leave
+        <source>Changing cell size on a sheet with painted cells will leave
 existing cells at their old indexing — paint over to clean up.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1829,7 +1829,7 @@ Target path:
     </message>
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="604"/>
-        <source>Source file has no brick layers to import.</source>
+        <source>Source file has no parts sheets to import.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2145,7 +2145,7 @@ Target path:
     </message>
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="1357"/>
-        <source>The selected file has no brick layers to import.</source>
+        <source>The selected file has no parts sheets to import.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2189,7 +2189,7 @@ Target path:
     </message>
     <message>
         <location filename="../src/ui/MainWindowFileIO.cpp" line="169"/>
-        <source>Opened %1 — %2 layers, %3 items</source>
+        <source>Opened %1 — %2 sheets, %3 items</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2280,12 +2280,12 @@ Target path:
     </message>
     <message>
         <location filename="../src/ui/MainWindowFileIO.cpp" line="128"/>
-        <source>Opened %1 — %2 layers</source>
+        <source>Opened %1 — %2 sheets</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowFileIO.cpp" line="129"/>
-        <source>Opened %1 — %2 layers (%3)</source>
+        <source>Opened %1 — %2 sheets (%3)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2305,7 +2305,7 @@ Target path:
     </message>
     <message>
         <location filename="../src/ui/MainWindowFileIO.cpp" line="260"/>
-        <source>This format can&apos;t store everything in the map: text, area and grid layers, module / label / venue data and parts the format has no equivalent for are lost, and layer names may change. Keep a .bbm copy if you need them.
+        <source>This format can&apos;t store everything in the map: text, area and grid sheets, module / label / venue data and parts the format has no equivalent for are lost, and sheet names may change. Keep a .bbm copy if you need them.
 
 Save anyway?</source>
         <translation type="unfinished"></translation>
@@ -2607,12 +2607,12 @@ Restore it?</source>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMapMenu.cpp" line="241"/>
-        <source>Venue &amp;Library...</source>
+        <source>Venue &amp;library...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMapMenu.cpp" line="242"/>
-        <source>Open the Venue Library panel to browse, load, or save venues.</source>
+        <source>Open the Venue library panel to browse, load, or save venues.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -3383,12 +3383,12 @@ Restore it?</source>
     </message>
     <message>
         <location filename="../src/ui/MainWindowToolsMenu.cpp" line="79"/>
-        <source>&amp;Split by Layer</source>
+        <source>&amp;Split by Sheet</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowToolsMenu.cpp" line="80"/>
-        <source>Include &amp;Hidden Layers</source>
+        <source>Include &amp;Hidden Sheets</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -3722,17 +3722,17 @@ Restore it?</source>
     </message>
     <message>
         <location filename="../src/ui/MapView.cpp" line="1838"/>
-        <source>No brick layer — add one before dropping parts</source>
+        <source>No parts sheet — add one before dropping parts</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MapView.cpp" line="1845"/>
-        <source>Drop onto: %1 (active layer)</source>
+        <source>Drop onto: %1 (active sheet)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MapView.cpp" line="1846"/>
-        <source>Drop onto: %1 (active layer is not a brick layer)</source>
+        <source>Drop onto: %1 (the active sheet is not a parts sheet)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -3752,7 +3752,7 @@ Restore it?</source>
     </message>
     <message>
         <location filename="../src/ui/MapViewClipboard.cpp" line="121"/>
-        <source>Paste (%1 bricks across %2 layer(s))</source>
+        <source>Paste (%1 parts across %2 sheet(s))</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -4393,7 +4393,7 @@ This removes:
     <name>bld::ui::VenueLibraryPanel</name>
     <message>
         <location filename="../src/ui/VenueLibraryPanel.cpp" line="57"/>
-        <source>Venue Library</source>
+        <source>Venue library</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

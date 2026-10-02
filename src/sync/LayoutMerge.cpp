@@ -413,7 +413,7 @@ QString describe(const ItemChange& c) {
                               .toObject();
     QString what;
     if (c.kind == QLatin1String("map")) what = tr("Layout details");
-    else if (c.kind == QLatin1String("layer")) what = tr("Layer \"%1\"").arg(v.value(QLatin1String("name")).toString());
+    else if (c.kind == QLatin1String("layer")) what = tr("Sheet \"%1\"").arg(v.value(QLatin1String("name")).toString());
     else if (c.kind == QLatin1String("brick"))
         what = tr("Brick %1").arg(v.value(QLatin1String("partNumber")).toString()) + at(v) + on(c);
     else if (c.kind == QLatin1String("group")) {

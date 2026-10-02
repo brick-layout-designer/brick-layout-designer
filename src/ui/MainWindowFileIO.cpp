@@ -156,8 +156,8 @@ bool MainWindow::openFile(const QString& path) {
         cleanUndoIndex_ = 0;
         updateTitle();
         statusBar()->showMessage(ldraw.warnings.isEmpty()
-            ? tr("Opened %1 — %2 layers").arg(path).arg(layerCount)
-            : tr("Opened %1 — %2 layers (%3)").arg(path).arg(layerCount).arg(ldraw.warnings.join(QStringLiteral("; "))));
+            ? tr("Opened %1 — %2 sheets").arg(path).arg(layerCount)
+            : tr("Opened %1 — %2 sheets (%3)").arg(path).arg(layerCount).arg(ldraw.warnings.join(QStringLiteral("; "))));
         QSettings().setValue(QString::fromLatin1(kLastFileKey), path);
         pushRecentFile(path);
         return true;
@@ -223,7 +223,7 @@ void MainWindow::showLoadedMap(std::unique_ptr<core::Map> map, const QString& pa
     mapView_->undoStack()->setClean();
     cleanUndoIndex_ = 0;
     updateTitle();
-    const QString opened = tr("Opened %1 — %2 layers, %3 items").arg(path).arg(layerCount).arg(nbItems);
+    const QString opened = tr("Opened %1 — %2 sheets, %3 items").arg(path).arg(layerCount).arg(nbItems);
     statusBar()->showMessage(warnings.isEmpty()
                                  ? opened
                                  : QStringLiteral("%1 (%2)").arg(opened, warnings.join(QStringLiteral("; "))));
@@ -494,9 +494,9 @@ bool MainWindow::onSaveAs() {
     if (!path.endsWith(QStringLiteral(".bbm"), Qt::CaseInsensitive) && !import::isLayoutFile(path)
         && QSettings().value(warnKey, true).toBool()) {
         QMessageBox box(QMessageBox::Question, tr("Save as %1").arg(QFileInfo(path).suffix().toUpper()),
-            tr("This format can't store everything in the map: text, area and grid layers, "
+            tr("This format can't store everything in the map: text, area and grid sheets, "
                "module / label / venue data and parts the format has no equivalent for are lost, "
-               "and layer names may change. Keep a .bbm copy if you need them.\n\nSave anyway?"),
+               "and sheet names may change. Keep a .bbm copy if you need them.\n\nSave anyway?"),
             QMessageBox::Yes | QMessageBox::No, this);
         auto* dontAsk = new QCheckBox(tr("Don't show this again"), &box);
         box.setCheckBox(dontAsk);

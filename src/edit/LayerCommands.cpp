@@ -37,8 +37,8 @@ std::unique_ptr<core::Layer> makeLayer(core::LayerKind kind, const QString& name
 AddLayerCommand::AddLayerCommand(core::Map& map, core::LayerKind kind, int insertAt,
                                  QString name, QUndoCommand* parent)
     : QUndoCommand(parent), map_(map), kind_(kind), insertAt_(insertAt),
-      name_(name.isEmpty() ? QObject::tr("New Layer") : std::move(name)) {
-    setText(QObject::tr("Add layer '%1'").arg(name_));
+      name_(name.isEmpty() ? QObject::tr("New Sheet") : std::move(name)) {
+    setText(QObject::tr("Add sheet '%1'").arg(name_));
 }
 
 AddLayerCommand::~AddLayerCommand() = default;
@@ -64,7 +64,7 @@ void AddLayerCommand::undo() {
 
 DeleteLayerCommand::DeleteLayerCommand(core::Map& map, int index, QUndoCommand* parent)
     : QUndoCommand(parent), map_(map), index_(index) {
-    setText(QObject::tr("Delete layer"));
+    setText(QObject::tr("Delete sheet"));
 }
 
 DeleteLayerCommand::~DeleteLayerCommand() = default;
@@ -87,7 +87,7 @@ void DeleteLayerCommand::undo() {
 
 MoveLayerCommand::MoveLayerCommand(core::Map& map, int index, int delta, QUndoCommand* parent)
     : QUndoCommand(parent), map_(map), index_(index), delta_(delta) {
-    setText(delta > 0 ? QObject::tr("Move layer up") : QObject::tr("Move layer down"));
+    setText(delta > 0 ? QObject::tr("Move sheet up") : QObject::tr("Move sheet down"));
 }
 
 void MoveLayerCommand::redo() {
@@ -118,7 +118,7 @@ RenameLayerCommand::RenameLayerCommand(core::Map& map, int index, QString newNam
     if (index_ >= 0 && index_ < static_cast<int>(layers.size())) {
         oldName_ = layers[index_]->name;
     }
-    setText(QObject::tr("Rename layer"));
+    setText(QObject::tr("Rename sheet"));
 }
 
 void RenameLayerCommand::redo() {
@@ -143,7 +143,7 @@ SetLayerTransparencyCommand::SetLayerTransparencyCommand(core::Map& map, int ind
     auto& layers = map_.layers();
     before_ = (index_ >= 0 && index_ < static_cast<int>(layers.size()))
                   ? layers[index_]->transparency : 100;
-    setText(QObject::tr("Change layer transparency"));
+    setText(QObject::tr("Change sheet transparency"));
 }
 void SetLayerTransparencyCommand::redo() {
     auto& layers = map_.layers();
