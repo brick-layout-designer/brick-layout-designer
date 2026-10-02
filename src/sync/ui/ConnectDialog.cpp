@@ -1,6 +1,8 @@
 #include "ConnectDialog.h"
 
 #include "OwnerFilter.h"
+#include "ServerList.h"
+#include "ServersDialog.h"
 #include "TokenStore.h"
 #include "core/Version.h"
 #include "ui/help/HelpButton.h"
@@ -18,18 +20,23 @@
 #include <QSettings>
 #include <QSignalBlocker>
 #include <QStackedWidget>
+#include <QTimer>
 #include <QTreeWidget>
 #include <QVBoxLayout>
+
+#include <utility>
 
 namespace bld::sync {
 
 namespace {
-const char* kAddressKey = "sync/serverAddress";
 const char* kShowKey = "sync/ownerFilter";  // the Show filter, kept between runs
 
 QString rememberedShow() { return QSettings().value(QLatin1String(kShowKey), kShowAll).toString(); }
 enum Page { AddressPage, CodePage, LayoutsPage, PublishPage };
 enum Column { TitleCol, OwnerCol, AccessCol, UpdatedCol };
+// On the server list: the server's address, and a recent layout's id.
+constexpr int kServerRole = Qt::UserRole;
+constexpr int kLayoutRole = Qt::UserRole + 1;
 
 // Sorts the Updated column by date, not by its text.
 class LayoutItem : public QTreeWidgetItem {
@@ -55,15 +62,35 @@ ConnectDialog::ConnectDialog(ServerApi& api, TokenStore& tokens, std::function<v
     pages_ = new QStackedWidget(this);
     col->addWidget(pages_, 1);
 
-    // Address
+    // Your servers (with each one's recent layouts), or a new address
     auto* addressPage = new QWidget(pages_);
     auto* a = new QVBoxLayout(addressPage);
-    a->addWidget(new QLabel(tr("Server address:"), addressPage));
+    auto* head = new QHBoxLayout();
+    auto* yours = new QLabel(tr("Your servers"), addressPage);
+    QFont bold = yours->font();
+    bold.setBold(true);
+    yours->setFont(bold);
+    auto* manage = new QPushButton(tr("Manage Servers..."), addressPage);
+    manage->setObjectName(QStringLiteral("manageServers"));
+    manage->setToolTip(tr("Add, rename or remove servers, sign in or out, and pick your Main one"));
+    head->addWidget(yours);
+    head->addStretch(1);
+    head->addWidget(manage);
+    a->addLayout(head);
+    servers_ = new QTreeWidget(addressPage);
+    servers_->setObjectName(QStringLiteral("servers"));
+    servers_->setHeaderHidden(true);
+    servers_->setColumnCount(2);
+    servers_->header()->setSectionResizeMode(0, QHeaderView::Stretch);
+    servers_->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    servers_->header()->setStretchLastSection(false);
+    head->insertWidget(1, new bld::ui::help::HelpButton(QStringLiteral("servers.pick"), addressPage, servers_));
+    a->addWidget(servers_, 1);
+    a->addWidget(new QLabel(tr("Or connect to a new server by its web address:"), addressPage));
     auto* row = new QHBoxLayout();
     address_ = new QLineEdit(addressPage);
     address_->setObjectName(QStringLiteral("serverAddress"));
     address_->setPlaceholderText(QStringLiteral("layouts.example.org"));
-    address_->setText(QSettings().value(QLatin1String(kAddressKey)).toString());
     connectBtn_ = new QPushButton(tr("Connect"), addressPage);
     connectBtn_->setObjectName(QStringLiteral("connect"));
     connectBtn_->setDefault(true);
@@ -71,8 +98,26 @@ ConnectDialog::ConnectDialog(ServerApi& api, TokenStore& tokens, std::function<v
     row->addWidget(connectBtn_);
     row->addWidget(new bld::ui::help::HelpButton(QStringLiteral("connect.server"), addressPage, address_));
     a->addLayout(row);
-    a->addStretch(1);
     pages_->addWidget(addressPage);
+    manageServers_ = [this] {
+        ServersDialog servers(tokens_, openUrl_, this);
+        servers.exec();
+    };
+    // A nested dialog's event loop must not run inside the click's signal.
+    connect(manage, &QPushButton::clicked, this, [this] {
+        QTimer::singleShot(0, this, [this] {
+            if (manageServers_) manageServers_();
+            refreshServers();
+        });
+    });
+    connect(servers_, &QTreeWidget::itemSelectionChanged, this, &ConnectDialog::onServerPicked);
+    connect(servers_, &QTreeWidget::itemActivated, this, [this](QTreeWidgetItem* item) {
+        const QUrl url = item->data(0, kServerRole).toUrl();
+        const QString layout = item->data(0, kLayoutRole).toString();
+        if (layout.isEmpty()) connectToServer();
+        else openRecent(url, layout);
+    });
+    refreshServers();
 
     // Sign-in code
     auto* codePage = new QWidget(pages_);
@@ -144,12 +189,16 @@ ConnectDialog::ConnectDialog(ServerApi& api, TokenStore& tokens, std::function<v
     owner_->setObjectName(QStringLiteral("publishOwner"));
     publishBtn_ = new QPushButton(tr("Publish"), publishPage);
     publishBtn_->setObjectName(QStringLiteral("publish"));
+    publishServer_ = new QLabel(publishPage);
+    publishServer_->setObjectName(QStringLiteral("publishServer"));
+    pf->addRow(tr("Server"), publishServer_);
     pf->addRow(tr("Title"), publishTitle_);
     pf->addRow(tr("Save to"), bld::ui::help::withHelp(owner_, QStringLiteral("publish.owner"), publishPage));
     pf->addRow(QString(), publishBtn_);
     pages_->addWidget(publishPage);
     connect(publishBtn_, &QPushButton::clicked, this, &ConnectDialog::publishNow);
     if (purpose_ == Purpose::Publish) setWindowTitle(tr("Publish to Server"));
+    if (purpose_ == Purpose::SignIn) setWindowTitle(tr("Sign In to a Server"));
 
     message_ = new QLabel(this);
     message_->setObjectName(QStringLiteral("message"));
@@ -221,6 +270,58 @@ void ConnectDialog::setAddress(const QString& address) {
     address_->setText(address);
 }
 
+void ConnectDialog::refreshServers() {
+    const QSignalBlocker block(servers_);
+    servers_->clear();
+    const ServerList list = ServerList::load();
+    const ServerEntry* last = list.lastUsed();
+    QTreeWidgetItem* current = nullptr;
+    for (const ServerEntry& e : list.servers()) {
+        auto* item = new QTreeWidgetItem(servers_);
+        item->setText(0, e.main ? tr("%1 (Main)").arg(e.label()) : e.label());
+        item->setText(1, e.address());
+        item->setToolTip(0, e.url.toString());
+        item->setData(0, kServerRole, e.url);
+        QFont f = item->font(0);
+        f.setBold(true);
+        item->setFont(0, f);
+        // Recent layouts only where opening one makes sense.
+        if (purpose_ == Purpose::OpenLayout)
+            for (const RecentLayout& r : e.recent) {
+                auto* child = new QTreeWidgetItem(item);
+                child->setText(0, r.title.isEmpty() ? tr("Untitled Layout") : r.title);
+                child->setText(1, r.readOnly ? tr("View only") : QString());
+                child->setToolTip(0, tr("Open \"%1\" from %2").arg(child->text(0), e.label()));
+                child->setData(0, kServerRole, e.url);
+                child->setData(0, kLayoutRole, r.id);
+            }
+        item->setExpanded(true);
+        if (last && e.key() == last->key()) current = item;
+    }
+    if (list.isEmpty()) {
+        auto* none = new QTreeWidgetItem(servers_);
+        none->setText(0, tr("No servers yet. Type one's web address below."));
+        none->setFlags(Qt::NoItemFlags);
+    }
+    if (current) {
+        servers_->setCurrentItem(current);
+        address_->setText(current->data(0, kServerRole).toUrl().toString());
+    }
+}
+
+void ConnectDialog::onServerPicked() {
+    const auto items = servers_->selectedItems();
+    if (items.isEmpty()) return;
+    const QUrl url = items.first()->data(0, kServerRole).toUrl();
+    if (url.isValid()) address_->setText(url.toString());
+}
+
+void ConnectDialog::openRecent(const QUrl& server, const QString& layoutId) {
+    address_->setText(server.toString());
+    pendingLayout_ = layoutId;
+    connectToServer();
+}
+
 void ConnectDialog::showMessage(const QString& text) {
     message_->setText(text);
     updateBtn_->hide();
@@ -275,7 +376,16 @@ void ConnectDialog::onVersion(const ServerInfo& info) {
         showMessage(tr("This server can't take layouts from the desktop app yet."));
         return;
     }
-    QSettings().setValue(QLatin1String(kAddressKey), address_->text().trimmed());
+    // One of your servers from now on (the first one is Main), with what it said.
+    ServerList list = ServerList::load();
+    list.touch(server_);
+    list.remember(server_, info);
+    list.save();
+    // Signing in (File › Servers…): always a new sign-in, whatever is saved.
+    if (purpose_ == Purpose::SignIn) {
+        api_.startSignIn(tr("Brick Layout Designer %1").arg(QCoreApplication::applicationVersion()).trimmed());
+        return;
+    }
     tokens_.load(server_, [this](const QString& token) {
         if (token.isEmpty()) {
             api_.startSignIn(
@@ -289,6 +399,11 @@ void ConnectDialog::onVersion(const ServerInfo& info) {
 void ConnectDialog::haveToken(const QString& token) {
     token_ = token;
     api_.setToken(token);
+    if (purpose_ == Purpose::SignIn) {
+        result_ = ConnectResult{ server_, token_, QString(), QString(), false, info_ };
+        accept();
+        return;
+    }
     if (purpose_ == Purpose::Publish) {
         showMessage(tr("Loading your clubs…"));
         api_.fetchOrgs();
@@ -336,6 +451,7 @@ void ConnectDialog::onFailed(const QString& what, const QString& message, bool u
         return;
     }
     if (what != QLatin1String("version") && !list) return;
+    pendingLayout_.clear();
     connectBtn_->setEnabled(true);
     pages_->setCurrentIndex(AddressPage);
     showMessage(what == QLatin1String("version")  ? tr("Could not reach %1: %2").arg(server_.host(), message)
@@ -358,6 +474,9 @@ void ConnectDialog::showOrgs(const QList<OrgEntry>& orgs) {
     // Start at the club the lists were last showing, else Me.
     const int shown = owner_->findData(rememberedShow());
     owner_->setCurrentIndex(shown > 0 ? shown : 0);
+    const ServerList list = ServerList::load();
+    const ServerEntry* entry = list.find(server_);
+    publishServer_->setText(entry ? entry->label() : server_.host());
     publishBtn_->setEnabled(true);
     pages_->setCurrentIndex(PublishPage);
     showMessage({});
@@ -417,6 +536,17 @@ void ConnectDialog::showLayouts(const QList<LayoutEntry>& layouts) {
     pages_->setCurrentIndex(LayoutsPage);
     showMessage(layouts.isEmpty() ? tr("No layouts yet. Create one on the web, or publish one from here.")
                                   : QString());
+    // A recent layout picked on the server list: open it, if it's still there.
+    const QString pending = std::exchange(pendingLayout_, QString());
+    if (pending.isEmpty()) return;
+    for (int i = 0; i < layouts_->topLevelItemCount(); ++i) {
+        auto* item = layouts_->topLevelItem(i);
+        if (item->data(TitleCol, Qt::UserRole).toString() != pending) continue;
+        layouts_->setCurrentItem(item);
+        openSelected();
+        return;
+    }
+    showMessage(tr("That layout isn't on this server any more, or you can't open it now."));
 }
 
 void ConnectDialog::filterLayouts(const QString& text) {

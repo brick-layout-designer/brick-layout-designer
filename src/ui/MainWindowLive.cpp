@@ -23,6 +23,8 @@
 #include "PartsUpload.h"
 #include "PartsSync.h"
 #include "ServerApi.h"
+#include "ServerList.h"
+#include "ServersDialog.h"
 #include "TokenStore.h"
 #include "PrefsSync.h"
 #include "theme/AppPrefs.h"
@@ -58,6 +60,10 @@ void MainWindow::setupLiveMenu(QMenu* file) {
     statusBar()->addPermanentWidget(liveStatus_);
 
     file->addSeparator();
+    auto* serversAct = file->addAction(tr("Ser&vers..."));
+    serversAct->setObjectName(QStringLiteral("manageServers"));
+    serversAct->setToolTip(tr("Your servers: add one, sign in, or pick your Main one"));
+    connect(serversAct, &QAction::triggered, this, &MainWindow::onManageServers);
     auto* connectAct = file->addAction(tr("&Connect to Server..."));
     connect(connectAct, &QAction::triggered, this, &MainWindow::onConnectToServer);
     disconnectAct_ = file->addAction(tr("&Disconnect"));
@@ -123,12 +129,18 @@ void MainWindow::setupLiveMenu(QMenu* file) {
 void MainWindow::onConnectToServer() {
     if (!maybeSave()) return;
     sync::ServerApi api;
-    sync::KeychainTokenStore tokens;
-    sync::ConnectDialog dialog(api, tokens, [](const QUrl& u) { QDesktopServices::openUrl(u); }, this);
+    sync::ConnectDialog dialog(api, *tokens_, [](const QUrl& u) { QDesktopServices::openUrl(u); }, this);
     if (dialog.exec() != QDialog::Accepted) return;
     const auto chosen = dialog.result();
     if (!chosen) return;
     openLive(*chosen);
+}
+
+void MainWindow::onManageServers() {
+    sync::ServersDialog dialog(*tokens_, [](const QUrl& u) { QDesktopServices::openUrl(u); }, this);
+    dialog.exec();
+    // A renamed live server shows its new name.
+    updateLiveUi();
 }
 
 void MainWindow::onPublishToServer() {
@@ -152,9 +164,8 @@ void MainWindow::onPublishToServer() {
     const QString title = currentFilePath_.isEmpty() ? (m->event.isEmpty() ? tr("Untitled Layout") : m->event)
                                                      : QFileInfo(currentFilePath_).completeBaseName();
     sync::ServerApi api;
-    sync::KeychainTokenStore tokens;
     sync::ConnectDialog dialog(
-        api, tokens, [](const QUrl& u) { QDesktopServices::openUrl(u); }, this,
+        api, *tokens_, [](const QUrl& u) { QDesktopServices::openUrl(u); }, this,
         sync::ConnectDialog::Purpose::Publish);
     dialog.setPublishContent(bbm.data(), sidecar, title);
     if (dialog.exec() != QDialog::Accepted) return;
@@ -162,7 +173,7 @@ void MainWindow::onPublishToServer() {
     if (!published) return;
     // The published layout is now the live one; the local file stays as it was.
     openLive(*published);
-    statusBar()->showMessage(tr("Published \"%1\" to %2").arg(published->title, published->server.host()),
+    statusBar()->showMessage(tr("Published \"%1\" to %2").arg(published->title, liveServerName()),
                              5000);
     // Parts of yours the server lacks would show as missing there: offer them.
     offerPartsUpload(true);
@@ -224,9 +235,16 @@ void MainWindow::openLive(const sync::ConnectResult& r) {
     clearActiveView();
     // The layout and any offline edits are kept per server and layout.
     const QString cacheDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
-                             + QStringLiteral("/live/")
-                             + QString(r.server.host()).replace(QLatin1Char(':'), QLatin1Char('_'))
-                             + QLatin1Char('/') + r.layoutId;
+                             + QStringLiteral("/live/") + sync::ServerList::folderName(r.server) + QLatin1Char('/')
+                             + r.layoutId;
+    // One of your servers, with this layout first among its recent ones.
+    {
+        sync::ServerList servers = sync::ServerList::load();
+        servers.touch(r.server);
+        servers.remember(r.server, r.info);
+        servers.addRecent(r.server, { r.layoutId, r.title, r.readOnly, {} });
+        servers.save();
+    }
     mapView_->showOpening(tr("Getting the layout from the server."));
     live_->open(api.layoutSocketUrl(r.layoutId), r.token, r.readOnly, r.title, cacheDir);
     // Name and colour our cursor as the web does, once we know who we are.
@@ -234,8 +252,11 @@ void MainWindow::openLive(const sync::ConnectResult& r) {
     who->setBase(r.server);
     who->setToken(r.token);
     connect(who, &sync::ServerApi::currentUserReady, this,
-            [this, who, layout = r.layoutId](const QString& id, const QString& name) {
+            [this, who, layout = r.layoutId, server = r.server](const QString& id, const QString& name) {
                 live_->setUser(id, name, layout);
+                sync::ServerList servers = sync::ServerList::load();
+                servers.rememberUser(server, name);
+                servers.save();
                 who->deleteLater();
             });
     connect(who, &sync::ServerApi::requestFailed, who, &QObject::deleteLater);
@@ -265,14 +286,40 @@ void MainWindow::openLive(const sync::ConnectResult& r) {
                     tr("Your settings didn't sync with the server. Sign in again to sync them."), 6000);
         });
     }
-    if (r.info.has(QStringLiteral("preferences"))) prefsSync_->start(r.server, r.token);
-    else prefsSync_->stop();
+    startPrefsSync(r);
     showServerNotices(r.info);
     updateLiveUi();
 }
 
+void MainWindow::startPrefsSync(const sync::ConnectResult& r) {
+    const sync::ServerList servers = sync::ServerList::load();
+    const QUrl account = servers.settingsAccount();
+    if (account.isEmpty() || sync::TokenStore::keyFor(account) == sync::TokenStore::keyFor(r.server)) {
+        // Live on the Main server (or the only one): its token, as before.
+        if (r.info.has(QStringLiteral("preferences"))) prefsSync_->start(r.server, r.token);
+        else prefsSync_->stop();
+        return;
+    }
+    // Live elsewhere: settings still follow Main, with Main's own token
+    // (never this server's), when signed in there and it keeps settings.
+    prefsSync_->stop();
+    const sync::ServerEntry* main = servers.find(account);
+    if (main && main->features && !main->features->contains(QStringLiteral("preferences"))) return;
+    tokens_->load(account, [this, account](const QString& token) {
+        // Still live, and nothing started meanwhile.
+        if (token.isEmpty() || !live_->active() || prefsSync_->active()) return;
+        prefsSync_->start(account, token);
+    });
+}
+
+QString MainWindow::liveServerName() const {
+    const sync::ServerList servers = sync::ServerList::load();
+    const sync::ServerEntry* e = servers.find(liveServer_);
+    return e ? e->label() : liveServer_.host();
+}
+
 void MainWindow::showServerNotices(const sync::ServerInfo& info) {
-    const QString host = liveServer_.host();
+    const QString host = liveServerName();
     const QString mine = QCoreApplication::applicationVersion();
     if (info.standing(mine) == sync::Standing::UpdateSuggested) {
         const QUrl url(info.downloadUrl.isEmpty() ? core::desktopDownloadUrl() : info.downloadUrl);
@@ -370,9 +417,8 @@ void MainWindow::offerPlacedParts() {
 
 void MainWindow::onDownloadVenues() {
     sync::ServerApi api;
-    sync::KeychainTokenStore tokens;
     sync::ConnectDialog dialog(
-        api, tokens, [](const QUrl& u) { QDesktopServices::openUrl(u); }, this,
+        api, *tokens_, [](const QUrl& u) { QDesktopServices::openUrl(u); }, this,
         sync::ConnectDialog::Purpose::DownloadVenues);
     if (dialog.exec() != QDialog::Accepted) return;
     QStringList saved, failed;
@@ -397,9 +443,9 @@ void MainWindow::syncServerParts(const QUrl& server, const QString& token) {
     partsSyncRunning_ = true;
     partsSyncFailed_->setVisible(false);
     downloadPartsAct_->setEnabled(false);
+    // Each server's parts in a folder of its own, never mixed with another's.
     const QString root = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
-                         + QStringLiteral("/server-parts/")
-                         + QString(server.host()).replace(QLatin1Char(':'), QLatin1Char('_'));
+                         + QStringLiteral("/server-parts/") + sync::ServerList::folderName(server);
     auto* job = new sync::PartsSync(server, token, root, this);
     // The first connect fetches thousands of files: a card with a real
     // progress bar, like the web's, for as long as it takes.
@@ -475,7 +521,7 @@ void MainWindow::onLiveReloaded() {
 void MainWindow::updateLiveUi() {
     const bool on = live_->active();
     liveStatus_->setVisible(on);
-    liveStatus_->setText(on ? tr("Live: %1").arg(live_->statusText()) : QString());
+    liveStatus_->setText(on ? tr("Live on %1: %2").arg(liveServerName(), live_->statusText()) : QString());
     disconnectAct_->setEnabled(on);
     uploadPartsAct_->setEnabled(on);
     downloadPartsAct_->setEnabled(on && !partsSyncRunning_);

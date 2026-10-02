@@ -85,6 +85,8 @@ add_library(bld_sync STATIC
     PartsSync.cpp
     TokenStore.h
     TokenStore.cpp
+    ServerList.h
+    ServerList.cpp
     LayoutMerge.h
     LayoutMerge.cpp
 )
@@ -98,6 +100,8 @@ target_link_libraries(bld_sync PUBLIC bld_core bld_saveload Qt6::Core Qt6::Gui Q
 add_library(bld_sync_ui STATIC
     ui/ConnectDialog.h
     ui/ConnectDialog.cpp
+    ui/ServersDialog.h
+    ui/ServersDialog.cpp
     ui/UploadPartsDialog.h
     ui/UploadPartsDialog.cpp
     ui/CompareDialog.h

@@ -345,6 +345,25 @@ constexpr Raw kDesktopOnly[] = {
                                      "your browser."),
       QT_TRANSLATE_NOOP("HelpTexts", "Ask whoever runs your club’s server for it. You sign in once in "
                                      "your browser, and the app remembers you.") },
+    { "servers.list", "/help#sharing",
+      QT_TRANSLATE_NOOP("HelpTexts", "Your servers"),
+      QT_TRANSLATE_NOOP("HelpTexts", "Every layout server you use: your club’s, a friend’s, and so on."),
+      QT_TRANSLATE_NOOP("HelpTexts", "Add a server by the web address you open in your browser, then sign "
+                                     "in. Each server remembers your sign-in on its own, and its layouts "
+                                     "and parts stay with it.") },
+    { "servers.pick", "/help#sharing",
+      QT_TRANSLATE_NOOP("HelpTexts", "Pick a server"),
+      QT_TRANSLATE_NOOP("HelpTexts", "Choose the server your layout is on. The ones you opened lately are "
+                                     "listed under it."),
+      QT_TRANSLATE_NOOP("HelpTexts", "Double-click a recent layout to open it straight away, or a server "
+                                     "to see all its layouts. Manage Servers adds, renames or removes "
+                                     "them.") },
+    { "servers.main", "/help#sharing",
+      QT_TRANSLATE_NOOP("HelpTexts", "Main server"),
+      QT_TRANSLATE_NOOP("HelpTexts", "Your settings follow your account on the Main server."),
+      QT_TRANSLATE_NOOP("HelpTexts", "Theme, colours and the other settings are kept with your account "
+                                     "there, so they are the same on every computer, whichever server "
+                                     "you are working on.") },
     { "publish.owner", "/help#sharing",
       QT_TRANSLATE_NOOP("HelpTexts", "Save to"),
       QT_TRANSLATE_NOOP("HelpTexts", "Who the layout belongs to on the server: you, or your club."),

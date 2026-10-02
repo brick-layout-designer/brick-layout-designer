@@ -4,6 +4,7 @@
 // chosen layout (view-only access included).
 
 #include "ConnectDialog.h"
+#include "ServerList.h"
 #include "FakeHttp.h"
 #include "TokenStore.h"
 #include "ui/help/HelpButton.h"
@@ -24,6 +25,7 @@
 #include <QTreeWidget>
 
 #include <functional>
+#include <memory>
 
 using namespace bld::sync;
 using bld::synctest::FakeHttp;
@@ -54,6 +56,14 @@ QJsonObject layout(const char* id, const char* title, const char* role, const ch
              { QStringLiteral("updatedAt"), QStringLiteral("2026-09-29T10:00:00.000Z") } };
 }
 
+// No Show filter and no servers from an earlier test.
+void resetSettings() {
+    QSettings s;
+    s.remove(QStringLiteral("sync/ownerFilter"));
+    s.remove(QStringLiteral("sync/serverAddress"));
+    s.setValue(QLatin1String(ServerList::kKey), QByteArray("[]"));
+}
+
 struct Harness {
     FakeHttp http;
     ServerApi api;
@@ -62,7 +72,7 @@ struct Harness {
     ConnectDialog dialog;
 
     explicit Harness(ConnectDialog::Purpose purpose = ConnectDialog::Purpose::OpenLayout)
-        : dialog((QSettings().remove(QStringLiteral("sync/ownerFilter")), api), tokens,
+        : dialog((resetSettings(), api), tokens,
                  [this](const QUrl& u) { opened << u; }, nullptr, purpose) {
         api.setPollIntervalScale(5);
         http.reply("/api/version", 200, version());
@@ -470,4 +480,137 @@ TEST(ConnectDialog, HasHelpForTheAddressAndTheOwner) {
     EXPECT_TRUE(keys.contains(QStringLiteral("owners.filter")));
     ASSERT_NE(server, nullptr);
     EXPECT_EQ(server->target(), h.dialog.findChild<QLineEdit*>(QStringLiteral("serverAddress")));
+}
+
+namespace {
+
+// Two servers in the list, each with its own token; the second also has a
+// recent layout.
+struct TwoServers {
+    FakeHttp club, pal;
+    ServerApi api;
+    MemoryTokenStore tokens;
+    std::unique_ptr<ConnectDialog> dialog;
+
+    explicit TwoServers(ConnectDialog::Purpose purpose = ConnectDialog::Purpose::OpenLayout) {
+        resetSettings();
+        ServerList list;
+        list.add(club.base(), QStringLiteral("Train club"));
+        list.add(pal.base(), QStringLiteral("Bob's server"));
+        list.addRecent(pal.base(), { QStringLiteral("P2"), QStringLiteral("Bob's yard"), false, {} });
+        list.touch(club.base());
+        list.save();
+        for (FakeHttp* h : { &club, &pal }) h->reply("/api/version", 200, version());
+        tokens.save(club.base(), QStringLiteral("bld_pat_club"));
+        tokens.save(pal.base(), QStringLiteral("bld_pat_pal"));
+        club.reply("/api/layouts", 200, { { QStringLiteral("layouts"), QJsonArray{ layout("C1", "Club show", "owner") } } });
+        pal.reply("/api/layouts", 200,
+                  { { QStringLiteral("layouts"),
+                      QJsonArray{ layout("P1", "Bob's loop", "owner"), layout("P2", "Bob's yard", "viewer") } } });
+        dialog = std::make_unique<ConnectDialog>(api, tokens, [](const QUrl&) {}, nullptr, purpose);
+    }
+    QTreeWidget* servers() { return dialog->findChild<QTreeWidget*>(QStringLiteral("servers")); }
+    QTreeWidgetItem* serverItem(const QString& startsWith) {
+        for (int i = 0; i < servers()->topLevelItemCount(); ++i)
+            if (servers()->topLevelItem(i)->text(0).startsWith(startsWith)) return servers()->topLevelItem(i);
+        return nullptr;
+    }
+};
+
+void expectOnlyOwnToken(const FakeHttp& http, const QByteArray& own) {
+    for (const auto& r : http.requests)
+        EXPECT_TRUE(r.authorization.isEmpty() || r.authorization == "Bearer " + own)
+            << r.path.toStdString() << " got " << r.authorization.toStdString();
+}
+
+}  // namespace
+
+TEST(ConnectDialog, ListsYourServersWithTheirRecentLayoutsAndStartsAtTheLastOne) {
+    TwoServers t;
+    auto* club = t.serverItem(QStringLiteral("Train club"));
+    auto* pal = t.serverItem(QStringLiteral("Bob's server"));
+    ASSERT_TRUE(club && pal);
+    EXPECT_EQ(club->text(0), QStringLiteral("Train club (Main)"));
+    // Recent layouts sit under the server they're on.
+    EXPECT_EQ(club->childCount(), 0);
+    ASSERT_EQ(pal->childCount(), 1);
+    EXPECT_EQ(pal->child(0)->text(0), QStringLiteral("Bob's yard"));
+    // The one connected to last is picked, and its address filled in.
+    EXPECT_EQ(t.servers()->currentItem(), club);
+    EXPECT_EQ(QUrl(t.dialog->findChild<QLineEdit*>(QStringLiteral("serverAddress"))->text()), t.club.base());
+    t.servers()->setCurrentItem(pal);
+    EXPECT_EQ(QUrl(t.dialog->findChild<QLineEdit*>(QStringLiteral("serverAddress"))->text()), t.pal.base());
+}
+
+TEST(ConnectDialog, ARecentLayoutOpensFromItsOwnServerWithItsOwnToken) {
+    TwoServers t;
+    auto* pal = t.serverItem(QStringLiteral("Bob's server"));
+    ASSERT_TRUE(pal);
+    emit t.servers()->itemActivated(pal->child(0), 0);
+    ASSERT_TRUE(waitFor([&] { return t.dialog->result().has_value(); }));
+    EXPECT_EQ(t.dialog->result()->server, t.pal.base());
+    EXPECT_EQ(t.dialog->result()->layoutId, QStringLiteral("P2"));
+    EXPECT_EQ(t.dialog->result()->token, QStringLiteral("bld_pat_pal"));
+    EXPECT_TRUE(t.dialog->result()->readOnly);
+    EXPECT_TRUE(t.club.requests.empty());
+    expectOnlyOwnToken(t.pal, "bld_pat_pal");
+    // Connecting made it the last used.
+    EXPECT_EQ(ServerList::load().lastUsed()->url, t.pal.base());
+}
+
+TEST(ConnectDialog, PublishesToTheServerYouPick) {
+    TwoServers t(ConnectDialog::Purpose::Publish);
+    t.pal.reply("/api/orgs", 200, { { QStringLiteral("orgs"), QJsonArray{} } });
+    t.pal.clear("/api/layouts");
+    t.pal.reply("/api/layouts", 201,
+                { { QStringLiteral("id"), QStringLiteral("P9") }, { QStringLiteral("title"), QStringLiteral("Show") } });
+    t.dialog->setPublishContent(QByteArrayLiteral("<Map/>"), {}, QStringLiteral("Show"));
+    // Publish lists servers only (no recent layouts under them).
+    EXPECT_EQ(t.serverItem(QStringLiteral("Bob's server"))->childCount(), 0);
+    t.servers()->setCurrentItem(t.serverItem(QStringLiteral("Bob's server")));
+    t.dialog->connectToServer();
+    auto* where = t.dialog->findChild<QLabel*>(QStringLiteral("publishServer"));
+    ASSERT_TRUE(waitFor([&] { return where->text() == QStringLiteral("Bob's server"); }));
+    t.dialog->publishNow();
+    ASSERT_TRUE(waitFor([&] { return t.dialog->result().has_value(); }));
+    EXPECT_EQ(t.dialog->result()->server, t.pal.base());
+    EXPECT_EQ(t.dialog->result()->layoutId, QStringLiteral("P9"));
+    EXPECT_EQ(t.pal.requests.back().method, QByteArray("POST"));
+    EXPECT_EQ(t.pal.requests.back().authorization, QByteArray("Bearer bld_pat_pal"));
+    EXPECT_TRUE(t.club.requests.empty());
+    expectOnlyOwnToken(t.pal, "bld_pat_pal");
+}
+
+TEST(ConnectDialog, ANewAddressJoinsYourServersAndTheFirstIsMain) {
+    Harness h;
+    h.tokens.save(h.http.base(), QStringLiteral("bld_pat_saved"));
+    h.http.reply("/api/layouts", 200, { { QStringLiteral("layouts"), QJsonArray{} } });
+    h.dialog.connectToServer();
+    ASSERT_TRUE(waitFor([&] { return h.page() == 2; }));
+    const ServerList list = ServerList::load();
+    ASSERT_EQ(list.servers().size(), 1);
+    EXPECT_EQ(list.servers().first().url, h.http.base());
+    EXPECT_TRUE(list.servers().first().main);
+    EXPECT_EQ(list.servers().first().version, QStringLiteral("2.0.0"));
+}
+
+TEST(ConnectDialog, ManageServersOpensOnceTheClickHasReturned) {
+    TwoServers t;
+    int opened = 0;
+    bool insideClick = false;
+    t.dialog->setManageServers([&] {
+        EXPECT_FALSE(insideClick);
+        ++opened;
+        // Renamed meanwhile: the list shows it when Servers closes.
+        ServerList list = ServerList::load();
+        list.rename(t.pal.base(), QStringLiteral("Bob's"));
+        list.save();
+    });
+    insideClick = true;
+    t.dialog->findChild<QPushButton*>(QStringLiteral("manageServers"))->click();
+    insideClick = false;
+    EXPECT_EQ(opened, 0);
+    ASSERT_TRUE(waitFor([&] { return opened == 1; }));
+    ASSERT_TRUE(waitFor([&] { return t.serverItem(QStringLiteral("Bob's")) != nullptr; }));
+    EXPECT_EQ(t.serverItem(QStringLiteral("Bob's"))->text(0), QStringLiteral("Bob's"));
 }
