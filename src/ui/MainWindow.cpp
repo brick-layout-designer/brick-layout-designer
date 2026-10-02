@@ -330,6 +330,13 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
     addDockWidget(Qt::RightDockWidgetArea, modulesPanel_);
     moduleLibraryPanel_ = new ModuleLibraryPanel(this);
     moduleLibraryPanel_->setParts(&parts_);
+#ifdef BLD_SYNC
+    // The public catalogs live on the server's website.
+    moduleLibraryPanel_->setCatalogLinkVisible(true);
+    connect(moduleLibraryPanel_, &ModuleLibraryPanel::browseCatalogRequested, this, [this] { openCatalogOnWeb(false); });
+    partsBrowser_->setCatalogLinkVisible(true);
+    connect(partsBrowser_, &PartsBrowser::browseCatalogRequested, this, [this] { openCatalogOnWeb(true); });
+#endif
     addDockWidget(Qt::RightDockWidgetArea, moduleLibraryPanel_);
     venueLibraryPanel_ = new VenueLibraryPanel(this);
     addDockWidget(Qt::RightDockWidgetArea, venueLibraryPanel_);

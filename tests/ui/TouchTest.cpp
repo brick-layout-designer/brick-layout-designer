@@ -6,6 +6,7 @@
 #include "ui/MapViewInternal.h"
 #include "ui/PartsBrowser.h"
 #include "ui/ModuleLibraryPanel.h"
+#include "ui/CatalogLink.h"
 #include "ui/TouchActionBar.h"
 #include "ui/TouchMode.h"
 #include "ui/theme/AppPrefs.h"
@@ -32,6 +33,7 @@
 #include <QListWidget>
 #include <QMainWindow>
 #include <QMenu>
+#include <QPushButton>
 #include <QNativeGestureEvent>
 #include <QPointingDevice>
 #include <QScroller>
@@ -623,4 +625,31 @@ TEST_F(TouchTest, ModuleLibraryShowsEachModulesPicture) {
     EXPECT_EQ(bare.pendingThumbnails(), 0);
     EXPECT_TRUE(bare.list()->item(0)->icon().isNull());
     QSettings().setValue(QStringLiteral("modules/libraryPath"), keep);
+}
+
+// "Browse the catalog on the web…": the server's /catalog page (Parts tab for parts).
+TEST(CatalogLink, IsTheServersCatalogPage) {
+    EXPECT_EQ(ui::catalogWebUrl(QUrl(QStringLiteral("https://collab.example.org")), false).toString(),
+              QStringLiteral("https://collab.example.org/catalog"));
+    EXPECT_EQ(ui::catalogWebUrl(QUrl(QStringLiteral("https://collab.example.org/club/")), true).toString(),
+              QStringLiteral("https://collab.example.org/club/catalog?kind=part"));
+}
+
+TEST_F(TouchTest, CatalogLinksInThePanelsAskToBrowse) {
+    ui::ModuleLibraryPanel modules;
+    ui::PartsBrowser partsPanel(parts_);
+    auto* m = modules.findChild<QPushButton*>(QStringLiteral("browseCatalog"));
+    auto* p = partsPanel.findChild<QPushButton*>(QStringLiteral("browseCatalog"));
+    ASSERT_TRUE(m && p);
+    // Hidden until the window says this build talks to a server.
+    EXPECT_TRUE(m->isHidden());
+    modules.setCatalogLinkVisible(true);
+    partsPanel.setCatalogLinkVisible(true);
+    EXPECT_FALSE(m->isHidden());
+    QSignalSpy askM(&modules, &ui::ModuleLibraryPanel::browseCatalogRequested);
+    QSignalSpy askP(&partsPanel, &ui::PartsBrowser::browseCatalogRequested);
+    m->click();
+    p->click();
+    EXPECT_EQ(askM.count(), 1);
+    EXPECT_EQ(askP.count(), 1);
 }

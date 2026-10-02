@@ -23,6 +23,7 @@
 #include <QMenu>
 #include <QMimeData>
 #include <QPixmap>
+#include <QPushButton>
 #include <QSet>
 #include <QSize>
 #include <QVBoxLayout>
@@ -107,6 +108,8 @@ int fuzzyScore(const QString& needleLower, const QString& hayLower) {
 
 }
 
+void PartsBrowser::setCatalogLinkVisible(bool visible) { catalogLink_->setVisible(visible); }
+
 PartsBrowser::PartsBrowser(parts::PartsLibrary& lib, QWidget* parent)
     : QDockWidget(tr("Parts"), parent), lib_(lib) {
     auto* host = new QWidget(this);
@@ -122,6 +125,14 @@ PartsBrowser::PartsBrowser(parts::PartsLibrary& lib, QWidget* parent)
     filter_->setPlaceholderText(tr("Fuzzy filter — e.g. \"plt2\" matches \"plate2x4\""));
     row->addWidget(filter_, 2);
     col->addLayout(row);
+    catalogLink_ = new QPushButton(tr("Browse the catalog on the web…"), host);
+    catalogLink_->setObjectName(QStringLiteral("browseCatalog"));
+    catalogLink_->setFlat(true);
+    catalogLink_->setCursor(Qt::PointingHandCursor);
+    catalogLink_->setToolTip(tr("Parts people shared for everyone, on your server's website"));
+    catalogLink_->setVisible(false);
+    connect(catalogLink_, &QPushButton::clicked, this, &PartsBrowser::browseCatalogRequested);
+    col->addWidget(catalogLink_, 0, Qt::AlignLeft);
 
     grid_ = new DraggablePartsList(host);
     grid_->setViewMode(QListView::IconMode);

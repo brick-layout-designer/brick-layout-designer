@@ -9,6 +9,8 @@ class QListWidget;
 class QListWidgetItem;
 class QTouchEvent;
 
+class QPushButton;
+
 namespace bld::parts { class PartsLibrary; }
 
 namespace bld::ui {
@@ -41,8 +43,13 @@ public:
     // How many rows still wait for their picture.
     int pendingThumbnails() const { return static_cast<int>(pendingThumbs_.size()); }
 
+    // "Browse the catalog on the web…" (builds that talk to a server).
+    void setCatalogLinkVisible(bool visible);
+
 signals:
     void moduleImportRequested(const QString& bbmPath);
+    // "Browse the catalog on the web…" was clicked.
+    void browseCatalogRequested();
     // By touch, a finger slid sideways off a module carries it (screen
     // coordinates) until it lifts or the touch is cancelled; MainWindow
     // hands these to the map. Up and down scrolls the list instead.
@@ -59,6 +66,7 @@ private slots:
 
 private:
     QLabel*      header_ = nullptr;
+    QPushButton* catalogLink_ = nullptr;
     QListWidget* list_   = nullptr;
     QString      path_;
     parts::PartsLibrary* parts_ = nullptr;
