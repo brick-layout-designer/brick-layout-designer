@@ -1,4 +1,5 @@
 #include "ServersDialog.h"
+#include "RefreshOnFocus.h"
 
 #include "ConnectDialog.h"
 #include "ServerApi.h"
@@ -103,6 +104,8 @@ ServersDialog::ServersDialog(TokenStore& tokens, std::function<void(const QUrl&)
         if (dialog.exec() != QDialog::Accepted || !dialog.result()) return QString();
         return dialog.result()->token;
     };
+    // Back from the browser (signed in or out there): check every server again.
+    new RefreshOnFocus(this, [this] { refresh(); });
     refresh();
 }
 

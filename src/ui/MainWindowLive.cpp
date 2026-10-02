@@ -35,6 +35,8 @@
 #include <QBuffer>
 #include <QDir>
 #include <QCoreApplication>
+#include <QDateTime>
+#include <QGuiApplication>
 #include <QDesktopServices>
 #include <QFileInfo>
 #include <QGraphicsItem>
@@ -82,6 +84,13 @@ void MainWindow::setupLiveMenu(QMenu* file) {
     downloadPartsAct_->setToolTip(tr("Fetch the live layout's server parts that are missing or changed"));
     downloadPartsAct_->setEnabled(false);
     connect(downloadPartsAct_, &QAction::triggered, this, [this] { syncServerParts(liveServer_, liveToken_); });
+    // Back in the app during a live session: someone may have uploaded parts meanwhile.
+    connect(qApp, &QGuiApplication::applicationStateChanged, this, [this](Qt::ApplicationState state) {
+        if (state != Qt::ApplicationActive || !live_->active() || partsSyncRunning_) return;
+        if (lastPartsSyncServer_ != liveServer_) return;
+        if (!sync::partsRecheckDue(lastPartsSyncMs_, QDateTime::currentMSecsSinceEpoch())) return;
+        syncServerParts(liveServer_, liveToken_);
+    });
     partsSyncFailed_ = new QToolButton(this);
     partsSyncFailed_->setObjectName(QStringLiteral("partsSyncFailed"));
     partsSyncFailed_->setAutoRaise(true);
@@ -492,6 +501,8 @@ void MainWindow::onDownloadVenues() {
 void MainWindow::syncServerParts(const QUrl& server, const QString& token) {
     if (partsSyncRunning_) return;
     partsSyncRunning_ = true;
+    lastPartsSyncMs_ = QDateTime::currentMSecsSinceEpoch();
+    lastPartsSyncServer_ = server;
     partsSyncFailed_->setVisible(false);
     downloadPartsAct_->setEnabled(false);
     // Each server's parts in a folder of its own, never mixed with another's.

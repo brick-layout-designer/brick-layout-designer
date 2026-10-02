@@ -309,6 +309,9 @@ private:
     class LoadingCard* partsDownloadCard_ = nullptr;
     QAction* downloadPartsAct_ = nullptr;
     bool partsSyncRunning_ = false;
+    // When the server's parts were last checked (ms since epoch; -1 never), and which server.
+    qint64 lastPartsSyncMs_ = -1;
+    QUrl lastPartsSyncServer_;
     void showPartsSyncFailed(const QString& summary, const QStringList& details);
     void onLiveReloaded();
     void updateLiveUi();

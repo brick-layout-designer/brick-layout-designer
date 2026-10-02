@@ -13,6 +13,7 @@ add_executable(bld_sync_tests
     ConnectDialogTest.cpp
     ServerListTest.cpp
     ServersDialogTest.cpp
+    RefreshOnFocusTest.cpp
     LiveLayoutTest.cpp
     LayoutMergeTest.cpp
     CompareDialogTest.cpp

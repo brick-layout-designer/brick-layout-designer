@@ -80,4 +80,15 @@ private:
     PartsSyncResult result_;
 };
 
+/**
+ * Coming back to the app during a live session checks the server's parts
+ * again (someone may have uploaded new ones), at most this often.
+ * `lastSyncMs` < 0: never checked with this server, so it doesn't offer
+ * parts (connecting decides that, from the server's features).
+ */
+constexpr qint64 kPartsRecheckMs = qint64{ 5 } * 60 * 1000;
+inline bool partsRecheckDue(qint64 lastSyncMs, qint64 nowMs) {
+    return lastSyncMs >= 0 && nowMs - lastSyncMs >= kPartsRecheckMs;
+}
+
 } // namespace bld::sync
