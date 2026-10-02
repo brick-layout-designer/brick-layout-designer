@@ -393,3 +393,30 @@ TEST(ServerRefusal, ReadsLimitsReadOnlyAndRateLimits) {
     EXPECT_FALSE(liveCloseText(4429, QStringLiteral("limit_reached")).isEmpty());
     EXPECT_TRUE(liveCloseText(4429, QStringLiteral("too_many_connections")).isEmpty());
 }
+
+// Club roles: managers look after the club's things like admins, but only
+// admins change its settings.
+TEST(ServerApi, ReadsEachClubRoleAndWhatItMayDo) {
+    FakeHttp http;
+    ServerApi api;
+    api.setBase(http.base());
+    api.setToken(QStringLiteral("bld_pat_x"));
+    const auto org = [](const char* slug, const char* role) {
+        return QJsonObject{ { QStringLiteral("slug"), QLatin1String(slug) },
+                            { QStringLiteral("name"), QLatin1String(slug) },
+                            { QStringLiteral("myRole"), QLatin1String(role) } };
+    };
+    http.reply("/api/orgs", 200,
+               { { QStringLiteral("orgs"), QJsonArray{ org("a", "admin"), org("m", "manager"), org("u", "member") } } });
+    QList<OrgEntry> got;
+    QObject::connect(&api, &ServerApi::orgsReady, [&](const QList<OrgEntry>& orgs) { got = orgs; });
+    api.fetchOrgs();
+    ASSERT_TRUE(waitFor([&] { return got.size() == 3; }));
+    EXPECT_EQ(got[1].role, QStringLiteral("manager"));
+    EXPECT_TRUE(got[0].managesThings());
+    EXPECT_TRUE(got[0].isAdmin());
+    EXPECT_TRUE(got[1].managesThings());
+    EXPECT_FALSE(got[1].isAdmin());
+    EXPECT_FALSE(got[2].managesThings());
+    EXPECT_FALSE(got[2].isAdmin());
+}

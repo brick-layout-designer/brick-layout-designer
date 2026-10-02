@@ -55,4 +55,5 @@ owners.filter
 club.whoCanJoin
 club.listed
 club.requests
+club.roles
 club.find

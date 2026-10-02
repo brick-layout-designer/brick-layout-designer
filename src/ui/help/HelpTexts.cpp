@@ -323,6 +323,13 @@ constexpr Raw kShared[] = {
       QT_TRANSLATE_NOOP("HelpTexts", "People who asked to join the club, waiting for an admin."),
       QT_TRANSLATE_NOOP("HelpTexts", "Approve to make them a member. Decline to say no; they aren’t told, "
                                      "and they can ask again later.") },
+    { "club.roles", "",
+      QT_TRANSLATE_NOOP("HelpTexts", "Roles in the club"),
+      QT_TRANSLATE_NOOP("HelpTexts", "Admins run the club, managers run its day to day, members use it."),
+      QT_TRANSLATE_NOOP("HelpTexts", "Admins change the club’s settings and roles, and can hand over or "
+                                     "delete the club. Managers invite people, answer requests to join, "
+                                     "remove members and look after the club’s things. Members use and add "
+                                     "the club’s layouts, venues, modules and parts.") },
     { "club.find", "",
       QT_TRANSLATE_NOOP("HelpTexts", "Find a club"),
       QT_TRANSLATE_NOOP("HelpTexts", "Clubs that chose to be listed here, for anyone to find."),
