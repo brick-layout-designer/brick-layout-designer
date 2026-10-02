@@ -233,6 +233,27 @@ TEST(ConnectDialog, SignOutForgetsTheToken) {
     EXPECT_EQ(h.page(), 0);
 }
 
+// Clubs you can find and join are on the server's Clubs page, in the browser.
+TEST(ConnectDialog, FindAClubOpensTheServersClubsPage) {
+    Harness h;
+    h.tokens.save(h.http.base(), QStringLiteral("bld_pat_saved"));
+    h.http.reply("/api/layouts", 200,
+                 { { QStringLiteral("layouts"), QJsonArray{ layout("L1", "Show 2026", "owner") } } });
+    h.dialog.connectToServer();
+    ASSERT_TRUE(waitFor([&] { return h.listed(); }));
+    auto* find = h.dialog.findChild<QPushButton*>(QStringLiteral("findClub"));
+    ASSERT_NE(find, nullptr);
+    find->click();
+    ASSERT_EQ(h.opened.size(), 1);
+    QUrl expected = h.http.base();
+    expected.setPath(QStringLiteral("/orgs"));
+    expected.setFragment(QStringLiteral("find"));
+    EXPECT_EQ(h.opened.first(), expected);
+    // Nothing else happened: still on the list, still signed in.
+    EXPECT_EQ(h.page(), 2);
+    EXPECT_FALSE(h.tokens.tokens.isEmpty());
+}
+
 TEST(ConnectDialog, DownloadsThePickedVenuesAndSignsInAgainForTheVenueLibrary) {
     Harness h(ConnectDialog::Purpose::DownloadVenues);
     // Signed in before the venue library was reachable: the token lacks
@@ -478,6 +499,7 @@ TEST(ConnectDialog, HasHelpForTheAddressAndTheOwner) {
     }
     EXPECT_TRUE(keys.contains(QStringLiteral("publish.owner")));
     EXPECT_TRUE(keys.contains(QStringLiteral("owners.filter")));
+    EXPECT_TRUE(keys.contains(QStringLiteral("club.find")));
     ASSERT_NE(server, nullptr);
     EXPECT_EQ(server->target(), h.dialog.findChild<QLineEdit*>(QStringLiteral("serverAddress")));
 }

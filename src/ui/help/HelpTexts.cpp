@@ -304,6 +304,30 @@ constexpr Raw kShared[] = {
       QT_TRANSLATE_NOOP("HelpTexts", "Your own things and your clubs’ things sit in one list, each marked "
                                      "with who owns it. Pick a club to see just its things; new things are "
                                      "saved there too unless you choose otherwise.") },
+
+    // Joining a club
+    { "club.whoCanJoin", "",
+      QT_TRANSLATE_NOOP("HelpTexts", "Who can join"),
+      QT_TRANSLATE_NOOP("HelpTexts", "Choose how new people get into the club."),
+      QT_TRANSLATE_NOOP("HelpTexts", "Invite only: people join with an invite from an admin. Ask to join: "
+                                     "people send a request and an admin says yes or no. Open: anyone "
+                                     "signed in can join straight away, as a member.") },
+    { "club.listed", "",
+      QT_TRANSLATE_NOOP("HelpTexts", "Show in the club list"),
+      QT_TRANSLATE_NOOP("HelpTexts", "Let people find the club under Find a club."),
+      QT_TRANSLATE_NOOP("HelpTexts", "Everyone signed in sees its name, its description and how many "
+                                     "members it has. Leave it off to keep the club hidden, so only people "
+                                     "you invite know about it.") },
+    { "club.requests", "",
+      QT_TRANSLATE_NOOP("HelpTexts", "Requests to join"),
+      QT_TRANSLATE_NOOP("HelpTexts", "People who asked to join the club, waiting for an admin."),
+      QT_TRANSLATE_NOOP("HelpTexts", "Approve to make them a member. Decline to say no; they aren’t told, "
+                                     "and they can ask again later.") },
+    { "club.find", "",
+      QT_TRANSLATE_NOOP("HelpTexts", "Find a club"),
+      QT_TRANSLATE_NOOP("HelpTexts", "Clubs that chose to be listed here, for anyone to find."),
+      QT_TRANSLATE_NOOP("HelpTexts", "Join an open club straight away, or ask to join and wait for an "
+                                     "admin to say yes. Some clubs take new members by invite only.") },
 };
 
 // Controls only the desktop app has.
