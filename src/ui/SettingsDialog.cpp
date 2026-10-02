@@ -281,7 +281,7 @@ SettingsDialog::SettingsDialog(PrefsStore& store, const QString& syncedHost,
     if (openMoreOptions) {
         auto* more = new QPushButton(tr("More options..."), this);
         more->setObjectName(QStringLiteral("moreOptions"));
-        more->setToolTip(tr("Language, folders, part libraries, import and editing defaults"));
+        more->setToolTip(tr("Language, folders, parts folders, import and editing defaults"));
         more->setAutoDefault(false);
         buttons->addWidget(more);
         connect(more, &QPushButton::clicked, this, [openMoreOptions] { openMoreOptions(); });

@@ -194,14 +194,14 @@ ImportPreviewDialog::ImportPreviewDialog(PreparedPart part,
     categoryBox_->setEditable(true);
     categoryBox_->addItems(categories);
     categoryBox_->setCurrentText(defaultCategory);
-    categoryBox_->setToolTip(tr("Parts panel category (a folder in your imports library)"));
+    categoryBox_->setToolTip(tr("Parts panel category (a folder of your custom parts)"));
     form->addRow(tr("Category:"), categoryBox_);
     replaceBox_ = new QCheckBox(this);
     form->addRow(QString(), replaceBox_);
     root->addLayout(form);
 
     auto* bb = new QDialogButtonBox(this);
-    auto* acceptBtn = bb->addButton(tr("Save as Library Part"), QDialogButtonBox::AcceptRole);
+    auto* acceptBtn = bb->addButton(tr("Save as Custom Part"), QDialogButtonBox::AcceptRole);
     bb->addButton(QDialogButtonBox::Cancel);
     connect(bb, &QDialogButtonBox::accepted, this, &QDialog::accept);
     connect(bb, &QDialogButtonBox::rejected, this, &QDialog::reject);

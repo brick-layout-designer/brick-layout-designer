@@ -13,7 +13,7 @@ namespace bld::ui {
 
 LibraryPathsDialog::LibraryPathsDialog(QStringList initial, QWidget* parent)
     : QDialog(parent) {
-    setWindowTitle(tr("Parts Library Paths"));
+    setWindowTitle(tr("Parts Folders"));
     resize(600, 360);
 
     auto* layout = new QVBoxLayout(this);
@@ -62,7 +62,7 @@ QStringList LibraryPathsDialog::paths() const {
 
 void LibraryPathsDialog::onAdd() {
     const QString dir = QFileDialog::getExistingDirectory(
-        this, tr("Select parts library folder"),
+        this, tr("Choose a parts folder"),
         {}, QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks);
     if (dir.isEmpty()) return;
     // Avoid duplicates.

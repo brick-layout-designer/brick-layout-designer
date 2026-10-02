@@ -90,24 +90,24 @@ void MainWindow::setupBudgetMenu() {
     connect(saveAsAct, &QAction::triggered, this, [this]{ saveBudget(true); });
     menu->addSeparator();
 
-    auto* onlyAct = menu->addAction(tr("Show Only Budgeted &Parts"));
+    auto* onlyAct = menu->addAction(tr("Show Only &Parts in the Budget"));
     onlyAct->setCheckable(true);
-    onlyAct->setToolTip(tr("Hide parts without a budget from the parts library"));
+    onlyAct->setToolTip(tr("Hide parts without a budget from the Parts panel"));
     connect(onlyAct, &QAction::toggled, this, [this](bool on){ budget_->setShowOnlyBudgetedParts(on); });
     auto* numbersAct = menu->addAction(tr("Show Budget &Numbers"));
     numbersAct->setCheckable(true);
-    numbersAct->setToolTip(tr("Show how many of each part are used and allowed in the parts library"));
+    numbersAct->setToolTip(tr("Show how many of each part are used and allowed in the Parts panel"));
     connect(numbersAct, &QAction::toggled, this, [this](bool on){ budget_->setShowBudgetNumbers(on); });
-    auto* limitAct = menu->addAction(tr("Use Budget &Limitation"));
+    auto* limitAct = menu->addAction(tr("Stop at the Budget &Limits"));
     limitAct->setCheckable(true);
-    limitAct->setToolTip(tr("Refuse to place parts beyond their budget"));
+    limitAct->setToolTip(tr("Don't let anyone place more of a part than its budget allows"));
     connect(limitAct, &QAction::toggled, this, [this, numbersAct](bool on){
         budget_->setUseBudgetLimitation(on);
         // As BlueBrick: offer to show the numbers, which make the limit visible.
         const QString key = QStringLiteral("general/askShowBudgetNumbers");
         if (!on || numbersAct->isChecked() || !QSettings().value(key, true).toBool()) return;
-        QMessageBox box(QMessageBox::Question, tr("Budget limitation"),
-                        tr("Do you also want to show the budget numbers in the parts library?"),
+        QMessageBox box(QMessageBox::Question, tr("Budget limits"),
+                        tr("Do you also want to show the budget numbers in the Parts panel?"),
                         QMessageBox::Yes | QMessageBox::No, this);
         auto* dontAsk = new QCheckBox(tr("Don't ask again"), &box);
         box.setCheckBox(dontAsk);

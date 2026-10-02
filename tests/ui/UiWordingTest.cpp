@@ -67,3 +67,31 @@ TEST(UiWordingTest, LibraryCasingMatchesTheWeb) {
     }
     EXPECT_TRUE(bad.isEmpty()) << "Say \"Venue library\" / \"Module library\":\n" << describe(bad).toStdString();
 }
+
+// "Library" alone is ambiguous now that there are parts folders, a Module
+// library and a Venue library: every "library" names which one it is.
+TEST(UiWordingTest, EveryLibrarySaysWhichOne) {
+    static const QRegularExpression named(
+        QStringLiteral(R"re(\b(Module|Venue|LDraw|Studio|parts?) &?librar(y|ies)\b|library\.ldraw\.org(/library)?)re"),
+        QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression library(QStringLiteral(R"(\blibrar(y|ies)\b)"),
+                                            QRegularExpression::CaseInsensitiveOption);
+    QList<Hit> bad;
+    for (const Hit& h : trStrings()) {
+        QString rest = h.text;
+        rest.remove(named);
+        if (library.match(rest).hasMatch()) bad.push_back(h);
+    }
+    EXPECT_TRUE(bad.isEmpty()) << "Say which library (Module library, Venue library, parts folders…):\n"
+                               << describe(bad).toStdString();
+}
+
+// The jargon BlueBrick used for modules and budgets is gone.
+TEST(UiWordingTest, ModuleAndBudgetWordsArePlain) {
+    static const QRegularExpression jargon(QStringLiteral(R"(Flatten|Clone [Mm]odule|Select Members|Budget &?Limitation|Library Part)"));
+    QList<Hit> bad;
+    for (const Hit& h : trStrings()) {
+        if (jargon.match(h.text).hasMatch()) bad.push_back(h);
+    }
+    EXPECT_TRUE(bad.isEmpty()) << describe(bad).toStdString();
+}

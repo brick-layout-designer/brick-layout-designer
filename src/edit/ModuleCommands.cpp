@@ -42,7 +42,7 @@ CreateModuleCommand::CreateModuleCommand(core::Map& map, QString name,
     : QUndoCommand(parent), map_(map),
       moduleId_(core::newBbmId()),
       name_(std::move(name)), members_(std::move(members)) {
-    setText(QObject::tr("Create module %1 (%2 members)").arg(name_).arg(members_.size()));
+    setText(QObject::tr("Group as module %1 (%2 parts)").arg(name_).arg(members_.size()));
 }
 
 void CreateModuleCommand::redo() {
@@ -224,7 +224,7 @@ CloneModuleCommand::CloneModuleCommand(core::Map& map, QString sourceModuleId,
       offsetStuds_(offsetStuds),
       newName_(std::move(newName)),
       newModuleId_(core::newBbmId()) {
-    setText(QObject::tr("Clone module"));
+    setText(QObject::tr("Duplicate module"));
 }
 
 void CloneModuleCommand::redo() {
@@ -314,7 +314,7 @@ void CloneModuleCommand::undo() {
 
 FlattenModuleCommand::FlattenModuleCommand(core::Map& map, QString moduleId, QUndoCommand* parent)
     : QUndoCommand(parent), map_(map), moduleId_(std::move(moduleId)) {
-    setText(QObject::tr("Flatten module"));
+    setText(QObject::tr("Ungroup module"));
 }
 
 void FlattenModuleCommand::redo() {
@@ -338,7 +338,7 @@ RescanModuleCommand::RescanModuleCommand(core::Map& map, int targetLayerIndex, Q
                                          QUndoCommand* parent)
     : QUndoCommand(parent), map_(map), layerIndex_(targetLayerIndex),
       moduleId_(std::move(moduleId)), freshBricks_(std::move(freshBricks)) {
-    setText(QObject::tr("Re-scan module (%1 bricks)").arg(freshBricks_.size()));
+    setText(QObject::tr("Update module (%1 parts)").arg(freshBricks_.size()));
 }
 
 void RescanModuleCommand::redo() {
@@ -412,7 +412,7 @@ ImportBbmAsModuleCommand::ImportBbmAsModuleCommand(core::Map& map,
       moduleId_(core::newBbmId()),
       name_(std::move(moduleName)), batches_(std::move(batches)) {
     int total = 0; for (const auto& b : batches_) total += b.bricks.size();
-    setText(QObject::tr("Import module (%1 bricks)").arg(total));
+    setText(QObject::tr("Import module (%1 parts)").arg(total));
 }
 
 // Back-compat single-layer ctor: wraps the args into a one-batch array so
@@ -434,7 +434,7 @@ ImportBbmAsModuleCommand::ImportBbmAsModuleCommand(core::Map& map, int targetLay
     batch.layerName = layerName;
     batch.bricks = std::move(bricks);
     batches_.push_back(std::move(batch));
-    setText(QObject::tr("Import module (%1 bricks)").arg(batches_.front().bricks.size()));
+    setText(QObject::tr("Import module (%1 parts)").arg(batches_.front().bricks.size()));
 }
 
 namespace {

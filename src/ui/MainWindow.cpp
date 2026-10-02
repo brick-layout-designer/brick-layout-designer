@@ -526,7 +526,7 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
             out.layers().push_back(std::move(outL));
         }
         if (total == 0) {
-            QMessageBox::information(this, tr("Save to library"),
+            QMessageBox::information(this, tr("Save to Module library"),
                 tr("This module currently has no brick members."));
             return;
         }
@@ -549,7 +549,7 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
         // can't create it — user can then fix permissions or pick another
         // folder.
         if (!QDir().mkpath(dir)) {
-            QMessageBox::warning(this, tr("Save to library"),
+            QMessageBox::warning(this, tr("Save to Module library"),
                 tr("Cannot create or access the module library folder:\n%1\n\n"
                    "Pick a different folder in Preferences → Library.").arg(dir));
             return;
@@ -570,13 +570,13 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
         bool ok = false;
         const QString defaultName = sanitizeFilename(mod->name.isEmpty() ? tr("Module") : mod->name);
         const QString rawName = QInputDialog::getText(
-            this, tr("Save to library"), tr("Module name (filename):"),
+            this, tr("Save to Module library"), tr("Module name (filename):"),
             QLineEdit::Normal, defaultName, &ok);
         if (!ok || rawName.isEmpty()) return;
         const QString name = sanitizeFilename(rawName);
         const QString target = QDir(dir).filePath(name + QStringLiteral(".bbm"));
         if (QFile::exists(target)) {
-            const auto btn = QMessageBox::question(this, tr("Save to library"),
+            const auto btn = QMessageBox::question(this, tr("Save to Module library"),
                 tr("%1 already exists. Overwrite?").arg(target));
             if (btn != QMessageBox::Yes) return;
         }
@@ -588,7 +588,7 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
 
         auto r = saveload::writeBbm(out, target);
         if (!r.ok) {
-            QMessageBox::warning(this, tr("Save to library"),
+            QMessageBox::warning(this, tr("Save to Module library"),
                 tr("%1\n\nTarget path:\n%2").arg(r.error, target));
             return;
         }
@@ -605,7 +605,7 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
         moduleLibraryPanel_->refresh();
         modulesPanel_->setMap(map);
         statusBar()->showMessage(
-            tr("Saved module '%1' to library (%2 bricks)")
+            tr("Saved module '%1' to the Module library (%2 parts)")
                 .arg(name).arg(savedCount), 4000);
     });
 
@@ -871,18 +871,18 @@ void MainWindow::onCreateModuleFromSelection() {
         members.push_back({ it->data(0).toInt(), it->data(1).toString() });
     }
     if (members.empty()) {
-        QMessageBox::information(this, tr("Create module"),
-            tr("Select one or more bricks first."));
+        QMessageBox::information(this, tr("Group as module"),
+            tr("Select one or more parts first."));
         return;
     }
     bool ok = false;
     const QString name = QInputDialog::getText(
-        this, tr("Create module"), tr("Module name:"),
+        this, tr("Group as module"), tr("Module name:"),
         QLineEdit::Normal, tr("New Module"), &ok);
     if (!ok || name.isEmpty()) return;
     mapView_->undoStack()->push(new edit::CreateModuleCommand(*map, name, std::move(members)));
     modulesPanel_->setMap(map);
-    statusBar()->showMessage(tr("Module created"), 3000);
+    statusBar()->showMessage(tr("Grouped as a module"), 3000);
 }
 
 void MainWindow::onSaveSelectionAsModule() {
@@ -907,7 +907,7 @@ void MainWindow::onSaveSelectionAsModule() {
     }
     if (picks.empty()) {
         QMessageBox::information(this, tr("Save module"),
-            tr("Select one or more bricks first."));
+            tr("Select one or more parts first."));
         return;
     }
 
@@ -1000,7 +1000,7 @@ void MainWindow::onSaveSelectionAsSet() {
     }
     if (picks.empty()) {
         QMessageBox::information(this, tr("Save set"),
-            tr("Select one or more bricks first."));
+            tr("Select one or more parts first."));
         return;
     }
 

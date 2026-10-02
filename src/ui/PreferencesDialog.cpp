@@ -265,7 +265,7 @@ QWidget* buildLibraryTab(QDialog* parent) {
     vbox->addWidget(moduleDirLabel);
     vbox->addLayout(modRow);
 
-    auto* libBox = new QGroupBox(QObject::tr("Additional parts library paths"), w);
+    auto* libBox = new QGroupBox(QObject::tr("Extra parts folders"), w);
     auto* libVbox = new QVBoxLayout(libBox);
     auto* list = new QListWidget(libBox);
     s.beginGroup(LibraryPathsDialog::kSettingsGroup);
@@ -280,7 +280,7 @@ QWidget* buildLibraryTab(QDialog* parent) {
     btnRow->addStretch();
     libVbox->addLayout(btnRow);
     QObject::connect(addBtn, &QPushButton::clicked, w, [list, w]{
-        const QString p = QFileDialog::getExistingDirectory(w, QObject::tr("Add parts library path"));
+        const QString p = QFileDialog::getExistingDirectory(w, QObject::tr("Add a parts folder"));
         if (!p.isEmpty()) list->addItem(p);
     });
     QObject::connect(rmBtn, &QPushButton::clicked, list, [list]{
@@ -542,7 +542,7 @@ PreferencesDialog::PreferencesDialog(QWidget* parent) : QDialog(parent) {
     tabs->addTab(buildGeneralTab(this),    tr("General"));
     tabs->addTab(buildEditionTab(this),    tr("Editing"));
     tabs->addTab(buildAppearanceTab(this), tr("Appearance"));
-    tabs->addTab(buildLibraryTab(this),    tr("Library"));
+    tabs->addTab(buildLibraryTab(this),    tr("Parts"));
     tabs->addTab(buildImportTab(this),     tr("Import"));
     vbox->addWidget(tabs);
 
