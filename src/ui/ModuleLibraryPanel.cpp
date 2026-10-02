@@ -93,6 +93,15 @@ ModuleLibraryPanel::ModuleLibraryPanel(QWidget* parent)
 
     connect(catalogLink_, &QPushButton::clicked, this, &ModuleLibraryPanel::browseCatalogRequested);
     col->addWidget(catalogLink_, 0, Qt::AlignLeft);
+    // Modules made on the website live on the server, not in this folder.
+    webModulesLink_ = new QPushButton(tr("Your modules on the web…"), host);
+    webModulesLink_->setObjectName(QStringLiteral("webModules"));
+    webModulesLink_->setFlat(true);
+    webModulesLink_->setCursor(Qt::PointingHandCursor);
+    webModulesLink_->setToolTip(tr("Modules you saved on your server's website; this list shows the ones on this computer"));
+    webModulesLink_->setVisible(false);
+    connect(webModulesLink_, &QPushButton::clicked, this, &ModuleLibraryPanel::webModulesRequested);
+    col->addWidget(webModulesLink_, 0, Qt::AlignLeft);
 
     setWidget(host);
 
@@ -189,7 +198,10 @@ void ModuleLibraryPanel::setLibraryPath(const QString& dir) {
     refresh();
 }
 
-void ModuleLibraryPanel::setCatalogLinkVisible(bool visible) { catalogLink_->setVisible(visible); }
+void ModuleLibraryPanel::setCatalogLinkVisible(bool visible) {
+    catalogLink_->setVisible(visible);
+    webModulesLink_->setVisible(visible);
+}
 
 void ModuleLibraryPanel::setParts(parts::PartsLibrary* parts) {
     parts_ = parts;
@@ -224,7 +236,8 @@ void ModuleLibraryPanel::refresh() {
         header_->setText(tr("No folder set. Click \"Folder…\" to choose one."));
         return;
     }
-    header_->setText(path_);
+    header_->setText(tr("On this computer: %1").arg(QDir(path_).dirName()));
+    header_->setToolTip(path_);
     QDir d(path_);
     const QStringList files = d.entryList({ QStringLiteral("*.bbm") },
                                              QDir::Files, QDir::Name | QDir::IgnoreCase);
@@ -237,7 +250,7 @@ void ModuleLibraryPanel::refresh() {
     }
     scheduleThumbnails();
     if (files.isEmpty()) {
-        auto* e = new QListWidgetItem(tr("(no modules in this folder)"));
+        auto* e = new QListWidgetItem(tr("No modules here yet. Use Modules › Save Selection as Module… to add one."));
         e->setFlags(Qt::NoItemFlags);
         list_->addItem(e);
     }

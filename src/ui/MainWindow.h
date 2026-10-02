@@ -259,6 +259,8 @@ private:
     // "Browse the catalog on the web…" in the Parts panel and Module library:
     // the last-used server's catalog page in the browser.
     void openCatalogOnWeb(bool parts);
+    // The server's Home page (its layouts, modules and parts) in the browser.
+    void openServerHomeOnWeb();
 protected:
     // Open a server layout live in this window. Protected so tests can open
     // one without the connect dialog.
