@@ -521,6 +521,9 @@ struct TwoServers {
         list.add(pal.base(), QStringLiteral("Bob's server"));
         list.addRecent(pal.base(), { QStringLiteral("P2"), QStringLiteral("Bob's yard"), false, {} });
         list.touch(club.base());
+        // A minute ago, so connecting to the other server is later even on a
+        // clock that ticks every 15 ms (Windows).
+        list.find(club.base())->lastUsed = QDateTime::currentDateTimeUtc().addSecs(-60);
         list.save();
         for (FakeHttp* h : { &club, &pal }) h->reply("/api/version", 200, version());
         tokens.save(club.base(), QStringLiteral("bld_pat_club"));
