@@ -117,6 +117,11 @@ TEST_F(ServersDialogTest, EachRowSaysWhoIsSignedInTheVersionAndWhatIsMissing) {
     QWidget* second = rows->itemWidget(rows->item(1));
     EXPECT_TRUE(second->findChild<QLabel*>(QStringLiteral("mainBadge"))->isHidden());
     EXPECT_EQ(second->findChild<QLabel*>(QStringLiteral("serverMissing"))->text(), missing);
+    EXPECT_EQ(second->findChild<QLabel*>(QStringLiteral("serverMissing"))->toolTip(), missing);
+    // A row with the "Can't do yet" line is no taller than one without.
+    EXPECT_TRUE(first->findChild<QLabel*>(QStringLiteral("serverMissing"))->isHidden());
+    EXPECT_EQ(rows->item(0)->sizeHint().height(), rows->item(1)->sizeHint().height());
+    EXPECT_EQ(first->sizeHint().height(), second->sizeHint().height());
 
     // What they said is remembered for next time.
     const ServerList list = ServerList::load();
