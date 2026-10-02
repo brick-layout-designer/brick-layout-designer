@@ -14,6 +14,8 @@
 #include "ui/LiveLayout.h"
 #include "ui/LoadingCard.h"
 #include "ui/MainWindow.h"
+#include "ui/ModuleLibraryPanel.h"
+#include "ui/tours/Tours.h"
 #include "ui/MapView.h"
 #include "ui/NoticeArea.h"
 #include "ui/UpdateCheck.h"
@@ -692,4 +694,48 @@ TEST_F(MainWindowLive, LiveOnTheOnlyServerItBecomesMainAndKeepsItsSettings) {
         return std::any_of(http_.requests.cbegin(), http_.requests.cend(),
                            [](const auto& r) { return r.path == "/api/me/preferences"; });
     }));
+}
+
+// Journey 7: a desktop member's show day, one chain on one live layout.
+// Live edit → offline edit while someone else edits → back in step, the
+// compare window, Apply → both edits on the server → the Module library
+// says it is this computer's and links to the web → Share Picture and
+// Export All Views are there → the editor tour runs from the Help menu.
+// (Server parts, publishing and several servers have their own fixtures
+// above: MainWindowLiveServerParts, SaveMineAsANewLayout…, MainWindowLiveElsewhere.)
+TEST_F(MainWindowLive, JourneyADesktopMembersShowDay) {
+    // Live: a move reaches the server.
+    core::Map& m = *view_->currentMap();
+    const QPointF at = brickAt(m, 0).displayArea.topLeft();
+    view_->undoStack()->push(new edit::MoveBricksCommand(m, { { brickRef(m, 0), at, at + QPointF(0, 8) } }));
+    ASSERT_TRUE(waitFor([&] { return brickArea(ws_.doc, 0) == original_.translated(0, 8); }));
+
+    // Offline: mine and someone else's; back in step, Apply keeps both.
+    editOffline();
+    Answers answers{ { compare(QStringLiteral("Apply")) } };
+    answers.during([&] { ASSERT_TRUE(waitFor([&] { return answers.done() && !session().offlineEdits(); })); });
+    EXPECT_EQ(answers.unexpected, 0);
+    ASSERT_TRUE(waitFor([&] { return brickArea(ws_.doc, 0) == original_.translated(8, 8); }));
+    EXPECT_EQ(brickArea(ws_.doc, 1), otherOriginal_.translated(0, 16));
+    EXPECT_FALSE(reviewAction()->isEnabled());
+
+    // The Module library is this computer's, with the web's modules a click away.
+    auto* modules = window_->findChild<ui::ModuleLibraryPanel*>();
+    ASSERT_NE(modules, nullptr);
+    auto* web = modules->findChild<QPushButton*>(QStringLiteral("webModules"));
+    ASSERT_NE(web, nullptr);
+    EXPECT_FALSE(web->isHidden());
+
+    // A picture of the layout, and all its views.
+    auto* share = window_->findChild<QAction*>(QStringLiteral("action.sharePicture"));
+    auto* views = window_->findChild<QAction*>(QStringLiteral("action.exportAllViews"));
+    ASSERT_TRUE(share && views);
+    EXPECT_TRUE(share->isEnabled());
+
+    // Help › Tour: The editor starts the tour over the window.
+    auto* tour = window_->findChild<QAction*>(QStringLiteral("help.tour.editor"));
+    ASSERT_NE(tour, nullptr);
+    window_->show();
+    tour->trigger();
+    ASSERT_TRUE(waitFor([&] { return !window_->findChildren<ui::tours::TourOverlay*>().isEmpty(); }));
 }
