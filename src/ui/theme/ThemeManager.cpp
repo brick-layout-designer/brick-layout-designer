@@ -94,6 +94,18 @@ QToolButton#PanelMenu::menu-indicator { image: none; width: 0; }
 QDockWidget { color: @ink; }
 QFrame[viewCard="true"] { background: @panel; border: 1px solid @line; border-radius: @rcpx; }
 QFrame[viewCard="true"][active="true"] { background: @soft; border-color: @amain; }
+QFrame[libraryRow="true"] { background: @panel; border: 1px solid @line; border-radius: @rcpx; }
+QFrame[libraryRow="true"]:hover { background: @soft; }
+QLabel[libraryPicture="true"] { background: @soft; border: 1px solid @line; border-radius: 8px; }
+QLabel[rowTitle="true"] { color: @ink; font-weight: 700; }
+QLabel[groupHeader="true"] { color: @muted; font-weight: 700; padding: 6px 2px 0 2px; }
+QLabel[muted="true"] { color: @muted; }
+QLabel[danger="true"] { color: @danger; }
+QLabel[pill="true"] { background: @asoft; color: @atext; border-radius: 10px; padding: 2px 8px; font-weight: 700; }
+QWidget#libraryStatus { background: @soft; border-radius: @rcpx; }
+QToolButton[rowMore="true"] { border: 1px solid @border; border-radius: @rcpx; background: @panel; color: @ink; padding: 4px 8px; font-weight: 800; }
+QToolButton[rowMore="true"]:hover { background: @soft; }
+QToolButton[rowMore="true"]::menu-indicator { image: none; width: 0px; }
 QFrame#ViewOptions { background: transparent; border: none; border-top: 1px solid @line; }
 QToolButton[viewRowTool="true"] { background: transparent; border: none; border-radius: @rcpx; color: @muted; font-weight: 600; padding: 2px 6px; }
 QToolButton[viewRowTool="true"]:hover { background: @soft; color: @ink; }

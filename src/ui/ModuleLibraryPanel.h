@@ -10,6 +10,7 @@ class QListWidgetItem;
 class QTouchEvent;
 
 class QPushButton;
+class QTabWidget;
 
 namespace bld::parts { class PartsLibrary; }
 
@@ -47,6 +48,12 @@ public:
     // (builds that talk to a server).
     void setCatalogLinkVisible(bool visible);
 
+    // The library's tabs: "On this computer" first; builds that talk to a
+    // server add "On the server" and "Catalog" (ServerLibrary.h). The tab
+    // bar shows once there is more than one.
+    int addTab(QWidget* page, const QString& label);
+    QTabWidget* tabs() const { return tabs_; }
+
 signals:
     void moduleImportRequested(const QString& bbmPath);
     // "Browse the catalog on the web…" was clicked.
@@ -68,6 +75,7 @@ private slots:
     void onActivated(QListWidgetItem* item);
 
 private:
+    QTabWidget*  tabs_ = nullptr;
     QLabel*      header_ = nullptr;
     QPushButton* catalogLink_ = nullptr;
     QPushButton* webModulesLink_ = nullptr;

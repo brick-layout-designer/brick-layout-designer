@@ -498,8 +498,11 @@ void MainWindow::onDownloadVenues() {
             tr("Added %n venue(s) to the Venue library", nullptr, static_cast<int>(saved.size())), 5000);
 }
 
-void MainWindow::syncServerParts(const QUrl& server, const QString& token) {
-    if (partsSyncRunning_) return;
+void MainWindow::syncServerParts(const QUrl& server, const QString& token, const std::function<void()>& then) {
+    if (partsSyncRunning_) {
+        if (then) then();
+        return;
+    }
     partsSyncRunning_ = true;
     lastPartsSyncMs_ = QDateTime::currentMSecsSinceEpoch();
     lastPartsSyncServer_ = server;
@@ -512,10 +515,11 @@ void MainWindow::syncServerParts(const QUrl& server, const QString& token) {
     // The first connect fetches thousands of files: a card with a real
     // progress bar, like the web's, for as long as it takes.
     if (partsDownloadCard_) partsDownloadCard_->showBusy(tr("Checking the server's parts…"));
-    const auto done = [this] {
+    const auto done = [this, then] {
         partsSyncRunning_ = false;
         if (partsDownloadCard_) partsDownloadCard_->finish();
         updateLiveUi();
+        if (then) QTimer::singleShot(0, this, then);
     };
     connect(job, &sync::PartsSync::progress, this, [this](int done, int total) {
         if (partsDownloadCard_)

@@ -89,6 +89,12 @@ add_library(bld_sync STATIC
     ServerList.cpp
     LayoutMerge.h
     LayoutMerge.cpp
+    LibraryApi.h
+    LibraryApi.cpp
+    ModuleDoc.h
+    ModuleDoc.cpp
+    EventStream.h
+    EventStream.cpp
 )
 target_include_directories(bld_sync
     PUBLIC  ${CMAKE_CURRENT_SOURCE_DIR}

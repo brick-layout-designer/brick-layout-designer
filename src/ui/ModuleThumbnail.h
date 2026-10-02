@@ -10,10 +10,18 @@
 #include <QString>
 
 namespace bld::parts { class PartsLibrary; }
+namespace bld::core { class Map; }
 
 namespace bld::ui {
 
 inline constexpr int kModuleThumbnailSide = 96;
+
+// The picture a module saved on a server gets, as the web makes it: about
+// 1024 px on its longest side, PNG. The lists ask the server for a small one.
+inline constexpr int kServerModuleThumbnailSide = 1024;
+
+// Draws the picture of `module` (no cache). Null when it has no parts.
+QImage renderModuleThumbnail(const core::Map& module, parts::PartsLibrary& parts, int side = kModuleThumbnailSide);
 
 // Draws the picture of the module in `bbmPath` (no cache). Null when the
 // file can't be read or has no parts.

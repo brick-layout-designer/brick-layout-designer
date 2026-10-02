@@ -81,6 +81,8 @@ void MainWindow::updateTitle() {
     if (live_ && live_->active()) {
         name = tr("%1 — Live on %2").arg(live_->title(), liveServerName());
         dirty = false;
+    } else if (!editingModule_.id.isEmpty()) {
+        name = tr("%1 — Module on %2").arg(editingModule_.title, editingModule_.server.host());
     }
 #endif
     // As BlueBrick, the open budget follows the map name.
@@ -403,6 +405,10 @@ QStringList MainWindow::resolvePartDifferences(const QStringList& keys, const QM
 
 bool MainWindow::onSave() {
     if (!mapView_->currentMap()) return false;
+#ifdef BLD_SYNC
+    // A server module open for changing: Save makes a new version of it.
+    if (!editingModule_.id.isEmpty()) return saveEditedModule();
+#endif
     if (currentFilePath_.isEmpty()) return onSaveAs();
     if (!import::isLayoutFile(currentFilePath_) && !saveFormatChosen_) return chooseSaveFormat();
     return writeMapTo(currentFilePath_);
@@ -814,6 +820,10 @@ void MainWindow::openSourceLive(const import::LayoutSource&) {}
 #endif
 
 void MainWindow::forgetFileSource() {
+#ifdef BLD_SYNC
+    // Another document: the module that was open for changing isn't any more.
+    clearEditingModule();
+#endif
     keptManifest_ = {};
     fileSource_.reset();
     if (notices_) notices_->hideNotice(QStringLiteral("layoutSource"));

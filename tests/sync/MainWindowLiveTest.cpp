@@ -41,6 +41,7 @@
 
 #include <algorithm>
 #include <QStandardPaths>
+#include <QTabWidget>
 #include <QTimer>
 #include <QToolButton>
 #include <QUndoStack>
@@ -719,12 +720,13 @@ TEST_F(MainWindowLive, JourneyADesktopMembersShowDay) {
     EXPECT_EQ(brickArea(ws_.doc, 1), otherOriginal_.translated(0, 16));
     EXPECT_FALSE(reviewAction()->isEnabled());
 
-    // The Module library is this computer's, with the web's modules a click away.
+    // The Module library has this computer's modules, the server's and the catalog.
     auto* modules = window_->findChild<ui::ModuleLibraryPanel*>();
     ASSERT_NE(modules, nullptr);
-    auto* web = modules->findChild<QPushButton*>(QStringLiteral("webModules"));
-    ASSERT_NE(web, nullptr);
-    EXPECT_FALSE(web->isHidden());
+    ASSERT_EQ(modules->tabs()->count(), 3);
+    EXPECT_EQ(modules->tabs()->tabText(0), QStringLiteral("This computer"));
+    EXPECT_FALSE(modules->tabs()->tabText(1).isEmpty());
+    EXPECT_EQ(modules->tabs()->tabText(2), QStringLiteral("Catalog"));
 
     // A picture of the layout, and all its views.
     auto* share = window_->findChild<QAction*>(QStringLiteral("action.sharePicture"));

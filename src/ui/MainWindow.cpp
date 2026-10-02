@@ -14,6 +14,9 @@
 #include "../saveload/VenueIO.h"
 #include "MapView.h"
 #include "ModuleLibraryPanel.h"
+#ifdef BLD_SYNC
+#include "ServerLibrary.h"
+#endif
 #include "ModulesPanel.h"
 #include "VenueLibraryPanel.h"
 #include "PartsBrowser.h"
@@ -331,10 +334,10 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
     moduleLibraryPanel_ = new ModuleLibraryPanel(this);
     moduleLibraryPanel_->setParts(&parts_);
 #ifdef BLD_SYNC
-    // The public catalogs live on the server's website.
-    moduleLibraryPanel_->setCatalogLinkVisible(true);
+    // Your modules and your clubs' on the server, and the catalog, as tabs.
     connect(moduleLibraryPanel_, &ModuleLibraryPanel::browseCatalogRequested, this, [this] { openCatalogOnWeb(false); });
     connect(moduleLibraryPanel_, &ModuleLibraryPanel::webModulesRequested, this, [this] { openServerHomeOnWeb(); });
+    setupServerLibrary();
     partsBrowser_->setCatalogLinkVisible(true);
     connect(partsBrowser_, &PartsBrowser::browseCatalogRequested, this, [this] { openCatalogOnWeb(true); });
 #endif
@@ -937,11 +940,22 @@ void MainWindow::onSaveSelectionAsModule() {
     }
     module.nbItems = total;
 
+#ifdef BLD_SYNC
+    // Signed in to a server: a new module or version there (or this computer).
+    if (serverLibrary_ && serverLibrary_->state() == ServerLibrary::State::Ready) {
+        saveModuleToServer(module, static_cast<int>(picks.size()));
+        return;
+    }
+#endif
+    saveModuleLocally(module, static_cast<int>(picks.size()));
+}
+
+void MainWindow::saveModuleLocally(const core::Map& module, int partCount, const QString& name) {
     // Pick target path: if module library path is configured, default there;
     // otherwise fall back to QFileDialog's default.
     QString startDir = moduleLibraryPanel_->libraryPath();
     QDir().mkpath(startDir);  // best-effort
-    const QString rawName = QInputDialog::getText(
+    const QString rawName = !name.isEmpty() ? name : QInputDialog::getText(
         this, tr("Save module"), tr("Module name:"),
         QLineEdit::Normal, tr("New Module"));
     if (rawName.isEmpty()) return;
@@ -955,10 +969,19 @@ void MainWindow::onSaveSelectionAsModule() {
         return n;
     };
     const QString defaultName = sanitize(rawName);
-    QString target = QFileDialog::getSaveFileName(
-        this, tr("Save selection as module"),
-        startDir.isEmpty() ? defaultName + ".bbm" : QDir(startDir).filePath(defaultName + ".bbm"),
-        tr("BlueBrick map (*.bbm)"));
+    QString target;
+    if (!name.isEmpty() && !startDir.isEmpty()) {
+        // Named in the Save dialog already: straight into the library folder.
+        target = QDir(startDir).filePath(defaultName + QStringLiteral(".bbm"));
+        if (QFile::exists(target) &&
+            QMessageBox::question(this, tr("Save module"), tr("%1 already exists. Replace it?").arg(target)) != QMessageBox::Yes)
+            return;
+    } else {
+        target = QFileDialog::getSaveFileName(
+            this, tr("Save selection as module"),
+            startDir.isEmpty() ? defaultName + ".bbm" : QDir(startDir).filePath(defaultName + ".bbm"),
+            tr("BlueBrick map (*.bbm)"));
+    }
     if (target.isEmpty()) return;
     if (!target.endsWith(QStringLiteral(".bbm"), Qt::CaseInsensitive)) target += QStringLiteral(".bbm");
 
@@ -967,7 +990,7 @@ void MainWindow::onSaveSelectionAsModule() {
         QMessageBox::warning(this, tr("Save module failed"), r.error);
         return;
     }
-    statusBar()->showMessage(tr("Saved %1 bricks to %2").arg(picks.size()).arg(target), 4000);
+    statusBar()->showMessage(tr("Saved %1 bricks to %2").arg(partCount).arg(target), 4000);
     moduleLibraryPanel_->refresh();
 }
 

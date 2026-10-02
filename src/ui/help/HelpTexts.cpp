@@ -46,7 +46,8 @@ constexpr Raw kShared[] = {
       QT_TRANSLATE_NOOP("HelpTexts", "Module library"),
       QT_TRANSLATE_NOOP("HelpTexts", "Modules saved to your account or your club, ready to drop in."),
       QT_TRANSLATE_NOOP("HelpTexts", "Drag a module from here onto the map to add a copy of it. Your "
-                                     "club’s modules are shared with everyone in the club.") },
+                                     "club’s modules are shared with everyone in the club. To change a module, "
+                                     "open it from Home: it opens on its own, and Save module keeps your changes.") },
     { "panel.roomLibrary", "/help#room",
       QT_TRANSLATE_NOOP("HelpTexts", "Venue library"),
       QT_TRANSLATE_NOOP("HelpTexts", "Venues saved to your account or your club."),
@@ -432,6 +433,12 @@ constexpr Override kDesktopOverrides[] = {
     { "share.exportAllViews", nullptr,
       QT_TRANSLATE_NOOP("HelpTexts", "One picture of every saved view, into a folder you choose."),
       nullptr },
+    // The desktop also keeps modules as files, and changes a server module in the window itself.
+    { "panel.moduleLibrary", nullptr, nullptr,
+      QT_TRANSLATE_NOOP("HelpTexts", "This computer keeps modules as files in a folder. The server's tab has "
+                                     "yours and your clubs', shared with everyone in the club, and Catalog has "
+                                     "what people shared for everyone. Add to layout drops a copy in; to change "
+                                     "a server module, pick ⋯ › Open to change it, then Save makes a new version.") },
 };
 
 HelpEntry translated(const Raw& r) {
