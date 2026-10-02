@@ -385,6 +385,24 @@ void MapView::touchPartDragCancel() {
     clearDragPreview();
 }
 
+void MapView::touchModuleDragTo(const QString& bbmPath, QPoint globalPos) {
+    const QPoint vp = viewport()->mapFromGlobal(globalPos);
+    if (!viewport()->rect().contains(vp)) {
+        touchPartDragCancel();
+        return;
+    }
+    updateModuleDragPreview(bbmPath, mapToScene(vp));
+}
+
+bool MapView::touchModuleDropAt(const QString& bbmPath, QPoint globalPos) {
+    clearDragPreview();
+    const QPoint vp = viewport()->mapFromGlobal(globalPos);
+    if (!map_ || !viewport()->rect().contains(vp)) return false;
+    const bool placed = dropModuleAt(bbmPath, mapToScene(vp));
+    refreshTouchBar();
+    return placed;
+}
+
 void MapView::refreshTouchBar() {
     const bool touch = TouchMode::instance().active();
     if (!touchBar_) {

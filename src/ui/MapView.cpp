@@ -2157,6 +2157,163 @@ void MapView::updateModuleDragPreview(const QString& bbmPath, QPointF cursorScen
     }
 }
 
+bool MapView::dropModuleAt(const QString& bbmPath, QPointF scenePos) {
+    clearDragPreview();
+    if (bbmPath.isEmpty()) return false;
+    auto res = saveload::readBbm(bbmPath);
+    if (!res.ok()) return false;
+    parts::placement::fixStaleAreas(*res.map, parts_);
+    const double px = rendering::SceneBuilder::kPixelsPerStud;
+
+    // Build per-layer batches (preserves the module's z-order /
+    // layering so tracks don't land on top of scenery) and translate
+    // every batch's bricks so the module's centroid lands at the
+    // drop position.
+    std::vector<edit::ImportBbmAsModuleCommand::LayerBatch> batches;
+    QPointF srcCentre; int count = 0;
+    QRectF  srcBbox;
+    for (const auto& L : res.map->layers()) {
+        if (!L || L->kind() != core::LayerKind::Brick) continue;
+        edit::ImportBbmAsModuleCommand::LayerBatch batch;
+        batch.layerName = L->name.isEmpty() ? QStringLiteral("Module") : L->name;
+        for (const auto& b : static_cast<const core::LayerBrick&>(*L).bricks) {
+            srcCentre += b.displayArea.center(); ++count;
+            srcBbox = srcBbox.isNull() ? b.displayArea
+                                        : srcBbox.united(b.displayArea);
+            core::Brick copy = b;
+            copy.guid.clear();
+            batch.bricks.push_back(std::move(copy));
+        }
+        if (!batch.bricks.empty()) batches.push_back(std::move(batch));
+    }
+    if (batches.empty() || count == 0) return false;
+    srcCentre /= count;
+    QPointF targetCentre(scenePos.x() / px, scenePos.y() / px);
+    // Grid-snap the bbox TOP-LEFT (not the centroid) so the module's
+    // visible edges line up with the stud grid, matching the preview
+    // ghost. Snapping the centroid would leave non-square modules
+    // off-grid even with snap enabled.
+    if (snapStepStuds_ > 0.0) {
+        const QPointF offset = srcBbox.topLeft() - srcCentre;
+        const QPointF wantTL = targetCentre + offset;
+        const QPointF snappedTL(
+            std::round(wantTL.x() / snapStepStuds_) * snapStepStuds_,
+            std::round(wantTL.y() / snapStepStuds_) * snapStepStuds_);
+        targetCentre = snappedTL - offset;
+    }
+    const QPointF translation = targetCentre - srcCentre;
+    for (auto& batch : batches)
+        for (auto& b : batch.bricks) b.displayArea.translate(translation);
+
+    // Connection-snap pass: if any brick in the placed module has a
+    // free connection that lands within `connSnapThreshold` of a
+    // free compatible target in the host map, apply an additional
+    // group translation so they coincide. Picks the smallest-shift
+    // candidate so the module barely moves but locks against an
+    // existing free track end. No rotation — modules drop at fixed
+    // orientation; the user can rotate post-drop with R.
+    {
+        auto rotPt = [](QPointF p, double deg) {
+            const double r = deg * M_PI / 180.0;
+            const double c = std::cos(r), s = std::sin(r);
+            return QPointF(p.x() * c - p.y() * s, p.x() * s + p.y() * c);
+        };
+        const double connThresh = connectionSnapThresholdStuds();
+        const double connThreshSq = connThresh * connThresh;
+
+        // Collect every free connection of the placed module bricks
+        // in world (stud) coords with its type.
+        struct ModConn { QString type; QPointF worldStuds; };
+        std::vector<ModConn> modConns;
+        for (const auto& batch : batches) {
+            for (const auto& b : batch.bricks) {
+                auto meta = parts_.metadata(b.partNumber);
+                if (!meta) continue;
+                const QPointF cen = parts::placement::imageCentre(b, parts_);
+                const int n = meta->connections.size();
+                for (int i = 0; i < n; ++i) {
+                    const auto& c = meta->connections[i];
+                    if (c.type.isEmpty()) continue;
+                    // Internal connections (linked to another module
+                    // brick) shouldn't seek host targets — they'll be
+                    // re-linked by rebuildConnectivity after insert.
+                    // We treat ALL module connections as candidates;
+                    // matching against an internal partner can't hit
+                    // because the partner moved with us so it's not
+                    // in the host map yet.
+                    modConns.push_back({ c.type,
+                                          cen + rotPt(c.position, b.orientation) });
+                }
+            }
+        }
+
+        // Scan host map for free targets and find the smallest-shift
+        // pairing.
+        QPointF bestShift;
+        double  bestShiftSq = std::numeric_limits<double>::max();
+        bool    bestFound = false;
+        for (const auto& layerPtr : map_->layers()) {
+            if (!layerPtr || layerPtr->kind() != core::LayerKind::Brick) continue;
+            const auto& BL = static_cast<const core::LayerBrick&>(*layerPtr);
+            for (const auto& tb : BL.bricks) {
+                auto tmeta = parts_.metadata(tb.partNumber);
+                if (!tmeta) continue;
+                const QPointF tCen = parts::placement::imageCentre(tb, parts_);
+                const int nT = tmeta->connections.size();
+                for (int tci = 0; tci < nT; ++tci) {
+                    const auto& tc = tmeta->connections[tci];
+                    if (tc.type.isEmpty()) continue;
+                    if (tci < static_cast<int>(tb.connections.size()) &&
+                        !tb.connections[tci].linkedToId.isEmpty()) continue;
+                    const QPointF tWorld = tCen + rotPt(tc.position, tb.orientation);
+                    for (const auto& mc : modConns) {
+                        if (mc.type != tc.type) continue;
+                        const QPointF d = tWorld - mc.worldStuds;
+                        const double sq = d.x() * d.x() + d.y() * d.y();
+                        if (sq > connThreshSq) continue;
+                        if (sq < bestShiftSq) {
+                            bestShiftSq = sq;
+                            bestShift = d;
+                            bestFound = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (bestFound) {
+            for (auto& batch : batches)
+                for (auto& b : batch.bricks) b.displayArea.translate(bestShift);
+        }
+    }
+
+    const QString name = QFileInfo(bbmPath).completeBaseName();
+    auto* cmd = new edit::ImportBbmAsModuleCommand(
+        *map_, bbmPath, name, std::move(batches));
+    undoStack_->push(cmd);
+    const auto placed = cmd->placedBricks();
+    // Select every just-placed brick so R / Shift+R rotate the
+    // freshly-dropped module, and arrow keys nudge it. Without this
+    // the user has to rubber-band-select after every drop to do
+    // anything else with the module.
+    if (!placed.isEmpty()) {
+        scene()->clearSelection();
+        QSet<QString> wantedGuids;
+        QSet<int> wantedLayers;
+        for (const auto& p : placed) {
+            wantedGuids.insert(p.guid);
+            wantedLayers.insert(p.layerIndex);
+        }
+        for (QGraphicsItem* it : scene()->items()) {
+            if (!isBrickItem(it)) continue;
+            if (!wantedLayers.contains(it->data(kBrickDataLayerIndex).toInt())) continue;
+            if (wantedGuids.contains(it->data(kBrickDataGuid).toString()))
+                it->setSelected(true);
+        }
+    }
+    return true;
+}
+
 void MapView::dropEvent(QDropEvent* e) {
     clearDropTargetHint();
     const QString partMime   = QString::fromLatin1(PartsBrowser::kPartMimeType);
@@ -2164,161 +2321,8 @@ void MapView::dropEvent(QDropEvent* e) {
     const QPointF scenePos = mapToScene(e->position().toPoint());
 
     if (e->mimeData()->hasFormat(moduleMime)) {
-        clearDragPreview();
-        const QString bbmPath = QString::fromUtf8(e->mimeData()->data(moduleMime));
-        if (bbmPath.isEmpty()) { e->ignore(); return; }
-        auto res = saveload::readBbm(bbmPath);
-        if (!res.ok()) { e->ignore(); return; }
-        parts::placement::fixStaleAreas(*res.map, parts_);
-        const double px = rendering::SceneBuilder::kPixelsPerStud;
-
-        // Build per-layer batches (preserves the module's z-order /
-        // layering so tracks don't land on top of scenery) and translate
-        // every batch's bricks so the module's centroid lands at the
-        // drop position.
-        std::vector<edit::ImportBbmAsModuleCommand::LayerBatch> batches;
-        QPointF srcCentre; int count = 0;
-        QRectF  srcBbox;
-        for (const auto& L : res.map->layers()) {
-            if (!L || L->kind() != core::LayerKind::Brick) continue;
-            edit::ImportBbmAsModuleCommand::LayerBatch batch;
-            batch.layerName = L->name.isEmpty() ? QStringLiteral("Module") : L->name;
-            for (const auto& b : static_cast<const core::LayerBrick&>(*L).bricks) {
-                srcCentre += b.displayArea.center(); ++count;
-                srcBbox = srcBbox.isNull() ? b.displayArea
-                                            : srcBbox.united(b.displayArea);
-                core::Brick copy = b;
-                copy.guid.clear();
-                batch.bricks.push_back(std::move(copy));
-            }
-            if (!batch.bricks.empty()) batches.push_back(std::move(batch));
-        }
-        if (batches.empty() || count == 0) { e->ignore(); return; }
-        srcCentre /= count;
-        QPointF targetCentre(scenePos.x() / px, scenePos.y() / px);
-        // Grid-snap the bbox TOP-LEFT (not the centroid) so the module's
-        // visible edges line up with the stud grid, matching the preview
-        // ghost. Snapping the centroid would leave non-square modules
-        // off-grid even with snap enabled.
-        if (snapStepStuds_ > 0.0) {
-            const QPointF offset = srcBbox.topLeft() - srcCentre;
-            const QPointF wantTL = targetCentre + offset;
-            const QPointF snappedTL(
-                std::round(wantTL.x() / snapStepStuds_) * snapStepStuds_,
-                std::round(wantTL.y() / snapStepStuds_) * snapStepStuds_);
-            targetCentre = snappedTL - offset;
-        }
-        const QPointF translation = targetCentre - srcCentre;
-        for (auto& batch : batches)
-            for (auto& b : batch.bricks) b.displayArea.translate(translation);
-
-        // Connection-snap pass: if any brick in the placed module has a
-        // free connection that lands within `connSnapThreshold` of a
-        // free compatible target in the host map, apply an additional
-        // group translation so they coincide. Picks the smallest-shift
-        // candidate so the module barely moves but locks against an
-        // existing free track end. No rotation — modules drop at fixed
-        // orientation; the user can rotate post-drop with R.
-        {
-            auto rotPt = [](QPointF p, double deg) {
-                const double r = deg * M_PI / 180.0;
-                const double c = std::cos(r), s = std::sin(r);
-                return QPointF(p.x() * c - p.y() * s, p.x() * s + p.y() * c);
-            };
-            const double connThresh = connectionSnapThresholdStuds();
-            const double connThreshSq = connThresh * connThresh;
-
-            // Collect every free connection of the placed module bricks
-            // in world (stud) coords with its type.
-            struct ModConn { QString type; QPointF worldStuds; };
-            std::vector<ModConn> modConns;
-            for (const auto& batch : batches) {
-                for (const auto& b : batch.bricks) {
-                    auto meta = parts_.metadata(b.partNumber);
-                    if (!meta) continue;
-                    const QPointF cen = parts::placement::imageCentre(b, parts_);
-                    const int n = meta->connections.size();
-                    for (int i = 0; i < n; ++i) {
-                        const auto& c = meta->connections[i];
-                        if (c.type.isEmpty()) continue;
-                        // Internal connections (linked to another module
-                        // brick) shouldn't seek host targets — they'll be
-                        // re-linked by rebuildConnectivity after insert.
-                        // We treat ALL module connections as candidates;
-                        // matching against an internal partner can't hit
-                        // because the partner moved with us so it's not
-                        // in the host map yet.
-                        modConns.push_back({ c.type,
-                                              cen + rotPt(c.position, b.orientation) });
-                    }
-                }
-            }
-
-            // Scan host map for free targets and find the smallest-shift
-            // pairing.
-            QPointF bestShift;
-            double  bestShiftSq = std::numeric_limits<double>::max();
-            bool    bestFound = false;
-            for (const auto& layerPtr : map_->layers()) {
-                if (!layerPtr || layerPtr->kind() != core::LayerKind::Brick) continue;
-                const auto& BL = static_cast<const core::LayerBrick&>(*layerPtr);
-                for (const auto& tb : BL.bricks) {
-                    auto tmeta = parts_.metadata(tb.partNumber);
-                    if (!tmeta) continue;
-                    const QPointF tCen = parts::placement::imageCentre(tb, parts_);
-                    const int nT = tmeta->connections.size();
-                    for (int tci = 0; tci < nT; ++tci) {
-                        const auto& tc = tmeta->connections[tci];
-                        if (tc.type.isEmpty()) continue;
-                        if (tci < static_cast<int>(tb.connections.size()) &&
-                            !tb.connections[tci].linkedToId.isEmpty()) continue;
-                        const QPointF tWorld = tCen + rotPt(tc.position, tb.orientation);
-                        for (const auto& mc : modConns) {
-                            if (mc.type != tc.type) continue;
-                            const QPointF d = tWorld - mc.worldStuds;
-                            const double sq = d.x() * d.x() + d.y() * d.y();
-                            if (sq > connThreshSq) continue;
-                            if (sq < bestShiftSq) {
-                                bestShiftSq = sq;
-                                bestShift = d;
-                                bestFound = true;
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (bestFound) {
-                for (auto& batch : batches)
-                    for (auto& b : batch.bricks) b.displayArea.translate(bestShift);
-            }
-        }
-
-        const QString name = QFileInfo(bbmPath).completeBaseName();
-        auto* cmd = new edit::ImportBbmAsModuleCommand(
-            *map_, bbmPath, name, std::move(batches));
-        undoStack_->push(cmd);
-        const auto placed = cmd->placedBricks();
-        // Select every just-placed brick so R / Shift+R rotate the
-        // freshly-dropped module, and arrow keys nudge it. Without this
-        // the user has to rubber-band-select after every drop to do
-        // anything else with the module.
-        if (!placed.isEmpty()) {
-            scene()->clearSelection();
-            QSet<QString> wantedGuids;
-            QSet<int> wantedLayers;
-            for (const auto& p : placed) {
-                wantedGuids.insert(p.guid);
-                wantedLayers.insert(p.layerIndex);
-            }
-            for (QGraphicsItem* it : scene()->items()) {
-                if (!isBrickItem(it)) continue;
-                if (!wantedLayers.contains(it->data(kBrickDataLayerIndex).toInt())) continue;
-                if (wantedGuids.contains(it->data(kBrickDataGuid).toString()))
-                    it->setSelected(true);
-            }
-        }
-        e->acceptProposedAction();
+        if (dropModuleAt(QString::fromUtf8(e->mimeData()->data(moduleMime)), scenePos)) e->acceptProposedAction();
+        else e->ignore();
         return;
     }
 

@@ -83,11 +83,20 @@ protected:
 
 private:
     // A finger on the grid: undecided, scrolling it, or dragging a part out.
-    enum class TouchState { None, Undecided, Scroll, Drag };
+    enum class TouchState { None, Undecided, Scroll, Drag, Held };
     TouchState touch_ = TouchState::None;
     QPointF touchStart_;
     QString touchKey_;
     bool handleTouch(QTouchEvent* e);
+    // A finger held still on a part opens the same menu as a right-click.
+    QTimer* holdTimer_ = nullptr;
+    void showPartMenu(const QPoint& pos);
+
+public:
+    // How long a finger is held on a part before its menu opens (as on the map).
+    static constexpr int kLongPressMs = 500;
+
+private:
     void applyFilter();
     void loadSomeIcons();
     QString categoryForPath(const QString& absPath) const;

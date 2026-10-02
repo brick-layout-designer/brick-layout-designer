@@ -167,66 +167,79 @@ PartsBrowser::PartsBrowser(parts::PartsLibrary& lib, QWidget* parent)
     grid_->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
 
     grid_->setContextMenuPolicy(Qt::CustomContextMenu);
-    connect(grid_, &QWidget::customContextMenuRequested, this, [this](const QPoint& pos){
-        auto* it = grid_->itemAt(pos);
-        if (!it) return;
-        QMenu menu(this);
-        const QString key = it->data(kPartKeyRole).toString();
-        auto* add = menu.addAction(tr("Add '%1' to map").arg(key));
-        connect(add, &QAction::triggered, [this, key]{ emit partActivated(key); });
-        menu.addSeparator();
-        auto* copy = menu.addAction(tr("Copy part number"));
-        connect(copy, &QAction::triggered, [key]{
-            QApplication::clipboard()->setText(key);
-        });
-
-        // Imports — installed by the LDraw / Studio / LDD importer
-        // into a user-writable `imports/` subfolder of the configured
-        // module library. Offer a delete that wipes the .xml + .gif
-        // pair off disk and triggers a parts-library rescan. Skipping
-        // this for vendored parts (read-only location) so users can't
-        // accidentally delete BlueBrickParts entries.
-        auto meta = lib_.metadata(key);
-        if (meta && meta->importSource) {
-            menu.addSeparator();
-            auto* again = menu.addAction(tr("Re-import from Source..."));
-            const bool there = QFileInfo::exists(meta->importSource->path);
-            again->setEnabled(there);
-            again->setToolTip(there ? meta->importSource->path
-                                    : tr("%1 no longer exists").arg(meta->importSource->path));
-            connect(again, &QAction::triggered, this, [this, key]{ emit reimportRequested(key); });
-        }
-        if (meta && !meta->xmlFilePath.isEmpty()
-            && meta->xmlFilePath.contains(QStringLiteral("/imports/"))) {
-            menu.addSeparator();
-            auto* del = menu.addAction(tr("Delete imported part..."));
-            connect(del, &QAction::triggered, this, [this, key, meta]{
-                const auto btn = QMessageBox::question(this,
-                    tr("Delete imported part"),
-                    tr("Delete '%1'?\n\nThis removes:\n  %2\n  %3")
-                        .arg(key, meta->xmlFilePath, meta->gifFilePath),
-                    QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
-                if (btn != QMessageBox::Yes) return;
-                if (!meta->xmlFilePath.isEmpty()) QFile::remove(meta->xmlFilePath);
-                if (!meta->gifFilePath.isEmpty()) QFile::remove(meta->gifFilePath);
-                // Also clear any sibling files the importer dropped
-                // alongside (PNG fallback, README, etc.) so re-importing
-                // the same model doesn't pick up stale companions.
-                const QFileInfo fi(meta->xmlFilePath);
-                const QString stem = fi.completeBaseName();
-                const QDir dir = fi.absoluteDir();
-                for (const QFileInfo& sibling : dir.entryInfoList(
-                        { stem + QStringLiteral(".*") }, QDir::Files)) {
-                    QFile::remove(sibling.absoluteFilePath());
-                }
-                emit partDeleted();
-            });
-        }
-
-        menu.exec(grid_->mapToGlobal(pos));
+    connect(grid_, &QWidget::customContextMenuRequested, this, &PartsBrowser::showPartMenu);
+    holdTimer_ = new QTimer(this);
+    holdTimer_->setSingleShot(true);
+    holdTimer_->setInterval(kLongPressMs);
+    connect(holdTimer_, &QTimer::timeout, this, [this] {
+        if (touch_ != TouchState::Undecided || touchKey_.isEmpty()) return;
+        touch_ = TouchState::Held;
+        if (QListWidgetItem* it = grid_->itemAt(touchStart_.toPoint())) grid_->setCurrentItem(it);
+        // Queued: the menu runs its own loop, outside this timer's signal.
+        const QPoint at = touchStart_.toPoint();
+        QMetaObject::invokeMethod(this, [this, at] { showPartMenu(at); }, Qt::QueuedConnection);
     });
 
     rebuild();
+}
+
+void PartsBrowser::showPartMenu(const QPoint& pos) {
+    auto* it = grid_->itemAt(pos);
+    if (!it) return;
+    QMenu menu(this);
+    const QString key = it->data(kPartKeyRole).toString();
+    auto* add = menu.addAction(tr("Add '%1' to map").arg(key));
+    connect(add, &QAction::triggered, [this, key]{ emit partActivated(key); });
+    menu.addSeparator();
+    auto* copy = menu.addAction(tr("Copy part number"));
+    connect(copy, &QAction::triggered, [key]{
+        QApplication::clipboard()->setText(key);
+    });
+
+    // Imports — installed by the LDraw / Studio / LDD importer
+    // into a user-writable `imports/` subfolder of the configured
+    // module library. Offer a delete that wipes the .xml + .gif
+    // pair off disk and triggers a parts-library rescan. Skipping
+    // this for vendored parts (read-only location) so users can't
+    // accidentally delete BlueBrickParts entries.
+    auto meta = lib_.metadata(key);
+    if (meta && meta->importSource) {
+        menu.addSeparator();
+        auto* again = menu.addAction(tr("Re-import from Source..."));
+        const bool there = QFileInfo::exists(meta->importSource->path);
+        again->setEnabled(there);
+        again->setToolTip(there ? meta->importSource->path
+                                : tr("%1 no longer exists").arg(meta->importSource->path));
+        connect(again, &QAction::triggered, this, [this, key]{ emit reimportRequested(key); });
+    }
+    if (meta && !meta->xmlFilePath.isEmpty()
+        && meta->xmlFilePath.contains(QStringLiteral("/imports/"))) {
+        menu.addSeparator();
+        auto* del = menu.addAction(tr("Delete imported part..."));
+        connect(del, &QAction::triggered, this, [this, key, meta]{
+            const auto btn = QMessageBox::question(this,
+                tr("Delete imported part"),
+                tr("Delete '%1'?\n\nThis removes:\n  %2\n  %3")
+                    .arg(key, meta->xmlFilePath, meta->gifFilePath),
+                QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+            if (btn != QMessageBox::Yes) return;
+            if (!meta->xmlFilePath.isEmpty()) QFile::remove(meta->xmlFilePath);
+            if (!meta->gifFilePath.isEmpty()) QFile::remove(meta->gifFilePath);
+            // Also clear any sibling files the importer dropped
+            // alongside (PNG fallback, README, etc.) so re-importing
+            // the same model doesn't pick up stale companions.
+            const QFileInfo fi(meta->xmlFilePath);
+            const QString stem = fi.completeBaseName();
+            const QDir dir = fi.absoluteDir();
+            for (const QFileInfo& sibling : dir.entryInfoList(
+                    { stem + QStringLiteral(".*") }, QDir::Files)) {
+                QFile::remove(sibling.absoluteFilePath());
+            }
+            emit partDeleted();
+        });
+    }
+
+    menu.exec(grid_->mapToGlobal(pos));
 }
 
 QString PartsBrowser::categoryForPath(const QString& absPath) const {
@@ -493,11 +506,13 @@ bool PartsBrowser::handleTouch(QTouchEvent* e) {
         QListWidgetItem* it = grid_->itemAt(pos.toPoint());
         touchKey_ = it ? it->data(kPartKeyRole).toString() : QString();
         scroller->stop();
+        if (!touchKey_.isEmpty()) holdTimer_->start();
         return true;
     }
     case QEvent::TouchUpdate: {
         const QPointF d = pos - touchStart_;
         if (touch_ == TouchState::Undecided && d.manhattanLength() > 12) {
+            holdTimer_->stop();
             // Sideways off a part: take the part along; otherwise scroll.
             if (!touchKey_.isEmpty() && std::abs(d.x()) > std::abs(d.y())) {
                 touch_ = TouchState::Drag;
@@ -511,6 +526,7 @@ bool PartsBrowser::handleTouch(QTouchEvent* e) {
         return true;
     }
     case QEvent::TouchEnd:
+        holdTimer_->stop();
         if (touch_ == TouchState::Drag) {
             emit touchDragDropped(touchKey_, p.globalPosition().toPoint());
         } else if (touch_ == TouchState::Scroll) {
@@ -522,6 +538,7 @@ bool PartsBrowser::handleTouch(QTouchEvent* e) {
         touch_ = TouchState::None;
         return true;
     default:  // TouchCancel
+        holdTimer_->stop();
         if (touch_ == TouchState::Drag) emit touchDragCancelled();
         touch_ = TouchState::None;
         return true;
