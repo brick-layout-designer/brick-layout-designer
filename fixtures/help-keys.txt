@@ -52,3 +52,7 @@ room.estimates
 partsDiffer.about
 partsDiffer.choice
 owners.filter
+club.whoCanJoin
+club.listed
+club.requests
+club.find

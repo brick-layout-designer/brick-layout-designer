@@ -165,6 +165,18 @@ ConnectDialog::ConnectDialog(ServerApi& api, TokenStore& tokens, std::function<v
     openBtn_->setObjectName(QStringLiteral("open"));
     openBtn_->setEnabled(false);
     bottom->addWidget(signOut);
+    // Clubs that let people find them are listed on the server's Clubs page.
+    auto* findClub = new QPushButton(tr("Find a Club on the Web..."), layoutsPage);
+    findClub->setObjectName(QStringLiteral("findClub"));
+    findClub->setToolTip(tr("Open this server's Clubs page in your browser, to find a club and join it"));
+    bottom->addWidget(bld::ui::help::withHelp(findClub, QStringLiteral("club.find"), layoutsPage));
+    connect(findClub, &QPushButton::clicked, this, [this] {
+        QUrl url = server_;
+        url.setPath(QStringLiteral("/orgs"));
+        url.setQuery(QString());
+        url.setFragment(QStringLiteral("find"));
+        openUrl_(url);
+    });
     bottom->addStretch(1);
     bottom->addWidget(openBtn_);
     show_ = new QComboBox(layoutsPage);
