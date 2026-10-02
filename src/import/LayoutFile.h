@@ -1,11 +1,15 @@
 #pragma once
 
+#include "LayoutSource.h"
+
 #include <QByteArray>
+#include <QJsonObject>
 #include <QMap>
 #include <QString>
 #include <QStringList>
 
 #include <memory>
+#include <optional>
 
 namespace bld::core { class Map; }
 namespace bld::parts { class PartsLibrary; }
@@ -14,7 +18,9 @@ namespace bld::import {
 
 // The native layout file (.bld-layout): the whole layout in one file, so a
 // save never needs a sidecar next to it. A ZIP holding
-//   manifest.json      {"format":"bld-layout","version":1,"generator":...}
+//   manifest.json      {"format":"bld-layout","version":1,"generator":...,
+//                       "source":{...}} (source: the server layout it was saved
+//                       from, when it was; see LayoutSource)
 //   layout.bbm         the map as BlueBrick writes it (BbmWriter)
 //   sidecar.json       labels, modules, venue, background (sidecarToJson), if any
 //   background.<ext>   the background image, which sidecar.json names as "file"
@@ -32,6 +38,9 @@ struct LayoutFileResult {
     QStringList warnings; // read, but with something left out
     // The parts the file carries, by file name (without "parts/").
     QMap<QString, QByteArray> partFiles;
+    // The whole manifest as read, and the server layout it names, if any.
+    QJsonObject manifest;
+    std::optional<LayoutSource> source;
     bool ok() const { return map != nullptr; }
 };
 
@@ -43,10 +52,13 @@ LayoutFileResult readLayoutFileBytes(const QByteArray& bytes, const QString& ass
 // The file's bytes: the background image is read from its path and embedded
 // (a warning names it when it can't be read). Empty on failure.
 // `partFiles` (from layoutPartFiles) go in as parts/<name>.
+// `extras` adds the kept manifest fields and the source (none: a local layout).
 QByteArray layoutFileBytes(const core::Map& map, QString* error, QStringList* warnings = nullptr,
-                           const QMap<QString, QByteArray>& partFiles = {});
+                           const QMap<QString, QByteArray>& partFiles = {},
+                           const LayoutManifestExtras& extras = {});
 bool writeLayoutFile(const core::Map& map, const QString& path, QString* error,
-                     QStringList* warnings = nullptr, const QMap<QString, QByteArray>& partFiles = {});
+                     QStringList* warnings = nullptr, const QMap<QString, QByteArray>& partFiles = {},
+                     const LayoutManifestExtras& extras = {});
 
 // The files of the parts `map` uses (sets with their subparts) that aren't
 // under `standardRoot`, the bundled BlueBrick library: each part's XML and

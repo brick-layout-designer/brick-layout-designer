@@ -11,6 +11,7 @@
 #include "../edit/PartList.h"
 #include "../edit/VenueCommands.h"
 #include "../import/LayoutFile.h"
+#include "NoticeArea.h"
 #include "../import/mapformats/LDrawMap.h"
 #include "../import/mapformats/FourDBrixMap.h"
 #include "../import/mapformats/TrackDesignerMap.h"
@@ -127,6 +128,7 @@ QString layoutAssetDir() {
 
 bool MainWindow::openFile(const QString& path) {
     if (!maybeSave()) return false;
+    forgetFileSource();
 #ifdef BLD_SYNC
     // Another layout replaces the live one: leave the server session.
     if (live_ && live_->active()) {
@@ -172,6 +174,9 @@ bool MainWindow::openFile(const QString& path) {
         if (!taken.differing.isEmpty())
             taken.notes << resolvePartDifferences(taken.differing, layout.partFiles, *layout.map);
         showLoadedMap(std::move(layout.map), path, layout.warnings + taken.notes);
+        keptManifest_ = layout.manifest;
+        fileSource_ = layout.source;
+        if (fileSource_) offerLayoutSource(*fileSource_);
         return true;
     }
     auto result = saveload::readBbm(path);
@@ -256,7 +261,7 @@ bool MainWindow::writeMapTo(const QString& path) {
     if (import::isLayoutFile(path)) {
         QString err;
         QStringList warnings;
-        if (!import::writeLayoutFile(*map, path, &err, &warnings, partsToEmbed())) {
+        if (!import::writeLayoutFile(*map, path, &err, &warnings, partsToEmbed(), manifestExtras())) {
             QMessageBox::warning(this, tr("Save failed"), err);
             return false;
         }
@@ -536,6 +541,7 @@ void MainWindow::onNew() {
 
 bool MainWindow::newDocument() {
     if (!maybeSave()) return false;
+    forgetFileSource();
 #ifdef BLD_SYNC
     // Another layout replaces the live one: leave the server session.
     if (live_ && live_->active()) {
@@ -726,7 +732,7 @@ void MainWindow::performAutosave() {
     if (!mapView_->currentMap() || mapView_->undoStack()->isClean()) return;
     const QString path = autosavePath();
     QString error;
-    if (import::writeLayoutFile(*mapView_->currentMap(), path, &error, nullptr, partsToEmbed())) {
+    if (import::writeLayoutFile(*mapView_->currentMap(), path, &error, nullptr, partsToEmbed(), manifestExtras())) {
         // Record the original file alongside so the startup prompt can
         // mention the source filename.
         QSettings().setValue(QStringLiteral("autosave/sourceFile"), currentFilePath_);
@@ -779,6 +785,9 @@ bool MainWindow::restoreAutosaveIfAny(const QString& lastFile) {
     mapView_->loadMap(std::move(result.map));
     layerPanel_->setMap(mapView_->currentMap(), mapView_->builder());
     modulesPanel_->setMap(mapView_->currentMap());
+    // The autosave kept the source and manifest of what was being edited.
+    keptManifest_ = result.manifest;
+    fileSource_ = result.source;
 
     // Point at the original file so Ctrl+S overwrites the right place. We
     // leave the undo stack NOT clean so the title shows the dirty
@@ -794,6 +803,32 @@ bool MainWindow::restoreAutosaveIfAny(const QString& lastFile) {
         : tr("Restored unsaved changes on top of %1").arg(source),
         5000);
     return true;
+}
+
+// ---------- Where a layout file came from ------------------------------------
+
+#ifndef BLD_SYNC
+// Without the server features there is no live version to offer.
+void MainWindow::offerLayoutSource(const import::LayoutSource&) {}
+void MainWindow::openSourceLive(const import::LayoutSource&) {}
+#endif
+
+void MainWindow::forgetFileSource() {
+    keptManifest_ = {};
+    fileSource_.reset();
+    if (notices_) notices_->hideNotice(QStringLiteral("layoutSource"));
+}
+
+import::LayoutManifestExtras MainWindow::manifestExtras() const {
+    import::LayoutManifestExtras extras{ keptManifest_, fileSource_ };
+#ifdef BLD_SYNC
+    if (live_ && live_->active() && !liveLayoutId_.isEmpty()) {
+        extras.source = import::LayoutSource{
+            import::layoutServerBase(liveServer_.toString()), liveLayoutId_, live_->title(),
+            QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs) };
+    }
+#endif
+    return extras;
 }
 
 }  // namespace bld::ui

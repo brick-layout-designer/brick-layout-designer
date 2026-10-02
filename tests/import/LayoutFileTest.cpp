@@ -605,3 +605,133 @@ TEST(LayoutFile, KeepsSavedViewsThroughASave) {
     ASSERT_TRUE(writeLayoutFile(*read.map, path, &error));
     EXPECT_EQ(readLayoutFile(path, dir.path()).map->sidecar.views, views);
 }
+
+// ---- Where a layout file came from (manifest "source") ----------------------
+//
+// fixtures/layouts/{web,desktop}-made-source.bld-layout: tight-corner.bbm
+// saved by each app as server layout L-42 on collab.example.org, with a
+// field this version doesn't know ("futureField"). The web repo has the
+// same two files (packages/bbm/tests/fixtures/) and reads both too.
+
+namespace {
+
+LayoutSource sharedSource() {
+    return { QStringLiteral("https://collab.example.org"), QStringLiteral("L-42"), QStringLiteral("Show 2026"),
+             QStringLiteral("2026-10-01T12:00:00.000Z") };
+}
+
+QJsonObject manifestOf(const QByteArray& bytes) {
+    const SafeZip zip(bytes);
+    const auto* e = zip.find(QStringLiteral("manifest.json"));
+    if (!e) return {};
+    return QJsonDocument::fromJson(zip.read(*e).value_or(QByteArray())).object();
+}
+
+QByteArray readAll(const QString& path) {
+    QFile f(path);
+    return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
+}
+
+}  // namespace
+
+// With BLD_UPDATE_FIXTURES=1, writes the desktop's fixture again.
+TEST(LayoutFile, WritesTheDesktopMadeSourceFixtureWhenAsked) {
+    if (!qEnvironmentVariableIsSet("BLD_UPDATE_FIXTURES")) GTEST_SKIP() << "set BLD_UPDATE_FIXTURES=1 to write it";
+    auto map = fixtureMap();
+    LayoutManifestExtras extras{ QJsonObject{ { QStringLiteral("futureField"), QJsonObject{ { QStringLiteral("kept"), true } } } },
+                                 sharedSource() };
+    QString error;
+    ASSERT_TRUE(writeLayoutFile(*map, kSource + QStringLiteral("/fixtures/layouts/desktop-made-source.bld-layout"), &error,
+                                nullptr, {}, extras))
+        << error.toStdString();
+}
+
+TEST(LayoutFile, WritesASourceOnlyForAServerLayout) {
+    auto map = fixtureMap();
+    QString error;
+    const QJsonObject local = manifestOf(layoutFileBytes(*map, &error));
+    EXPECT_FALSE(local.contains(QStringLiteral("source")));
+    const QJsonObject server = manifestOf(layoutFileBytes(*map, &error, nullptr, {}, { {}, sharedSource() }));
+    EXPECT_EQ(server.value(QStringLiteral("source")).toObject(), sharedSource().toJson());
+    EXPECT_EQ(server.value(QStringLiteral("format")).toString(), QStringLiteral("bld-layout"));
+}
+
+TEST(LayoutFile, ReadsTheSourceFromTheWebAndTheDesktopFixturesAlike) {
+    QTemporaryDir dir;
+    const QString fixtures = kSource + QStringLiteral("/fixtures/layouts/");
+    const auto expected = bbmOf(*fixtureMap());
+    for (const char* name : { "web-made-source.bld-layout", "desktop-made-source.bld-layout" }) {
+        const auto r = readLayoutFile(fixtures + QLatin1String(name), dir.path());
+        ASSERT_TRUE(r.ok()) << name << ": " << r.error.toStdString();
+        EXPECT_TRUE(r.warnings.isEmpty()) << name;
+        ASSERT_TRUE(r.source) << name;
+        EXPECT_EQ(*r.source, sharedSource()) << name;
+        EXPECT_EQ(r.manifest.value(QStringLiteral("futureField")).toObject().value(QStringLiteral("kept")), QJsonValue(true))
+            << name;
+        EXPECT_EQ(bbmOf(*r.map), expected) << name;
+    }
+}
+
+TEST(LayoutFile, KeepsTheSourceAndUnknownFieldsWhenSavedAgain) {
+    QTemporaryDir dir;
+    const auto r = readLayoutFile(kSource + QStringLiteral("/fixtures/layouts/web-made-source.bld-layout"), dir.path());
+    ASSERT_TRUE(r.ok());
+    QJsonObject keep = r.manifest;
+    keep[QStringLiteral("version")] = 99;  // its own fields are always this version's
+    QString error;
+    const QByteArray again = layoutFileBytes(*r.map, &error, nullptr, {}, { keep, r.source });
+    const QJsonObject m = manifestOf(again);
+    EXPECT_EQ(m.value(QStringLiteral("futureField")).toObject().value(QStringLiteral("kept")), QJsonValue(true));
+    EXPECT_EQ(m.value(QStringLiteral("version")).toInt(), kLayoutFileVersion);
+    EXPECT_TRUE(m.value(QStringLiteral("generator")).toString().contains(QStringLiteral("(desktop)")));
+    const auto back = readLayoutFileBytes(again, dir.path());
+    ASSERT_TRUE(back.source);
+    EXPECT_EQ(*back.source, sharedSource());
+    // A kept manifest's stale source never outlives a save without one.
+    const QJsonObject local = manifestOf(layoutFileBytes(*r.map, &error, nullptr, {}, { keep, std::nullopt }));
+    EXPECT_FALSE(local.contains(QStringLiteral("source")));
+    EXPECT_TRUE(local.contains(QStringLiteral("futureField")));
+}
+
+// A reader that doesn't know "source" sees the same layout as one that does.
+TEST(LayoutFile, OpensTheSameWithTheSourceStripped) {
+    QTemporaryDir dir;
+    const QByteArray bytes = readAll(kSource + QStringLiteral("/fixtures/layouts/desktop-made-source.bld-layout"));
+    ASSERT_FALSE(bytes.isEmpty());
+    const SafeZip zip(bytes);
+    ZipWriter stripped;
+    for (const auto& e : zip.entries()) {
+        QByteArray data = zip.read(e).value_or(QByteArray());
+        if (e.name == QLatin1String("manifest.json")) {
+            QJsonObject m = QJsonDocument::fromJson(data).object();
+            m.remove(QStringLiteral("source"));
+            data = QJsonDocument(m).toJson(QJsonDocument::Compact);
+        }
+        stripped.add(e.name, data);
+    }
+    const auto a = readLayoutFileBytes(bytes, dir.filePath(QStringLiteral("a")));
+    const auto b = readLayoutFileBytes(stripped.finish(), dir.filePath(QStringLiteral("b")));
+    ASSERT_TRUE(a.ok() && b.ok());
+    EXPECT_FALSE(b.source);
+    EXPECT_EQ(bbmOf(*b.map), bbmOf(*a.map));
+    EXPECT_EQ(b.warnings, a.warnings);
+}
+
+TEST(LayoutFile, IgnoresASourceThatIsntWholeOrSensible) {
+    const auto parse = [](const QJsonValue& v) { return LayoutSource::fromJson(v); };
+    EXPECT_FALSE(parse(QJsonValue()));
+    EXPECT_FALSE(parse(QStringLiteral("https://x.org")));
+    EXPECT_FALSE(parse(QJsonObject{ { QStringLiteral("server"), QStringLiteral("javascript:alert(1)") },
+                                    { QStringLiteral("layoutId"), QStringLiteral("L") } }));
+    EXPECT_FALSE(parse(QJsonObject{ { QStringLiteral("server"), QStringLiteral("ftp://x.org") },
+                                    { QStringLiteral("layoutId"), QStringLiteral("L") } }));
+    EXPECT_FALSE(parse(QJsonObject{ { QStringLiteral("server"), QStringLiteral("https://x.org") } }));
+    EXPECT_FALSE(parse(QJsonObject{ { QStringLiteral("server"), QStringLiteral("https://x.org") },
+                                    { QStringLiteral("layoutId"), QStringLiteral("  ") } }));
+    const auto s = parse(QJsonObject{ { QStringLiteral("server"), QStringLiteral("HTTPS://X.org:8443/some/page/") },
+                                      { QStringLiteral("layoutId"), QStringLiteral("L") },
+                                      { QStringLiteral("title"), 5 } });
+    ASSERT_TRUE(s);
+    EXPECT_EQ(s->server, QStringLiteral("https://x.org:8443"));
+    EXPECT_EQ(s->title, QString());
+}

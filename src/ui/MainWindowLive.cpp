@@ -136,6 +136,53 @@ void MainWindow::onConnectToServer() {
     openLive(*chosen);
 }
 
+void MainWindow::offerLayoutSource(const import::LayoutSource& source) {
+    const QString id = QStringLiteral("layoutSource");
+    const QUrl server(source.server);
+    const QString what = source.title.isEmpty() ? tr("a layout") : QStringLiteral("“%1”").arg(source.title);
+    const QString keep = tr("Keep working on this copy");
+    const sync::ServerList servers = sync::ServerList::load();
+    if (const sync::ServerEntry* entry = servers.find(server)) {
+        notices_->showNotice(
+            id, tr("This layout is on %1").arg(entry->label()),
+            tr("This file is a copy of %1. Open the live version to work on it with everyone, or keep "
+               "working on this copy.")
+                .arg(what),
+            { { tr("Open the live version"),
+                // After the click has returned: the connect dialog runs its own loop.
+                [this, source] { QTimer::singleShot(0, this, [this, source] { openSourceLive(source); }); }, true },
+              { keep, {} } });
+        return;
+    }
+    const QString host = server.port() > 0 ? QStringLiteral("%1:%2").arg(server.host()).arg(server.port()) : server.host();
+    notices_->showNotice(
+        id, tr("This layout came from %1").arg(host),
+        tr("This file is a copy of %1, from a server that isn't one of yours. Add the server to open the "
+           "live version, or keep working on this copy.")
+            .arg(what),
+        { { tr("Add %1 to your servers").arg(host),
+            [this, source] {
+                sync::ServerList list = sync::ServerList::load();
+                list.add(QUrl(source.server));
+                list.save();
+                // Now it is one of yours: offer the live version (once this card's click returns).
+                QTimer::singleShot(0, this, [this, source] { offerLayoutSource(source); });
+            },
+            true, false },
+          { keep, {} } });
+}
+
+void MainWindow::openSourceLive(const import::LayoutSource& source) {
+    if (!maybeSave()) return;
+    sync::ServerApi api;
+    sync::ConnectDialog dialog(api, *tokens_, [](const QUrl& u) { QDesktopServices::openUrl(u); }, this);
+    dialog.openRecent(QUrl(source.server), source.layoutId);
+    if (dialog.exec() != QDialog::Accepted) return;
+    const auto chosen = dialog.result();
+    if (!chosen) return;
+    openLive(*chosen);
+}
+
 void MainWindow::onManageServers() {
     sync::ServersDialog dialog(*tokens_, [](const QUrl& u) { QDesktopServices::openUrl(u); }, this);
     dialog.exec();
@@ -225,8 +272,11 @@ void MainWindow::offerPartsUpload(bool quiet) {
 }
 
 void MainWindow::openLive(const sync::ConnectResult& r) {
+    // The live layout is now what's open; the file it may have come from isn't.
+    forgetFileSource();
     liveServer_ = r.server;
     liveToken_ = r.token;
+    liveLayoutId_ = r.layoutId;
     liveInfo_ = r.info;
     sync::ServerApi api;
     if (live_->active()) live_->close();

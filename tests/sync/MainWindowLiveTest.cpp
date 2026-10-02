@@ -143,6 +143,7 @@ public:
     using ui::MainWindow::MainWindow;
     using ui::MainWindow::openLive;
     using ui::MainWindow::setTokenStore;
+    using ui::MainWindow::manifestExtras;
 };
 
 QString liveCache() {
@@ -610,6 +611,18 @@ TEST_F(MainWindowLiveOlderServer, SaysToUpdateNamesWhatIsMissingAndDoesntAskForI
         EXPECT_FALSE(r.path.startsWith("/api/parts/manifest")) << r.path.toStdString();
         EXPECT_NE(r.path, QByteArray("/api/me/preferences"));
     }
+}
+
+// Saving a live layout as a file records which server layout it is.
+TEST_F(MainWindowLive, AFileSavedWhileLiveNamesTheServerLayout) {
+    const auto extras = window_->manifestExtras();
+    ASSERT_TRUE(extras.source);
+    EXPECT_EQ(extras.source->server, import::layoutServerBase(http_.base().toString()));
+    EXPECT_EQ(extras.source->layoutId, QStringLiteral("L1"));
+    EXPECT_EQ(extras.source->title, QStringLiteral("Show 2026"));
+    const QDateTime at = QDateTime::fromString(extras.source->exportedAt, Qt::ISODateWithMs);
+    ASSERT_TRUE(at.isValid()) << extras.source->exportedAt.toStdString();
+    EXPECT_LT(qAbs(at.secsTo(QDateTime::currentDateTimeUtc())), 60);
 }
 
 TEST_F(MainWindowLive, AServerFromBeforeTheChecksAsksNothing) {
