@@ -141,9 +141,14 @@ void ServersDialog::rebuild() {
         v->addLayout(top);
         v->addWidget(mutedLabel(row, "serverAddress"));
         v->addWidget(mutedLabel(row, "serverStatus"));
+        // One line in every row, kept even when there's nothing to say, so
+        // all the rows are the same height; the whole list is in its tooltip.
         auto* missing = new QLabel(row);
         missing->setObjectName(QStringLiteral("serverMissing"));
-        missing->setWordWrap(true);
+        missing->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+        QSizePolicy keep = missing->sizePolicy();
+        keep.setRetainSizeWhenHidden(true);
+        missing->setSizePolicy(keep);
         v->addWidget(missing);
         rows_->setItemWidget(item, row);
         updateRow(e.url);
@@ -255,6 +260,7 @@ void ServersDialog::updateRow(const QUrl& url) {
         row->findChild<QLabel*>(QStringLiteral("serverStatus"))->setText(statusText(url));
         auto* missing = row->findChild<QLabel*>(QStringLiteral("serverMissing"));
         missing->setText(missingText(url));
+        missing->setToolTip(missing->text());
         missing->setVisible(!missing->text().isEmpty());
         item->setSizeHint(row->sizeHint());
         break;
