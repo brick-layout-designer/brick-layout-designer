@@ -174,3 +174,21 @@ TEST(PartsSync, ReportsAManifestItCantRead) {
     ASSERT_TRUE(waitFor([&] { return failed; }));
     EXPECT_TRUE(unauthorized);
 }
+
+TEST(PartsSync, SaysTheFirewallBlockedAnEmpty403) {
+    QTemporaryDir dir;
+    FakeHttp http;
+    http.replyRaw("/api/parts/manifest", 403, QByteArray(), "text/html");
+    PartsSync s(http.base(), QStringLiteral("t"), dir.path());
+    QString message;
+    bool unauthorized = true, failed = false;
+    QObject::connect(&s, &PartsSync::failed, [&](const QString& m, bool u) {
+        failed = true;
+        message = m;
+        unauthorized = u;
+    });
+    s.start();
+    ASSERT_TRUE(waitFor([&] { return failed; }));
+    EXPECT_TRUE(message.startsWith(QStringLiteral("The site's firewall blocked this request.")));
+    EXPECT_FALSE(unauthorized);
+}

@@ -122,7 +122,8 @@ void ServerApi::fetchVersion() {
             return;
         }
         if (status != 200) {
-            emit requestFailed(QStringLiteral("version"), tr("The server answered %1").arg(status), status == 401 || status == 403);
+            const ServerRefusal refusal = readRefusal(status, r->readAll(), r->errorString());
+            emit requestFailed(QStringLiteral("version"), failureText(refusal), needsSignIn(refusal));
             return;
         }
         const QJsonObject o = jsonOf(r);
@@ -179,11 +180,9 @@ std::optional<QJsonObject> ServerApi::okJson(QNetworkReply* r, const QString& wh
     if (status != 200) {
         // 403 is a token without the scope this needs (or one revoked since),
         // unless it is a usage limit or a read-only account.
+        // A 403 with no JSON body is the site's firewall, not the server.
         const ServerRefusal refusal = readRefusal(status, r->readAll(), r->errorString());
-        const QString message = isLimitRefusal(refusal) || isUpdateRequired(refusal) ? describe(refusal)
-                                : status == 0          ? r->errorString()
-                                                       : tr("The server answered %1").arg(status);
-        emit requestFailed(what, message, needsSignIn(refusal));
+        emit requestFailed(what, failureText(refusal), needsSignIn(refusal));
         return std::nullopt;
     }
     return jsonOf(r);
@@ -227,12 +226,13 @@ void ServerApi::publishLayout(const QString& title, const QByteArray& bbm, const
     connect(r, &QNetworkReply::finished, this, [this, r, title] {
         r->deleteLater();
         const int status = r->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-        const QJsonObject o = jsonOf(r);
+        const QByteArray raw = r->readAll();
+        const QJsonObject o = QJsonDocument::fromJson(raw).object();
         if (status != 201 && status != 200) {
             // A usage limit (or a read-only account) comes with a sentence to
-            // show, and is not a reason to sign in again.
-            const ServerRefusal refusal =
-                readRefusal(status, QJsonDocument(o).toJson(QJsonDocument::Compact), r->errorString());
+            // show, and is not a reason to sign in again; an empty 403 is the
+            // site's firewall.
+            const ServerRefusal refusal = readRefusal(status, raw, r->errorString());
             emit requestFailed(QStringLiteral("publish"), describe(refusal), needsSignIn(refusal));
             return;
         }

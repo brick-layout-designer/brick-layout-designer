@@ -386,7 +386,18 @@ TEST(ServerRefusal, ReadsLimitsReadOnlyAndRateLimits) {
               QStringLiteral("Too many requests at once. Please wait a minute and try again."));
 
     EXPECT_TRUE(needsSignIn(readRefusal(401, R"({"error":"invalid_token"})")));
-    EXPECT_TRUE(needsSignIn(readRefusal(403, "not json")));
+    // A 403 the app never saw (empty or non-JSON body) is the site's firewall:
+    // say so, and don't ask to sign in again.
+    for (const QByteArray body : { QByteArray(), QByteArray("<html>Request blocked</html>") }) {
+        const auto waf = readRefusal(403, body);
+        EXPECT_TRUE(isFirewallBlock(waf));
+        EXPECT_FALSE(needsSignIn(waf));
+        EXPECT_TRUE(describe(waf).startsWith(QStringLiteral("The site's firewall blocked this request.")));
+        EXPECT_EQ(failureText(waf), describe(waf));
+    }
+    EXPECT_FALSE(isFirewallBlock(readRefusal(403, R"({"error":"forbidden"})")));
+    EXPECT_FALSE(isFirewallBlock(readRefusal(500, "")));
+    EXPECT_TRUE(needsSignIn(readRefusal(403, R"({"error":"insufficient_scope"})")));
     EXPECT_EQ(describe(readRefusal(500, "")), QStringLiteral("The server answered 500"));
     EXPECT_EQ(describe(readRefusal(0, "", QStringLiteral("Connection refused"))), QStringLiteral("Connection refused"));
 
@@ -419,4 +430,27 @@ TEST(ServerApi, ReadsEachClubRoleAndWhatItMayDo) {
     EXPECT_FALSE(got[1].isAdmin());
     EXPECT_FALSE(got[2].managesThings());
     EXPECT_FALSE(got[2].isAdmin());
+}
+
+// Every HTTP caller shows the firewall message for an empty 403.
+TEST(ServerApi, SaysTheFirewallBlockedAnEmpty403) {
+    FakeHttp http;
+    ServerApi api;
+    api.setBase(http.base());
+    api.setToken(QStringLiteral("bld_pat_x"));
+    http.replyRaw("/api/orgs", 403, QByteArray(), "text/html");
+    http.replyRaw("/api/layouts", 403, QByteArray(), "text/html");
+    http.replyRaw("/api/version", 403, QByteArray("blocked"), "text/plain");
+    QStringList messages;
+    bool anySignIn = false;
+    QObject::connect(&api, &ServerApi::requestFailed, [&](const QString&, const QString& m, bool u) {
+        messages << m;
+        anySignIn = anySignIn || u;
+    });
+    api.fetchOrgs();
+    api.publishLayout(QStringLiteral("T"), QByteArray("<Map/>"), {}, {});
+    api.fetchVersion();
+    ASSERT_TRUE(waitFor([&] { return messages.size() == 3; }));
+    for (const QString& m : messages) EXPECT_TRUE(m.startsWith(QStringLiteral("The site's firewall blocked"))) << m.toStdString();
+    EXPECT_FALSE(anySignIn);
 }
