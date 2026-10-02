@@ -140,10 +140,12 @@ TourOverlay* startTour(QWidget* host, const QString& id, theme::PrefsStore& stor
 void startTourOnNext(const char* className, const QString& id, theme::PrefsStore& store);
 
 // The first-launch welcome: what the app is for, and three ways in.
+// "Start or open a layout" opens out into its own three: a new layout,
+// a file, or a layout on a server.
 class WelcomeDialog : public QDialog {
     Q_OBJECT
 public:
-    enum class Choice { None, Layout, Club, Tour };
+    enum class Choice { None, NewLayout, OpenFile, Server, Club, Tour };
     explicit WelcomeDialog(QWidget* parent = nullptr);
     Choice choice() const { return choice_; }
 

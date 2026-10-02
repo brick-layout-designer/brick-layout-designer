@@ -304,6 +304,38 @@ TEST_F(Tours, TheWelcomeOffersThreeWaysIn) {
     EXPECT_EQ(other.choice(), tours::WelcomeDialog::Choice::None);
 }
 
+TEST_F(Tours, StartOrOpenOffersANewLayoutAFileOrAServer) {
+    const struct {
+        const char* button;
+        tours::WelcomeDialog::Choice choice;
+    } ways[] = {
+        { "WelcomeNewLayout", tours::WelcomeDialog::Choice::NewLayout },
+        { "WelcomeOpenFile", tours::WelcomeDialog::Choice::OpenFile },
+#ifdef BLD_SYNC
+        { "WelcomeServer", tours::WelcomeDialog::Choice::Server },
+#endif
+    };
+    for (const auto& way : ways) {
+        tours::WelcomeDialog dlg;
+        dlg.show();
+        auto* layout = dlg.findChild<QAbstractButton*>(QStringLiteral("WelcomeLayout"));
+        auto* panel = dlg.findChild<QWidget*>(QStringLiteral("WelcomeLayoutWays"));
+        ASSERT_NE(panel, nullptr);
+        EXPECT_FALSE(panel->isVisible()) << "the three ways wait for the tile";
+        layout->click();
+        // Picking the tile opens out its ways and leaves the welcome up.
+        EXPECT_TRUE(dlg.isVisible());
+        EXPECT_EQ(dlg.choice(), tours::WelcomeDialog::Choice::None);
+        EXPECT_TRUE(panel->isVisible());
+        EXPECT_EQ(dlg.focusWidget(), dlg.findChild<QPushButton*>(QStringLiteral("WelcomeNewLayout")));
+        auto* b = dlg.findChild<QPushButton*>(QString::fromLatin1(way.button));
+        ASSERT_NE(b, nullptr) << way.button;
+        b->click();
+        EXPECT_EQ(dlg.choice(), way.choice) << way.button;
+        EXPECT_EQ(dlg.result(), QDialog::Accepted);
+    }
+}
+
 TEST_F(Tours, TheWelcomeComesOnceOnFirstLaunch) {
     QStandardPaths::setTestModeEnabled(true);
     UpdateCheck::setCheckAtStartupEnabled(false);
