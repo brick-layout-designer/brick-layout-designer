@@ -13,7 +13,7 @@ Readers must accept both, and must ignore entries they don't know.
 
 | Entry | Required | Contents |
 |---|---|---|
-| `manifest.json` | yes | `{"format":"bld-layout","version":1,"generator":"…"}`. Writers put it first and store it uncompressed. |
+| `manifest.json` | yes | `{"format":"bld-layout","version":1,"generator":"…"}`, and `source` when the layout is on a server (see below). Writers put it first and store it uncompressed. |
 | `layout.bbm` | yes | The map exactly as a `.bbm` file holds it ([bbm-schema.md](bbm-schema.md)). |
 | `sidecar.json` | no | Labels, modules, venue and background image. Same shape as the `.bbm.bld` sidecar ([bbm-bld-schema.md](bbm-bld-schema.md)), with two differences listed below. Left out when the layout has none of these. |
 | `background.<ext>` | no | The background image's bytes, named by `sidecar.json`'s `backgroundImage.file`. |
@@ -50,6 +50,53 @@ the part extensions. Readers skip any other name and warn.
 - **The web app** carries the custom parts a layout uses. When it opens a
   file, it uploads the parts the server lacks as custom parts.
 
+## Where it came from (`source`)
+
+A file saved from a layout on a server says which one, in `manifest.json`:
+
+```json
+"source": {
+  "server": "https://collab.aronwk.com",
+  "layoutId": "…",
+  "title": "Show 2026",
+  "exportedAt": "2026-10-01T12:00:00.000Z"
+}
+```
+
+- `server` is the server's base address: scheme, host and port, with no path
+  and no trailing slash.
+- `layoutId` is the layout's id on that server.
+- `title` is the layout's title when the file was saved.
+- `exportedAt` is when it was saved, as ISO 8601 in UTC with milliseconds.
+
+**Writing.**
+- The web app writes `source` on every download and on Save's offline copy,
+  because every web layout is a server layout.
+- The desktop writes it when it saves a live layout, and when it saves a file
+  that already had a `source`. That `source` is kept unchanged, with its
+  `exportedAt`.
+- Purely local layouts have no `source`.
+
+**Reading.**
+- `source` is optional and additive. A reader that doesn't know it ignores
+  it, and the layout opens exactly as it does without it.
+- Readers ignore a `source` that has no http(s) `server` or no `layoutId`.
+
+**Opening.**
+- **The desktop** shows a card and never connects by itself.
+  - When `server` is one of your servers (File › Servers), the card says
+    "This layout is on *name*" and offers **Open the live version** or
+    **Keep working on this copy**.
+  - Otherwise it offers **Add *host* to your servers**. After that it offers
+    the live version.
+- **The web app**, importing a file whose `server` is the same server and
+  whose layout you can open, offers **Open the original** above the
+  import form. Importing it as a copy stays the default.
+
+**Unknown fields.** Writers keep the `manifest.json` fields they don't know
+when they save a file they opened. Each writer always sets its own `format`,
+`version`, `generator` and `source`.
+
 ## Versions
 
 `version` is 1. A reader opens a file with a higher version but warns that
@@ -68,7 +115,7 @@ anything it doesn't understand is left out. A reader refuses a file whose
 
 ## Fixtures
 
-Both fixtures are in `fixtures/layouts/` here and in the web repository's
+These fixtures are in `fixtures/layouts/` here and in the web repository's
 `packages/bbm/tests/fixtures/`, and both apps' tests read both:
 
 - **`corner-lobby.bld-layout`**, made by the desktop (tests/import/LayoutFileTest.cpp
@@ -78,3 +125,11 @@ Both fixtures are in `fixtures/layouts/` here and in the web repository's
   downloaded again (the web's `apps/web/scripts/make-web-made-layout.ts`).
 - **`with-parts.bld-layout`**, one brick of `CLDTEST.1`, a part the file
   carries. The web's e2e opens it and gets `CLDTEST.1` as a custom part.
+- **`web-made-source.bld-layout`** and **`desktop-made-source.bld-layout`**
+  hold `tight-corner.bbm` saved by each app as server layout `L-42` on
+  `https://collab.example.org`, with a `futureField` neither app knows. The web
+  one comes from `apps/web/scripts/make-web-made-source-layout.ts`, the desktop
+  one from LayoutFileTest with `BLD_UPDATE_FIXTURES=1`. Each app reads both and
+  checks the same `source`. The desktop also checks that a re-save keeps
+  `futureField` and `source`, and that the layout opens the same with
+  `source` stripped.

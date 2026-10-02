@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QMainWindow>
+#include "../import/LayoutSource.h"
 #include <QString>
 #include <QByteArray>
 #include <QMap>
@@ -145,11 +146,9 @@ private:
     bool saveBudget(bool askForName);
     void updateTitle();
     bool maybeSave();              // prompts on dirty close
-    bool newDocument();            // File > New; false when the user cancels the save prompt
     // Venue Library "Start Layout": a new layout (after the usual unsaved-
     // changes prompt) with that venue in place.
     void startLayoutFromVenue(const core::Venue& venue);
-    bool writeMapTo(const QString& path);
     // Puts a just-read map in the window as the document at `path`.
     void showLoadedMap(std::unique_ptr<core::Map> map, const QString& path, const QStringList& warnings);
     // Parts a .bld-layout carries that the library lacks: written to the
@@ -214,6 +213,27 @@ public:
 private:
 
     QString currentFilePath_;
+    // The opened layout file's manifest (its unknown fields are written back)
+    // and the server layout it was saved from (MainWindowFileIO.cpp).
+    QJsonObject keptManifest_;
+    std::optional<import::LayoutSource> fileSource_;
+    // A new document, another file, or a live layout: forget both.
+    void forgetFileSource();
+protected:
+    // What a .bld-layout save writes besides the layout: the kept manifest
+    // fields, and the source (the live layout while live, else the opened
+    // file's own, else none).
+    import::LayoutManifestExtras manifestExtras() const;
+    // The opened file came from a server layout: a card offers the live
+    // version (from one of your servers) or to add the server. Never connects
+    // by itself.
+    void offerLayoutSource(const import::LayoutSource& source);
+    // "Open the live version": connect to the source's server and open its
+    // layout, signing in if needed. Virtual so tests see the click.
+    virtual void openSourceLive(const import::LayoutSource& source);
+    bool newDocument();            // File > New; false when the user cancels the save prompt
+    bool writeMapTo(const QString& path);
+private:
     int     cleanUndoIndex_ = 0;   // index at which the stack is "clean"
     QAction* undoAct_ = nullptr;
     QAction* redoAct_ = nullptr;
@@ -255,6 +275,7 @@ private:
     void offerPartsUpload(bool quiet);
     QUrl liveServer_;
     QString liveToken_;
+    QString liveLayoutId_;  // the live layout's id, for a saved file's source
     // What the live server said about itself (versions, features).
     bld::sync::ServerInfo liveInfo_;
     // "Please update" and "this server can't do everything yet" notices.

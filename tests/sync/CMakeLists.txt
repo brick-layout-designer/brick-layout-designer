@@ -17,6 +17,7 @@ add_executable(bld_sync_tests
     LayoutMergeTest.cpp
     CompareDialogTest.cpp
     MainWindowLiveTest.cpp
+    LayoutSourceTest.cpp
     PrefsSyncTest.cpp
     SyncTestMain.cpp
 )

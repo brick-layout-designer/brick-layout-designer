@@ -76,6 +76,7 @@ add_library(bld_import STATIC
     # The native layout file (.bld-layout).
     LayoutFile.cpp
     LayoutFile.h
+    LayoutSource.h
     zip/SafeZip.h
     zip/puff.c
     zip/puff.h

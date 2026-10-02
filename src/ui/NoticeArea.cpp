@@ -86,10 +86,15 @@ void NoticeArea::showNotice(const QString& id, const QString& title, const QStri
         col->addWidget(notes);
     }
 
-    auto* buttons = new QHBoxLayout;
+    // The buttons sit in a row of their own, which place() turns into a
+    // column when they don't fit the card side by side.
+    auto* buttonRow = new QWidget(card);
+    buttonRow->setObjectName(QStringLiteral("NoticeButtons"));
+    auto* buttons = new QBoxLayout(QBoxLayout::LeftToRight, buttonRow);
+    buttons->setContentsMargins(0, 0, 0, 0);
     buttons->setSpacing(6);
     if (notes) {
-        auto* whatsNew = new QPushButton(tr("What's new"), card);
+        auto* whatsNew = new QPushButton(tr("What's new"), buttonRow);
         whatsNew->setObjectName(QStringLiteral("NoticeWhatsNew"));
         whatsNew->setCheckable(true);
         whatsNew->setCursor(Qt::PointingHandCursor);
@@ -101,7 +106,7 @@ void NoticeArea::showNotice(const QString& id, const QString& title, const QStri
     }
     buttons->addStretch(1);
     for (const NoticeAction& a : actions) {
-        auto* b = new QPushButton(a.text, card);
+        auto* b = new QPushButton(a.text, buttonRow);
         b->setProperty("accent", a.accent);
         b->setCursor(Qt::PointingHandCursor);
         connect(b, &QPushButton::clicked, this, [this, id, a] {
@@ -117,7 +122,7 @@ void NoticeArea::showNotice(const QString& id, const QString& title, const QStri
         });
         buttons->addWidget(b);
     }
-    col->addLayout(buttons);
+    col->addWidget(buttonRow);
     connect(close, &QToolButton::clicked, this, [this, id] {
         QTimer::singleShot(0, this, [this, id] {
             hideNotice(id);
@@ -154,6 +159,27 @@ bool NoticeArea::eventFilter(QObject* watched, QEvent* event) {
 void NoticeArea::place() {
     if (cards_.isEmpty()) return;
     const int w = std::max(0, std::min(480, over_->width() - 16));
+    // Buttons too wide to sit side by side (long names, a server's address)
+    // go one under another rather than being cut off. Measured as styled,
+    // against the room the card really has.
+    const QMargins area = layout() ? layout()->contentsMargins() : QMargins();
+    for (QFrame* card : std::as_const(cards_)) {
+        auto* row = card->findChild<QWidget*>(QStringLiteral("NoticeButtons"));
+        auto* box = row ? qobject_cast<QBoxLayout*>(row->layout()) : nullptr;
+        if (!box) continue;
+        int need = 0;
+        int count = 0;
+        for (auto* b : row->findChildren<QPushButton*>(Qt::FindDirectChildrenOnly)) {
+            b->ensurePolished();
+            need += b->sizeHint().width();
+            ++count;
+        }
+        need += box->spacing() * std::max(0, count - 1);
+        card->ensurePolished();
+        const QMargins inner = card->contentsMargins() + (card->layout() ? card->layout()->contentsMargins() : QMargins());
+        const int room = w - area.left() - area.right() - inner.left() - inner.right();
+        box->setDirection(need > room ? QBoxLayout::TopToBottom : QBoxLayout::LeftToRight);
+    }
     layout()->activate();
     const int h = std::min(heightForWidth(w) > 0 ? heightForWidth(w) : sizeHint().height(), over_->height() - 60);
     resize(w, std::max(0, h));

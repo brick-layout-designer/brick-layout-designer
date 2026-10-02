@@ -17,6 +17,7 @@
 #include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QUrl>
 #include <QRegularExpression>
 #include <QSaveFile>
 #include <QSet>
@@ -75,6 +76,41 @@ LayoutFileResult readLayoutFile(const QString& path, const QString& assetDir) {
     return readLayoutFileBytes(f.readAll(), assetDir);
 }
 
+QString layoutServerBase(const QString& url) {
+    const QUrl u(url.trimmed());
+    if (!u.isValid() || u.host().isEmpty()) return {};
+    const QString scheme = u.scheme().toLower();
+    if (scheme != QLatin1String("http") && scheme != QLatin1String("https")) return {};
+    QUrl base;
+    base.setScheme(scheme);
+    base.setHost(u.host().toLower());
+    base.setPort(u.port());
+    return base.toString();
+}
+
+std::optional<LayoutSource> LayoutSource::fromJson(const QJsonValue& value) {
+    if (!value.isObject()) return std::nullopt;
+    const QJsonObject o = value.toObject();
+    const QString server = o.value(QLatin1String("server")).toString();
+    LayoutSource s;
+    s.server = server.size() <= 2048 ? layoutServerBase(server) : QString();
+    s.layoutId = o.value(QLatin1String("layoutId")).toString().trimmed();
+    if (s.server.isEmpty() || s.layoutId.isEmpty() || s.layoutId.size() > 200) return std::nullopt;
+    s.title = o.value(QLatin1String("title")).toString().left(500);
+    s.exportedAt = o.value(QLatin1String("exportedAt")).toString().left(64);
+    return s;
+}
+
+QJsonObject LayoutSource::toJson() const {
+    const QString base = layoutServerBase(server);
+    return QJsonObject{
+        { QStringLiteral("server"), base.isEmpty() ? server : base },
+        { QStringLiteral("layoutId"), layoutId },
+        { QStringLiteral("title"), title },
+        { QStringLiteral("exportedAt"), exportedAt },
+    };
+}
+
 LayoutFileResult readLayoutFileBytes(const QByteArray& bytes, const QString& assetDir) {
     LayoutFileResult r;
     const SafeZip zip(bytes);
@@ -89,6 +125,8 @@ LayoutFileResult readLayoutFileBytes(const QByteArray& bytes, const QString& ass
         r.error = tr("This is not a Brick Layout Designer layout file.");
         return r;
     }
+    r.manifest = manifest;
+    r.source = LayoutSource::fromJson(manifest.value(QLatin1String("source")));
     if (manifest.value(QLatin1String("version")).toInt() > kLayoutFileVersion)
         r.warnings << tr("The file was made by a newer version of Brick Layout Designer; "
                          "anything this version doesn't know is left out.");
@@ -315,7 +353,7 @@ int renamePartInMap(core::Map& map, const QString& from, const QString& to) {
 }
 
 QByteArray layoutFileBytes(const core::Map& map, QString* error, QStringList* warnings,
-                           const QMap<QString, QByteArray>& partFiles) {
+                           const QMap<QString, QByteArray>& partFiles, const LayoutManifestExtras& extras) {
     QBuffer bbm;
     bbm.open(QIODevice::WriteOnly);
     const auto written = saveload::writeBbm(map, bbm);
@@ -325,18 +363,19 @@ QByteArray layoutFileBytes(const core::Map& map, QString* error, QStringList* wa
     }
     ZipWriter zip;
     // First and stored, so the file says what it is from its first bytes.
-    zip.add(kManifest,
-            QJsonDocument(QJsonObject{
-                              { QStringLiteral("format"), kFormat },
-                              { QStringLiteral("version"), kLayoutFileVersion },
-                              { QStringLiteral("generator"),
-                                QStringLiteral("Brick Layout Designer %1(desktop)")
-                                    .arg(QCoreApplication::applicationVersion().isEmpty()
-                                             ? QString()
-                                             : QCoreApplication::applicationVersion() + QLatin1Char(' ')) },
-                          })
-                .toJson(QJsonDocument::Compact),
-            ZipWriter::Method::Stored);
+    // What a newer version wrote is kept; what this file is, and where it
+    // came from, is this save's.
+    QJsonObject manifest = extras.keep;
+    manifest.remove(QStringLiteral("source"));
+    manifest[QStringLiteral("format")] = kFormat;
+    manifest[QStringLiteral("version")] = kLayoutFileVersion;
+    manifest[QStringLiteral("generator")] =
+        QStringLiteral("Brick Layout Designer %1(desktop)")
+            .arg(QCoreApplication::applicationVersion().isEmpty()
+                     ? QString()
+                     : QCoreApplication::applicationVersion() + QLatin1Char(' '));
+    if (extras.source) manifest[QStringLiteral("source")] = extras.source->toJson();
+    zip.add(kManifest, QJsonDocument(manifest).toJson(QJsonDocument::Compact), ZipWriter::Method::Stored);
     zip.add(kLayout, bbm.data());
     if (!map.sidecar.isEmpty()) {
         QJsonObject root = saveload::sidecarToJson(map.sidecar);
@@ -369,8 +408,8 @@ QByteArray layoutFileBytes(const core::Map& map, QString* error, QStringList* wa
 }
 
 bool writeLayoutFile(const core::Map& map, const QString& path, QString* error, QStringList* warnings,
-                     const QMap<QString, QByteArray>& partFiles) {
-    const QByteArray bytes = layoutFileBytes(map, error, warnings, partFiles);
+                     const QMap<QString, QByteArray>& partFiles, const LayoutManifestExtras& extras) {
+    const QByteArray bytes = layoutFileBytes(map, error, warnings, partFiles, extras);
     if (bytes.isEmpty()) return false;
     QSaveFile out(path);
     if (!out.open(QIODevice::WriteOnly) || out.write(bytes) != bytes.size() || !out.commit()) {
