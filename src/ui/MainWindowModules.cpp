@@ -52,7 +52,7 @@ bool hasUnknownParts(const core::Map& map, const parts::PartsLibrary& parts) {
 
 // The server's picture of a module: as big as the web makes it, smaller
 // when the server's upload limit (before 2.x: 512 KB) can't take it.
-constexpr qsizetype kThumbnailLimit = 512 * 1024;
+constexpr qsizetype kThumbnailLimit = qsizetype{ 512 } * 1024;
 
 QByteArray pngOf(const QImage& img) {
     QByteArray bytes;
@@ -368,9 +368,9 @@ void MainWindow::saveModuleToServer(core::Map& module, int partCount) {
                  c.note, {});
 }
 
-void MainWindow::uploadModule(sync::LibraryApi& api, std::shared_ptr<core::Map> module, const QString& updateId,
+void MainWindow::uploadModule(sync::LibraryApi& api, const std::shared_ptr<core::Map>& module, const QString& updateId,
                               const QString& title, const QString& orgSlug, const QString& note,
-                              std::function<void(bool)> done) {
+                              const std::function<void(bool)>& done) {
     // Its picture now, while the parts are at hand: as big as the web's,
     // smaller when the server's limit can't take that.
     QByteArray png;

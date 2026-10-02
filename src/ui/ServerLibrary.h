@@ -208,6 +208,7 @@ private:
     QVBoxLayout* list_ = nullptr;
     QHash<QString, QWidget*> rows_;
     QString openCollection_;
+    QString added_;  // what the last Add all did
     int generation_ = 0;
 };
 

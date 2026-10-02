@@ -308,7 +308,7 @@ private:
     // Bring this server's parts into the library (in the background):
     // missing or changed ones are downloaded to a folder named after it.
     // `then` runs once it's done (or straight away when one is already running).
-    void syncServerParts(const QUrl& server, const QString& token, std::function<void()> then = {});
+    void syncServerParts(const QUrl& server, const QString& token, const std::function<void()>& then = {});
     // When server parts didn't all download, a button in the status bar
     // says so (they draw as outlines until they do) and tries again.
     QToolButton* partsSyncFailed_ = nullptr;
@@ -355,8 +355,9 @@ private:
     bool saveEditedModule();
     // Writes `module` to the server: a new module (`title`, `orgSlug`) or
     // a new version of `updateId`, then its picture.
-    void uploadModule(bld::sync::LibraryApi& api, std::shared_ptr<core::Map> module, const QString& updateId,
-                      const QString& title, const QString& orgSlug, const QString& note, std::function<void(bool)> done);
+    void uploadModule(bld::sync::LibraryApi& api, const std::shared_ptr<core::Map>& module, const QString& updateId,
+                      const QString& title, const QString& orgSlug, const QString& note,
+                      const std::function<void(bool)>& done);
     void clearEditingModule();
     // Your warnings not yet acknowledged, as a notice over the map.
     void refreshNotices();

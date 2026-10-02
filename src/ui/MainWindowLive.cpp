@@ -498,7 +498,7 @@ void MainWindow::onDownloadVenues() {
             tr("Added %n venue(s) to the Venue library", nullptr, static_cast<int>(saved.size())), 5000);
 }
 
-void MainWindow::syncServerParts(const QUrl& server, const QString& token, std::function<void()> then) {
+void MainWindow::syncServerParts(const QUrl& server, const QString& token, const std::function<void()>& then) {
     if (partsSyncRunning_) {
         if (then) then();
         return;

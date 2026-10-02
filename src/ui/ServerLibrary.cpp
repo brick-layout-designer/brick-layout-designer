@@ -597,6 +597,7 @@ QWidget* CatalogTab::row(const QString& id) const { return rows_.value(id); }
 void CatalogTab::setKind(Kind kind) {
     kind_ = kind;
     openCollection_.clear();
+    added_.clear();
     for (int i = 0; i < kindButtons_.size(); ++i) kindButtons_[i]->setChecked(i == static_cast<int>(kind));
     reload();
 }
@@ -635,7 +636,7 @@ void CatalogTab::reload() {
         setKind(on.modules ? Kind::Modules : Kind::Parts);
         return;
     }
-    note_->setText(tr("Loading…"));
+    if (added_.isEmpty()) note_->setText(tr("Loading…"));
     auto failed = [this, gen](const sync::ServerRefusal& r) {
         if (gen != generation_) return;
         note_->setText(ServerLibrary::refusalText(r));
@@ -673,7 +674,8 @@ void CatalogTab::showItems(const QList<sync::CatalogItem>& items) {
 
 void CatalogTab::showCollections(const QList<sync::CatalogCollection>& list) {
     clearRows();
-    note_->setText(list.isEmpty() ? tr("No collections yet.") : QString());
+    // What Add all did stays in sight while the list comes again.
+    note_->setText(!added_.isEmpty() ? added_ : list.isEmpty() ? tr("No collections yet.") : QString());
     int at = 0;
     for (const auto& c : list) {
         QWidget* r = collectionRow(c);
@@ -708,14 +710,12 @@ QWidget* CatalogTab::itemRow(const sync::CatalogItem& it) {
         insert->setObjectName(QStringLiteral("catalogInsert"));
         insert->setProperty("accent", true);
         insert->setAccessibleName(tr("Add and insert %1").arg(it.title));
-        const sync::CatalogItem item = it;
-        connect(insert, &QPushButton::clicked, this, [this, item] { emit library_.catalogInsertRequested(item); });
+        connect(insert, &QPushButton::clicked, this, [this, item = it] { emit library_.catalogInsertRequested(item); });
         text->addWidget(insert, 0, Qt::AlignLeft);
     }
     auto* add = new QPushButton(isModule ? tr("Add to my modules") : tr("Add to my parts"), frame);
     add->setObjectName(QStringLiteral("catalogAdd"));
-    const sync::CatalogItem item = it;
-    connect(add, &QPushButton::clicked, this, [this, item, add] { addItem(item, add); });
+    connect(add, &QPushButton::clicked, this, [this, item = it, add] { addItem(item, add); });
     text->addWidget(add, 0, Qt::AlignLeft);
     h->addLayout(text, 1);
     return frame;
@@ -799,7 +799,8 @@ void CatalogTab::addAll(const sync::CatalogCollection& c) {
     if (!dest) return;
     const bool parts = c.parts > 0;
     library_.api().addCollection(c.id, *dest, [this, parts](const sync::CollectionAddResult& r) {
-        note_->setText(collectionAddText(r));
+        added_ = collectionAddText(r);
+        note_->setText(added_);
         emit library_.message(collectionAddText(r));
         library_.refresh();
         if (parts && r.added > 0) emit library_.partsAdded();
