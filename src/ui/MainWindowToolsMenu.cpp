@@ -42,9 +42,22 @@ namespace bld::ui {
 
 void MainWindow::setupToolsMenu() {
     auto* tools = menuBar()->addMenu(tr("&Tools"));
-    auto* libAct = tools->addAction(tr("Manage Parts &Libraries..."));
+    // Everything about where parts come from, in one place with plain words:
+    // get more, choose the folders, read the folders again. (Server parts
+    // live in File, next to the other live-layout actions; re-importing
+    // models lives in Import.)
+    auto* partsMenu = tools->addMenu(tr("&Parts"));
+    partsMenu->setObjectName(QStringLiteral("menu.tools.parts"));
+    auto* dlAct = partsMenu->addAction(tr("&Get More Parts..."));
+    dlAct->setObjectName(QStringLiteral("act.parts.getMore"));
+    dlAct->setToolTip(tr("Find part packs online and add them to your parts"));
+    auto* libAct = partsMenu->addAction(tr("Parts &Folders..."));
+    libAct->setObjectName(QStringLiteral("act.parts.folders"));
+    libAct->setToolTip(tr("Choose the folders on this computer your parts come from"));
     connect(libAct, &QAction::triggered, this, &MainWindow::onManageLibraries);
-    auto* reloadAct = tools->addAction(tr("&Reload Parts Library"));
+    auto* reloadAct = partsMenu->addAction(tr("&Reload Parts"));
+    reloadAct->setObjectName(QStringLiteral("act.parts.reload"));
+    reloadAct->setToolTip(tr("Read the parts folders again after you changed files in them"));
     connect(reloadAct, &QAction::triggered, this, &MainWindow::onReloadLibrary);
     tools->addSeparator();
 
@@ -72,7 +85,7 @@ void MainWindow::setupToolsMenu() {
     connect(reimportAct, &QAction::triggered, this, &MainWindow::onReimportChangedParts);
 
     // Part list (BlueBrick's part usage export): HTML, text or CSV.
-    auto* partListMenu = tools->addMenu(tr("&Part List"));
+    auto* partListMenu = tools->addMenu(tr("Part &List"));
     auto* partListAct = partListMenu->addAction(tr("&Export Part List..."));
     connect(partListAct, &QAction::triggered, this, &MainWindow::onExportPartList);
     partListMenu->addSeparator();
@@ -85,9 +98,6 @@ void MainWindow::setupToolsMenu() {
         connect(opt, &QAction::toggled, this, [settingsKey](bool on){ QSettings().setValue(settingsKey, on); });
     }
 
-    tools->addSeparator();
-    auto* dlAct = tools->addAction(tr("&Download Additional Parts..."));
-    dlAct->setToolTip(tr("Search the official + community part-package servers and install zip archives into your library"));
     connect(dlAct, &QAction::triggered, this, [this]{
         // Pick a default install root the same way the simple download
         // helper used to: first configured user library path, or the

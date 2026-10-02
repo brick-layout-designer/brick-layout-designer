@@ -24,6 +24,7 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMenu>
 #include <QMenuBar>
 #include <QPushButton>
 #include <QSettings>
@@ -349,4 +350,31 @@ TEST_F(HelpInMainWindow, ShortcutsComeFromTheMenus) {
     bool found = false;
     for (const auto& s : again.first().items) found = found || s.does == QLatin1String("Brand new");
     EXPECT_TRUE(found);
+}
+
+// Where parts come from is one Tools > Parts submenu with plain words, not
+// three loose "Parts Library" items spread over the Tools menu.
+TEST_F(HelpInMainWindow, PartsActionsLiveInOneToolsPartsMenu) {
+    QMenu* tools = nullptr;
+    for (QAction* a : window_->menuBar()->actions())
+        if (a->menu() && a->text().remove(QLatin1Char('&')) == QLatin1String("Tools")) tools = a->menu();
+    ASSERT_NE(tools, nullptr);
+
+    QMenu* parts = nullptr;
+    QStringList loose;
+    for (QAction* a : tools->actions()) {
+        const QString text = a->text().remove(QLatin1Char('&'));
+        if (a->menu() && text == QLatin1String("Parts")) parts = a->menu();
+        else if (!a->menu() && text.contains(QLatin1String("Parts"))) loose << text;
+    }
+    ASSERT_NE(parts, nullptr);
+    EXPECT_TRUE(loose.isEmpty()) << loose.join(QStringLiteral(", ")).toStdString();
+
+    QStringList inParts;
+    for (QAction* a : parts->actions())
+        if (!a->isSeparator()) inParts << a->text().remove(QLatin1Char('&'));
+    EXPECT_EQ(inParts, (QStringList{ QStringLiteral("Get More Parts..."), QStringLiteral("Parts Folders..."),
+                                     QStringLiteral("Reload Parts") }));
+    for (QAction* a : parts->actions())
+        if (!a->isSeparator()) EXPECT_FALSE(a->toolTip().isEmpty()) << a->text().toStdString();
 }
