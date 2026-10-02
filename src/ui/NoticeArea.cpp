@@ -15,6 +15,11 @@
 
 namespace bld::ui {
 
+namespace {
+// The widest the buttons may be side by side: the card's 480 less its margins.
+constexpr int kButtonRowWidth = 440;
+}  // namespace
+
 NoticeArea::NoticeArea(QWidget* over) : QWidget(over), over_(over) {
     setObjectName(QStringLiteral("NoticeArea"));
     column_ = new QVBoxLayout(this);
@@ -86,7 +91,7 @@ void NoticeArea::showNotice(const QString& id, const QString& title, const QStri
         col->addWidget(notes);
     }
 
-    auto* buttons = new QHBoxLayout;
+    auto* buttons = new QBoxLayout(QBoxLayout::LeftToRight);
     buttons->setSpacing(6);
     if (notes) {
         auto* whatsNew = new QPushButton(tr("What's new"), card);
@@ -117,6 +122,11 @@ void NoticeArea::showNotice(const QString& id, const QString& title, const QStri
         });
         buttons->addWidget(b);
     }
+    // Buttons too wide to sit side by side on the card (long names, a
+    // server's address) go one under another rather than being cut off.
+    int need = 0;
+    for (auto* b : card->findChildren<QPushButton*>(Qt::FindDirectChildrenOnly)) need += b->sizeHint().width() + buttons->spacing();
+    if (need > kButtonRowWidth) buttons->setDirection(QBoxLayout::TopToBottom);
     col->addLayout(buttons);
     connect(close, &QToolButton::clicked, this, [this, id] {
         QTimer::singleShot(0, this, [this, id] {

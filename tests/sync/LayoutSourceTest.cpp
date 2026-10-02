@@ -11,6 +11,7 @@
 #include "ui/MainWindow.h"
 #include "ui/NoticeArea.h"
 #include "ui/UpdateCheck.h"
+#include "ui/theme/ThemeManager.h"
 #include "FakeHttp.h"
 
 #include <gtest/gtest.h>
@@ -113,12 +114,27 @@ TEST_F(LayoutSourceCard, KeepWorkingOnTheCopyJustClosesTheCard) {
 }
 
 TEST_F(LayoutSourceCard, FromAnotherServerOffersToAddItThenTheLiveVersion) {
+    // In the app's own look, as the card is built in it.
+    using namespace ui::theme;
+    qApp->setStyleSheet(buildStyleSheet(Mode::Light, accent(QLatin1String(kDefaultAccent))));
     addServer(QStringLiteral("https://elsewhere.example.org"), QString());
     ASSERT_TRUE(window_->openFile(kFixture));
     EXPECT_EQ(title(), QStringLiteral("This layout came from collab.example.org"));
     EXPECT_EQ(button(QStringLiteral("Open the live version")), nullptr);
     QPushButton* add = button(QStringLiteral("Add collab.example.org to your servers"));
     ASSERT_NE(add, nullptr);
+    // A long address doesn't cut the buttons off.
+    {
+        window_->resize(1280, 800);
+        window_->show();
+        for (int i = 0; i < 10; ++i) QCoreApplication::processEvents();
+        for (auto* b : card()->findChildren<QPushButton*>()) {
+            if (!b->isVisible()) continue;
+            EXPECT_GE(b->width(), b->sizeHint().width()) << b->text().toStdString();
+            EXPECT_LE(b->mapTo(card(), QPoint(b->width(), 0)).x(), card()->width()) << b->text().toStdString();
+        }
+        qApp->setStyleSheet(QString());
+    }
     add->click();
     settle();
     const auto list = sync::ServerList::load();
