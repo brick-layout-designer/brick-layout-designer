@@ -149,6 +149,9 @@ void ServersDialog::rebuild() {
         QSizePolicy keep = missing->sizePolicy();
         keep.setRetainSizeWhenHidden(true);
         missing->setSizePolicy(keep);
+        // A fixed line: the "⚠" can come from a taller fallback font
+        // (Windows), which would otherwise grow just this row.
+        missing->setFixedHeight(missing->fontMetrics().height() + 2);
         v->addWidget(missing);
         rows_->setItemWidget(item, row);
         updateRow(e.url);
