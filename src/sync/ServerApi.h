@@ -90,7 +90,11 @@ struct VenueEntry {
 struct OrgEntry {
     QString slug;
     QString name;
-    QString role; // admin / member
+    QString role; // your role: admin / manager / member
+    // Admins and managers look after the club's layouts, venues, modules
+    // and parts; only admins change its settings.
+    bool managesThings() const { return role == QLatin1String("admin") || role == QLatin1String("manager"); }
+    bool isAdmin() const { return role == QLatin1String("admin"); }
 };
 
 class ServerApi : public QObject {

@@ -465,6 +465,33 @@ TEST(ConnectDialog, PublishesALayoutPersonallyOrToAnOrganisation) {
     EXPECT_FALSE(h.dialog.ConnectDialog::result()->readOnly);
 }
 
+// A club you manage is offered under Save to like one you run or belong to.
+TEST(ConnectDialog, PublishesToAClubYouManage) {
+    Harness h(ConnectDialog::Purpose::Publish);
+    h.tokens.save(h.http.base(), QStringLiteral("bld_pat_saved"));
+    const auto org = [](const char* slug, const char* name, const char* role) {
+        return QJsonObject{ { QStringLiteral("slug"), QLatin1String(slug) },
+                            { QStringLiteral("name"), QLatin1String(name) },
+                            { QStringLiteral("myRole"), QLatin1String(role) } };
+    };
+    h.http.reply("/api/orgs", 200,
+                 { { QStringLiteral("orgs"), QJsonArray{ org("rail", "Rail Club", "manager"),
+                                                         org("town", "Town Club", "member") } } });
+    h.http.reply("/api/layouts", 201,
+                 { { QStringLiteral("id"), QStringLiteral("L9") }, { QStringLiteral("title"), QStringLiteral("Yard") } });
+    h.dialog.setPublishContent(QByteArrayLiteral("<Map/>"), {}, QStringLiteral("Yard"));
+    h.dialog.connectToServer();
+    auto* owner = h.dialog.findChild<QComboBox*>(QStringLiteral("publishOwner"));
+    ASSERT_TRUE(waitFor([&] { return owner->count() == 3; }));
+    EXPECT_EQ(owner->itemText(1), QStringLiteral("Rail Club"));
+    EXPECT_EQ(owner->itemText(2), QStringLiteral("Town Club"));
+    owner->setCurrentIndex(1);
+    h.dialog.findChild<QPushButton*>(QStringLiteral("publish"))->click();
+    ASSERT_TRUE(waitFor([&] { return h.dialog.QDialog::result() == QDialog::Accepted; }));
+    const auto body = QJsonDocument::fromJson(h.http.requests.back().body).object();
+    EXPECT_EQ(body.value(QLatin1String("orgSlug")).toString(), QStringLiteral("rail"));
+}
+
 TEST(ConnectDialog, PublishingWithAnOldSignInSignsInAgain) {
     Harness h(ConnectDialog::Purpose::Publish);
     h.tokens.save(h.http.base(), QStringLiteral("bld_pat_old"));
