@@ -17,6 +17,7 @@
 #include <QAbstractButton>
 #include <QApplication>
 #include <QFile>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLabel>
@@ -25,6 +26,7 @@
 #include <QStandardPaths>
 #include <QTest>
 #include <QTimer>
+#include <QTranslator>
 
 using namespace bld;
 using namespace bld::ui;
@@ -100,6 +102,76 @@ TEST_F(Tours, TheCatalogueIsTheWebAppsFile) {
     const QByteArray web = qgetenv("BLD_WEB_REPO");
     if (!web.isEmpty())
         EXPECT_EQ(embedded, readAll(QString::fromLocal8Bit(web) + QStringLiteral("/apps/web/src/tours/tours.json")));
+}
+
+namespace {
+
+// Stands in for a language: "Tours" text comes back in brackets.
+class BracketTranslator : public QTranslator {
+public:
+    bool isEmpty() const override { return false; }
+    QString translate(const char* context, const char* source, const char*, int) const override {
+        if (qstrcmp(context, "Tours") != 0) return {};
+        return QStringLiteral("[%1]").arg(QString::fromUtf8(source));
+    }
+};
+
+// Every string people read in a tours.json, the way gen-tour-strings.py walks it.
+QStringList readable(const QJsonObject& root) {
+    QStringList out;
+    const QJsonObject w = root.value(QLatin1String("welcome")).toObject();
+    out << w.value(QLatin1String("title")).toString() << w.value(QLatin1String("text")).toString();
+    const QJsonObject actions = w.value(QLatin1String("actions")).toObject();
+    for (const char* k : { "layout", "club", "tour" }) {
+        const QJsonObject a = actions.value(QLatin1String(k)).toObject();
+        out << a.value(QLatin1String("label")).toString() << a.value(QLatin1String("text")).toString();
+    }
+    out << w.value(QLatin1String("dismiss")).toString();
+    const QJsonObject b = root.value(QLatin1String("buttons")).toObject();
+    for (const char* k : { "next", "back", "skip", "done", "of" }) out << b.value(QLatin1String(k)).toString();
+    for (const auto& tv : root.value(QLatin1String("tours")).toArray()) {
+        const QJsonObject t = tv.toObject();
+        out << t.value(QLatin1String("title")).toString();
+        for (const auto& sv : t.value(QLatin1String("steps")).toArray())
+            out << sv.toObject().value(QLatin1String("title")).toString() << sv.toObject().value(QLatin1String("text")).toString();
+    }
+    out.removeDuplicates();
+    return out;
+}
+
+}  // namespace
+
+TEST_F(Tours, EveryStringInToursJsonIsMarkedForTranslation) {
+    const QJsonObject root = QJsonDocument::fromJson(readAll(QStringLiteral(":/bld/tours/tours.json"))).object();
+    EXPECT_EQ(tours::tourStrings(), readable(root))
+        << "tours.json changed: run scripts/gen-tour-strings.py to update TourStrings.cpp";
+}
+
+TEST_F(Tours, TheTextIsReadInTheAppsLanguage) {
+    BracketTranslator lang;
+    QCoreApplication::installTranslator(&lang);
+    const tours::Catalogue c = tours::translated(tours::parseCatalogue(readAll(QStringLiteral(":/bld/tours/tours.json"))));
+    QCoreApplication::removeTranslator(&lang);
+    const tours::Catalogue raw = tours::parseCatalogue(readAll(QStringLiteral(":/bld/tours/tours.json")));
+
+    EXPECT_EQ(c.welcome.title, QStringLiteral("[%1]").arg(raw.welcome.title));
+    EXPECT_EQ(c.welcome.layoutLabel, QStringLiteral("[%1]").arg(raw.welcome.layoutLabel));
+    EXPECT_EQ(c.welcome.dismiss, QStringLiteral("[%1]").arg(raw.welcome.dismiss));
+    EXPECT_EQ(c.buttons.of, QStringLiteral("[{n} of {total}]"));
+    ASSERT_EQ(c.tours.size(), raw.tours.size());
+    for (int i = 0; i < c.tours.size(); ++i) {
+        EXPECT_EQ(c.tours[i].title, QStringLiteral("[%1]").arg(raw.tours[i].title));
+        // Ids, devices and targets aren't words people read.
+        EXPECT_EQ(c.tours[i].id, raw.tours[i].id);
+        EXPECT_EQ(c.tours[i].devices, raw.tours[i].devices);
+        ASSERT_EQ(c.tours[i].steps.size(), raw.tours[i].steps.size());
+        for (int j = 0; j < c.tours[i].steps.size(); ++j) {
+            EXPECT_EQ(c.tours[i].steps[j].target, raw.tours[i].steps[j].target);
+            EXPECT_EQ(c.tours[i].steps[j].title, QStringLiteral("[%1]").arg(raw.tours[i].steps[j].title));
+            EXPECT_EQ(c.tours[i].steps[j].text, QStringLiteral("[%1]").arg(raw.tours[i].steps[j].text));
+        }
+    }
+    EXPECT_EQ(c.welcome.id, raw.welcome.id);
 }
 
 TEST_F(Tours, ParsingKeepsEveryField) {

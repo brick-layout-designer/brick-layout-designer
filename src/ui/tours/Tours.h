@@ -17,6 +17,7 @@
 #include <QDialog>
 #include <QList>
 #include <QString>
+#include <QStringList>
 #include <QWidget>
 
 class QLabel;
@@ -60,7 +61,14 @@ struct Catalogue {
 
 // Reads a tours.json; empty on bad input.
 Catalogue parseCatalogue(const QByteArray& json);
-// The app's catalogue (the embedded tours.json).
+// `c` in the app's language: every string people read goes through the
+// "Tours" translation context (ids and targets stay as they are).
+Catalogue translated(Catalogue c);
+// Every string people read in tours.json, as marked for lupdate
+// (TourStrings.cpp, made by scripts/gen-tour-strings.py).
+QStringList tourStrings();
+// The app's catalogue (the embedded tours.json), translated. Read once:
+// a new language takes a restart, as everywhere else in the app.
 const Catalogue& catalogue();
 const Tour* findTour(const QString& id);
 // The tours offered here: not the phone-only ones.

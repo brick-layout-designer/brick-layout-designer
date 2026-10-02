@@ -56,6 +56,16 @@ completed translations. Removed strings are marked `type="obsolete"`
 instead of deleted, so translators can see them and decide to port or
 drop.
 
+### Tour and welcome text
+
+The guided tours and the first-launch welcome come from
+`src/ui/tours/tours.json`, which is the web app's file word for word, so
+it can't carry `tr()` calls. `src/ui/tours/TourStrings.cpp` marks the same
+strings with `QT_TRANSLATE_NOOP("Tours", …)` so `lupdate` finds them (the
+`Tours` context), and the app translates them when it reads the file.
+After changing `tours.json`, run `scripts/gen-tour-strings.py`; the
+`Tours.EveryStringInToursJsonIsMarkedForTranslation` test fails until you do.
+
 ## Workflow — bulk-applying translations via the script
 
 `scripts/apply-translations.py` ships a `TRANS` dictionary keyed by
