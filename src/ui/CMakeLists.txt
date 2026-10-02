@@ -52,6 +52,7 @@ add_library(bld_ui STATIC
     ModulesPanel.cpp
     ModulesPanel.h
     ModuleLibraryPanel.cpp
+    ModuleThumbnail.cpp
     ModuleLibraryPanel.h
     PartDifferencesDialog.cpp
     PartDifferencesDialog.h

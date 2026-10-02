@@ -26,6 +26,9 @@
 #include <QFile>
 #include <QGraphicsItem>
 #include <QGraphicsScene>
+#include <QIcon>
+#include <QImage>
+#include <QSet>
 #include <QListWidget>
 #include <QMainWindow>
 #include <QMenu>
@@ -587,3 +590,37 @@ TEST(TouchModeTest, ScrollAreasFlickByTouch) {
 }
 
 }  // namespace
+
+// The Module library shows each module's picture, drawn from the module's
+// own parts and cached until the file changes.
+TEST_F(TouchTest, ModuleLibraryShowsEachModulesPicture) {
+    if (parts_.keys().isEmpty()) GTEST_SKIP() << "no parts library";
+    const QString module = QStringLiteral(BLD_SOURCE_DIR "/fixtures/bluebrick-oracle/flex-in.bbm");
+    QTemporaryDir dir, cache;
+    ASSERT_TRUE(QFile::copy(module, dir.filePath(QStringLiteral("Station.bbm"))));
+    const QVariant keep = QSettings().value(QStringLiteral("modules/libraryPath"));
+    {
+        ui::ModuleLibraryPanel panel;
+        panel.setThumbnailCacheDir(cache.path());
+        panel.setLibraryPath(dir.path());
+        panel.setParts(&parts_);
+        ASSERT_EQ(panel.list()->count(), 1);
+        ASSERT_TRUE(QTest::qWaitFor([&] { return panel.pendingThumbnails() == 0; }, 10000));
+        const QIcon icon = panel.list()->item(0)->icon();
+        ASSERT_FALSE(icon.isNull());
+        // A real picture: not one flat colour.
+        const QImage img = icon.pixmap(48, 48).toImage();
+        QSet<QRgb> colours;
+        for (int y = 0; y < img.height(); y += 2)
+            for (int x = 0; x < img.width(); x += 2) colours.insert(img.pixel(x, y));
+        EXPECT_GT(colours.size(), 3);
+        // Cached for next time.
+        EXPECT_EQ(QDir(cache.path()).entryList({ QStringLiteral("*.png") }, QDir::Files).size(), 1);
+    }
+    // Without parts (no library yet): rows, no pictures, nothing waiting.
+    ui::ModuleLibraryPanel bare;
+    bare.setLibraryPath(dir.path());
+    EXPECT_EQ(bare.pendingThumbnails(), 0);
+    EXPECT_TRUE(bare.list()->item(0)->icon().isNull());
+    QSettings().setValue(QStringLiteral("modules/libraryPath"), keep);
+}

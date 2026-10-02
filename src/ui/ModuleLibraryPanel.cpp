@@ -1,5 +1,6 @@
 #include "ModuleLibraryPanel.h"
 #include "TouchMode.h"
+#include "ModuleThumbnail.h"
 
 #include <cmath>
 
@@ -12,6 +13,9 @@
 #include <QMenu>
 #include <QMimeData>
 #include <QScroller>
+#include <QIcon>
+#include <QPixmap>
+#include <QTimer>
 #include <QTouchEvent>
 #include <QPushButton>
 #include <QSettings>
@@ -78,6 +82,7 @@ ModuleLibraryPanel::ModuleLibraryPanel(QWidget* parent)
     list_->viewport()->installEventFilter(this);
     QScroller::scroller(list_->viewport());
     list_->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+    list_->setIconSize(QSize(48, 48));
     col->addWidget(list_);
 
     setWidget(host);
@@ -175,8 +180,35 @@ void ModuleLibraryPanel::setLibraryPath(const QString& dir) {
     refresh();
 }
 
+void ModuleLibraryPanel::setParts(parts::PartsLibrary* parts) {
+    parts_ = parts;
+    refresh();
+}
+
+void ModuleLibraryPanel::scheduleThumbnails() {
+    if (thumbScheduled_ || pendingThumbs_.isEmpty()) return;
+    thumbScheduled_ = true;
+    QTimer::singleShot(0, this, &ModuleLibraryPanel::drawNextThumbnail);
+}
+
+void ModuleLibraryPanel::drawNextThumbnail() {
+    thumbScheduled_ = false;
+    if (!parts_ || pendingThumbs_.isEmpty()) return;
+    const QString path = pendingThumbs_.takeFirst();
+    const QImage img = moduleThumbnail(path, *parts_, thumbCacheDir_);
+    if (!img.isNull()) {
+        for (int i = 0; i < list_->count(); ++i) {
+            QListWidgetItem* it = list_->item(i);
+            if (it->data(Qt::UserRole).toString() == path) it->setIcon(QIcon(QPixmap::fromImage(img)));
+        }
+    }
+    // One at a time, so a big folder doesn't hold up the window.
+    scheduleThumbnails();
+}
+
 void ModuleLibraryPanel::refresh() {
     list_->clear();
+    pendingThumbs_.clear();
     if (path_.isEmpty() || !QDir(path_).exists()) {
         header_->setText(tr("No folder set. Click \"Folder…\" to choose one."));
         return;
@@ -190,7 +222,9 @@ void ModuleLibraryPanel::refresh() {
         item->setData(Qt::UserRole, d.absoluteFilePath(f));
         item->setToolTip(d.absoluteFilePath(f));
         list_->addItem(item);
+        if (parts_) pendingThumbs_ << d.absoluteFilePath(f);
     }
+    scheduleThumbnails();
     if (files.isEmpty()) {
         auto* e = new QListWidgetItem(tr("(no modules in this folder)"));
         e->setFlags(Qt::NoItemFlags);
