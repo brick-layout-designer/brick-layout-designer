@@ -126,11 +126,33 @@ Catalogue parseCatalogue(const QByteArray& json) {
     return c;
 }
 
+Catalogue translated(Catalogue c) {
+    // tours.json is the web's file word for word, so its text can't carry
+    // tr(); TourStrings.cpp marks the same strings for lupdate.
+    const auto tr = [](QString& s) {
+        if (!s.isEmpty()) s = QCoreApplication::translate("Tours", s.toUtf8().constData());
+    };
+    Welcome& w = c.welcome;
+    for (QString* s : { &w.title, &w.text, &w.layoutLabel, &w.layoutText, &w.clubLabel, &w.clubText, &w.tourLabel,
+                        &w.tourText, &w.dismiss })
+        tr(*s);
+    Buttons& b = c.buttons;
+    for (QString* s : { &b.next, &b.back, &b.skip, &b.done, &b.of }) tr(*s);
+    for (Tour& t : c.tours) {
+        tr(t.title);
+        for (Step& s : t.steps) {
+            tr(s.title);
+            tr(s.text);
+        }
+    }
+    return c;
+}
+
 const Catalogue& catalogue() {
     static const Catalogue c = [] {
         initTourResources();
         QFile f(QStringLiteral(":/bld/tours/tours.json"));
-        return f.open(QIODevice::ReadOnly) ? parseCatalogue(f.readAll()) : Catalogue{};
+        return f.open(QIODevice::ReadOnly) ? translated(parseCatalogue(f.readAll())) : Catalogue{};
     }();
     return c;
 }
