@@ -167,6 +167,13 @@ public:
     // Places the module saved at `bbmPath` with its centre at `scenePos`
     // (a drop from the Module library); false when it can't be read.
     bool dropModuleAt(const QString& bbmPath, QPointF scenePos);
+    // Places a module's parts sheets (already read, e.g. from a server) as
+    // one module named `name`, centred on `scenePos` (snapped like a drop),
+    // reading its part pictures first with the loading card. Selects the
+    // placed parts. False when it has no parts.
+    bool placeModule(core::Map& module, const QString& name, const QString& source, QPointF scenePos);
+    // The scene point at the middle of what the map shows.
+    QPointF viewCentre() const;
     class TouchActionBar* touchActionBar() const { return touchBar_; }
     // The ring filling under a resting finger, until the menu opens.
     bool longPressRingShown() const;

@@ -12,6 +12,7 @@
 #include <memory>
 
 #ifdef BLD_SYNC
+#include "LibraryApi.h"
 #include "PartsUpload.h"
 #include "ServerApi.h"
 #include "TokenStore.h"
@@ -23,10 +24,12 @@ class QLabel;
 class QToolButton;
 class QMenu;
 class QComboBox;
+class QJsonObject;
 
 namespace bld::core { struct Venue; class Map; struct SavedView; }
 namespace bld::sync {
 struct ConnectResult;
+class EventStream;
 namespace merge { struct Snapshot; }
 }
 namespace bld::parts { class PartsLibrary; }
@@ -113,6 +116,9 @@ private slots:
     void onCreateModuleFromSelection();
     void onImportBbmAsModule();
     void onSaveSelectionAsModule();
+    // Writes `module` into the Module library folder: as `name`.bbm when
+    // given (asking before replacing one), else asking for a name and file.
+    void saveModuleLocally(const core::Map& module, int partCount, const QString& name = {});
     void onSaveSelectionAsSet();
     void onImportModuleFromLibraryPath(const QString& bbmPath);
     void rebuildRecentMenu();
@@ -301,7 +307,8 @@ private:
     bool liveOfferOpen_ = false;
     // Bring this server's parts into the library (in the background):
     // missing or changed ones are downloaded to a folder named after it.
-    void syncServerParts(const QUrl& server, const QString& token);
+    // `then` runs once it's done (or straight away when one is already running).
+    void syncServerParts(const QUrl& server, const QString& token, std::function<void()> then = {});
     // When server parts didn't all download, a button in the status bar
     // says so (they draw as outlines until they do) and tries again.
     QToolButton* partsSyncFailed_ = nullptr;
@@ -329,6 +336,48 @@ private:
     QAction* disconnectAct_ = nullptr;
     QAction* liveUndoAct_ = nullptr;
     QAction* liveRedoAct_ = nullptr;
+
+    // The server half of the Module library and your notices (MainWindowModules.cpp).
+    void setupServerLibrary();
+    // Which server the library shows: the live layout's, else the one used
+    // last; with its token from the keychain.
+    void updateLibraryServer();
+    void signInToLibraryServer();
+    void onServerHint(const QJsonObject& hint);
+    // Adds the server module to the open layout (its parts fetched first
+    // when the library lacks them), at the middle of the map.
+    void insertServerModule(const QString& moduleId);
+    // A catalog module: copied into your modules, then added.
+    void insertCatalogModule(const bld::sync::CatalogItem& item);
+    // Opens the module as the document here; Save makes a new version.
+    void openServerModule(const QString& moduleId);
+    void saveModuleToServer(core::Map& module, int partCount);
+    bool saveEditedModule();
+    // Writes `module` to the server: a new module (`title`, `orgSlug`) or
+    // a new version of `updateId`, then its picture.
+    void uploadModule(bld::sync::LibraryApi& api, std::shared_ptr<core::Map> module, const QString& updateId,
+                      const QString& title, const QString& orgSlug, const QString& note, std::function<void(bool)> done);
+    void clearEditingModule();
+    // Your warnings not yet acknowledged, as a notice over the map.
+    void refreshNotices();
+    void showNextNotice(const QList<bld::sync::Notice>& notices);
+    class ServerLibrary* serverLibrary_ = nullptr;
+    bld::sync::EventStream* serverEvents_ = nullptr;
+    class QTimer* libraryRefresh_ = nullptr;
+    struct EditingModule {
+        QUrl server;
+        QString token;
+        QString id;
+        QString title;
+    } editingModule_;
+    QString shownNotice_;  // the notice card's warning id
+    // Keychain answers may come after the window is gone: they check this first.
+    std::shared_ptr<int> alive_ = std::make_shared<int>(0);
+public:
+    // For tests.
+    class ServerLibrary* serverLibrary() const { return serverLibrary_; }
+    const EditingModule& editingModule() const { return editingModule_; }
+private:
 #endif
 
     // Auto-save: flushes the current map to a sidecar file every N seconds if

@@ -26,9 +26,14 @@ bool hasParts(const core::Map& map) {
 
 QImage renderModuleThumbnail(const QString& bbmPath, parts::PartsLibrary& parts, int side) {
     auto loaded = saveload::readBbm(bbmPath);
-    if (!loaded.ok() || !hasParts(*loaded.map)) return {};
-    views::PictureRenderer renderer(*loaded.map, parts);
-    const auto spec = views::viewPicture(views::wholeLayout(), *loaded.map, &renderer.builder());
+    if (!loaded.ok()) return {};
+    return renderModuleThumbnail(*loaded.map, parts, side);
+}
+
+QImage renderModuleThumbnail(const core::Map& module, parts::PartsLibrary& parts, int side) {
+    if (!hasParts(module)) return {};
+    views::PictureRenderer renderer(module, parts);
+    const auto spec = views::viewPicture(views::wholeLayout(), module, &renderer.builder());
     if (!spec.has_value()) return {};
     const double scale = views::scaleForSide(spec->region, side);
     return renderer.render(*spec, views::pictureSize(spec->region, scale));

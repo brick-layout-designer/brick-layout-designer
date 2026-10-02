@@ -20,6 +20,8 @@
 #include <QPushButton>
 #include <QSettings>
 #include <QStandardPaths>
+#include <QTabBar>
+#include <QTabWidget>
 #include <QVBoxLayout>
 #include <QWidget>
 
@@ -55,7 +57,15 @@ public:
 
 ModuleLibraryPanel::ModuleLibraryPanel(QWidget* parent)
     : QDockWidget(tr("Module library"), parent) {
-    auto* host = new QWidget(this);
+    tabs_ = new QTabWidget(this);
+    tabs_->setObjectName(QStringLiteral("moduleLibraryTabs"));
+    tabs_->setTabBarAutoHide(true);
+    tabs_->setDocumentMode(true);
+    // Short names that share the dock's width, never hidden behind scroll arrows.
+    tabs_->tabBar()->setExpanding(true);
+    tabs_->setElideMode(Qt::ElideRight);
+    tabs_->setUsesScrollButtons(false);
+    auto* host = new QWidget(tabs_);
     auto* col = new QVBoxLayout(host);
     col->setContentsMargins(2, 2, 2, 2);
     col->setSpacing(2);
@@ -103,7 +113,9 @@ ModuleLibraryPanel::ModuleLibraryPanel(QWidget* parent)
     connect(webModulesLink_, &QPushButton::clicked, this, &ModuleLibraryPanel::webModulesRequested);
     col->addWidget(webModulesLink_, 0, Qt::AlignLeft);
 
-    setWidget(host);
+    tabs_->addTab(host, tr("This computer"));
+    tabs_->setTabToolTip(0, tr("Modules saved as files in a folder on this computer"));
+    setWidget(tabs_);
 
     // Load persisted folder (or default) and populate.
     QSettings s;
@@ -202,6 +214,8 @@ void ModuleLibraryPanel::setCatalogLinkVisible(bool visible) {
     catalogLink_->setVisible(visible);
     webModulesLink_->setVisible(visible);
 }
+
+int ModuleLibraryPanel::addTab(QWidget* page, const QString& label) { return tabs_->addTab(page, label); }
 
 void ModuleLibraryPanel::setParts(parts::PartsLibrary* parts) {
     parts_ = parts;

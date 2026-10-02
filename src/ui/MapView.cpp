@@ -2162,7 +2162,16 @@ bool MapView::dropModuleAt(const QString& bbmPath, QPointF scenePos) {
     if (bbmPath.isEmpty()) return false;
     auto res = saveload::readBbm(bbmPath);
     if (!res.ok()) return false;
-    parts::placement::fixStaleAreas(*res.map, parts_);
+    return placeModule(*res.map, QFileInfo(bbmPath).completeBaseName(), bbmPath, scenePos);
+}
+
+QPointF MapView::viewCentre() const { return mapToScene(viewport()->rect().center()); }
+
+bool MapView::placeModule(core::Map& loaded, const QString& name, const QString& source, QPointF scenePos) {
+    if (!map_) return false;
+    parts::placement::fixStaleAreas(loaded, parts_);
+    // Its pictures first, with the loading card ("Loading part pictures… 3 of 12").
+    if (preloadPictures(loaded)) finishLoading();
     const double px = rendering::SceneBuilder::kPixelsPerStud;
 
     // Build per-layer batches (preserves the module's z-order /
@@ -2172,7 +2181,7 @@ bool MapView::dropModuleAt(const QString& bbmPath, QPointF scenePos) {
     std::vector<edit::ImportBbmAsModuleCommand::LayerBatch> batches;
     QPointF srcCentre; int count = 0;
     QRectF  srcBbox;
-    for (const auto& L : res.map->layers()) {
+    for (const auto& L : loaded.layers()) {
         if (!L || L->kind() != core::LayerKind::Brick) continue;
         edit::ImportBbmAsModuleCommand::LayerBatch batch;
         batch.layerName = L->name.isEmpty() ? QStringLiteral("Module") : L->name;
@@ -2287,9 +2296,8 @@ bool MapView::dropModuleAt(const QString& bbmPath, QPointF scenePos) {
         }
     }
 
-    const QString name = QFileInfo(bbmPath).completeBaseName();
     auto* cmd = new edit::ImportBbmAsModuleCommand(
-        *map_, bbmPath, name, std::move(batches));
+        *map_, source, name, std::move(batches));
     undoStack_->push(cmd);
     const auto placed = cmd->placedBricks();
     // Select every just-placed brick so R / Shift+R rotate the
