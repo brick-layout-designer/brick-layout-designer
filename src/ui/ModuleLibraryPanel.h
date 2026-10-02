@@ -2,11 +2,14 @@
 
 #include <QDockWidget>
 #include <QString>
+#include <QStringList>
 
 class QLabel;
 class QListWidget;
 class QListWidgetItem;
 class QTouchEvent;
+
+namespace bld::parts { class PartsLibrary; }
 
 namespace bld::ui {
 
@@ -30,6 +33,13 @@ public:
     void setLibraryPath(const QString& dir);
     void refresh();
     QListWidget* list() const { return list_; }
+    // With the parts, each module shows its picture (drawn a few at a
+    // time after the list fills, and cached until the file changes).
+    void setParts(parts::PartsLibrary* parts);
+    // Where the pictures are cached (tests); empty: the app's cache folder.
+    void setThumbnailCacheDir(const QString& dir) { thumbCacheDir_ = dir; }
+    // How many rows still wait for their picture.
+    int pendingThumbnails() const { return static_cast<int>(pendingThumbs_.size()); }
 
 signals:
     void moduleImportRequested(const QString& bbmPath);
@@ -51,6 +61,12 @@ private:
     QLabel*      header_ = nullptr;
     QListWidget* list_   = nullptr;
     QString      path_;
+    parts::PartsLibrary* parts_ = nullptr;
+    QString thumbCacheDir_;
+    QStringList pendingThumbs_;  // module paths whose row waits for its picture
+    bool thumbScheduled_ = false;
+    void scheduleThumbnails();
+    void drawNextThumbnail();
     enum class TouchState { None, Undecided, Scroll, Drag };
     TouchState touch_ = TouchState::None;
     QPointF touchStart_;

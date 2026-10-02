@@ -329,6 +329,7 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
     modulesPanel_ = new ModulesPanel(this);
     addDockWidget(Qt::RightDockWidgetArea, modulesPanel_);
     moduleLibraryPanel_ = new ModuleLibraryPanel(this);
+    moduleLibraryPanel_->setParts(&parts_);
     addDockWidget(Qt::RightDockWidgetArea, moduleLibraryPanel_);
     venueLibraryPanel_ = new VenueLibraryPanel(this);
     addDockWidget(Qt::RightDockWidgetArea, venueLibraryPanel_);
