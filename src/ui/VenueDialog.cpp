@@ -1,4 +1,5 @@
 #include "VenueDialog.h"
+#include "ConfirmDialog.h"
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -122,9 +123,13 @@ VenueDialog::VenueDialog(const std::optional<core::Venue>& current, QWidget* par
     });
 
     connect(clearBtn, &QPushButton::clicked, this, [this]{
-        const auto btn = QMessageBox::question(this, tr("Clear venue"),
-            tr("Remove the entire venue from this project?"));
-        if (btn == QMessageBox::Yes) {
+        ConfirmOptions clearVenue;
+        clearVenue.title = tr("Remove the venue from this layout?");
+        clearVenue.removes = tr("The venue’s outline, walls, doors and obstacles leave this layout.");
+        clearVenue.keeps = tr("Your parts stay where they are, and the venue stays in the Venue library if you saved it there.");
+        clearVenue.undo = ConfirmDialog::undoWithCtrlZ();
+        clearVenue.confirmLabel = tr("Remove");
+        if (ConfirmDialog::ask(this, clearVenue)) {
             result_.reset();
             cleared_ = true;
             accept();

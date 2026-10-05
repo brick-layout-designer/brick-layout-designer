@@ -46,7 +46,7 @@ public:
     // Whether the grid shows now (a new view starts with the same).
     void setGridShown(std::function<bool()> f) { gridShown_ = std::move(f); }
     // Asks before deleting; the default is a Yes / No message box.
-    void setConfirm(std::function<bool(const QString& question)> f) { confirm_ = std::move(f); }
+    void setConfirm(std::function<bool(const QString& name)> f) { confirm_ = std::move(f); }
     // Asks for a name (Add view, Rename); the default is an input dialog.
     // Unset means cancelled.
     void setAskName(std::function<std::optional<QString>(const QString& title, const QString& name)> f) {

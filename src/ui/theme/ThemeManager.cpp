@@ -137,6 +137,7 @@ QPushButton { background: @panel; color: @ink; border: 1px solid @border; border
 QPushButton:hover { background: @soft; }
 QPushButton:pressed { background: @line; }
 QPushButton:default, QPushButton[accent="true"] { background: @amain; color: @aon; border-color: @amain; font-weight: 700; }
+QPushButton[danger="true"] { background: @danger; color: @panel; border-color: @danger; font-weight: 700; }
 QPushButton:disabled { color: @muted; background: @soft; border-color: @line; }
 QTabWidget::pane { border: 1px solid @line; border-radius: @rcpx; top: -1px; }
 QTabBar::tab { background: transparent; color: @muted; padding: 6px 14px; margin-right: 2px; border-top-left-radius: 8px; border-top-right-radius: 8px; font-weight: 600; }

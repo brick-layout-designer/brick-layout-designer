@@ -91,6 +91,31 @@ QNetworkReply* ServerApi::put(const QString& path, const QJsonObject& body) {
     return net_.put(req, QJsonDocument(body).toJson(QJsonDocument::Compact));
 }
 
+QNetworkReply* ServerApi::del(const QString& path) {
+    QUrl url = base_;
+    url.setPath(path);
+    QNetworkRequest req(url);
+    req.setHeader(QNetworkRequest::UserAgentHeader, userAgent());
+    if (!token_.isEmpty()) req.setRawHeader("Authorization", "Bearer " + token_.toUtf8());
+    return net_.deleteResource(req);
+}
+
+void ServerApi::deleteAt(const QString& path, const QString& id) {
+    QNetworkReply* r = del(path);
+    connect(r, &QNetworkReply::finished, this, [this, r, id] {
+        r->deleteLater();
+        if (okJson(r, QStringLiteral("delete"))) emit deleted(id);
+    });
+}
+
+void ServerApi::deleteLayout(const QString& id) {
+    deleteAt(QStringLiteral("/api/layouts/") + QString::fromLatin1(QUrl::toPercentEncoding(id)), id);
+}
+
+void ServerApi::deleteVenue(const QString& id) {
+    deleteAt(QStringLiteral("/api/venues/") + QString::fromLatin1(QUrl::toPercentEncoding(id)), id);
+}
+
 void ServerApi::fetchPreferences() {
     QNetworkReply* r = get(QStringLiteral("/api/me/preferences"));
     connect(r, &QNetworkReply::finished, this, [this, r] { onPreferencesReply(r, false); });

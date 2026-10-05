@@ -24,6 +24,7 @@
 #include <QStackedWidget>
 #include <QTreeWidget>
 
+#include <algorithm>
 #include <functional>
 #include <memory>
 
@@ -680,4 +681,71 @@ TEST(ConnectDialog, ManageServersOpensOnceTheClickHasReturned) {
     ASSERT_TRUE(waitFor([&] { return opened == 1; }));
     ASSERT_TRUE(waitFor([&] { return t.serverItem(QStringLiteral("Bob's")) != nullptr; }));
     EXPECT_EQ(t.serverItem(QStringLiteral("Bob's"))->text(0), QStringLiteral("Bob's"));
+}
+
+TEST(ConnectDialog, DeletesALayoutYouOwnAfterAsking) {
+    Harness h;
+    h.tokens.save(h.http.base(), QStringLiteral("bld_pat_saved"));
+    h.http.reply("/api/layouts", 200,
+                 { { QStringLiteral("layouts"), QJsonArray{ layout("L1", "Show 2026", "owner"), layout("L2", "Club table", "editor") } } });
+    h.http.reply("/api/layouts", 200, { { QStringLiteral("layouts"), QJsonArray{ layout("L2", "Club table", "editor") } } });
+    h.http.reply("/api/layouts/L1", 200, { { QStringLiteral("ok"), true } });
+    QStringList asked;
+    bool answer = false;
+    h.dialog.setConfirmDelete([&](const QString& name, bool isLayout) {
+        asked << name;
+        EXPECT_TRUE(isLayout);
+        return answer;
+    });
+    h.dialog.connectToServer();
+    ASSERT_TRUE(waitFor([&] { return h.listed(); }));
+    auto* del = h.dialog.findChild<QPushButton*>(QStringLiteral("deleteItem"));
+    ASSERT_TRUE(del);
+    EXPECT_FALSE(del->isEnabled());
+    // Only the owner deletes a layout.
+    h.list()->setCurrentItem(h.list()->findItems(QStringLiteral("Club table"), Qt::MatchExactly).value(0));
+    EXPECT_FALSE(del->isEnabled());
+    h.list()->setCurrentItem(h.list()->findItems(QStringLiteral("Show 2026"), Qt::MatchExactly).value(0));
+    ASSERT_TRUE(del->isEnabled());
+
+    // Cancel: nothing is sent.
+    const auto deletes = [&] {
+        int n = 0;
+        for (const auto& r : h.http.requests) n += r.method == "DELETE";
+        return n;
+    };
+    del->click();
+    EXPECT_EQ(asked, QStringList{ QStringLiteral("Show 2026") });
+    EXPECT_FALSE(waitFor([&] { return deletes() > 0; }, 400));
+
+    // Delete: the route is called, the list comes back without it.
+    answer = true;
+    del->click();
+    ASSERT_TRUE(waitFor([&] { return h.list()->topLevelItemCount() == 1; }));
+    EXPECT_EQ(deletes(), 1);
+    const auto it = std::find_if(h.http.requests.begin(), h.http.requests.end(), [](const auto& r) { return r.method == "DELETE"; });
+    EXPECT_EQ(it->path, QByteArray("/api/layouts/L1"));
+    EXPECT_EQ(it->authorization, QByteArray("Bearer bld_pat_saved"));
+    EXPECT_EQ(h.message(), QStringLiteral("Deleted “Show 2026”"));
+}
+
+TEST(ConnectDialog, DeletesAVenueAndSaysWhyNot) {
+    Harness h(ConnectDialog::Purpose::DownloadVenues);
+    h.tokens.save(h.http.base(), QStringLiteral("bld_pat_saved"));
+    const QJsonObject hall{ { QStringLiteral("id"), QStringLiteral("V1") }, { QStringLiteral("name"), QStringLiteral("Hall") } };
+    h.http.reply("/api/venues", 200, { { QStringLiteral("venues"), QJsonArray{ hall } } });
+    h.http.reply("/api/orgs", 200, { { QStringLiteral("orgs"), QJsonArray{} } });
+    h.http.reply("/api/venues/V1", 403, { { QStringLiteral("error"), QStringLiteral("forbidden") } });
+    h.dialog.setConfirmDelete([](const QString&, bool isLayout) { return !isLayout; });
+    h.dialog.connectToServer();
+    ASSERT_TRUE(waitFor([&] { return h.listed(); }));
+    h.list()->setCurrentItem(h.list()->topLevelItem(0));
+    auto* del = h.dialog.findChild<QPushButton*>(QStringLiteral("deleteItem"));
+    ASSERT_TRUE(del->isEnabled());
+    del->click();
+    ASSERT_TRUE(waitFor([&] { return h.message().startsWith(QStringLiteral("Could not delete it")); }));
+    EXPECT_EQ(h.http.requests.back().method, QByteArray("DELETE"));
+    EXPECT_EQ(h.http.requests.back().path, QByteArray("/api/venues/V1"));
+    EXPECT_TRUE(del->isEnabled());  // can try again
+    EXPECT_EQ(h.list()->topLevelItemCount(), 1);
 }

@@ -1,4 +1,5 @@
 #include "PartsBrowser.h"
+#include "ConfirmDialog.h"
 #include "LoadingCard.h"
 #include "BudgetSession.h"
 
@@ -311,12 +312,9 @@ void PartsBrowser::showPartMenu(const QPoint& pos) {
         menu.addSeparator();
         auto* del = menu.addAction(tr("Delete imported part..."));
         connect(del, &QAction::triggered, this, [this, key, meta]{
-            const auto btn = QMessageBox::question(this,
-                tr("Delete imported part"),
-                tr("Delete '%1'?\n\nThis removes:\n  %2\n  %3")
-                    .arg(key, meta->xmlFilePath, meta->gifFilePath),
-                QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
-            if (btn != QMessageBox::Yes) return;
+            DeleteWording w = ConfirmDialog::customPartWording();
+            w.removes = tr("The part’s files are deleted from this computer: %1").arg(meta->xmlFilePath);
+            if (!ConfirmDialog::confirmDelete(this, key, w)) return;
             if (!meta->xmlFilePath.isEmpty()) QFile::remove(meta->xmlFilePath);
             if (!meta->gifFilePath.isEmpty()) QFile::remove(meta->gifFilePath);
             // Also clear any sibling files the importer dropped

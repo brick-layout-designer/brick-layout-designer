@@ -224,7 +224,7 @@ TEST(ViewsPanel, DeleteAsksFirst) {
     t.panel.setActiveView(QStringLiteral("view-station"));
     t.panel.openView(QStringLiteral("view-station"));
     t.child<QPushButton>(QStringLiteral("viewDelete"))->click();
-    EXPECT_EQ(asked, QStringLiteral("Delete the view \"Station\"? The layout itself doesn't change."));
+    EXPECT_EQ(asked, QStringLiteral("Station"));
     EXPECT_EQ(t.map->sidecar.views.size(), 2u);
     answer = true;
     t.child<QPushButton>(QStringLiteral("viewDelete"))->click();

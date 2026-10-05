@@ -1,4 +1,5 @@
 #include "ViewsPanel.h"
+#include "ConfirmDialog.h"
 
 #include "SavedViews.h"
 #include "theme/Icons.h"
@@ -257,8 +258,12 @@ ViewsPanel::ViewsPanel(QWidget* parent) : QDockWidget(tr("Views"), parent) {
 
     setWidget(host);
 
-    confirm_ = [this](const QString& q) {
-        return QMessageBox::question(this, tr("Delete view"), q) == QMessageBox::Yes;
+    confirm_ = [this](const QString& name) {
+        DeleteWording w;
+        w.removes = tr("This saved view is deleted.");
+        w.keeps = tr("The layout itself doesn’t change.");
+        w.undo = ConfirmDialog::undoWithCtrlZ();
+        return ConfirmDialog::confirmDelete(this, name, w);
     };
     askName_ = [this](const QString& title, const QString& name) -> std::optional<QString> {
         bool ok = false;
@@ -491,7 +496,7 @@ bool ViewsPanel::deleteView(const QString& id) {
     // Asking runs an event loop, in which the list may change: hold on to
     // the name, not the view.
     const QString name = v->name;
-    if (!confirm_(tr("Delete the view \"%1\"? The layout itself doesn't change.").arg(name))) return false;
+    if (!confirm_(name)) return false;
     if (!find(id)) return false;
     const bool wasActive = id == activeId_;
     std::vector<core::SavedView> next;

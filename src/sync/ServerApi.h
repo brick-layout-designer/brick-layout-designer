@@ -129,6 +129,10 @@ public:
     void publishLayout(const QString& title, const QByteArray& bbm, const QByteArray& sidecarJson,
                        const QString& orgSlug);
     void fetchVenue(const QString& id);
+    // Delete a layout (its owner) or a saved venue (whoever manages it):
+    // deleted(), or requestFailed("delete", …) with the server's reason.
+    void deleteLayout(const QString& id);
+    void deleteVenue(const QString& id);
 
     // The account's app settings (GET / PUT /api/me/preferences; token
     // scope layouts:read or account:prefs to read, account:prefs to save).
@@ -153,6 +157,7 @@ signals:
     void orgsReady(const QList<bld::sync::OrgEntry>& orgs);
     void published(const QString& layoutId, const QString& title);
     void venueReady(const QString& id, const QString& name, const QByteArray& venueFile);
+    void deleted(const QString& id);
     void preferencesReady(const QJsonObject& prefs, const QDateTime& updatedAt);
     void preferencesSaved(const QJsonObject& prefs, const QDateTime& updatedAt);
     void signInCode(const bld::sync::DeviceCode& code);
@@ -168,6 +173,8 @@ private:
     QNetworkReply* get(const QString& path);
     QNetworkReply* post(const QString& path, const QJsonObject& body);
     QNetworkReply* put(const QString& path, const QJsonObject& body);
+    QNetworkReply* del(const QString& path);
+    void deleteAt(const QString& path, const QString& id);
     void onPreferencesReply(QNetworkReply* r, bool saved);
     void pollToken();
     // The reply's JSON when it is a 200; otherwise emits requestFailed(what).

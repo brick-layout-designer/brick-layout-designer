@@ -1,4 +1,5 @@
 #include "VenueLibraryPanel.h"
+#include "ConfirmDialog.h"
 #include "../edit/venue/VenueDesign.h"
 #include "venue/VenueDesignerDialog.h"
 
@@ -295,9 +296,7 @@ void VenueLibraryPanel::onDelete() {
     const QString p = selectedPath();
     if (p.isEmpty()) return;
     const QString name = QFileInfo(p).completeBaseName();
-    const auto btn = QMessageBox::question(this, tr("Delete venue"),
-        tr("Delete \"%1\" from the Venue library?").arg(name));
-    if (btn != QMessageBox::Yes) return;
+    if (!ConfirmDialog::confirmDelete(this, name, ConfirmDialog::venueWording())) return;
     if (!QFile::remove(p)) {
         QMessageBox::warning(this, tr("Delete venue"),
             tr("Could not delete %1.").arg(name));

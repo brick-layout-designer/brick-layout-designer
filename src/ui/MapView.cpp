@@ -1,6 +1,7 @@
 #include "MapView.h"
 #include "../core/ModuleEdit.h"
 #include "../rendering/ModuleLabels.h"
+#include "ConfirmDialog.h"
 #include "LoadingCard.h"
 
 #include "../core/Brick.h"
@@ -2553,10 +2554,13 @@ void MapView::deleteSelected() {
         undoStack_->push(new edit::DeleteAnchoredLabelCommand(*map_, id));
     }
     if (venueSelected) {
-        const auto btn = QMessageBox::question(this, tr("Delete venue"),
-            tr("Remove the entire venue (outline + obstacles)?"),
-            QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
-        if (btn == QMessageBox::Yes) {
+        ConfirmOptions clearVenue;
+        clearVenue.title = tr("Remove the venue from this layout?");
+        clearVenue.removes = tr("The venue’s outline, walls, doors and obstacles leave this layout.");
+        clearVenue.keeps = tr("Your parts stay where they are, and the venue stays in the Venue library if you saved it there.");
+        clearVenue.undo = ConfirmDialog::undoWithCtrlZ();
+        clearVenue.confirmLabel = tr("Remove");
+        if (ConfirmDialog::ask(this, clearVenue)) {
             undoStack_->push(new edit::SetVenueCommand(*map_, std::nullopt));
         }
     }
