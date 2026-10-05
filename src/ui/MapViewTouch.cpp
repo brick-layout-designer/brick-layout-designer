@@ -152,7 +152,7 @@ void MapView::cancelTouchPress() {
     rulerDragStart_.clear();
     labelDragStart_.clear();
     clearGrabAnchor();
-    liveSnapActive_ = false;
+    liveSnapActive_ = false; liveSnapMovingScene_.reset();
     if (draggingRulerEndpoint_) {
         // Its live edit goes back with a release at the press point.
         draggingRulerEndpoint_ = false;
@@ -376,12 +376,14 @@ bool MapView::touchPartDropAt(const QString& partKey, QPoint globalPos) {
     clearDragPreview();
     const QPoint vp = viewport()->mapFromGlobal(globalPos);
     if (!map_ || partKey.isEmpty() || !viewport()->rect().contains(vp)) return false;
-    addPartAtScenePos(partKey, mapToScene(vp));
+    addPartAtScenePos(partKey, mapToScene(vp), &placeSnap_);
     refreshTouchBar();
     return true;
 }
 
 void MapView::touchPartDragCancel() {
+    placeSnap_.reset();
+    moduleSnap_.reset();
     clearDragPreview();
 }
 
@@ -398,7 +400,7 @@ bool MapView::touchModuleDropAt(const QString& bbmPath, QPoint globalPos) {
     clearDragPreview();
     const QPoint vp = viewport()->mapFromGlobal(globalPos);
     if (!map_ || !viewport()->rect().contains(vp)) return false;
-    const bool placed = dropModuleAt(bbmPath, mapToScene(vp));
+    const bool placed = dropModuleAt(bbmPath, mapToScene(vp), &moduleSnap_);
     refreshTouchBar();
     return placed;
 }

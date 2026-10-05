@@ -41,6 +41,7 @@ settings.colour
 settings.largeText
 settings.helpIcons
 settings.tours
+settings.connectionSnap
 room.tools
 room.units
 room.snap

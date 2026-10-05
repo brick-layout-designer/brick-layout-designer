@@ -38,9 +38,10 @@ public:
     ~FlexMove();
 
     // Bend the chain so its end reaches `mouseStuds`, snapping (unless
-    // `snap` is off) to a free connection of another brick nearby. Returns
+    // `snap` is off) to a free connection of another brick within
+    // `reachStuds` (MapView::connectionSnapReachStuds). Returns
     // the snap point if any.
-    std::optional<QPointF> moveTo(QPointF mouseStuds, double gridSnapStuds, bool snap = true);
+    std::optional<QPointF> moveTo(QPointF mouseStuds, double reachStuds, bool snap = true);
 
     struct State { QString guid; float orientation = 0.0f; QRectF area; };
     // The chain's bricks (those the move changes) before the move and now.

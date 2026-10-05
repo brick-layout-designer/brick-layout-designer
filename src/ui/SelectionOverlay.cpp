@@ -6,6 +6,9 @@
 #include <QPainter>
 #include <QPen>
 
+#include <algorithm>
+#include <cmath>
+
 namespace bld::ui {
 
 SelectionOverlay::SelectionOverlay() {
@@ -21,7 +24,7 @@ SelectionOverlay::SelectionOverlay() {
 
 
 void SelectionOverlay::paint(QPainter* p, const QStyleOptionGraphicsItem*, QWidget*) {
-    if (polys_.isEmpty() && bands_.isEmpty()) return;
+    if (polys_.isEmpty() && bands_.isEmpty() && !snapActive_ && !moving_) return;
     p->save();
     p->setRenderHint(QPainter::Antialiasing, true);
     using namespace selection;
@@ -50,11 +53,27 @@ void SelectionOverlay::paint(QPainter* p, const QStyleOptionGraphicsItem*, QWidg
         p->setPen(inner); p->setBrush(fill);        p->drawPolygon(poly);
     }
 
+    // Screen-sized marks: radii are divided by the painter's zoom, pens are cosmetic.
+    const QTransform& wt = p->worldTransform();
+    const double scale = std::max(1e-6, std::hypot(wt.m11(), wt.m12()));
     if (snapActive_) {
-        QPen ring(QColor(20, 180, 80)); ring.setWidthF(3.0); ring.setCosmetic(true);
+        using namespace snapmarks;
+        QPen halo(kHalo); halo.setWidthF(kHaloWidth); halo.setCosmetic(true);
+        p->setPen(halo);
+        p->setBrush(Qt::NoBrush);
+        const double hr = (kRingRadius + kRingWidth) / scale;
+        p->drawEllipse(snapPoint_, hr, hr);
+        QPen ring(kRing); ring.setWidthF(kRingWidth); ring.setCosmetic(true);
         p->setPen(ring);
-        p->setBrush(QColor(80, 255, 120, 80));
-        p->drawEllipse(snapPoint_, 10.0, 10.0);
+        p->setBrush(kRingFill);
+        p->drawEllipse(snapPoint_, kRingRadius / scale, kRingRadius / scale);
+    }
+    if (moving_) {
+        using namespace snapmarks;
+        QPen halo(kHalo); halo.setWidthF(kDotHaloWidth); halo.setCosmetic(true);
+        p->setPen(halo);
+        p->setBrush(kDot);
+        p->drawEllipse(*moving_, kDotRadius / scale, kDotRadius / scale);
     }
     p->restore();
 }
@@ -77,17 +96,26 @@ void SelectionOverlay::setOutlines(QList<QPolygonF> polys) {
                                   : QRectF(b.line.p1(), b.line.p2()).normalized();
         total = total.united(r.adjusted(-b.width, -b.width, b.width, b.width));
     }
-    if (snapActive_)
-        total = total.united(QRectF(snapPoint_ - QPointF(12, 12), QSizeF(24, 24)));
+    total = total.united(marksRect());
     bounds_ = total.isEmpty() ? QRectF() : total.adjusted(-6, -6, 6, 6);
     update();
 }
 
-void SelectionOverlay::setSnapState(bool active, QPointF snapPoint) {
-    prepareGeometryChange();
+void SelectionOverlay::setSnapState(bool active, QPointF snapPoint, std::optional<QPointF> moving, double viewScale) {
     snapActive_ = active;
     snapPoint_  = snapPoint;
-    update();
+    moving_     = moving;
+    viewScale_  = viewScale > 0 ? viewScale : 1.0;
+    setOutlines(polys_);  // bounds take the marks in
+}
+
+QRectF SelectionOverlay::marksRect() const {
+    using namespace selection::snapmarks;
+    const double r = (kRingRadius + kRingWidth + kHaloWidth + 2.0) / viewScale_;
+    QRectF out;
+    if (snapActive_) out = QRectF(snapPoint_ - QPointF(r, r), QSizeF(2 * r, 2 * r));
+    if (moving_) out = out.united(QRectF(*moving_ - QPointF(r, r), QSizeF(2 * r, 2 * r)));
+    return out;
 }
 
 }  // namespace bld::ui

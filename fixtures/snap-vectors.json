@@ -1,0 +1,121 @@
+{
+  "about": "Connection-snap feel cases both apps run (web editor/snapFeel.ts, desktop ui/SnapFeel.h). Same file in both repos: web apps/web/src/editor/test/fixtures/snap-vectors.json, desktop fixtures/snap-vectors.json. A candidate is {m: moving connection, t: target, d: studs apart, c: studs from the cursor}; an expected pick is \"m>t\" or null.",
+  "constants": {
+    "reachScreenPx": 14,
+    "minReachStuds": 0.5,
+    "maxReachStuds": 4,
+    "holdFactor": 1.6,
+    "switchRatio": 0.7,
+    "switchMinStuds": 0.5,
+    "tieStuds": 0.25,
+    "fastPxPerSecond": 1200,
+    "speedSamples": 4,
+    "speedWindowMs": 200,
+    "strength": { "off": 0, "gentle": 1, "strong": 1.6 }
+  },
+  "reach": [
+    { "name": "zoom 1 (8 px a stud)", "pxPerStud": 8, "strength": "gentle", "reach": 1.75 },
+    { "name": "14 px a stud", "pxPerStud": 14, "strength": "gentle", "reach": 1 },
+    { "name": "zoomed out: at most 4 studs", "pxPerStud": 2, "strength": "gentle", "reach": 4 },
+    { "name": "zoomed in: at least half a stud", "pxPerStud": 56, "strength": "gentle", "reach": 0.5 },
+    { "name": "exactly at the bottom limit", "pxPerStud": 28, "strength": "gentle", "reach": 0.5 },
+    { "name": "strong is 1.6x", "pxPerStud": 14, "strength": "strong", "reach": 1.6 },
+    { "name": "strong scales the clamped reach", "pxPerStud": 2, "strength": "strong", "reach": 6.4 },
+    { "name": "off never snaps", "pxPerStud": 14, "strength": "off", "reach": 0 },
+    { "name": "no zoom known: the most", "pxPerStud": 0, "strength": "gentle", "reach": 4 }
+  ],
+  "pick": [
+    { "name": "takes the nearest target within reach", "reach": 1, "lock": null,
+      "candidates": [ { "m": "a#0", "t": "b#0", "d": 0.8, "c": 1 }, { "m": "a#0", "t": "c#0", "d": 0.5, "c": 3 } ],
+      "expect": "a#0>c#0" },
+    { "name": "nothing within reach and nothing held", "reach": 1, "lock": null,
+      "candidates": [ { "m": "a#0", "t": "b#0", "d": 1.2, "c": 1 } ], "expect": null },
+    { "name": "holds inside 1.6x the reach", "reach": 1, "lock": "a#0>b#0",
+      "candidates": [ { "m": "a#0", "t": "b#0", "d": 1.55, "c": 1 } ], "expect": "a#0>b#0" },
+    { "name": "lets go past 1.6x the reach", "reach": 1, "lock": "a#0>b#0",
+      "candidates": [ { "m": "a#0", "t": "b#0", "d": 1.65, "c": 1 } ], "expect": null },
+    { "name": "keeps the held target against a slightly closer one", "reach": 1, "lock": "a#0>b#0",
+      "candidates": [ { "m": "a#0", "t": "b#0", "d": 1.0, "c": 1 }, { "m": "a#0", "t": "c#0", "d": 0.8, "c": 1 } ],
+      "expect": "a#0>b#0" },
+    { "name": "switches to a clearly closer target", "reach": 1, "lock": "a#0>b#0",
+      "candidates": [ { "m": "a#0", "t": "b#0", "d": 1.4, "c": 1 }, { "m": "a#0", "t": "c#0", "d": 0.6, "c": 1 } ],
+      "expect": "a#0>c#0" },
+    { "name": "30% closer is not enough without half a stud", "reach": 1, "lock": "a#0>b#0",
+      "candidates": [ { "m": "a#0", "t": "b#0", "d": 0.5, "c": 1 }, { "m": "a#0", "t": "c#0", "d": 0.1, "c": 1 } ],
+      "expect": "a#0>b#0" },
+    { "name": "half a stud is not enough without 30%", "reach": 4, "lock": "a#0>b#0",
+      "candidates": [ { "m": "a#0", "t": "b#0", "d": 3.0, "c": 1 }, { "m": "a#0", "t": "c#0", "d": 2.4, "c": 1 } ],
+      "expect": "a#0>b#0" },
+    { "name": "switches to another connection of the part that is clearly closer", "reach": 1, "lock": "a#0>b#0",
+      "candidates": [ { "m": "a#0", "t": "b#0", "d": 1.5, "c": 1 }, { "m": "a#1", "t": "c#0", "d": 0.0, "c": 1 } ],
+      "expect": "a#1>c#0" },
+    { "name": "a clearly closer target outside the reach doesn't count", "reach": 1, "lock": "a#0>b#0",
+      "candidates": [ { "m": "a#0", "t": "b#0", "d": 1.55, "c": 1 }, { "m": "a#0", "t": "c#0", "d": 1.05, "c": 1 } ],
+      "expect": "a#0>b#0" },
+    { "name": "level targets go to the connection nearest the cursor", "reach": 1, "lock": null,
+      "candidates": [ { "m": "a#0", "t": "b#0", "d": 0.5, "c": 2 }, { "m": "a#1", "t": "c#0", "d": 0.7, "c": 0.5 } ],
+      "expect": "a#1>c#0" },
+    { "name": "the same pick in the other order", "reach": 1, "lock": null,
+      "candidates": [ { "m": "a#1", "t": "c#0", "d": 0.7, "c": 0.5 }, { "m": "a#0", "t": "b#0", "d": 0.5, "c": 2 } ],
+      "expect": "a#1>c#0" },
+    { "name": "not level: the nearest wins whatever the cursor", "reach": 1, "lock": null,
+      "candidates": [ { "m": "a#0", "t": "b#0", "d": 0.3, "c": 2 }, { "m": "a#1", "t": "c#0", "d": 0.6, "c": 0.1 } ],
+      "expect": "a#0>b#0" },
+    { "name": "an exact tie goes by key order", "reach": 1, "lock": null,
+      "candidates": [ { "m": "a#0", "t": "z#0", "d": 0.5, "c": 1 }, { "m": "a#0", "t": "b#0", "d": 0.5, "c": 1 } ],
+      "expect": "a#0>b#0" },
+    { "name": "a held target stays when another is level", "reach": 1, "lock": "a#0>z#0",
+      "candidates": [ { "m": "a#0", "t": "b#0", "d": 0.5, "c": 1 }, { "m": "a#0", "t": "z#0", "d": 0.5, "c": 1 } ],
+      "expect": "a#0>z#0" },
+    { "name": "fast: no new snap", "reach": 1, "lock": null, "fast": true,
+      "candidates": [ { "m": "a#0", "t": "b#0", "d": 0.2, "c": 1 } ], "expect": null },
+    { "name": "fast: a held snap stays, no switching", "reach": 1, "lock": "a#0>b#0", "fast": true,
+      "candidates": [ { "m": "a#0", "t": "b#0", "d": 1.2, "c": 1 }, { "m": "a#0", "t": "c#0", "d": 0.1, "c": 1 } ],
+      "expect": "a#0>b#0" },
+    { "name": "fast: a held snap still lets go past 1.6x", "reach": 1, "lock": "a#0>b#0", "fast": true,
+      "candidates": [ { "m": "a#0", "t": "b#0", "d": 1.7, "c": 1 } ], "expect": null },
+    { "name": "Alt: no connection snap at all", "reach": 1, "lock": "a#0>b#0", "bypass": true,
+      "candidates": [ { "m": "a#0", "t": "b#0", "d": 0.1, "c": 1 } ], "expect": null },
+    { "name": "off: reach 0 never snaps", "reach": 0, "lock": null,
+      "candidates": [ { "m": "a#0", "t": "b#0", "d": 0, "c": 1 } ], "expect": null },
+    { "name": "strong reach takes what gentle would not", "reach": 1.6, "lock": null,
+      "candidates": [ { "m": "a#0", "t": "b#0", "d": 1.5, "c": 1 } ], "expect": "a#0>b#0" }
+  ],
+  "speed": [
+    { "name": "1000 px/s is slow", "samples": [[0, 0, 0], [10, 0, 10], [20, 0, 20], [30, 0, 30], [40, 0, 40]], "speed": 1000, "fast": false },
+    { "name": "2000 px/s is fast", "samples": [[0, 0, 0], [20, 0, 10], [40, 0, 20], [60, 0, 30], [80, 0, 40]], "speed": 2000, "fast": true },
+    { "name": "diagonal moves count their length", "samples": [[0, 0, 0], [30, 40, 25]], "speed": 2000, "fast": true },
+    { "name": "only the last four moves count", "samples": [[0, 0, 0], [500, 0, 5], [510, 0, 15], [520, 0, 25], [530, 0, 35], [540, 0, 45]], "speed": 1000, "fast": false },
+    { "name": "a pause forgets the earlier moves", "samples": [[0, 0, 0], [100, 0, 10], [101, 0, 400]], "speed": 0, "fast": false },
+    { "name": "one move is no speed", "samples": [[5, 5, 100]], "speed": 0, "fast": false }
+  ],
+  "session": [
+    { "name": "a fast drag snaps on the drop", "reach": 1, "frames": [
+      { "samples": [[0, 0, 0], [40, 0, 10], [80, 0, 20]], "candidates": [ { "m": "a#0", "t": "b#0", "d": 0.3, "c": 1 } ], "expect": null },
+      { "final": true, "candidates": [ { "m": "a#0", "t": "b#0", "d": 0.3, "c": 1 } ], "expect": "a#0>b#0" }
+    ] },
+    { "name": "a fast drag snaps once it slows down", "reach": 1, "frames": [
+      { "samples": [[0, 0, 0], [40, 0, 10], [80, 0, 20]], "candidates": [ { "m": "a#0", "t": "b#0", "d": 0.3, "c": 1 } ], "expect": null },
+      { "samples": [[80, 0, 300], [82, 0, 316]], "candidates": [ { "m": "a#0", "t": "b#0", "d": 0.3, "c": 1 } ], "expect": "a#0>b#0" }
+    ] },
+    { "name": "held while moving away, let go past 1.6x, not caught again until within reach", "reach": 1, "frames": [
+      { "candidates": [ { "m": "a#0", "t": "b#0", "d": 0.9, "c": 1 } ], "expect": "a#0>b#0" },
+      { "candidates": [ { "m": "a#0", "t": "b#0", "d": 1.5, "c": 1 } ], "expect": "a#0>b#0" },
+      { "candidates": [ { "m": "a#0", "t": "b#0", "d": 1.62, "c": 1 } ], "expect": null },
+      { "candidates": [ { "m": "a#0", "t": "b#0", "d": 1.5, "c": 1 } ], "expect": null },
+      { "candidates": [ { "m": "a#0", "t": "b#0", "d": 1.0, "c": 1 } ], "expect": "a#0>b#0" }
+    ] },
+    { "name": "no flicker between two level targets", "reach": 2, "frames": [
+      { "candidates": [ { "m": "a#0", "t": "b#0", "d": 1.0, "c": 1 }, { "m": "a#0", "t": "c#0", "d": 1.1, "c": 1 } ], "expect": "a#0>b#0" },
+      { "candidates": [ { "m": "a#0", "t": "b#0", "d": 1.1, "c": 1 }, { "m": "a#0", "t": "c#0", "d": 1.0, "c": 1 } ], "expect": "a#0>b#0" },
+      { "candidates": [ { "m": "a#0", "t": "b#0", "d": 1.0, "c": 1 }, { "m": "a#0", "t": "c#0", "d": 0.9, "c": 1 } ], "expect": "a#0>b#0" },
+      { "candidates": [ { "m": "a#0", "t": "b#0", "d": 1.6, "c": 1 }, { "m": "a#0", "t": "c#0", "d": 0.4, "c": 1 } ], "expect": "a#0>c#0" }
+    ] },
+    { "name": "Alt drops the snap; letting go of Alt can snap again", "reach": 1, "frames": [
+      { "candidates": [ { "m": "a#0", "t": "b#0", "d": 0.2, "c": 1 } ], "expect": "a#0>b#0" },
+      { "bypass": true, "candidates": [ { "m": "a#0", "t": "b#0", "d": 0.2, "c": 1 } ], "expect": null },
+      { "bypass": true, "final": true, "candidates": [ { "m": "a#0", "t": "b#0", "d": 0.2, "c": 1 } ], "expect": null },
+      { "candidates": [ { "m": "a#0", "t": "b#0", "d": 0.2, "c": 1 } ], "expect": "a#0>b#0" }
+    ] }
+  ]
+}

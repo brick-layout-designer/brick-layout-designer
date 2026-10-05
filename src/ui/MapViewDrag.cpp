@@ -23,8 +23,14 @@
 #include "../rendering/SceneBuilder.h"
 #include "ConnectionSnap.h"
 #include "MapViewInternal.h"
+#include "SelectionOverlay.h"
+#include "theme/AppPrefs.h"
 
+#include <QElapsedTimer>
 #include <QGraphicsItem>
+#include <QGuiApplication>
+#include <QTimer>
+#include <QTransform>
 #include <QGraphicsScene>
 #include <QStatusBar>
 #include <QUndoStack>
@@ -43,12 +49,6 @@ using detail::isLabelItem;
 using detail::studToPx;
 
 namespace {
-
-QPointF rotatePoint(QPointF p, double degrees) {
-    const double r = degrees * M_PI / 180.0;
-    const double c = std::cos(r), s = std::sin(r);
-    return { p.x() * c - p.y() * s, p.x() * s + p.y() * c };
-}
 
 // Locate a brick by (layer index, guid). O(bricks in that layer).
 const core::Brick* findBrick(const core::Map& map, int layerIndex, const QString& guid) {
@@ -124,6 +124,7 @@ std::vector<MapView::BrickOriginSnapshot> MapView::selectedBrickSnapshots() cons
 
 void MapView::captureDragStart() {
     dragStart_ = selectedBrickSnapshots();
+    dragSnap_.reset();
     rulerDragStart_.clear();
     labelDragStart_.clear();
     if (!map_) return;
@@ -223,23 +224,48 @@ void MapView::clearGrabAnchor() {
     grabActiveConnIdx_   = -1;
 }
 
-double MapView::connectionSnapThresholdStuds() const {
-    // Snap distance = user's grid-snap step + 2 studs of grace. Rule:
-    // connections should engage a little BEFORE the grid step finalises
-    // positioning — otherwise the user lands exactly one grid cell off
-    // and has to nudge to make the snap fire. The +2 gives just enough
-    // "magnetic reach" without pulling connections across the map.
-    //
-    // When the grid step is disabled (0), fall back to a 4-stud reach
-    // — half a brick unit — so freehand placements still snap when the
-    // user drags roughly into the right spot.
-    if (snapStepStuds_ <= 0.0) return 4.0;
-    return snapStepStuds_ + 2.0;
+double MapView::connectionSnapReachStuds() const {
+    // Screen px per stud: the view's zoom times the scene's px per stud.
+    const QTransform& t = transform();
+    const double zoom = std::hypot(t.m11(), t.m12());
+    const auto strength = snapfeel::strengthFromId(theme::PrefsStore::instance().prefs().connectionSnap)
+                              .value_or(snapfeel::Strength::Gentle);
+    return snapfeel::reachStuds(zoom * studToPx(), strength);
+}
+
+bool MapView::snapBypassed() const {
+    // Alt on Windows / Linux; Option on a Mac (Qt calls it Alt there too),
+    // as the latest pointer or drag event had it.
+    return snapMods_.testFlag(Qt::AltModifier);
+}
+
+double MapView::snapClockMs() const {
+    static QElapsedTimer clock;
+    if (!clock.isValid()) clock.start();
+    return static_cast<double>(clock.nsecsElapsed()) / 1e6;
+}
+
+void MapView::sampleSnapSpeed(snapfeel::Session& session, QPointF vp) const {
+    session.sample(vp.x(), vp.y(), snapClockMs());
+}
+
+void MapView::setSnapMarks(bool active, QPointF ringScene, std::optional<QPointF> movingScene) {
+    const bool changed = active != liveSnapActive_ || (active && ringScene != liveSnapPointScene_)
+                         || movingScene != liveSnapMovingScene_;
+    liveSnapActive_ = active;
+    if (active) liveSnapPointScene_ = ringScene;
+    liveSnapMovingScene_ = movingScene;
+    if (!changed) return;
+    if (auto* ov = static_cast<SelectionOverlay*>(selectionOverlay_)) {
+        const QTransform& t = transform();
+        ov->setSnapState(liveSnapActive_, liveSnapPointScene_, liveSnapMovingScene_, std::hypot(t.m11(), t.m12()));
+    }
+    viewport()->update();
 }
 
 void MapView::applyLiveConnectionSnap() {
     if (!map_ || dragStart_.empty()) {
-        if (liveSnapActive_) { liveSnapActive_ = false; viewport()->update(); }
+        setSnapMarks(false, {}, std::nullopt);
         return;
     }
 
@@ -248,22 +274,13 @@ void MapView::applyLiveConnectionSnap() {
                              lastMouseScenePos_.y() / px);
     QSet<QString> movingGuids;
     for (const auto& s : dragStart_) movingGuids.insert(s.guid);
-    const double threshold = connectionSnapThresholdStuds();
+    const double reach = connectionSnapReachStuds();
+    const bool bypass = snapBypassed();
 
-    // Collect every free connection across every moving brick, tagged with
-    // its CURRENT world position (factoring in Qt's drag translation) and
-    // its distance to the cursor. The one nearest the cursor is the
-    // "lead" the user wants to snap — that matches their intuition of
-    // "the connection I'm dragging toward".
-    struct FreeConn {
-        const core::Brick* brick;
-        const BrickOriginSnapshot* snap;
-        int connIdx;
-        QPointF worldPos;
-        double mouseDistSq;
-    };
-    std::vector<FreeConn> free;
-
+    // Every free connection across every moving brick, where the pointer
+    // has it (Qt has just put each item at press position + mouse delta).
+    std::vector<MovingConn> moving;
+    int grabbed = -1;  // the grab anchor's entry, if free
     for (const auto& s : dragStart_) {
         if (!s.item) continue;
         const auto* b = findBrick(*map_, s.layerIndex, s.guid);
@@ -281,56 +298,32 @@ void MapView::applyLiveConnectionSnap() {
             if (c.type.isEmpty()) continue;
             if (i < static_cast<int>(b->connections.size()) &&
                 !b->connections[i].linkedToId.isEmpty()) continue;
-            FreeConn fc;
-            fc.brick = b;
-            fc.snap = &s;
-            fc.connIdx = i;
-            fc.worldPos = centerStuds + rotatePoint(c.position, b->orientation);
-            const QPointF d = fc.worldPos - mouseStuds;
-            fc.mouseDistSq = d.x() * d.x() + d.y() * d.y();
-            free.push_back(fc);
+            const QPointF world = centerStuds + rotatePoint(c.position, b->orientation);
+            const QPointF d = world - mouseStuds;
+            if (s.guid == grabBrickGuid_ && i == grabActiveConnIdx_) grabbed = static_cast<int>(moving.size());
+            moving.push_back({ connKey(s.guid, i), c.type, world, std::hypot(d.x(), d.y()) });
         }
     }
 
-    // Try EVERY free moving conn. Pick the pair with the smallest
-    // conn-to-target distance. Mouse proximity is a tiebreaker when two
-    // candidates have near-equal translations — this lets the user's
-    // cursor position nudge the choice among otherwise-equal snaps, but
-    // doesn't bail out on the first mouse-nearest conn that happens to
-    // have a mediocre target.
-    ConnectionSnapResult best;
-    int bestConnIdx = -1;
-    const core::Brick* bestBrick = nullptr;
-    const BrickOriginSnapshot* bestSnap = nullptr;
-    double bestTranslationSq = std::numeric_limits<double>::max();
-    double bestMouseDistSq   = std::numeric_limits<double>::max();
-    constexpr double kTieStudsSq = 4.0 * 4.0;   // within 4 studs = "tied"
+    const auto targets = reach > 0.0 && !bypass && !moving.empty()
+                             ? freeTargets(*map_, parts_, movingGuids)
+                             : std::vector<FreeTarget>{};
+    const SnapPick best = pickConnectionSnap(moving, targets, reach, &dragSnap_, bypass, false);
 
-    for (const auto& fc : free) {
-        const QPointF centerPx = fc.snap->item->scenePos();
-        const QPointF centerStuds = QPointF(centerPx.x() / px, centerPx.y() / px)
-                                  + parts_.imageOffset(fc.brick->partNumber, fc.brick->orientation);
-        auto r = ::bld::ui::masterBrickSnap(*map_, parts_, *fc.brick, centerStuds,
-                                            fc.connIdx, movingGuids, threshold);
-        if (!r.applied) continue;
-        const double magSq = r.translationStuds.x() * r.translationStuds.x()
-                           + r.translationStuds.y() * r.translationStuds.y();
-        bool take = false;
-        if (magSq + kTieStudsSq < bestTranslationSq) {
-            take = true;
-        } else if (std::abs(magSq - bestTranslationSq) <= kTieStudsSq
-                   && fc.mouseDistSq < bestMouseDistSq) {
-            take = true;
-        }
-        if (take) {
-            bestTranslationSq = magSq;
-            bestMouseDistSq   = fc.mouseDistSq;
-            best = r;
-            bestConnIdx = fc.connIdx;
-            bestBrick = fc.brick;
-            bestSnap = fc.snap;
-        }
+    // A fast drag that stops dead gets no more moves: snap shortly after.
+    if (!snapSettle_) {
+        snapSettle_ = new QTimer(this);
+        snapSettle_->setSingleShot(true);
+        connect(snapSettle_, &QTimer::timeout, this, [this] {
+            if (dragStart_.empty() || !(QGuiApplication::mouseButtons() & Qt::LeftButton)) return;
+            // Still where it was: a still sample slows the speed.
+            if (dragSnap_.meter.hasSamples())
+                dragSnap_.sample(dragSnap_.meter.lastX(), dragSnap_.meter.lastY(), snapClockMs());
+            applyLiveConnectionSnap();
+        });
     }
+    snapSettle_->stop();
+    if (!best.applied() && dragSnap_.meter.isFast()) snapSettle_->start(snapfeel::kSettleMs);
 
     // Status-bar diagnostic so the user can tell WHY snap did or didn't
     // fire. Shown only when live dragging; cleared by commitDragIfMoved
@@ -341,25 +334,31 @@ void MapView::applyLiveConnectionSnap() {
                 sb->showMessage(msg, 1500);
     };
 
-    if (!best.applied || !bestBrick || !bestSnap) {
-        // No connection snap available (e.g., dragging parts without
-        // connection points like Tables, or nothing within threshold).
-        // Fall back to live grid snap so the group still tracks the grid
-        // while dragging. Single-brick live drags already get grid snap
-        // via SnappingPixmap::itemChange; this covers the multi-brick
-        // case where that per-item snap is deliberately disabled.
+    // The connection to mark: the grab anchor, else the free one nearest
+    // the cursor.
+    int shown = grabbed;
+    if (shown < 0)
+        for (int i = 0; i < static_cast<int>(moving.size()); ++i)
+            if (shown < 0 || moving[i].mouseDist < moving[shown].mouseDist) shown = i;
+
+    if (!best.applied()) {
+        // No connection snap (parts without connection points like Tables,
+        // nothing within reach, Alt held, or a fast drag). Fall back to
+        // live grid snap so the group still tracks the grid while
+        // dragging. Single-brick live drags already get grid snap via
+        // SnappingPixmap::itemChange; this covers the multi-brick case
+        // where that per-item snap is deliberately disabled.
+        QPointF gridShiftStuds;
         if (snapStepStuds_ > 0.0 && dragStart_.size() > 1) {
             const auto& anchor = dragStart_.front();
             if (anchor.item) {
-                const double px2 = px;  // readability
                 const QPointF anchorCenterPx = anchor.item->scenePos();
-                const QPointF anchorCenterStuds(anchorCenterPx.x() / px2,
-                                                anchorCenterPx.y() / px2);
+                const QPointF anchorCenterStuds(anchorCenterPx.x() / px, anchorCenterPx.y() / px);
                 const QPointF snapped(
                     std::round(anchorCenterStuds.x() / snapStepStuds_) * snapStepStuds_,
                     std::round(anchorCenterStuds.y() / snapStepStuds_) * snapStepStuds_);
-                const QPointF shiftStuds = snapped - anchorCenterStuds;
-                const QPointF shiftPxGrid(shiftStuds.x() * px2, shiftStuds.y() * px2);
+                gridShiftStuds = snapped - anchorCenterStuds;
+                const QPointF shiftPxGrid(gridShiftStuds.x() * px, gridShiftStuds.y() * px);
                 if (std::abs(shiftPxGrid.x()) > 0.01 || std::abs(shiftPxGrid.y()) > 0.01) {
                     rendering::SceneBuilder::setSuppressItemSnap(true);
                     for (const auto& s : dragStart_) {
@@ -370,26 +369,29 @@ void MapView::applyLiveConnectionSnap() {
                 }
             }
         }
-        // Diagnose *why* no connection snap fired: free-conn count,
-        // threshold, and whether any target of matching type exists.
-        if (free.empty()) {
+        if (moving.empty()) {
             statusHint(tr("Connection snap: no free connections in selection"));
+        } else if (bypass) {
+            statusHint(tr("Connection snap: off while Alt is held"));
         } else {
             statusHint(tr("Connection snap: %1 moving conn(s), no target within %2 studs")
-                .arg(free.size()).arg(threshold, 0, 'f', 0));
+                .arg(moving.size()).arg(reach, 0, 'f', 1));
         }
-        if (liveSnapActive_) { liveSnapActive_ = false; viewport()->update(); }
+        std::optional<QPointF> dot;
+        if (shown >= 0) dot = (moving[shown].world + gridShiftStuds) * px;
+        setSnapMarks(false, {}, dot);
         return;
     }
 
     statusHint(tr("Connection snap active (%1 candidate conn(s))")
-               .arg(free.size()));
+               .arg(moving.size()));
 
     // Shift every dragged item by the same translation. Suppress the
     // per-item grid-snap itemChange for this pass so our connection
     // alignment survives the setPos round-trip.
-    const QPointF shiftPx(best.translationStuds.x() * px,
-                          best.translationStuds.y() * px);
+    const QPointF target = targets[best.target].world;
+    const QPointF shift = target - moving[best.moving].world;
+    const QPointF shiftPx(shift.x() * px, shift.y() * px);
     if (std::abs(shiftPx.x()) > 0.01 || std::abs(shiftPx.y()) > 0.01) {
         rendering::SceneBuilder::setSuppressItemSnap(true);
         for (const auto& s : dragStart_) {
@@ -398,24 +400,12 @@ void MapView::applyLiveConnectionSnap() {
         }
         rendering::SceneBuilder::setSuppressItemSnap(false);
     }
-
-    // Draw the snap ring at the active connection's post-snap world pos.
-    if (auto meta = parts_.metadata(bestBrick->partNumber);
-        meta && bestConnIdx >= 0 && bestConnIdx < meta->connections.size()) {
-        const auto& ac = meta->connections[bestConnIdx];
-        const QPointF centerPx = bestSnap->item->scenePos() + shiftPx;
-        const QPointF centerStuds = QPointF(centerPx.x() / px, centerPx.y() / px)
-                                  + parts_.imageOffset(bestBrick->partNumber, bestBrick->orientation);
-        const QPointF activeConnWorldAfter =
-            centerStuds + rotatePoint(ac.position, bestBrick->orientation);
-        liveSnapPointScene_ = QPointF(activeConnWorldAfter.x() * px,
-                                      activeConnWorldAfter.y() * px);
-    }
-    liveSnapActive_ = true;
-    viewport()->update();
+    // The ring on the target; the joined connection's dot inside it.
+    setSnapMarks(true, target * px, target * px);
 }
 
 void MapView::commitDragIfMoved() {
+    if (snapSettle_) snapSettle_->stop();
     if (!map_) return;
 
     // Rulers and labels first: push Move* commands based on scene-pos
@@ -494,16 +484,16 @@ void MapView::commitDragIfMoved() {
                                  lastMouseScenePos_.y() / px);
         QSet<QString> movingGuids;
         for (const auto& e : entries) movingGuids.insert(e.ref.guid);
-        const double threshold = connectionSnapThresholdStuds();
+        const double reach = connectionSnapReachStuds();
+        const bool bypass = snapBypassed();
 
         struct FreeConn {
             const core::Brick* brick;
             int connIdx;
-            QPointF worldPos;
             QPointF centerStuds;
-            double mouseDistSq;
         };
         std::vector<FreeConn> free;
+        std::vector<MovingConn> moving;
 
         for (const auto& e : entries) {
             const auto* b = findBrick(*map_, e.ref.layerIndex, e.ref.guid);
@@ -520,42 +510,40 @@ void MapView::commitDragIfMoved() {
                 if (c.type.isEmpty()) continue;
                 if (i < static_cast<int>(b->connections.size()) &&
                     !b->connections[i].linkedToId.isEmpty()) continue;
-                FreeConn fc;
-                fc.brick = b;
-                fc.connIdx = i;
-                fc.centerStuds = centerStuds;
-                fc.worldPos = centerStuds + rotatePoint(c.position, b->orientation);
-                const QPointF d = fc.worldPos - mouseStuds;
-                fc.mouseDistSq = d.x() * d.x() + d.y() * d.y();
-                free.push_back(fc);
+                const QPointF world = centerStuds + rotatePoint(c.position, b->orientation);
+                const QPointF d = world - mouseStuds;
+                free.push_back({ b, i, centerStuds });
+                moving.push_back({ connKey(b->guid, i), c.type, world, std::hypot(d.x(), d.y()) });
             }
         }
 
-        ConnectionSnapResult best;
-        const core::Brick* bestBrick = nullptr;
-        double bestTranslationSq = std::numeric_limits<double>::max();
-        double bestMouseDistSq   = std::numeric_limits<double>::max();
-        constexpr double kTieStudsSq = 4.0 * 4.0;
+        // The drop: one last snap at the normal reach, keeping the join the
+        // drag held (a fast drag's held-back snap happens now).
+        const auto targets = reach > 0.0 && !bypass && !moving.empty()
+                                 ? freeTargets(*map_, parts_, movingGuids)
+                                 : std::vector<FreeTarget>{};
+        const SnapPick pick = pickConnectionSnap(moving, targets, reach, &dragSnap_, bypass, true);
+        dragSnap_.reset();
 
-        for (const auto& fc : free) {
-            auto r = ::bld::ui::masterBrickSnap(*map_, parts_, *fc.brick, fc.centerStuds,
-                                                fc.connIdx, movingGuids, threshold);
-            if (!r.applied) continue;
-            const double magSq = r.translationStuds.x() * r.translationStuds.x()
-                               + r.translationStuds.y() * r.translationStuds.y();
-            bool take = false;
-            if (magSq + kTieStudsSq < bestTranslationSq) {
-                take = true;
-            } else if (std::abs(magSq - bestTranslationSq) <= kTieStudsSq
-                       && fc.mouseDistSq < bestMouseDistSq) {
-                take = true;
-            }
-            if (take) {
-                bestTranslationSq = magSq;
-                bestMouseDistSq   = fc.mouseDistSq;
-                best = r;
-                bestBrick = fc.brick;
-            }
+        struct Best {
+            bool applied = false;
+            QPointF translationStuds;
+            QPointF rotationAlignedTranslationStuds;
+            std::optional<float> newOrientation;
+        } best;
+        const core::Brick* bestBrick = nullptr;
+        if (pick.applied()) {
+            const FreeConn& fc = free[pick.moving];
+            const FreeTarget& tc = targets[pick.target];
+            const auto meta = parts_.metadata(fc.brick->partNumber);
+            const auto& ac = meta->connections[fc.connIdx];
+            best.applied = true;
+            best.translationStuds = tc.world - moving[pick.moving].world;
+            const double newOrient = facingOrientation(tc.angle, ac.angleDegrees);
+            const QPointF newCenter = tc.world - rotatePoint(ac.position, newOrient);
+            best.rotationAlignedTranslationStuds = newCenter - fc.centerStuds;
+            best.newOrientation = static_cast<float>(newOrient);
+            bestBrick = fc.brick;
         }
 
         if (best.applied && bestBrick) {

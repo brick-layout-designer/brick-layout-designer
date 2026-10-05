@@ -9,6 +9,8 @@
 #include <QPolygonF>
 #include <QRectF>
 
+#include <optional>
+
 namespace bld::ui {
 
 // Persistent scene item that paints the selection outline around every
@@ -21,6 +23,9 @@ namespace bld::ui {
 //   * Live-snap: black + green double stroke, translucent green fill, plus
 //     a ring drawn at the snap point so the user sees exactly where the
 //     connection lock happened.
+// While dragging, an amber dot also marks the moving connection that
+// joins (or would join). Ring and dot are screen-sized (SelectionStyle.h
+// snapmarks), the same at any zoom.
 class SelectionOverlay : public QGraphicsItem {
 public:
     SelectionOverlay();
@@ -42,7 +47,10 @@ public:
         double width = 0;  // scene px
     };
     void setRulerBands(QList<RulerBand> bands);
-    void setSnapState(bool active, QPointF snapPoint);
+    // `moving`: the moving connection to mark, if any. `viewScale`: the
+    // view's zoom (screen px per scene px), to size the marks' bounds.
+    void setSnapState(bool active, QPointF snapPoint, std::optional<QPointF> moving = std::nullopt,
+                      double viewScale = 1.0);
 
 private:
     QList<QPolygonF> polys_;
@@ -50,6 +58,9 @@ private:
     QRectF  bounds_;
     bool    snapActive_ = false;
     QPointF snapPoint_;
+    std::optional<QPointF> moving_;
+    double  viewScale_ = 1.0;
+    QRectF  marksRect() const;
 };
 
 }  // namespace bld::ui

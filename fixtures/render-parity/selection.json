@@ -36,5 +36,17 @@
       "stroke": "rgb(20,20,20)",
       "strokeWidth": 1.5
     }
+  },
+  "snap": {
+    "about": "Connection-snap marks while dragging, in screen px at any zoom: a green ring on the target connection and an amber dot on the moving connection that joins.",
+    "ring": "rgb(22,163,74)",
+    "ringRadius": 9,
+    "ringWidth": 2.5,
+    "ringFill": "rgba(34,197,94,0.2)",
+    "halo": "rgba(255,255,255,0.8)",
+    "haloWidth": 1.5,
+    "dot": "rgb(245,158,11)",
+    "dotRadius": 4,
+    "dotHaloWidth": 1.5
   }
 }

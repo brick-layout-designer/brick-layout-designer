@@ -328,7 +328,8 @@ void MapView::refreshSelectionOverlay() {
         it->setGraphicsEffect(effect);
     }
     auto* ov = static_cast<SelectionOverlay*>(selectionOverlay_);
-    ov->setSnapState(liveSnapActive_, liveSnapPointScene_);
+    ov->setSnapState(liveSnapActive_, liveSnapPointScene_, liveSnapMovingScene_,
+                     std::hypot(transform().m11(), transform().m12()));
     ov->setOutlines(std::move(polys));
     ov->setRulerBands(std::move(bands));
 }

@@ -28,6 +28,7 @@ add_executable(bld_ui_tests
     TouchTest.cpp
     PartsIconSizeTest.cpp
     UiWordingTest.cpp
+    SnapFeelTest.cpp
 )
 
 target_compile_definitions(bld_ui_tests PRIVATE
