@@ -376,6 +376,20 @@ TEST_F(Tours, TheWelcomeOffersThreeWaysIn) {
     EXPECT_EQ(other.choice(), tours::WelcomeDialog::Choice::None);
 }
 
+TEST_F(Tours, TheWelcomeOffersAServerWhileThereIsNone) {
+    tours::WelcomeDialog dlg;
+    dlg.show();
+    auto* card = dlg.findChild<QAbstractButton*>(QStringLiteral("WelcomeConnect"));
+    ASSERT_NE(card, nullptr);
+    EXPECT_FALSE(card->isVisible());  // only when asked
+    dlg.setServerCardVisible(true);
+    EXPECT_TRUE(card->isVisible());
+    EXPECT_EQ(card->accessibleName(), QStringLiteral("Connect to a server"));
+    card->click();
+    EXPECT_EQ(dlg.choice(), tours::WelcomeDialog::Choice::Server);
+    EXPECT_EQ(dlg.result(), QDialog::Accepted);
+}
+
 TEST_F(Tours, StartOrOpenOffersANewLayoutAFileOrAServer) {
     const struct {
         const char* button;

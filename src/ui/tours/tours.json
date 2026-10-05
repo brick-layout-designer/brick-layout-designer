@@ -22,6 +22,7 @@
         { "target": "panel.sheets", "title": "Sheets", "text": "A layout is built on sheets, like see-through pages. Hide one to see what is under it." },
         { "target": "map", "title": "Place and move", "text": "Click a piece to pick it, then drag it to move it. Drag a box around pieces to pick several." },
         { "target": "topbar.saveStatus", "title": "Saving and live sync", "text": "This shows whether your changes are saved. In a shared layout, everyone's changes appear live." },
+        { "target": "servers.status", "title": "Your server", "text": "This shows whether you are connected to your club's server. Click it to add a server or sign in." },
         { "target": "share.picture", "title": "Share a picture", "text": "Make a picture of your layout to post, print or send to your club." },
         { "target": "help.menu", "title": "Help is always here", "text": "Click a ? for a quick tip. The Help menu has the other tours and all help topics." }
       ]

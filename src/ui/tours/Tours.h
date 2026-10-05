@@ -156,9 +156,12 @@ public:
     enum class Choice { None, NewLayout, OpenFile, Server, Club, Tour };
     explicit WelcomeDialog(QWidget* parent = nullptr);
     Choice choice() const { return choice_; }
+    // "Connect to a server", a card of its own while no server is set up.
+    void setServerCardVisible(bool on);
 
 private:
     Choice choice_ = Choice::None;
+    QWidget* serverCard_ = nullptr;
 };
 
 }  // namespace bld::ui::tours

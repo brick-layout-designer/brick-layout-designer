@@ -22,6 +22,7 @@
 #include "theme/Icons.h"
 #include "theme/PanelHeader.h"
 #include "PrefsSync.h"
+#include "ServerList.h"
 
 #include "../core/Layer.h"
 #include "../core/LayerBrick.h"
@@ -468,6 +469,7 @@ void MainWindow::openSettings() {
                           [this](const QString& id) {
                               QTimer::singleShot(0, this, [this, id] { startTourNamed(id); });
                           });
+    dialog.setManageServers([this] { onManageServers(); });
     dialog.exec();
 }
 
@@ -493,6 +495,8 @@ void MainWindow::showWelcomeIfNew() {
     const QString id = tours::catalogue().welcome.id;
     if (id.isEmpty() || tours::seen(store, id)) return;
     tours::WelcomeDialog welcome(this);
+    // No server set up yet: offer one up front.
+    welcome.setServerCardVisible(sync::ServerList::load().servers().isEmpty());
     welcome.exec();
     tours::markSeen(store, id);
     switch (welcome.choice()) {

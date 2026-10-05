@@ -33,6 +33,8 @@ const char* const kStrings[] = {
     QT_TRANSLATE_NOOP("Tours", "Click a piece to pick it, then drag it to move it. Drag a box around pieces to pick several."),
     QT_TRANSLATE_NOOP("Tours", "Saving and live sync"),
     QT_TRANSLATE_NOOP("Tours", "This shows whether your changes are saved. In a shared layout, everyone's changes appear live."),
+    QT_TRANSLATE_NOOP("Tours", "Your server"),
+    QT_TRANSLATE_NOOP("Tours", "This shows whether you are connected to your club's server. Click it to add a server or sign in."),
     QT_TRANSLATE_NOOP("Tours", "Share a picture"),
     QT_TRANSLATE_NOOP("Tours", "Make a picture of your layout to post, print or send to your club."),
     QT_TRANSLATE_NOOP("Tours", "Help is always here"),
