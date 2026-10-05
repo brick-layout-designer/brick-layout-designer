@@ -133,6 +133,19 @@ protected:
 
 }  // namespace
 
+TEST_F(MainWindowFile, AboutLinksToTheSourceOfBothApps) {
+    QString text;
+    QTimer::singleShot(0, [&] {
+        if (auto* box = qobject_cast<QMessageBox*>(QApplication::activeModalWidget())) {
+            text = box->text();
+            box->accept();
+        }
+    });
+    QMetaObject::invokeMethod(window_.get(), "onAbout", Qt::DirectConnection);
+    EXPECT_TRUE(text.contains(QStringLiteral("https://github.com/brick-layout-designer/brick-layout-designer\"")));
+    EXPECT_TRUE(text.contains(QStringLiteral("https://github.com/brick-layout-designer/collaborative-brick-layout-designer\"")));
+}
+
 TEST_F(MainWindowFile, SavingABbmOffersTheOneFileFormat) {
     ASSERT_TRUE(window_->openFile(bbm_));
     const QString native = dir_.filePath(QStringLiteral("corner.bld-layout"));
