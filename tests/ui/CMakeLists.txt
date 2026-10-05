@@ -29,6 +29,7 @@ add_executable(bld_ui_tests
     PartsIconSizeTest.cpp
     UiWordingTest.cpp
     SnapFeelTest.cpp
+    ModuleLookTest.cpp
 )
 
 target_compile_definitions(bld_ui_tests PRIVATE

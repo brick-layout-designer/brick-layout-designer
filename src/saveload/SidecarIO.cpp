@@ -12,6 +12,7 @@
 #include <QJsonValue>
 #include <QSaveFile>
 #include <QSet>
+#include <QStringList>
 
 #include <cmath>
 
@@ -89,8 +90,18 @@ core::AnchoredLabel decodeAnchored(const QJsonObject& o) {
     return a;
 }
 
+// The module fields this build reads; anything else is kept in `extras`.
+const QStringList& knownModuleKeys() {
+    static const QStringList keys{ QStringLiteral("id"),         QStringLiteral("name"),
+                                   QStringLiteral("members"),    QStringLiteral("transform"),
+                                   QStringLiteral("sourceFile"), QStringLiteral("importedAt"),
+                                   QStringLiteral("showName"),   QStringLiteral("outlineColor"),
+                                   QStringLiteral("nameColor"),  QStringLiteral("sameColor") };
+    return keys;
+}
+
 QJsonObject encodeModule(const core::Module& m) {
-    QJsonObject o;
+    QJsonObject o = m.extras;
     o[QStringLiteral("id")] = m.id;
     o[QStringLiteral("name")] = m.name;
     QJsonArray members;
@@ -104,6 +115,11 @@ QJsonObject encodeModule(const core::Module& m) {
     if (m.importedAt.isValid()) {
         o[QStringLiteral("importedAt")] = m.importedAt.toString(Qt::ISODate);
     }
+    // The look: only what differs from the default.
+    if (!m.showName) o[QStringLiteral("showName")] = false;
+    if (!m.outlineColor.isEmpty()) o[QStringLiteral("outlineColor")] = m.outlineColor;
+    if (!m.nameColor.isEmpty()) o[QStringLiteral("nameColor")] = m.nameColor;
+    if (!m.sameColor) o[QStringLiteral("sameColor")] = false;
     return o;
 }
 
@@ -124,6 +140,12 @@ core::Module decodeModule(const QJsonObject& o) {
     m.sourceFile = o.value(QStringLiteral("sourceFile")).toString();
     const QString at = o.value(QStringLiteral("importedAt")).toString();
     if (!at.isEmpty()) m.importedAt = QDateTime::fromString(at, Qt::ISODate);
+    m.showName = o.value(QStringLiteral("showName")).toBool(true);
+    m.outlineColor = o.value(QStringLiteral("outlineColor")).toString();
+    m.nameColor = o.value(QStringLiteral("nameColor")).toString();
+    m.sameColor = o.value(QStringLiteral("sameColor")).toBool(true);
+    for (auto it = o.constBegin(); it != o.constEnd(); ++it)
+        if (!knownModuleKeys().contains(it.key())) m.extras.insert(it.key(), it.value());
     return m;
 }
 

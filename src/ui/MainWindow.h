@@ -112,6 +112,8 @@ private slots:
     void onExportPartList();
     void onAbout();
     void onCreateModuleFromSelection();
+    // The Module look window for one placed module (its name, colours).
+    void editModuleLook(const QString& moduleId);
     void onImportBbmAsModule();
     void onSaveSelectionAsModule();
     // Writes `module` into the Module library folder: as `name`.bbm when

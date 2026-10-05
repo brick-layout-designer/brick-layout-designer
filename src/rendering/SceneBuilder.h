@@ -2,6 +2,8 @@
 
 #include <optional>
 
+#include "ModuleLabels.h"
+
 #include <QColor>
 #include <QHash>
 #include <QList>
@@ -70,6 +72,16 @@ public:
     // frame. Empty when module names are off.
     const QList<QPair<QString, QRectF>>& moduleAnnotationRects() const { return moduleAnnotationRects_; }
 
+    // Module names cut short to fit (the whole name shows on hover, as a
+    // tooltip, and while the module is selected, MapView's pill).
+    struct ShortenedModuleName {
+        QString id;
+        QString name;
+        ModuleLabelLayout at;
+        QColor fill;
+    };
+    const QList<ShortenedModuleName>& shortenedModuleNames() const { return shortenedModuleNames_; }
+
 private:
     std::optional<double> venueLabelPx_;
     void addLayer(const core::Layer& layer, int layerIndex);
@@ -93,6 +105,7 @@ private:
     QList<QGraphicsItem*>             worldLabelItems_;
     QList<QGraphicsItem*>             moduleLabelItems_;
     QList<QPair<QString, QRectF>>     moduleAnnotationRects_;
+    QList<ShortenedModuleName>        shortenedModuleNames_;
 };
 
 }

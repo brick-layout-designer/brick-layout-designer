@@ -2,6 +2,9 @@
 
 #include "SelectionStyle.h"
 
+#include "../rendering/MapText.h"
+#include "../rendering/ModuleLabels.h"
+
 #include <QBrush>
 #include <QPainter>
 #include <QPen>
@@ -24,7 +27,7 @@ SelectionOverlay::SelectionOverlay() {
 
 
 void SelectionOverlay::paint(QPainter* p, const QStyleOptionGraphicsItem*, QWidget*) {
-    if (polys_.isEmpty() && bands_.isEmpty() && !snapActive_ && !moving_) return;
+    if (polys_.isEmpty() && bands_.isEmpty() && !snapActive_ && !moving_ && names_.isEmpty()) return;
     p->save();
     p->setRenderHint(QPainter::Antialiasing, true);
     using namespace selection;
@@ -75,7 +78,24 @@ void SelectionOverlay::paint(QPainter* p, const QStyleOptionGraphicsItem*, QWidg
         p->setBrush(kDot);
         p->drawEllipse(*moving_, kDotRadius / scale, kDotRadius / scale);
     }
+
+    for (const FullName& n : names_) {
+        p->save();
+        p->setTransform(n.toScene, true);
+        p->setPen(Qt::NoPen);
+        p->setBrush(rendering::kModuleFullNameBackground);
+        p->drawRoundedRect(n.box, n.box.height() / 2, n.box.height() / 2);
+        p->setBrush(n.fill);
+        p->drawPath(rendering::textPath(n.font, { { n.name, n.textTopLeft.x(), n.textTopLeft.y() } },
+                                        rendering::kModuleNameLineHeight));
+        p->restore();
+    }
     p->restore();
+}
+
+void SelectionOverlay::setFullNames(QList<FullName> names) {
+    names_ = std::move(names);
+    setOutlines(polys_);
 }
 
 void SelectionOverlay::setRulerBands(QList<RulerBand> bands) {
@@ -97,6 +117,7 @@ void SelectionOverlay::setOutlines(QList<QPolygonF> polys) {
         total = total.united(r.adjusted(-b.width, -b.width, b.width, b.width));
     }
     total = total.united(marksRect());
+    for (const FullName& n : names_) total = total.united(n.toScene.mapRect(n.box));
     bounds_ = total.isEmpty() ? QRectF() : total.adjusted(-6, -6, 6, 6);
     update();
 }

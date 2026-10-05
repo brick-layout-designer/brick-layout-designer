@@ -1,6 +1,7 @@
 {
-  "about": "Module frames and names as both apps draw them (web moduleLabels.ts, desktop rendering/ModuleLabels.cpp). Scene px at 8 px per stud; a name is charWidth x font px wide per character so fonts do not matter. Same file in both repos.",
+  "about": "Module frames and names as both apps draw them (web moduleLabels.ts, desktop rendering/ModuleLabels.cpp). Scene px at 8 px per stud; a name is charWidth x font px wide per character so fonts do not matter. A name is never longer than the side it sits on: it wraps to two lines, then shrinks (not under minFontPx), then is cut short with an ellipsis. Same file in both repos.",
   "charWidth": 0.6,
+  "minFontPx": 16,
   "style": {
     "frameStroke": "rgba(100,180,255,0.8)",
     "frameDash": [
@@ -10,8 +11,185 @@
     "nameFill": "rgba(100,180,255,0.9)",
     "nameStroke": "rgba(0,0,0,0.6)",
     "nameFontStyle": "bold",
-    "nameStrokeWidth": "max(2, fontPx / 12)"
+    "nameStrokeWidth": "max(2, fontPx / 12)",
+    "nameLineHeight": 1,
+    "customFrameAlpha": 0.8,
+    "customNameAlpha": 0.9,
+    "fullNameBackground": "rgba(0,0,0,0.75)",
+    "fullNamePad": "round(fontPx / 4)"
   },
+  "looks": [
+    {
+      "module": {},
+      "expect": {
+        "frameStroke": "rgba(100,180,255,0.8)",
+        "nameFill": "rgba(100,180,255,0.9)",
+        "showName": true
+      }
+    },
+    {
+      "module": {
+        "outlineColor": "#ff8800",
+        "nameColor": "#ff8800"
+      },
+      "expect": {
+        "frameStroke": "rgba(255,136,0,0.8)",
+        "nameFill": "rgba(255,136,0,0.9)",
+        "showName": true
+      }
+    },
+    {
+      "module": {
+        "outlineColor": "#22c55e",
+        "nameColor": "#1e293b",
+        "sameColor": false,
+        "showName": false
+      },
+      "expect": {
+        "frameStroke": "rgba(34,197,94,0.8)",
+        "nameFill": "rgba(30,41,59,0.9)",
+        "showName": false
+      }
+    },
+    {
+      "module": {
+        "outlineColor": "not a colour"
+      },
+      "expect": {
+        "frameStroke": "rgba(100,180,255,0.8)",
+        "nameFill": "rgba(100,180,255,0.9)",
+        "showName": true
+      }
+    }
+  ],
+  "fit": [
+    {
+      "text": "Town",
+      "fontPx": 100,
+      "side": 400,
+      "expect": {
+        "fontPx": 100,
+        "lines": [
+          "Town"
+        ],
+        "truncated": false
+      }
+    },
+    {
+      "text": "Harbour Master",
+      "fontPx": 100,
+      "side": 900,
+      "expect": {
+        "fontPx": 100,
+        "lines": [
+          "Harbour Master"
+        ],
+        "truncated": false
+      }
+    },
+    {
+      "text": "Big Yard",
+      "fontPx": 100,
+      "side": 300,
+      "expect": {
+        "fontPx": 100,
+        "lines": [
+          "Big",
+          "Yard"
+        ],
+        "truncated": false
+      }
+    },
+    {
+      "text": "Corner Station Yard",
+      "fontPx": 100,
+      "side": 700,
+      "expect": {
+        "fontPx": 97,
+        "lines": [
+          "Corner",
+          "Station Yard"
+        ],
+        "truncated": false
+      }
+    },
+    {
+      "text": "Supercalifragilistic",
+      "fontPx": 100,
+      "side": 600,
+      "expect": {
+        "fontPx": 50,
+        "lines": [
+          "Supercalifragilistic"
+        ],
+        "truncated": false
+      }
+    },
+    {
+      "text": "A rather long module name here",
+      "fontPx": 100,
+      "side": 150,
+      "expect": {
+        "fontPx": 16,
+        "lines": [
+          "A rather long",
+          "module name he…"
+        ],
+        "truncated": true
+      }
+    },
+    {
+      "text": "Extraordinarily big",
+      "fontPx": 40,
+      "side": 100,
+      "expect": {
+        "fontPx": 16,
+        "lines": [
+          "Extraordi…",
+          "big"
+        ],
+        "truncated": true
+      }
+    },
+    {
+      "text": "Tiny",
+      "fontPx": 16,
+      "side": 20,
+      "expect": {
+        "fontPx": 16,
+        "lines": [
+          "T…"
+        ],
+        "truncated": true
+      }
+    },
+    {
+      "text": "One Two Three Four Five Six",
+      "fontPx": 60,
+      "side": 400,
+      "expect": {
+        "fontPx": 51,
+        "lines": [
+          "One Two Three",
+          "Four Five Six"
+        ],
+        "truncated": false
+      }
+    },
+    {
+      "text": "AA B CC",
+      "fontPx": 100,
+      "side": 300,
+      "expect": {
+        "fontPx": 100,
+        "lines": [
+          "AA",
+          "B CC"
+        ],
+        "truncated": false
+      }
+    }
+  ],
   "cases": [
     {
       "name": "Corner Station",
@@ -31,16 +209,22 @@
         },
         "text": {
           "x": 764,
-          "y": 382,
+          "y": -52,
           "rotation": 0,
           "width": 3080,
-          "fontPx": 366
+          "height": 800,
+          "fontPx": 400,
+          "lines": [
+            "Corner",
+            "Station"
+          ],
+          "truncated": false
         },
         "bounds": {
           "x": 764,
-          "y": 382,
+          "y": -52,
           "width": 3080,
-          "height": 1926
+          "height": 2360
         }
       }
     },
@@ -65,7 +249,12 @@
           "y": 1124,
           "rotation": -90,
           "width": 968,
-          "fontPx": 336
+          "height": 336,
+          "fontPx": 336,
+          "lines": [
+            "Town"
+          ],
+          "truncated": false
         },
         "bounds": {
           "x": -276,
@@ -92,17 +281,23 @@
           "height": 264
         },
         "text": {
-          "x": -708,
-          "y": -127,
+          "x": -4,
+          "y": -128,
           "rotation": 0,
-          "width": 1928,
-          "fontPx": 107
+          "width": 520,
+          "height": 108,
+          "fontPx": 54,
+          "lines": [
+            "A rather long",
+            "module name here"
+          ],
+          "truncated": false
         },
         "bounds": {
-          "x": -708,
-          "y": -127,
-          "width": 1928,
-          "height": 387
+          "x": -4,
+          "y": -128,
+          "width": 520,
+          "height": 388
         }
       }
     },
@@ -127,13 +322,82 @@
           "y": -356,
           "rotation": 0,
           "width": 1608,
-          "fontPx": 400
+          "height": 400,
+          "fontPx": 400,
+          "lines": [
+            "Yard"
+          ],
+          "truncated": false
         },
         "bounds": {
           "x": -324,
           "y": -356,
           "width": 1608,
           "height": 808
+        }
+      }
+    },
+    {
+      "name": "Main Line Station and Goods Yard",
+      "studs": {
+        "x": 0,
+        "y": 0,
+        "width": 48,
+        "height": 160
+      },
+      "labelPercent": 35,
+      "expect": {
+        "frame": {
+          "x": -4,
+          "y": -4,
+          "width": 392,
+          "height": 1288
+        },
+        "text": {
+          "x": -272,
+          "y": 1284,
+          "rotation": -90,
+          "width": 1288,
+          "height": 252,
+          "fontPx": 126,
+          "lines": [
+            "Main Line Station",
+            "and Goods Yard"
+          ],
+          "truncated": false
+        },
+        "bounds": {
+          "x": -272,
+          "y": -4,
+          "width": 660,
+          "height": 1288
+        }
+      }
+    },
+    {
+      "name": "Hidden name",
+      "studs": {
+        "x": 0,
+        "y": 0,
+        "width": 64,
+        "height": 32
+      },
+      "labelPercent": 35,
+      "module": {
+        "showName": false
+      },
+      "expect": {
+        "frame": {
+          "x": -4,
+          "y": -4,
+          "width": 520,
+          "height": 264
+        },
+        "bounds": {
+          "x": -4,
+          "y": -4,
+          "width": 520,
+          "height": 264
         }
       }
     }

@@ -95,6 +95,25 @@ private:
     QString    newName_;
 };
 
+// Replace a module's sidecar entry with a changed copy (its look, pin, …)
+// in one undo step. The members are not touched. Undo puts the old entry
+// back. Steps on the same module with the same `mergeKey` (a colour being
+// dragged around a picker) merge into one.
+class UpdateModuleCommand : public QUndoCommand {
+public:
+    UpdateModuleCommand(core::Map& map, core::Module updated, QString text, int mergeKey = -1,
+                        QUndoCommand* parent = nullptr);
+    void undo() override;
+    void redo() override;
+    int id() const override { return mergeKey_; }
+    bool mergeWith(const QUndoCommand* other) override;
+private:
+    core::Map&   map_;
+    core::Module before_;
+    core::Module after_;
+    int          mergeKey_;
+};
+
 // Clone an existing module in-project: duplicates every member brick
 // (fresh guids, same part numbers / orientation / altitude / layer) at an
 // offset from the source, and registers a new Module entry over the

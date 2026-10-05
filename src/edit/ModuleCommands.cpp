@@ -214,6 +214,40 @@ void RenameModuleCommand::undo() {
     if (i >= 0) map_.sidecar.modules[i].name = oldName_;
 }
 
+// ----- UpdateModuleCommand -----
+
+UpdateModuleCommand::UpdateModuleCommand(core::Map& map, core::Module updated, QString text, int mergeKey,
+                                         QUndoCommand* parent)
+    : QUndoCommand(parent), map_(map), after_(std::move(updated)), mergeKey_(mergeKey) {
+    const int i = findModuleIndex(map_, after_.id);
+    if (i >= 0) before_ = map_.sidecar.modules[i];
+    setText(text);
+}
+
+void UpdateModuleCommand::redo() {
+    const int i = findModuleIndex(map_, after_.id);
+    if (i < 0) return;
+    // The members may have changed since (a part added): keep them.
+    core::Module next = after_;
+    next.memberIds = map_.sidecar.modules[i].memberIds;
+    map_.sidecar.modules[i] = next;
+}
+
+void UpdateModuleCommand::undo() {
+    const int i = findModuleIndex(map_, before_.id);
+    if (i < 0) return;
+    core::Module prev = before_;
+    prev.memberIds = map_.sidecar.modules[i].memberIds;
+    map_.sidecar.modules[i] = prev;
+}
+
+bool UpdateModuleCommand::mergeWith(const QUndoCommand* other) {
+    const auto* o = dynamic_cast<const UpdateModuleCommand*>(other);
+    if (!o || o->after_.id != after_.id || mergeKey_ < 0) return false;
+    after_ = o->after_;
+    return true;
+}
+
 // ----- CloneModuleCommand -----
 
 CloneModuleCommand::CloneModuleCommand(core::Map& map, QString sourceModuleId,

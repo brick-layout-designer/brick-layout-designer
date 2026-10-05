@@ -55,6 +55,8 @@ add_library(bld_ui STATIC
     PartsBrowser.h
     ModulesPanel.cpp
     ModulesPanel.h
+    ModuleLookDialog.cpp
+    ModuleLookDialog.h
     ModuleLibraryPanel.cpp
     ModuleThumbnail.cpp
     ModuleLibraryPanel.h

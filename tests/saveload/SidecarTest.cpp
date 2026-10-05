@@ -98,6 +98,53 @@ TEST(Sidecar, RoundTripModules) {
     EXPECT_EQ(bm.importedAt.toString(Qt::ISODate), m.importedAt.toString(Qt::ISODate));
 }
 
+// A module's own look (and pin) are written only when not the default, as
+// the web writes them, and fields this build doesn't know are kept.
+TEST(Sidecar, RoundTripModuleLook) {
+    core::Sidecar sc;
+    core::Module m;
+    m.id = QStringLiteral("m1");
+    m.name = QStringLiteral("Harbour");
+    m.memberIds = { QStringLiteral("b1") };
+    m.showName = false;
+    m.outlineColor = QStringLiteral("#ff8800");
+    m.nameColor = QStringLiteral("#112233");
+    m.sameColor = false;
+    m.extras.insert(QStringLiteral("fromTheFuture"), QJsonObject{ { QStringLiteral("x"), 1 } });
+    sc.modules.push_back(m);
+    core::Module plain;
+    plain.id = QStringLiteral("m2");
+    plain.name = QStringLiteral("Town");
+    sc.modules.push_back(plain);
+
+    const QJsonObject json = saveload::sidecarToJson(sc);
+    const QJsonArray mods = json.value(QStringLiteral("modules")).toArray();
+    ASSERT_EQ(mods.size(), 2);
+    const QJsonObject a = mods[0].toObject();
+    EXPECT_EQ(a.value(QStringLiteral("showName")), QJsonValue(false));
+    EXPECT_EQ(a.value(QStringLiteral("outlineColor")).toString(), QStringLiteral("#ff8800"));
+    EXPECT_EQ(a.value(QStringLiteral("nameColor")).toString(), QStringLiteral("#112233"));
+    EXPECT_EQ(a.value(QStringLiteral("sameColor")), QJsonValue(false));
+    EXPECT_EQ(a.value(QStringLiteral("fromTheFuture")).toObject().value(QStringLiteral("x")).toInt(), 1);
+    // The default look writes nothing extra.
+    const QJsonObject b = mods[1].toObject();
+    for (const char* key : { "showName", "outlineColor", "nameColor", "sameColor" })
+        EXPECT_FALSE(b.contains(QLatin1String(key))) << key;
+
+    core::Sidecar back;
+    saveload::sidecarFromJson(json, back);
+    ASSERT_EQ(back.modules.size(), 2u);
+    EXPECT_FALSE(back.modules[0].showName);
+    EXPECT_EQ(back.modules[0].outlineColor, QStringLiteral("#ff8800"));
+    EXPECT_EQ(back.modules[0].nameColor, QStringLiteral("#112233"));
+    EXPECT_FALSE(back.modules[0].sameColor);
+    EXPECT_TRUE(back.modules[0].extras.contains(QStringLiteral("fromTheFuture")));
+    EXPECT_TRUE(back.modules[1].showName);
+    EXPECT_TRUE(back.modules[1].sameColor);
+    EXPECT_TRUE(back.modules[1].outlineColor.isEmpty());
+    EXPECT_TRUE(back.modules[1].extras.isEmpty());
+}
+
 TEST(Sidecar, RoundTripVenue) {
     core::Sidecar sc;
     core::Venue v;

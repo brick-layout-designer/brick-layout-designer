@@ -659,10 +659,12 @@ TEST_F(ViewsInTheWindow, FittingTakesInModuleNamesAndFrames) {
     QSettings().setValue(QStringLiteral("view/moduleNames"), true);
     core::Map* map = view_->currentMap();
     QString member;
+    QRectF memberArea;
     for (const auto& l : map->layers())
         if (l->kind() == core::LayerKind::Brick && member.isEmpty())
             for (const auto& b : static_cast<const core::LayerBrick&>(*l).bricks) {
                 member = b.guid;
+                memberArea = b.displayArea;
                 break;
             }
     ASSERT_FALSE(member.isEmpty());
@@ -676,10 +678,9 @@ TEST_F(ViewsInTheWindow, FittingTakesInModuleNamesAndFrames) {
     ASSERT_EQ(rects.size(), 1);
     const QRectF px = rects.first().second;
     const QRectF drawn(px.x() / 8, px.y() / 8, px.width() / 8, px.height() / 8);
-    // The name sticks out past the plain fit.
-    const auto plain = ui::views::fitRegionStuds(*map, std::nullopt, true);
-    ASSERT_TRUE(plain);
-    ASSERT_FALSE(plain->contains(drawn));
+    // The frame and name (above the module, never wider than it) reach past its parts.
+    EXPECT_GT(memberArea.top() - drawn.top(), 2.0);
+    EXPECT_LE(drawn.width(), memberArea.width() + 1.0 + 1e-9);
 
     rowOf(*panel_, QStringLiteral("view-whole"))->click();  // fits the whole layout
     auto screen = view_->screenRectStuds();
