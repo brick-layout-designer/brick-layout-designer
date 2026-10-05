@@ -283,9 +283,12 @@ jobs:
           grep -F "$BLD_VERSION" version.txt
           test -f dist/brick-layout-designer/vcruntime140.dll
           # The server features are in: the app links Qt WebSockets (only
-          # src/sync uses it; the import table names the DLL) and the zip has it.
-          test -f dist/brick-layout-designer/Qt6WebSockets.dll
-          grep -qa Qt6WebSockets.dll dist/brick-layout-designer/brick-layout-designer.exe
+          # src/sync uses it; dumpbin lists the DLLs it imports) and the zip has it.
+          ls dist/brick-layout-designer | grep -i -E 'websockets|vcruntime' || true
+          test -f dist/brick-layout-designer/Qt6WebSockets.dll || { echo "::error::Qt6WebSockets.dll not bundled"; exit 1; }
+          dumpbin //dependents dist/brick-layout-designer/brick-layout-designer.exe > deps.txt
+          cat deps.txt
+          grep -qi 'Qt6WebSockets.dll' deps.txt || { echo "::error::the app doesn't link Qt WebSockets"; exit 1; }
           test -d dist/brick-layout-designer/parts/BlueBrickParts/parts
           test -f dist/brick-layout-designer/help/en/index.html
 
