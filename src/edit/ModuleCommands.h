@@ -101,7 +101,7 @@ private:
 // dragged around a picker) merge into one.
 class UpdateModuleCommand : public QUndoCommand {
 public:
-    UpdateModuleCommand(core::Map& map, core::Module updated, QString text, int mergeKey = -1,
+    UpdateModuleCommand(core::Map& map, core::Module updated, const QString& text, int mergeKey = -1,
                         QUndoCommand* parent = nullptr);
     void undo() override;
     void redo() override;

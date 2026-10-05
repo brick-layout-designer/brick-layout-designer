@@ -216,7 +216,7 @@ void RenameModuleCommand::undo() {
 
 // ----- UpdateModuleCommand -----
 
-UpdateModuleCommand::UpdateModuleCommand(core::Map& map, core::Module updated, QString text, int mergeKey,
+UpdateModuleCommand::UpdateModuleCommand(core::Map& map, core::Module updated, const QString& text, int mergeKey,
                                          QUndoCommand* parent)
     : QUndoCommand(parent), map_(map), after_(std::move(updated)), mergeKey_(mergeKey) {
     const int i = findModuleIndex(map_, after_.id);

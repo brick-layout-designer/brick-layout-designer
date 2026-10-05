@@ -73,7 +73,7 @@ ModuleNameFit fitModuleName(const QString& text, const NameWidthAt& widthAt, dou
     // Shrink: the bigger of the one-line and two-line sizes.
     const double one = std::floor((fontPx * side) / widthAt(text, fontPx));
     const double two = split ? std::floor((fontPx * side) / split->widest) : 0.0;
-    const QStringList lines = two > one ? split->lines : QStringList{ text };
+    const QStringList lines = split && two > one ? split->lines : QStringList{ text };
     int f = static_cast<int>(std::min(fontPx, std::max(one, two)));
     if (f >= kModuleNameMinPx) {
         while (f > kModuleNameMinPx && !fits(lines, f)) --f;
