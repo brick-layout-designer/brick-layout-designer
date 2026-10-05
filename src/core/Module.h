@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QDateTime>
+#include <QJsonObject>
 #include <QSet>
 #include <QString>
 #include <QTransform>
@@ -22,6 +23,17 @@ struct Module {
     QTransform transform;                       // local-to-world of the module as a unit
     QString    sourceFile;                      // non-empty if imported from a .bbm
     QDateTime  importedAt;                      // when imported (if sourceFile non-empty)
+
+    // This placed module's own look (sidecar only; written when not the
+    // default, as the web writes them, packages/bbm sidecar.ts).
+    bool    showName = true;   // its name shows on the map (View > Module Names still applies)
+    QString outlineColor;      // "#rrggbb", or empty for the default light blue
+    QString nameColor;         // "#rrggbb", or empty for the default light blue
+    bool    sameColor = true;  // "Same colour": outline and name change together
+
+    // Fields a newer build (or the web) wrote that this one doesn't know,
+    // kept so reading and writing the module again doesn't lose them.
+    QJsonObject extras;
 };
 
 }

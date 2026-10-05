@@ -3,6 +3,7 @@
 #include <QDockWidget>
 
 class QListWidget;
+class QToolButton;
 
 namespace bld::core { class Map; }
 
@@ -29,9 +30,19 @@ signals:
     void saveToLibraryRequested(const QString& moduleId);
     void cloneRequested(const QString& moduleId);
     void renameRequested(const QString& moduleId);
+    // The module's look: its colours (the Module look dialog), and its name on or off.
+    void lookRequested(const QString& moduleId);
+    void showNameRequested(const QString& moduleId, bool show);
+
+public:
+    // The ⋯ button: the current module's menu.
+    QToolButton* moreButton() const { return more_; }
 
 private:
+    void showMenu(const QString& id, const QPoint& globalPos);
     QListWidget* list_ = nullptr;
+    QToolButton* more_ = nullptr;
+    const core::Map* map_ = nullptr;
 };
 
 }

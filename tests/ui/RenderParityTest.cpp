@@ -61,9 +61,14 @@ QRectF rectOf(const QJsonObject& o) {
 }
 
 // The shared description's text width: `charWidth` × font px per character.
-rendering::TextWidthAt fixedWidth(const QString& text, double charWidth) {
-    const auto n = static_cast<double>(text.size());
-    return [n, charWidth](double fontPx) { return n * charWidth * fontPx; };
+rendering::NameWidthAt fixedWidth(double charWidth) {
+    return [charWidth](const QString& text, double fontPx) { return text.size() * charWidth * fontPx; };
+}
+
+QStringList stringsOf(const QJsonArray& a) {
+    QStringList out;
+    for (const QJsonValue& v : a) out << v.toString();
+    return out;
 }
 
 }  // namespace
@@ -76,19 +81,81 @@ TEST(RenderParity, ModuleLabelLayoutsMatchTheSharedDescription) {
     for (const QJsonValue& v : cases) {
         const QJsonObject c = v.toObject();
         const QString name = c[QLatin1String("name")].toString();
+        const bool showName = c[QLatin1String("module")].toObject().value(QLatin1String("showName")).toBool(true);
         const auto got = rendering::moduleLabelLayout(rectOf(c[QLatin1String("studs")].toObject()), name,
-                                                      c[QLatin1String("labelPercent")].toDouble(),
-                                                      fixedWidth(name, charWidth));
+                                                      c[QLatin1String("labelPercent")].toDouble(), fixedWidth(charWidth),
+                                                      showName);
         const QJsonObject want = c[QLatin1String("expect")].toObject();
-        const QRectF frame = rectOf(want[QLatin1String("frame")].toObject());
-        EXPECT_EQ(got.frame, frame) << name.toStdString();
+        const std::string what = name.toStdString();
+        EXPECT_EQ(got.frame, rectOf(want[QLatin1String("frame")].toObject())) << what;
+        EXPECT_EQ(got.bounds, rectOf(want[QLatin1String("bounds")].toObject())) << what;
+        EXPECT_EQ(got.hasName, want.contains(QLatin1String("text"))) << what;
+        if (!want.contains(QLatin1String("text"))) continue;
         const QJsonObject t = want[QLatin1String("text")].toObject();
-        EXPECT_DOUBLE_EQ(got.textPos.x(), t[QLatin1String("x")].toDouble()) << name.toStdString();
-        EXPECT_DOUBLE_EQ(got.textPos.y(), t[QLatin1String("y")].toDouble()) << name.toStdString();
-        EXPECT_DOUBLE_EQ(got.rotation, t[QLatin1String("rotation")].toDouble()) << name.toStdString();
-        EXPECT_DOUBLE_EQ(got.width, t[QLatin1String("width")].toDouble()) << name.toStdString();
-        EXPECT_DOUBLE_EQ(got.fontPx, t[QLatin1String("fontPx")].toDouble()) << name.toStdString();
-        EXPECT_EQ(got.bounds, rectOf(want[QLatin1String("bounds")].toObject())) << name.toStdString();
+        EXPECT_DOUBLE_EQ(got.textPos.x(), t[QLatin1String("x")].toDouble()) << what;
+        EXPECT_DOUBLE_EQ(got.textPos.y(), t[QLatin1String("y")].toDouble()) << what;
+        EXPECT_DOUBLE_EQ(got.rotation, t[QLatin1String("rotation")].toDouble()) << what;
+        EXPECT_DOUBLE_EQ(got.width, t[QLatin1String("width")].toDouble()) << what;
+        EXPECT_DOUBLE_EQ(got.height, t[QLatin1String("height")].toDouble()) << what;
+        EXPECT_DOUBLE_EQ(got.fontPx, t[QLatin1String("fontPx")].toDouble()) << what;
+        EXPECT_EQ(got.lines, stringsOf(t[QLatin1String("lines")].toArray())) << what;
+        EXPECT_EQ(got.truncated, t[QLatin1String("truncated")].toBool()) << what;
+    }
+}
+
+// Wrap, then shrink, then cut short: the same answers as the web's fitModuleName.
+TEST(RenderParity, ModuleNameFitsMatchTheSharedDescription) {
+    const QJsonObject spec = readJson(kDir + QStringLiteral("/modules.json"));
+    const auto width = fixedWidth(spec[QLatin1String("charWidth")].toDouble());
+    EXPECT_DOUBLE_EQ(rendering::kModuleNameMinPx, spec[QLatin1String("minFontPx")].toDouble());
+    const QJsonArray cases = spec[QLatin1String("fit")].toArray();
+    ASSERT_GE(cases.size(), 8);
+    for (const QJsonValue& v : cases) {
+        const QJsonObject c = v.toObject();
+        const QString text = c[QLatin1String("text")].toString();
+        const double side = c[QLatin1String("side")].toDouble();
+        const auto got = rendering::fitModuleName(text, width, c[QLatin1String("fontPx")].toDouble(), side);
+        const QJsonObject want = c[QLatin1String("expect")].toObject();
+        const std::string what = text.toStdString();
+        EXPECT_DOUBLE_EQ(got.fontPx, want[QLatin1String("fontPx")].toDouble()) << what;
+        EXPECT_EQ(got.lines, stringsOf(want[QLatin1String("lines")].toArray())) << what;
+        EXPECT_EQ(got.truncated, want[QLatin1String("truncated")].toBool()) << what;
+        // Never longer than the side.
+        for (const QString& line : got.lines) EXPECT_LE(width(line, got.fontPx), side) << what;
+    }
+}
+
+// Real widths aren't quite in proportion to the size: the shrunk size is
+// checked and made smaller until it fits (as the web's test).
+TEST(RenderParity, ModuleNameShrinkChecksTheSizeReallyFits) {
+    const rendering::NameWidthAt padded = [](const QString& t, double px) { return t.size() * px * 0.5 + 30; };
+    const QString name = QStringLiteral("Straightaway");
+    EXPECT_DOUBLE_EQ(rendering::fitModuleName(name, padded, 100, 470).fontPx, 73.0);
+    const auto big = rendering::fitModuleName(name, padded, 100, 400);
+    EXPECT_LE(padded(name, big.fontPx), 400.0);
+    EXPECT_GT(padded(name, big.fontPx + 1), 400.0);
+}
+
+TEST(RenderParity, ModuleLooksMatchTheSharedDescription) {
+    const QJsonObject spec = readJson(kDir + QStringLiteral("/modules.json"));
+    const auto rgba = [](const QColor& c) {
+        return QStringLiteral("rgba(%1,%2,%3,%4)").arg(c.red()).arg(c.green()).arg(c.blue()).arg(c.alphaF(), 0, 'g', 2);
+    };
+    const QJsonArray cases = spec[QLatin1String("looks")].toArray();
+    ASSERT_FALSE(cases.isEmpty());
+    for (const QJsonValue& v : cases) {
+        const QJsonObject c = v.toObject();
+        const QJsonObject m = c[QLatin1String("module")].toObject();
+        core::Module mod;
+        mod.outlineColor = m[QLatin1String("outlineColor")].toString();
+        mod.nameColor = m[QLatin1String("nameColor")].toString();
+        mod.sameColor = m[QLatin1String("sameColor")].toBool(true);
+        mod.showName = m[QLatin1String("showName")].toBool(true);
+        const auto look = rendering::moduleLook(mod);
+        const QJsonObject want = c[QLatin1String("expect")].toObject();
+        EXPECT_EQ(rgba(look.frame), want[QLatin1String("frameStroke")].toString());
+        EXPECT_EQ(rgba(look.nameFill), want[QLatin1String("nameFill")].toString());
+        EXPECT_EQ(look.showName, want[QLatin1String("showName")].toBool());
     }
 }
 
@@ -100,6 +167,10 @@ TEST(RenderParity, ModuleStyleMatchesTheSharedDescription) {
     EXPECT_EQ(rgba(rendering::kModuleFrameColor), style[QLatin1String("frameStroke")].toString());
     EXPECT_EQ(rgba(rendering::kModuleNameFill), style[QLatin1String("nameFill")].toString());
     EXPECT_EQ(rgba(rendering::kModuleNameStroke), style[QLatin1String("nameStroke")].toString());
+    EXPECT_EQ(rgba(rendering::kModuleFullNameBackground), style[QLatin1String("fullNameBackground")].toString());
+    EXPECT_DOUBLE_EQ(rendering::kModuleNameLineHeight, style[QLatin1String("nameLineHeight")].toDouble());
+    EXPECT_DOUBLE_EQ(rendering::kModuleFrameAlpha, style[QLatin1String("customFrameAlpha")].toDouble());
+    EXPECT_DOUBLE_EQ(rendering::kModuleNameAlpha, style[QLatin1String("customNameAlpha")].toDouble());
     const QJsonArray dash = style[QLatin1String("frameDash")].toArray();
     ASSERT_EQ(dash.size(), 2);
     EXPECT_EQ(rendering::kModuleFrameDash[0], dash[0].toDouble());

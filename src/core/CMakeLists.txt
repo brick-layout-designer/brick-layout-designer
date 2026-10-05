@@ -20,6 +20,7 @@ add_library(bld_core STATIC
     RulerItem.h
     AnchoredLabel.h
     Module.h
+    ModuleLook.h
     Venue.h
     Sidecar.h
     SavedView.h

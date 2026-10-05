@@ -154,6 +154,13 @@ constexpr Raw kShared[] = {
       QT_TRANSLATE_NOOP("HelpTexts", "Save the list of parts as a file, for shopping or packing."),
       QT_TRANSLATE_NOOP("HelpTexts", "HTML has pictures and opens in a browser. CSV opens in a "
                                      "spreadsheet.") },
+    { "dialog.moduleLook", "",
+      QT_TRANSLATE_NOOP("HelpTexts", "Module look"),
+      QT_TRANSLATE_NOOP("HelpTexts", "This module’s own outline and name colours, and whether its name "
+                                     "shows."),
+      QT_TRANSLATE_NOOP("HelpTexts", "With Same colour on, the outline and the name change together. Reset "
+                                     "to default brings back the light blue. Long names wrap, get smaller, "
+                                     "and are only cut short when nothing else fits.") },
     // Downloading
     { "download.formats", "/help#files",
       QT_TRANSLATE_NOOP("HelpTexts", "Download as"),

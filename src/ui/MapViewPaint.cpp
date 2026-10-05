@@ -328,6 +328,30 @@ void MapView::refreshSelectionOverlay() {
         it->setGraphicsEffect(effect);
     }
     auto* ov = static_cast<SelectionOverlay*>(selectionOverlay_);
+    // A selected module whose name was cut short shows its whole name.
+    QList<SelectionOverlay::FullName> fullNames;
+    if (map_ && !builder_->shortenedModuleNames().isEmpty()) {
+        QSet<QString> selected;
+        for (QGraphicsItem* it : scene()->selectedItems())
+            if (detail::isBrickItem(it)) selected.insert(it->data(detail::kBrickDataGuid).toString());
+        const rendering::NameWidthAt width = rendering::mapLineWidth(QStringLiteral("Bold"));
+        for (const auto& s : builder_->shortenedModuleNames()) {
+            const core::Module* mod = nullptr;
+            for (const auto& m : map_->sidecar.modules)
+                if (m.id == s.id) mod = &m;
+            if (!mod || mod->memberIds.isEmpty()) continue;
+            bool all = true;
+            for (const QString& id : mod->memberIds) all = all && selected.contains(id);
+            if (!all) continue;
+            const auto pill = rendering::moduleFullNamePill(s.at, s.name, width);
+            QTransform tr;
+            tr.translate(s.at.textPos.x(), s.at.textPos.y());
+            tr.rotate(s.at.rotation);
+            fullNames.append({ tr, pill.box, pill.textTopLeft, s.name,
+                               rendering::mapFont(QStringLiteral("Bold"), s.at.fontPx), s.fill });
+        }
+    }
+    ov->setFullNames(std::move(fullNames));
     ov->setSnapState(liveSnapActive_, liveSnapPointScene_, liveSnapMovingScene_,
                      std::hypot(transform().m11(), transform().m12()));
     ov->setOutlines(std::move(polys));

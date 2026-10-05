@@ -11,6 +11,8 @@
 #include "ModuleLibraryPanel.h"
 #include "ModuleThumbnail.h"
 #include "ModulesPanel.h"
+#include "ModuleLookDialog.h"
+#include "../edit/ModuleCommands.h"
 #include "NoticeArea.h"
 #include "SaveModuleDialog.h"
 #include "ServerLibrary.h"
@@ -555,6 +557,29 @@ void MainWindow::showNextNotice(const QList<sync::Notice>& list) {
     all.setPath(QStringLiteral("/notices"));
     actions << NoticeAction{ tr("All notices"), [all] { QDesktopServices::openUrl(all); }, false, false };
     notices_->showNotice(QStringLiteral("server-warning"), title, text, actions, {}, w.severity != QLatin1String("note"));
+}
+
+void MainWindow::editModuleLook(const QString& moduleId) {
+    if (!mapView_->currentMap()) return;
+    ModuleLookDialog dlg(
+        [this, moduleId]() -> const core::Module* {
+            const auto* map = mapView_->currentMap();
+            if (!map) return nullptr;
+            for (const auto& m : map->sidecar.modules)
+                if (m.id == moduleId) return &m;
+            return nullptr;
+        },
+        [this](const core::Module& changed, const QString& text) {
+            auto* map = mapView_->currentMap();
+            if (!map) return;
+            mapView_->undoStack()->push(new edit::UpdateModuleCommand(*map, changed, text));
+            modulesPanel_->setMap(map);
+        },
+        this);
+    // Someone else's change (or an undo) shows in the window too.
+    connect(mapView_->undoStack(), &QUndoStack::indexChanged, &dlg, &ModuleLookDialog::refresh);
+    connect(mapView_, &MapView::mapLoaded, &dlg, &ModuleLookDialog::refresh);
+    dlg.exec();
 }
 
 }  // namespace bld::ui

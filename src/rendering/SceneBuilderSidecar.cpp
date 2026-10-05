@@ -334,8 +334,9 @@ void SceneBuilder::addModuleLabels(const core::Map& map) {
     // Modules panel.
     LayerSink sink{ scene_, moduleLabelItems_, 200000.0, true };
 
-    // The web's look (ModuleOverlay.tsx): one light-blue dashed frame and
-    // an outlined light-blue bold name per module.
+    // The web's look (ModuleOverlay.tsx): one dashed frame and an outlined
+    // bold name per module, in its own colours or the default light blue.
+    const LineWidthAt lineWidth = mapLineWidth(QStringLiteral("Bold"));
     for (const auto& mod : map.sidecar.modules) {
         QRectF studs;
         // Pieces on hidden sheets don't frame or name their module.
@@ -346,12 +347,11 @@ void SceneBuilder::addModuleLabels(const core::Map& map) {
         }
         if (studs.isEmpty()) continue;
         const QString name = mod.name.isEmpty() ? QStringLiteral("(module)") : mod.name;
-        const LineWidthAt lineWidth = mapLineWidth(QStringLiteral("Bold"));
-        const auto widthAt = [&lineWidth, &name](double fontPx) { return lineWidth(name, fontPx); };
-        const ModuleLabelLayout at = moduleLabelLayout(studs, name, labelPercent, widthAt);
+        const ModuleLook look = moduleLook(mod);
+        const ModuleLabelLayout at = moduleLabelLayout(studs, name, labelPercent, lineWidth, look.showName);
 
         auto* frame = new QGraphicsRectItem(at.frame);
-        QPen framePen(kModuleFrameColor);
+        QPen framePen(look.frame);
         framePen.setWidthF(frameThickness);
         framePen.setCosmetic(true);
         // Qt's dash is in pen widths; the web's is in screen px.
@@ -360,13 +360,18 @@ void SceneBuilder::addModuleLabels(const core::Map& map) {
         frame->setPen(framePen);
         frame->setBrush(Qt::NoBrush);
         frame->setData(kModuleAnnotationRole, QStringLiteral("frame"));
+        frame->setData(kModuleIdRole, mod.id);
         sink.add(frame);
+        moduleAnnotationRects_.append({ mod.id, at.bounds });
+        if (!at.hasName) continue;
 
-        // The name, centred in its box and vertically centred on the line
-        // (Konva's "middle" baseline), the outline drawn under the fill.
+        // Each line centred in the name's box, vertically centred on its
+        // line (Konva's "middle" baseline), the outline drawn under the fill.
         const QFont f = mapFont(QStringLiteral("Bold"), at.fontPx);
-        const QPainterPath path =
-            textPath(f, { { name, (at.width - lineWidth(name, at.fontPx)) / 2.0, 0.0 } }, 1.0);
+        std::vector<TextCellLayout::Line> lines;
+        for (qsizetype i = 0; i < at.lines.size(); ++i)
+            lines.push_back({ at.lines[i], (at.width - lineWidth(at.lines[i], at.fontPx)) / 2.0, i * at.fontPx });
+        const QPainterPath path = textPath(f, lines, kModuleNameLineHeight);
         QTransform tr;
         tr.translate(at.textPos.x(), at.textPos.y());
         tr.rotate(at.rotation);
@@ -381,12 +386,17 @@ void SceneBuilder::addModuleLabels(const core::Map& map) {
         sink.add(outline);
         auto* label = new QGraphicsPathItem(path);
         label->setPen(Qt::NoPen);
-        label->setBrush(kModuleNameFill);
+        label->setBrush(look.nameFill);
         label->setTransform(tr);
         label->setData(kModuleAnnotationRole, QStringLiteral("name"));
+        label->setData(kModuleIdRole, mod.id);
         sink.add(label);
-        // The frame and the name, for fitting a view around them.
-        moduleAnnotationRects_.append({ mod.id, at.bounds });
+        if (at.truncated) {
+            // The whole name on hover; MapView shows it while selected.
+            label->setToolTip(name);
+            frame->setToolTip(name);
+            shortenedModuleNames_.append({ mod.id, name, at, look.nameFill });
+        }
     }
 }
 

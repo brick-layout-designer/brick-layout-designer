@@ -772,6 +772,7 @@ void SceneBuilder::clear() {
     worldLabelItems_.clear();
     moduleLabelItems_.clear();
     moduleAnnotationRects_.clear();
+    shortenedModuleNames_.clear();
     electricItems_.clear();
 }
 

@@ -16,6 +16,8 @@
 #include "ModuleLibraryPanel.h"
 #include "ServerLibrary.h"
 #include "ModulesPanel.h"
+#include "ModuleLookDialog.h"
+#include "../core/ModuleLook.h"
 #include "VenueLibraryPanel.h"
 #include "PartsBrowser.h"
 #include "PartUsagePanel.h"
@@ -460,6 +462,20 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
         mapView_->undoStack()->push(new edit::RenameModuleCommand(*map, id, newName));
         modulesPanel_->setMap(map);
     });
+
+    // A module's look: its name on or off, and its colours (Module look).
+    connect(modulesPanel_, &ModulesPanel::showNameRequested, this, [this](const QString& id, bool show) {
+        auto* map = mapView_->currentMap();
+        if (!map) return;
+        for (const auto& m : map->sidecar.modules) {
+            if (m.id != id || m.showName == show) continue;
+            mapView_->undoStack()->push(new edit::UpdateModuleCommand(*map, core::withShowName(m, show),
+                                                                      show ? tr("Show module name") : tr("Hide module name")));
+            break;
+        }
+        modulesPanel_->setMap(mapView_->currentMap());
+    });
+    connect(modulesPanel_, &ModulesPanel::lookRequested, this, &MainWindow::editModuleLook);
 
     // Clone: duplicate a module in-place so the user can have multiple
     // independent instances. Offset the clone by a small stud delta (or by

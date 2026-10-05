@@ -14,7 +14,10 @@
 #include <QListWidget>
 #include <QListWidgetItem>
 #include <QMenu>
+#include <QPainter>
+#include <QPixmap>
 #include <QPushButton>
+#include <QToolButton>
 #include <QVBoxLayout>
 #include <QWidget>
 
@@ -44,6 +47,12 @@ ModulesPanel::ModulesPanel(QWidget* parent)
     row->addWidget(saveLibBtn);
     row->addWidget(deleteBtn);
     row->addStretch();
+    more_ = new QToolButton(host);
+    more_->setText(QStringLiteral("⋯"));
+    more_->setToolTip(tr("More for the selected module"));
+    more_->setAccessibleName(tr("More"));
+    more_->setEnabled(false);
+    row->addWidget(more_);
     col->addLayout(row);
 
     list_ = new QListWidget(host);
@@ -68,10 +77,16 @@ ModulesPanel::ModulesPanel(QWidget* parent)
     });
     // Delete + Save-to-library buttons enable only when a valid module row
     // is selected.
-    connect(list_, &QListWidget::currentItemChanged, this, [deleteBtn, saveLibBtn](QListWidgetItem* cur, QListWidgetItem*){
+    connect(list_, &QListWidget::currentItemChanged, this, [this, deleteBtn, saveLibBtn](QListWidgetItem* cur, QListWidgetItem*){
         const bool valid = cur && !cur->toolTip().isEmpty();
         deleteBtn->setEnabled(valid);
         saveLibBtn->setEnabled(valid);
+        more_->setEnabled(valid);
+    });
+    connect(more_, &QToolButton::clicked, this, [this] {
+        auto* sel = list_->currentItem();
+        if (!sel || sel->toolTip().isEmpty()) return;
+        showMenu(sel->toolTip(), more_->mapToGlobal(QPoint(0, more_->height())));
     });
     // itemClicked (not currentItemChanged) fires on EVERY click, including
     // repeat clicks on the already-current row. MainWindow treats this as
@@ -90,61 +105,76 @@ ModulesPanel::ModulesPanel(QWidget* parent)
         if (!item) return;
         const QString id = item->toolTip();  // we stash the module id in the tooltip
         if (id.isEmpty()) return;
-        QMenu menu(this);
-
-        auto* selAct = menu.addAction(tr("Select Its Parts"));
-        connect(selAct, &QAction::triggered, [this, id]{ emit selectMembersRequested(id); });
-
-        menu.addSeparator();
-        auto* moveAct = menu.addAction(tr("Move..."));
-        connect(moveAct, &QAction::triggered, [this, id]{
-            QDialog dlg(this);
-            dlg.setWindowTitle(tr("Move module"));
-            auto* form = new QFormLayout(&dlg);
-            auto* dx = new QDoubleSpinBox(&dlg);
-            dx->setRange(-10000, 10000); dx->setDecimals(2);
-            auto* dy = new QDoubleSpinBox(&dlg);
-            dy->setRange(-10000, 10000); dy->setDecimals(2);
-            form->addRow(tr("ΔX (studs):"), dx);
-            form->addRow(tr("ΔY (studs):"), dy);
-            auto* bb = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
-            form->addRow(bb);
-            connect(bb, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
-            connect(bb, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
-            if (dlg.exec() == QDialog::Accepted)
-                emit moveRequested(id, dx->value(), dy->value());
-        });
-        auto* rotMenu = menu.addMenu(tr("Rotate"));
-        for (double deg : { -90.0, -45.0, 45.0, 90.0, 180.0 }) {
-            auto* a = rotMenu->addAction(tr("%1°").arg(deg > 0 ? QStringLiteral("+") + QString::number(deg)
-                                                               : QString::number(deg)));
-            connect(a, &QAction::triggered, [this, id, deg]{ emit rotateRequested(id, deg); });
-        }
-
-        menu.addSeparator();
-        auto* renameAct = menu.addAction(tr("Rename..."));
-        connect(renameAct, &QAction::triggered, [this, id]{ emit renameRequested(id); });
-        auto* cloneAct = menu.addAction(tr("Duplicate"));
-        connect(cloneAct, &QAction::triggered, [this, id]{ emit cloneRequested(id); });
-
-        menu.addSeparator();
-        auto* saveLib = menu.addAction(tr("Save to Module library"));
-        connect(saveLib, &QAction::triggered, [this, id]{ emit saveToLibraryRequested(id); });
-
-        menu.addSeparator();
-        auto* flatAct = menu.addAction(tr("Ungroup (keep the parts)"));
-        connect(flatAct, &QAction::triggered, [this, id]{ emit flattenRequested(id); });
-        auto* rescan = menu.addAction(tr("Update from the Module library"));
-        connect(rescan, &QAction::triggered, [this, id]{ emit rescanRequested(id); });
-
-        menu.addSeparator();
-        auto* del = menu.addAction(tr("Delete module"));
-        connect(del, &QAction::triggered, [this, id]{ emit moduleDeleteRequested(id); });
-        menu.exec(list_->mapToGlobal(pos));
+        showMenu(id, list_->mapToGlobal(pos));
     });
 }
 
+void ModulesPanel::showMenu(const QString& id, const QPoint& globalPos) {
+    QMenu menu(this);
+
+    auto* selAct = menu.addAction(tr("Select Its Parts"));
+    connect(selAct, &QAction::triggered, [this, id]{ emit selectMembersRequested(id); });
+
+    menu.addSeparator();
+    auto* moveAct = menu.addAction(tr("Move..."));
+    connect(moveAct, &QAction::triggered, [this, id]{
+        QDialog dlg(this);
+        dlg.setWindowTitle(tr("Move module"));
+        auto* form = new QFormLayout(&dlg);
+        auto* dx = new QDoubleSpinBox(&dlg);
+        dx->setRange(-10000, 10000); dx->setDecimals(2);
+        auto* dy = new QDoubleSpinBox(&dlg);
+        dy->setRange(-10000, 10000); dy->setDecimals(2);
+        form->addRow(tr("ΔX (studs):"), dx);
+        form->addRow(tr("ΔY (studs):"), dy);
+        auto* bb = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
+        form->addRow(bb);
+        connect(bb, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
+        connect(bb, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+        if (dlg.exec() == QDialog::Accepted)
+            emit moveRequested(id, dx->value(), dy->value());
+    });
+    auto* rotMenu = menu.addMenu(tr("Rotate"));
+    for (double deg : { -90.0, -45.0, 45.0, 90.0, 180.0 }) {
+        auto* a = rotMenu->addAction(tr("%1°").arg(deg > 0 ? QStringLiteral("+") + QString::number(deg)
+                                                           : QString::number(deg)));
+        connect(a, &QAction::triggered, [this, id, deg]{ emit rotateRequested(id, deg); });
+    }
+
+    menu.addSeparator();
+    auto* renameAct = menu.addAction(tr("Rename..."));
+    connect(renameAct, &QAction::triggered, [this, id]{ emit renameRequested(id); });
+    const core::Module* mod = nullptr;
+    if (map_)
+        for (const auto& m : map_->sidecar.modules)
+            if (m.id == id) mod = &m;
+    auto* showName = menu.addAction(tr("Show name"));
+    showName->setCheckable(true);
+    showName->setChecked(!mod || mod->showName);
+    connect(showName, &QAction::toggled, [this, id](bool on){ emit showNameRequested(id, on); });
+    auto* look = menu.addAction(tr("Colours..."));
+    connect(look, &QAction::triggered, [this, id]{ emit lookRequested(id); });
+    auto* cloneAct = menu.addAction(tr("Duplicate"));
+    connect(cloneAct, &QAction::triggered, [this, id]{ emit cloneRequested(id); });
+
+    menu.addSeparator();
+    auto* saveLib = menu.addAction(tr("Save to Module library"));
+    connect(saveLib, &QAction::triggered, [this, id]{ emit saveToLibraryRequested(id); });
+
+    menu.addSeparator();
+    auto* flatAct = menu.addAction(tr("Ungroup (keep the parts)"));
+    connect(flatAct, &QAction::triggered, [this, id]{ emit flattenRequested(id); });
+    auto* rescan = menu.addAction(tr("Update from the Module library"));
+    connect(rescan, &QAction::triggered, [this, id]{ emit rescanRequested(id); });
+
+    menu.addSeparator();
+    auto* del = menu.addAction(tr("Delete module"));
+    connect(del, &QAction::triggered, [this, id]{ emit moduleDeleteRequested(id); });
+    menu.exec(globalPos);
+}
+
 void ModulesPanel::setMap(const core::Map* map) {
+    map_ = map;
     list_->clear();
     if (!map) return;
     for (const auto& m : map->sidecar.modules) {
@@ -158,6 +188,17 @@ void ModulesPanel::setMap(const core::Map* map) {
                 .arg(m.memberIds.size())
                 .arg(suffix));
         item->setToolTip(m.id);
+        if (!m.outlineColor.isEmpty() || !m.nameColor.isEmpty()) {
+            QPixmap dot(12, 12);
+            dot.fill(Qt::transparent);
+            QPainter p(&dot);
+            p.setRenderHint(QPainter::Antialiasing);
+            p.setPen(QColor(0, 0, 0, 80));
+            p.setBrush(QColor(m.outlineColor.isEmpty() ? m.nameColor : m.outlineColor));
+            p.drawEllipse(QRectF(1, 1, 10, 10));
+            p.end();
+            item->setIcon(QIcon(dot));
+        }
         list_->addItem(item);
     }
     if (list_->count() == 0) {
