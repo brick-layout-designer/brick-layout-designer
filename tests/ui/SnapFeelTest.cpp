@@ -234,6 +234,38 @@ protected:
         p.connectionSnap = id;
         theme::PrefsStore::instance().update(p);
     }
+    // Start over on a map of just `bricks` (one sheet), linked as they touch.
+    void reload(std::vector<core::Brick> bricks, QPointF centre) {
+        auto map = std::make_unique<core::Map>();
+        auto layer = std::make_unique<core::LayerBrick>();
+        layer->guid = QStringLiteral("L");
+        layer->bricks = std::move(bricks);
+        map->layers().push_back(std::move(layer));
+        view_->loadMap(std::move(map));
+        view_->setTransform(QTransform::fromScale(kStudPx / kPx, kStudPx / kPx));
+        view_->centerOn(centre * kPx);
+    }
+    const core::Brick* brick(const QString& guid) const {
+        for (const auto& l : view_->currentMap()->layers())
+            for (const auto& b : static_cast<const core::LayerBrick&>(*l).bricks)
+                if (b.guid == guid) return &b;
+        return nullptr;
+    }
+    // A slow drag by the pointer from `from` to `to` (studs), then let go.
+    void slowDrag(QPointF from, QPointF to, bool release = true, bool fast = false) {
+        QWidget* vp = view_->viewport();
+        if (!dragging_) QTest::mousePress(vp, Qt::LeftButton, {}, screen(from));
+        dragging_ = !release;
+        const int steps = std::max(1, static_cast<int>(std::hypot(to.x() - from.x(), to.y() - from.y()) * kStudPx / 8));
+        for (int i = 1; i <= steps; ++i) {
+            const QPoint p = screen(from + (to - from) * i / steps);
+            QMouseEvent move(QEvent::MouseMove, p, vp->mapToGlobal(p), Qt::NoButton, Qt::LeftButton, {});
+            QApplication::sendEvent(vp, &move);
+            if (!fast) QTest::qWait(20);
+        }
+        if (release) QTest::mouseRelease(vp, Qt::LeftButton, {}, screen(to));
+    }
+    bool dragging_ = false;
     QPoint screen(QPointF studs) const { return view_->mapFromScene(studs * kPx); }
     double bx() const {
         for (const auto& l : view_->currentMap()->layers())
@@ -348,4 +380,83 @@ TEST_F(SnapDragTest, AModuleSnapsWithinTheReach) {
         for (const auto& b : static_cast<const core::LayerBrick&>(*l).bricks)
             if (b.guid != QLatin1String("A") && b.guid != QLatin1String("B")) x = b.displayArea.x();
     EXPECT_NEAR(x, 4.0, 1e-6);
+}
+
+TEST_F(SnapDragTest, ALinkedPartSnapsElsewhereWithoutLettingGo) {
+    // A (0..4) and B (4..8) are joined; C (14..18) has a free right end at
+    // (18, 1). Grabbing B by its joined left end and pulling that end to
+    // C's right end snaps it there in one drag.
+    reload({ track(QStringLiteral("A"), 0), track(QStringLiteral("B"), 4), track(QStringLiteral("C"), 14) }, { 12, 1 });
+    // Links name the partner connection.
+    const auto joined = [this](const QString& a, int i, const QString& b, int j) {
+        return brick(a)->connections.at(i).linkedToId == brick(b)->connections.at(j).guid;
+    };
+    ASSERT_TRUE(joined(QStringLiteral("B"), 0, QStringLiteral("A"), 1));
+    slowDrag({ 4.5, 1 }, { 18.9, 1 }, /*release=*/false);  // B's left end 0.4 studs past C's
+    EXPECT_TRUE(view_->connectionSnapShown());  // while still dragging
+    slowDrag({ 18.9, 1 }, { 18.9, 1 });
+    EXPECT_NEAR(brick(QStringLiteral("B"))->displayArea.x(), 18.0, 1e-6);
+    // On the drop it lets go of A and joins C.
+    EXPECT_TRUE(joined(QStringLiteral("B"), 0, QStringLiteral("C"), 1));
+    EXPECT_TRUE(joined(QStringLiteral("C"), 1, QStringLiteral("B"), 0));
+    EXPECT_TRUE(brick(QStringLiteral("A"))->connections.at(1).linkedToId.isEmpty());
+}
+
+TEST_F(SnapDragTest, ALinkedPartFlungElsewhereSnapsOnTheDrop) {
+    // Too fast to snap on the way; the drop's snap still takes the joined end.
+    reload({ track(QStringLiteral("A"), 0), track(QStringLiteral("B"), 4), track(QStringLiteral("C"), 14) }, { 12, 1 });
+    slowDrag({ 4.5, 1 }, { 18.9, 1 }, /*release=*/true, /*fast=*/true);
+    EXPECT_NEAR(brick(QStringLiteral("B"))->displayArea.x(), 18.0, 1e-6);
+}
+
+TEST_F(SnapDragTest, AnEndLeftBehindIsFreeForThePartThatLeft) {
+    // B is joined to A. Pulled away and brought back in the same drag, it
+    // snaps onto the end of A it just left.
+    reload({ track(QStringLiteral("A"), 0), track(QStringLiteral("B"), 4) }, { 4, 1 });
+    slowDrag({ 6, 1 }, { 6, 8 }, /*release=*/false);
+    slowDrag({ 6, 8 }, { 6, 1.3 });  // B's left end 0.3 studs off A's right end
+    EXPECT_NEAR(brick(QStringLiteral("B"))->displayArea.y(), 0.0, 1e-6);
+    EXPECT_NEAR(brick(QStringLiteral("B"))->displayArea.x(), 4.0, 1e-6);
+}
+
+TEST(ConnectionSnap, LinksToTheMovingSetDontHoldWhileDragging) {
+    TrackLibrary lib;
+    core::Map map;
+    auto layer = std::make_unique<core::LayerBrick>();
+    core::Brick a = track(QStringLiteral("A"), 0);
+    core::Brick b = track(QStringLiteral("B"), 4);
+    a.connections.resize(2);
+    b.connections.resize(2);
+    a.connections[0].guid = QStringLiteral("a0");
+    a.connections[1].guid = QStringLiteral("a1");
+    b.connections[0].guid = QStringLiteral("b0");
+    b.connections[1].guid = QStringLiteral("b1");
+    a.connections[1].linkedToId = QStringLiteral("b0");  // the partner connection
+    b.connections[0].linkedToId = QStringLiteral("A");   // the other flavour: the partner brick
+    layer->bricks = { a, b };
+    map.layers().push_back(std::move(layer));
+
+    const auto keys = [&](const QSet<QString>& guids) {
+        QStringList out;
+        for (const FreeTarget& t : freeTargets(map, lib.lib, guids)) out << t.key;
+        out.sort();
+        return out;
+    };
+    // Nothing moving: the joined ends are taken.
+    EXPECT_EQ(keys({}), (QStringList{ QStringLiteral("A#0"), QStringLiteral("B#1") }));
+    // B moving: A's end that held it is free again (either flavour).
+    EXPECT_EQ(keys({ QStringLiteral("B") }), (QStringList{ QStringLiteral("A#0"), QStringLiteral("A#1") }));
+    EXPECT_EQ(keys({ QStringLiteral("A") }), (QStringList{ QStringLiteral("B#0"), QStringLiteral("B#1") }));
+
+    const QSet<QString> movingB = linkKeys(map, { QStringLiteral("B") });
+    EXPECT_TRUE(movingB.contains(QStringLiteral("b0")));
+    EXPECT_FALSE(takenWhileMoving(QStringLiteral("A"), movingB));  // linked to a part left behind
+    EXPECT_TRUE(takenWhileMoving(QStringLiteral("b1"), movingB));  // linked inside the moving set
+    EXPECT_FALSE(takenWhileMoving(QString(), movingB));
+    EXPECT_TRUE(takenWhileStill(QStringLiteral("x"), movingB));
+    EXPECT_FALSE(takenWhileStill(QStringLiteral("b0"), movingB));
+    // Both moving: their joint stays joined.
+    const QSet<QString> both = linkKeys(map, { QStringLiteral("A"), QStringLiteral("B") });
+    EXPECT_TRUE(takenWhileMoving(QStringLiteral("b0"), both));
+    EXPECT_TRUE(takenWhileMoving(QStringLiteral("A"), both));
 }

@@ -62,11 +62,11 @@ const core::Brick* findBrick(const core::Map& map, int layerIndex, const QString
 
 // Pick the connection on `brick` whose world position is nearest to
 // `clickStuds`. Returns -1 if the brick has no connections or the metadata
-// isn't resolvable. Free-only: we skip already-linked connections so
-// clicking on a brick that's already connected at one end still lets you
-// grab and drag the OTHER end as the snap lead.
+// isn't resolvable. The grabbed end leads even when it is linked to a part
+// left behind (the drag pulls it away); only an end linked inside the
+// moving set (`keys`, from linkKeys) is passed over.
 int nearestConnectionIndex(const core::Brick& brick, parts::PartsLibrary& lib,
-                           QPointF clickStuds) {
+                           QPointF clickStuds, const QSet<QString>& keys) {
     auto meta = lib.metadata(brick.partNumber);
     if (!meta) return -1;
     const int n = meta->connections.size();
@@ -75,10 +75,9 @@ int nearestConnectionIndex(const core::Brick& brick, parts::PartsLibrary& lib,
     int bestIdx = -1;
     double bestDist = std::numeric_limits<double>::max();
     for (int i = 0; i < n; ++i) {
-        // Skip already-linked connections; for single-end grabs this is
-        // usually the end we *don't* want to snap with.
+        // Skip an end joined to another moving part: it moves with it.
         if (i < static_cast<int>(brick.connections.size()) &&
-            !brick.connections[i].linkedToId.isEmpty()) continue;
+            takenWhileMoving(brick.connections[i].linkedToId, keys)) continue;
         const auto& c = meta->connections[i];
         if (c.type.isEmpty()) continue;
         const QPointF worldPos = brickCentre + rotatePoint(c.position, brick.orientation);
@@ -178,7 +177,10 @@ void MapView::captureGrabAnchor(QPointF clickScenePos) {
 
     const double px = studToPx();
     const QPointF clickStuds(clickScenePos.x() / px, clickScenePos.y() / px);
-    const int idx = nearestConnectionIndex(*brick, parts_, clickStuds);
+    // The moving set: what captureDragStart took, else just this brick.
+    QSet<QString> moving{ guid };
+    for (const auto& s : dragStart_) moving.insert(s.guid);
+    const int idx = nearestConnectionIndex(*brick, parts_, clickStuds, linkKeys(*map_, moving));
     if (idx < 0) return;
 
     grabBrickGuid_        = guid;
@@ -274,6 +276,8 @@ void MapView::applyLiveConnectionSnap() {
                              lastMouseScenePos_.y() / px);
     QSet<QString> movingGuids;
     for (const auto& s : dragStart_) movingGuids.insert(s.guid);
+    // Links to the parts left behind don't hold while dragging.
+    const QSet<QString> links = linkKeys(*map_, movingGuids);
     const double reach = connectionSnapReachStuds();
     const bool bypass = snapBypassed();
 
@@ -297,7 +301,7 @@ void MapView::applyLiveConnectionSnap() {
             const auto& c = meta->connections[i];
             if (c.type.isEmpty()) continue;
             if (i < static_cast<int>(b->connections.size()) &&
-                !b->connections[i].linkedToId.isEmpty()) continue;
+                takenWhileMoving(b->connections[i].linkedToId, links)) continue;
             const QPointF world = centerStuds + rotatePoint(c.position, b->orientation);
             const QPointF d = world - mouseStuds;
             if (s.guid == grabBrickGuid_ && i == grabActiveConnIdx_) grabbed = static_cast<int>(moving.size());
@@ -484,6 +488,7 @@ void MapView::commitDragIfMoved() {
                                  lastMouseScenePos_.y() / px);
         QSet<QString> movingGuids;
         for (const auto& e : entries) movingGuids.insert(e.ref.guid);
+        const QSet<QString> links = linkKeys(*map_, movingGuids);
         const double reach = connectionSnapReachStuds();
         const bool bypass = snapBypassed();
 
@@ -509,7 +514,7 @@ void MapView::commitDragIfMoved() {
                 const auto& c = meta->connections[i];
                 if (c.type.isEmpty()) continue;
                 if (i < static_cast<int>(b->connections.size()) &&
-                    !b->connections[i].linkedToId.isEmpty()) continue;
+                    takenWhileMoving(b->connections[i].linkedToId, links)) continue;
                 const QPointF world = centerStuds + rotatePoint(c.position, b->orientation);
                 const QPointF d = world - mouseStuds;
                 free.push_back({ b, i, centerStuds });

@@ -25,8 +25,23 @@ double facingOrientation(double targetAngle, double connAngle) {
     return o;
 }
 
+QSet<QString> linkKeys(const core::Map& map, const QSet<QString>& movingGuids) {
+    QSet<QString> keys = movingGuids;
+    if (movingGuids.isEmpty()) return keys;
+    for (const auto& layerPtr : map.layers()) {
+        if (!layerPtr || layerPtr->kind() != core::LayerKind::Brick) continue;
+        for (const auto& b : static_cast<const core::LayerBrick&>(*layerPtr).bricks) {
+            if (!movingGuids.contains(b.guid)) continue;
+            for (const auto& c : b.connections)
+                if (!c.guid.isEmpty()) keys.insert(c.guid);
+        }
+    }
+    return keys;
+}
+
 std::vector<FreeTarget> freeTargets(const core::Map& map, parts::PartsLibrary& lib, const QSet<QString>& exclude) {
     std::vector<FreeTarget> out;
+    const QSet<QString> keys = linkKeys(map, exclude);
     for (const auto& layerPtr : map.layers()) {
         if (!layerPtr || layerPtr->kind() != core::LayerKind::Brick) continue;
         for (const auto& tb : static_cast<const core::LayerBrick&>(*layerPtr).bricks) {
@@ -38,7 +53,8 @@ std::vector<FreeTarget> freeTargets(const core::Map& map, parts::PartsLibrary& l
             for (int i = 0; i < n; ++i) {
                 const auto& c = meta->connections[i];
                 if (c.type.isEmpty()) continue;
-                if (i < static_cast<int>(tb.connections.size()) && !tb.connections[i].linkedToId.isEmpty()) continue;
+                if (i < static_cast<int>(tb.connections.size()) && takenWhileStill(tb.connections[i].linkedToId, keys))
+                    continue;
                 out.push_back({ connKey(tb.guid, i), c.type, centre + rotatePoint(c.position, tb.orientation),
                                 c.angleDegrees + tb.orientation });
             }
