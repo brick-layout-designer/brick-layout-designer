@@ -5,9 +5,12 @@
 // sessions put edits back; reloads keep the zoom.
 
 #include "ui/LiveLayout.h"
+#include "ui/ModuleEditBar.h"
 #include "FakeSyncServer.h"
 
 #include "edit/EditCommands.h"
+#include "edit/ModuleCommands.h"
+#include "core/ModuleEdit.h"
 #include "parts/PartsLibrary.h"
 #include "ui/MapView.h"
 
@@ -130,6 +133,39 @@ TEST(LiveLayout, ClosingLeavesTheMapAndStopsFollowingTheServer) {
     EXPECT_EQ(h.view.undoStack()->count(), 1);
     EXPECT_EQ(h.reloads, before);
     EXPECT_NE(firstBrickArea(h.server.doc), firstBrick(*h.view.currentMap()).displayArea);
+}
+
+// Edit module in presence: which module someone edits goes both ways, and
+// the bar names whoever else is in the module we edit.
+TEST(LiveLayout, SharesWhoIsEditingWhichModule) {
+    Harness h;
+    h.open();
+    // A module, made as an edit so it reaches the shared layout.
+    auto* create = new edit::CreateModuleCommand(*h.view.currentMap(), QStringLiteral("Harbour"),
+                                                 { { 0, firstBrick(*h.view.currentMap()).guid } });
+    const QString id = create->moduleId();
+    h.view.undoStack()->push(create);
+    ASSERT_TRUE(waitFor([&] { return core::findModule(h.view.currentMap()->sidecar.modules, id) != nullptr; }));
+    sync::SyncSession other;
+    other.open(h.server.url(), {}, false);
+    ASSERT_TRUE(waitFor([&] { return other.status() == Status::Synced; }));
+    other.setPresence(sync::presence::state({ QStringLiteral("u-sam"), QStringLiteral("Sam"), QStringLiteral("#60a5fa") },
+                                            QPointF(10, 20), {}, 0, id));
+    ASSERT_TRUE(waitFor([&] { return h.live.drawnPeers() == 1; }));
+    h.view.setEditingModule(id);
+    ASSERT_NE(h.view.moduleEditBar(), nullptr);
+    EXPECT_EQ(h.view.moduleEditBar()->others(), QStringLiteral("Sam is here too"));
+    ASSERT_TRUE(waitFor([&] {
+        for (const auto& s : other.peers())
+            if (sync::presence::peerFrom(s).editingModule == id) return true;
+        return false;
+    }));
+    h.view.setEditingModule({});
+    ASSERT_TRUE(waitFor([&] {
+        for (const auto& s : other.peers())
+            if (!sync::presence::peerFrom(s).editingModule.isEmpty()) return false;
+        return true;
+    }));
 }
 
 TEST(LiveLayout, ShowsOtherPeoplesCursorsAndSendsOurs) {

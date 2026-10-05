@@ -30,6 +30,8 @@ struct Module {
     QString outlineColor;      // "#rrggbb", or empty for the default light blue
     QString nameColor;         // "#rrggbb", or empty for the default light blue
     bool    sameColor = true;  // "Same colour": outline and name change together
+    // Pinned in place: it can't be moved as a whole (Edit module still works).
+    bool    pinned = false;
 
     // Fields a newer build (or the web) wrote that this one doesn't know,
     // kept so reading and writing the module again doesn't lose them.

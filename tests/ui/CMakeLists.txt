@@ -30,6 +30,7 @@ add_executable(bld_ui_tests
     UiWordingTest.cpp
     SnapFeelTest.cpp
     ModuleLookTest.cpp
+    ModuleEditTest.cpp
 )
 
 target_compile_definitions(bld_ui_tests PRIVATE

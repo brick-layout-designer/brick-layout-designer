@@ -134,6 +134,17 @@ anchor moves.
   (`ImportBbmAsModuleCommand` in `src/edit/`).
 - `importedAt` is ISO-8601. Absent when the module was created from
   selection rather than imported.
+- How the placed module looks and behaves (optional; each is written
+  only when it differs from the default, so older files read as before):
+  - `showName` (bool, default `true`): its name shows on the map
+    (View › Module Names still applies to every module).
+  - `outlineColor`, `nameColor` (`"#rrggbb"`, default the light blue
+    `rgba(100,180,255)`): drawn at the default look's opacity (0.8 for
+    the outline, 0.9 for the name).
+  - `sameColor` (bool, default `true`): the two colours change together.
+  - `pinned` (bool, default `false`): the module can't be moved or turned
+    as a whole; Edit module still changes its parts.
+- Fields a reader doesn't know are kept when it writes the module again.
 
 ### Forward-compat projection
 

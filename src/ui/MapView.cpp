@@ -1,4 +1,6 @@
 #include "MapView.h"
+#include "../core/ModuleEdit.h"
+#include "../rendering/ModuleLabels.h"
 #include "LoadingCard.h"
 
 #include "../core/Brick.h"
@@ -192,6 +194,8 @@ MapView::MapView(parts::PartsLibrary& parts, QWidget* parent)
                     }
                 }
             }
+            // Modules are picked whole; while one is edited, only its parts.
+            shapeModuleSelection();
             reentrant = false;
         }
         refreshSelectionOverlay();
@@ -308,6 +312,8 @@ void MapView::loadMap(std::unique_ptr<core::Map> map) {
     edit::rebuildConnectivity(*map_, parts_);
     builder_->build(*map_);
     applyViewFilter();
+    applyModuleState();
+    refreshModuleEditBar();
     // Give the view a much bigger scene rect than the current content so
     // the user can pan well outside the existing bricks to add new ones
     // or extend the layout. ~50 000 px = ~6 250 studs on each side, which
@@ -369,6 +375,8 @@ void MapView::rebuildScene() {
     }
     builder_->build(*map_);
     applyViewFilter();
+    applyModuleState();
+    refreshModuleEditBar();
     // Reselect by (layer, guid, kind) — builds a quick index of the new
     // items once so each lookup is O(1).
     if (!preserve.isEmpty()) {
@@ -551,6 +559,23 @@ void MapView::mousePressEvent(QMouseEvent* e) {
     }
     lastMouseScenePos_ = mapToScene(e->pos());
 
+    // Edit module: a click outside the module (not on one of its parts)
+    // goes back to the whole layout.
+    if (e->button() == Qt::LeftButton && tool_ == Tool::Select && !editingModuleId_.isEmpty() && map_) {
+        QGraphicsItem* under = itemUnder(e->pos());
+        while (under && under->parentItem() && !isBrickItem(under)) under = under->parentItem();
+        const bool onPart = under && isBrickItem(under)
+                            && !core::outsideEdit(under->data(kBrickDataGuid).toString(), map_->sidecar.modules,
+                                                  editingModuleId_);
+        const auto frame = editedModuleFrameStuds();
+        const QPointF at = lastMouseScenePos_ / rendering::SceneBuilder::kPixelsPerStud;
+        if (!onPart && (!frame || !frame->contains(at))) {
+            setEditingModule({});
+            e->accept();
+            return;
+        }
+    }
+
     if (gridOriginDragging_ && e->button() == Qt::RightButton) {
         // Cancel, as BlueBrick does.
         gridOriginDragging_ = false;
@@ -667,6 +692,35 @@ void MapView::mousePressEvent(QMouseEvent* e) {
         return;
     }
     QGraphicsView::mousePressEvent(e);
+    pinnedDragBlocked_ = false;
+    pinnedDragTold_ = false;
+    editOutlineAtPress_.reset();
+    editAreasAtPress_.clear();
+    if (e->button() == Qt::LeftButton && map_ && tool_ == Tool::Select) {
+        // A press on a picked part starts a drag of the whole selection:
+        // refused when a pinned module is in it.
+        QGraphicsItem* under = itemUnder(e->pos());
+        while (under && under->parentItem() && !isBrickItem(under)) under = under->parentItem();
+        if (under && isBrickItem(under) && under->isSelected()) {
+            QSet<QString> sel;
+            for (QGraphicsItem* it : scene()->selectedItems())
+                if (isBrickItem(it)) sel.insert(it->data(kBrickDataGuid).toString());
+            if (core::pinnedAmong(sel, map_->sidecar.modules, editingModuleId_)) {
+                pinnedDragBlocked_ = true;
+            } else if (!editingModuleId_.isEmpty()) {
+                // Editing: remember the outline, to tell when a part leaves it.
+                editOutlineAtPress_ = editedModuleFrameStuds();
+                if (editOutlineAtPress_) {
+                    const double p = rendering::kModuleEditPadStuds;
+                    editOutlineAtPress_ = editOutlineAtPress_->adjusted(p, p, -p, -p);
+                }
+                for (const auto& L : map_->layers())
+                    if (L && L->kind() == core::LayerKind::Brick)
+                        for (const auto& b : static_cast<const core::LayerBrick&>(*L).bricks)
+                            if (sel.contains(b.guid)) editAreasAtPress_.insert(b.guid, b.displayArea);
+            }
+        }
+    }
     if (e->button() == Qt::LeftButton) {
         captureDragStart();
         // Master-brick snap anchor (BlueBrick-style): remember WHICH brick
@@ -679,6 +733,16 @@ void MapView::mousePressEvent(QMouseEvent* e) {
 void MapView::mouseMoveEvent(QMouseEvent* e) {
     snapMods_ = e->modifiers();
     lastMouseScenePos_ = mapToScene(e->pos());
+
+    // A pinned module in the selection: no drag (said once).
+    if (pinnedDragBlocked_ && (e->buttons() & Qt::LeftButton)) {
+        if (!pinnedDragTold_) {
+            pinnedDragTold_ = true;
+            selectionMayMove();
+        }
+        e->accept();
+        return;
+    }
 
     if (gridOriginDragging_) {
         const QPoint cell = gridCellAt(lastMouseScenePos_);
@@ -973,7 +1037,10 @@ void MapView::mouseReleaseEvent(QMouseEvent* e) {
     }
     QGraphicsView::mouseReleaseEvent(e);
     if (e->button() == Qt::LeftButton) {
+        pinnedDragBlocked_ = false;
         commitDragIfMoved();
+        // Editing a module: parts dragged clear of it may leave it.
+        checkPartsLeftModule();
         clearGrabAnchor();
         // Drag is done; clear the "live snap active" indicator so the
         // selection outline returns to its normal yellow colour.
@@ -1130,6 +1197,11 @@ void MapView::keyPressEvent(QKeyEvent* e) {
             return;
         }
     }
+    if (e->key() == Qt::Key_Escape && !editingModuleId_.isEmpty()) {
+        setEditingModule({});
+        e->accept();
+        return;
+    }
     if (e->key() == Qt::Key_Delete || e->key() == Qt::Key_Backspace) {
         deleteSelected();
         e->accept();
@@ -1160,6 +1232,7 @@ void MapView::keyPressEvent(QKeyEvent* e) {
 
 void MapView::nudgeSelected(double dxStuds, double dyStuds) {
     if (!map_ || (dxStuds == 0.0 && dyStuds == 0.0)) return;
+    if (!selectionMayMove()) return;
     const QPointF delta(dxStuds, dyStuds);
     std::vector<edit::MoveBricksCommand::Entry> brickEntries;
 
@@ -1218,6 +1291,7 @@ void MapView::nudgeSelected(double dxStuds, double dyStuds) {
 
 void MapView::rotateSelected(float degrees) {
     if (!map_) return;
+    if (!selectionMayMove()) return;
     // Every selected brick turns around the selection's pivot: for a single
     // brick that's its own sprite centre (BlueBrick's pivot), so it turns
     // in place. The displayArea follows the rotated hull.
@@ -1468,10 +1542,13 @@ void MapView::addPartAtScenePos(const QString& partKey, QPointF sceneCenterPx, s
             for (const auto& d : meta->descriptions) {
                 if (d.language == QStringLiteral("en")) { setName = d.text; break; }
             }
+            QSet<QString> placedGuids;
+            for (const auto& m : members) placedGuids.insert(m.guid);
             if (!members.empty()) {
                 undoStack_->push(new edit::CreateModuleCommand(
                     *map_, setName, std::move(members)));
             }
+            absorbIntoEditedModule(placedGuids);
             undoStack_->endMacro();
             // Set files declare positions + angles but NOT connectivity.
             // Without this, every subpart has empty linkedToId, so the
@@ -1504,7 +1581,14 @@ void MapView::addPartAtScenePos(const QString& partKey, QPointF sceneCenterPx, s
     parts::placement::placeByImageCentre(b, centreStuds, parts_);
 
     const QString newGuid = b.guid;
+    // Editing a module, the new part joins it in the same undo step.
+    const bool joins = !editingModuleId_.isEmpty();
+    if (joins) undoStack_->beginMacro(tr("Add part"));
     undoStack_->push(new edit::AddBrickCommand(*map_, targetLayer, std::move(b)));  // indexChanged handler rebuilds the scene
+    if (joins) {
+        absorbIntoEditedModule({ newGuid });
+        undoStack_->endMacro();
+    }
 
     // Select the newly-placed brick so the user can immediately chain
     // another connected placement: the next click-place uses it as the
@@ -1682,9 +1766,29 @@ void MapView::editSelectedTextContent() {
 }
 
 void MapView::mouseDoubleClickEvent(QMouseEvent* e) {
-    QGraphicsItem* under = itemAt(e->pos());
+    QGraphicsItem* under = itemUnder(e->pos());
     // Connection dots and hull outlines are children of their brick.
     while (under && under->parentItem() && !isBrickItem(under)) under = under->parentItem();
+    // Edit module: what's outside the module being edited is out of reach.
+    if (under && map_ && !editingModuleId_.isEmpty() && isBrickItem(under)
+        && core::outsideEdit(under->data(kBrickDataGuid).toString(), map_->sidecar.modules, editingModuleId_)) {
+        e->accept();
+        return;
+    }
+    if (under && map_ && !editingModuleId_.isEmpty() && !isBrickItem(under)) under = nullptr;
+    // A module's part (not the one being edited) opens Edit module, with
+    // that part picked.
+    if (under && map_ && e->button() == Qt::LeftButton && isBrickItem(under)) {
+        const QString guid = under->data(kBrickDataGuid).toString();
+        const core::Module* mod = core::moduleByPart(map_->sidecar.modules).value(guid);
+        if (mod && mod->id != editingModuleId_) {
+            setEditingModule(mod->id);
+            for (QGraphicsItem* it : scene()->items())
+                if (isBrickItem(it) && it->data(kBrickDataGuid).toString() == guid) it->setSelected(true);
+            e->accept();
+            return;
+        }
+    }
     if (under) {
         if (e->button() == Qt::LeftButton && isBrickItem(under)
             && startFlexMove(under, mapToScene(e->pos()))) {
@@ -2289,8 +2393,16 @@ bool MapView::placeModule(core::Map& loaded, const QString& name, const QString&
 
     auto* cmd = new edit::ImportBbmAsModuleCommand(
         *map_, source, name, std::move(batches));
+    const bool joins = !editingModuleId_.isEmpty();
+    if (joins) undoStack_->beginMacro(tr("Insert module"));
     undoStack_->push(cmd);
     const auto placed = cmd->placedBricks();
+    if (joins) {
+        QSet<QString> guids;
+        for (const auto& p : placed) guids.insert(p.guid);
+        absorbIntoEditedModule(guids);
+        undoStack_->endMacro();
+    }
     // Select every just-placed brick so R / Shift+R rotate the
     // freshly-dropped module, and arrow keys nudge it. Without this
     // the user has to rubber-band-select after every drop to do

@@ -126,6 +126,8 @@ void MapView::pasteClipboard() {
         auto& bricks = byLayer[name];
         undoStack_->push(new edit::AddBricksCommand(*map_, li, std::move(bricks)));
     }
+    // Editing a module, pasted parts join it.
+    absorbIntoEditedModule(newGuids);
     undoStack_->endMacro();
 
     // endMacro fires indexChanged → scene rebuild → selection restore by

@@ -26,6 +26,7 @@ dialog.measure
 dialog.exportImage
 dialog.exportPartList
 dialog.moduleLook
+module.edit
 download.formats
 download.layout
 download.bbm

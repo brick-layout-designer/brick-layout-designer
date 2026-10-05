@@ -195,6 +195,25 @@ public:
     // How long a finger rests for the context menu.
     static constexpr int kLongPressMs = 500;
 
+    // Edit module: one placed module opened part by part (the web's Edit
+    // module). Empty: every module acts as one piece. Entering or leaving
+    // clears the selection; the rest of the layout is dimmed and out of
+    // reach meanwhile, and a bar at the top says so (with Done).
+    void setEditingModule(const QString& moduleId);
+    const QString& editingModule() const { return editingModuleId_; }
+    // Who else is editing which module (from presence): module id -> names.
+    void setPeersEditing(const QHash<QString, QStringList>& who);
+    class ModuleEditBar* moduleEditBar() const { return editBar_; }
+    // Whether the selection may move or turn as a whole; says why not when
+    // a pinned module stops it.
+    bool selectionMayMove();
+    // Parts placed while a module is edited join it; a set or library
+    // module placed meanwhile melts into it. Pushes undo steps.
+    void absorbIntoEditedModule(const QSet<QString>& guids);
+    // The edited module's outline (its parts on visible sheets, plus the
+    // frame's half-stud margin), in studs.
+    std::optional<QRectF> editedModuleFrameStuds() const;
+
     // Area paint state (read by the paint handler).
     void setPaintColor(QColor c) { paintColor_ = c; }
     QColor paintColor() const { return paintColor_; }
@@ -209,6 +228,10 @@ signals:
     void mapLoaded();
     // The touch bar's Add part: show the parts panel.
     void addPartRequested();
+    // Edit module was entered (an id) or left (empty).
+    void editingModuleChanged(const QString& moduleId);
+    // The map's right-click menu: a module's Colours...
+    void moduleLookRequested(const QString& moduleId);
 
 protected:
     // Touch (pinch, two-finger pan, tap, drag, long press) and trackpad
@@ -453,6 +476,32 @@ private:
     class QGraphicsPathItem* venueDrawPreview_ = nullptr;
     void finishVenueDraw();
     void updateVenueDrawPreview(QPointF hoverScenePos = {});
+
+    // Edit module (MapViewModules.cpp).
+    QString editingModuleId_;
+    QHash<QString, QStringList> peersEditing_;
+    class ModuleEditBar* editBar_ = nullptr;
+    void refreshModuleEditBar();
+    // Item flags and dimming for Edit module and pinned modules, after a build.
+    void applyModuleState();
+    // Modules picked whole (or only the edited one's parts): called from
+    // the scene's selectionChanged. `before` is the selection before.
+    void shapeModuleSelection();
+    QSet<QString> lastBrickSelection_;
+    void paintModuleEdit(QPainter* painter);
+    // A press on a selection with a pinned module: the drag is refused.
+    bool pinnedDragBlocked_ = false;
+    bool pinnedDragTold_ = false;
+    // Editing: the module's outline and its parts' areas when the press
+    // happened, to tell when a dragged part leaves it.
+    std::optional<QRectF> editOutlineAtPress_;
+    QHash<QString, QRectF> editAreasAtPress_;
+    void checkPartsLeftModule();
+    void showStatus(const QString& text, int ms);
+    // The topmost item at a viewport point, past module frames and names.
+    QGraphicsItem* itemUnder(QPoint viewPos) const;
+    // A module's entries at the top of the right-click menu.
+    void addModuleMenu(class QMenu& menu, const QString& clickedBrickGuid);
 
     // Live overlay item that paints outlines around every selected item.
     // Lives in the scene with a very high z-value so it's always on top.

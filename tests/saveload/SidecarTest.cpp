@@ -110,6 +110,7 @@ TEST(Sidecar, RoundTripModuleLook) {
     m.outlineColor = QStringLiteral("#ff8800");
     m.nameColor = QStringLiteral("#112233");
     m.sameColor = false;
+    m.pinned = true;
     m.extras.insert(QStringLiteral("fromTheFuture"), QJsonObject{ { QStringLiteral("x"), 1 } });
     sc.modules.push_back(m);
     core::Module plain;
@@ -125,10 +126,11 @@ TEST(Sidecar, RoundTripModuleLook) {
     EXPECT_EQ(a.value(QStringLiteral("outlineColor")).toString(), QStringLiteral("#ff8800"));
     EXPECT_EQ(a.value(QStringLiteral("nameColor")).toString(), QStringLiteral("#112233"));
     EXPECT_EQ(a.value(QStringLiteral("sameColor")), QJsonValue(false));
+    EXPECT_EQ(a.value(QStringLiteral("pinned")), QJsonValue(true));
     EXPECT_EQ(a.value(QStringLiteral("fromTheFuture")).toObject().value(QStringLiteral("x")).toInt(), 1);
     // The default look writes nothing extra.
     const QJsonObject b = mods[1].toObject();
-    for (const char* key : { "showName", "outlineColor", "nameColor", "sameColor" })
+    for (const char* key : { "showName", "outlineColor", "nameColor", "sameColor", "pinned" })
         EXPECT_FALSE(b.contains(QLatin1String(key))) << key;
 
     core::Sidecar back;
@@ -138,6 +140,8 @@ TEST(Sidecar, RoundTripModuleLook) {
     EXPECT_EQ(back.modules[0].outlineColor, QStringLiteral("#ff8800"));
     EXPECT_EQ(back.modules[0].nameColor, QStringLiteral("#112233"));
     EXPECT_FALSE(back.modules[0].sameColor);
+    EXPECT_TRUE(back.modules[0].pinned);
+    EXPECT_FALSE(back.modules[1].pinned);
     EXPECT_TRUE(back.modules[0].extras.contains(QStringLiteral("fromTheFuture")));
     EXPECT_TRUE(back.modules[1].showName);
     EXPECT_TRUE(back.modules[1].sameColor);

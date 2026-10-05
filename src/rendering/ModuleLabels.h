@@ -36,6 +36,14 @@ inline const QColor kModuleFullNameBackground(0, 0, 0, 191);
 inline constexpr double kModuleNameMinPx = 16.0;
 // Lines of a two-line name are one font size apart.
 inline constexpr double kModuleNameLineHeight = 1.0;
+// Edit module: everything outside the edited module is dimmed, and its
+// outline is drawn in the accent blue, 2 screen px, dashed 8/4, half a
+// stud outside its parts (the web's ModuleEditDim.tsx).
+inline const QColor kModuleEditDim = QColor::fromRgbF(15 / 255.0f, 23 / 255.0f, 42 / 255.0f, 0.5f);
+inline const QColor kModuleEditOutline(37, 99, 235);
+inline constexpr double kModuleEditOutlineWidth = 2.0;
+inline constexpr double kModuleEditDash[2] = { 8.0, 4.0 };
+inline constexpr double kModuleEditPadStuds = 0.5;
 // The frame's dash and gap, in screen px.
 inline constexpr double kModuleFrameDash[2] = { 6.0, 4.0 };
 // QGraphicsItem data role naming a module drawing: "frame" or "name".
