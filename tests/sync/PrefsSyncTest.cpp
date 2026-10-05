@@ -55,6 +55,7 @@ QJsonObject serverPrefs(const QString& accent, const QString& theme) {
     p.theme = ui::theme::themeChoiceFromId(theme);
     QJsonObject json = p.toJson();
     json.remove(QStringLiteral("partsIconSize"));  // a server from before the Parts list's size was synced
+    json.remove(QStringLiteral("connectionSnap"));  // ...and before the Snap strength was
     return json;
 }
 
@@ -226,6 +227,47 @@ TEST_F(PrefsSyncTest, ThePartsPictureSizeGoesOnlyToAServerThatKeepsIt) {
     QObject::connect(&sync, &PrefsSync::synced, [&synced] { ++synced; });
     sync.start(http.base(), QStringLiteral("bld_pat_test"));
     ASSERT_TRUE(waitFor([&] { return synced > 0 && store.prefs().partsIconSize == 152; }));
+}
+
+TEST_F(PrefsSyncTest, TheSnapStrengthGoesOnlyToAServerThatKeepsIt) {
+    PrefsStore store(QString::fromLatin1(kGroup));
+    AppPrefs mine;
+    mine.connectionSnap = QStringLiteral("strong");
+    store.update(mine);
+
+    // An older server: the Snap strength is left out of the save.
+    FakeHttp http;
+    QJsonObject theirs = serverPrefs(QStringLiteral("brick"), QStringLiteral("system"));
+    http.reply(kPath, 200, answer(theirs, QStringLiteral("2020-01-01T00:00:00.000Z")));
+    http.reply(kPath, 200, answer(theirs, QStringLiteral("2031-01-01T00:00:00.000Z")));
+    PrefsSync sync(store);
+    sync.start(http.base(), QStringLiteral("bld_pat_test"));
+    ASSERT_TRUE(waitFor([&] { return count(http, "PUT") == 1; }));
+    QJsonObject sent =
+        QJsonDocument::fromJson(http.requests.back().body).object().value(QStringLiteral("prefs")).toObject();
+    EXPECT_FALSE(sent.contains(QStringLiteral("connectionSnap")));
+
+    // A newer one answers with it (gentle by default): mine, newer, go up.
+    http.clear(kPath);
+    theirs.insert(QStringLiteral("connectionSnap"), QStringLiteral("gentle"));
+    http.reply(kPath, 200, answer(theirs, QStringLiteral("2020-01-01T00:00:00.000Z")));
+    http.reply(kPath, 200, answer(store.prefs().toJson(), QStringLiteral("2033-01-01T00:00:00.000Z")));
+    sync.start(http.base(), QStringLiteral("bld_pat_test"));
+    ASSERT_TRUE(waitFor([&] { return count(http, "PUT") == 2; }));  // requests are kept across clear()
+    sent = QJsonDocument::fromJson(http.requests.back().body).object().value(QStringLiteral("prefs")).toObject();
+    EXPECT_EQ(sent.value(QStringLiteral("connectionSnap")).toString(), QStringLiteral("strong"));
+
+    // The server's newer choice is taken in; a value it doesn't know isn't.
+    http.clear(kPath);
+    theirs.insert(QStringLiteral("connectionSnap"), QStringLiteral("off"));
+    http.reply(kPath, 200, answer(theirs, QStringLiteral("2034-01-01T00:00:00.000Z")));
+    int synced = 0;
+    QObject::connect(&sync, &PrefsSync::synced, [&synced] { ++synced; });
+    sync.start(http.base(), QStringLiteral("bld_pat_test"));
+    ASSERT_TRUE(waitFor([&] { return synced > 0 && store.prefs().connectionSnap == QStringLiteral("off"); }));
+    EXPECT_EQ(AppPrefs::fromJson(QJsonObject{ { QStringLiteral("connectionSnap"), QStringLiteral("medium") } })
+                  .connectionSnap,
+              QStringLiteral("gentle"));
 }
 
 TEST_F(PrefsSyncTest, ATokenWithoutTheScopeSaysSo) {

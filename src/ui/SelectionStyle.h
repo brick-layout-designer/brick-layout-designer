@@ -34,4 +34,20 @@ inline double rulerHaloWidth(double thickness) {
     return thickness + kRulerHaloExtra > kRulerHaloMin ? thickness + kRulerHaloExtra : kRulerHaloMin;
 }
 
+// Connection-snap marks while dragging, in screen px at any zoom: a green
+// ring (with a light halo, readable on dark and light backgrounds) on the
+// target connection, an amber dot on the moving connection that joins.
+// Same as the web (render/selectionStyle.ts SNAP_MARKS).
+namespace snapmarks {
+inline const QColor kRing(22, 163, 74);
+inline constexpr double kRingRadius = 9.0;
+inline constexpr double kRingWidth = 2.5;
+inline const QColor kRingFill(34, 197, 94, 51);       // rgba(34,197,94,0.2)
+inline const QColor kHalo(255, 255, 255, 204);        // rgba(255,255,255,0.8)
+inline constexpr double kHaloWidth = 1.5;
+inline const QColor kDot(245, 158, 11);
+inline constexpr double kDotRadius = 4.0;
+inline constexpr double kDotHaloWidth = 1.5;
+}  // namespace snapmarks
+
 }  // namespace bld::ui::selection

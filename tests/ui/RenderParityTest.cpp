@@ -235,6 +235,16 @@ TEST(RenderParity, SelectionMatchesTheSharedDescription) {
     EXPECT_EQ(kHandleFill, css(handle[QLatin1String("fill")]));
     EXPECT_EQ(kHandleStroke, css(handle[QLatin1String("stroke")]));
     EXPECT_EQ(kHandleStrokeWidth, handle[QLatin1String("strokeWidth")].toDouble());
+    const QJsonObject snap = spec[QLatin1String("snap")].toObject();
+    EXPECT_EQ(snapmarks::kRing, css(snap[QLatin1String("ring")]));
+    EXPECT_EQ(snapmarks::kRingRadius, snap[QLatin1String("ringRadius")].toDouble());
+    EXPECT_EQ(snapmarks::kRingWidth, snap[QLatin1String("ringWidth")].toDouble());
+    EXPECT_EQ(snapmarks::kRingFill, css(snap[QLatin1String("ringFill")]));
+    EXPECT_EQ(snapmarks::kHalo, css(snap[QLatin1String("halo")]));
+    EXPECT_EQ(snapmarks::kHaloWidth, snap[QLatin1String("haloWidth")].toDouble());
+    EXPECT_EQ(snapmarks::kDot, css(snap[QLatin1String("dot")]));
+    EXPECT_EQ(snapmarks::kDotRadius, snap[QLatin1String("dotRadius")].toDouble());
+    EXPECT_EQ(snapmarks::kDotHaloWidth, snap[QLatin1String("dotHaloWidth")].toDouble());
 }
 
 // The drawn scene: one dashed frame and one outlined name per module, no

@@ -17,6 +17,7 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QPushButton>
+#include <QRadioButton>
 #include <QScrollArea>
 #include <QTimer>
 #include <QToolButton>
@@ -214,6 +215,42 @@ SettingsDialog::SettingsDialog(PrefsStore& store, const QString& syncedHost,
         });
     }
 
+    // Editing: how strongly parts snap together (SnapFeel.h).
+    {
+        auto* v = card(tr("Editing"));
+        auto* title = new QLabel(tr("Snap strength"), this);
+        title->setStyleSheet(QStringLiteral("font-weight: 600;"));
+        v->addWidget(help::withHelp(title, QStringLiteral("settings.connectionSnap"), this));
+        auto* lead = new QLabel(tr("How strongly a part you drag pulls onto a matching connection nearby."), this);
+        lead->setObjectName(QStringLiteral("Muted"));
+        lead->setWordWrap(true);
+        v->addWidget(lead);
+        auto* group = new QButtonGroup(this);
+        group->setObjectName(QStringLiteral("snapGroup"));
+        const std::pair<QString, QString> choices[] = {
+            { QStringLiteral("off"), tr("Off: parts never pull onto each other; the grid still lines them up.") },
+            { QStringLiteral("gentle"), tr("Gentle: pulls only when the ends are close. Recommended.") },
+            { QStringLiteral("strong"), tr("Strong: reaches further, for quick rough placing.") },
+        };
+        for (const auto& [id, label] : choices) {
+            auto* b = new QRadioButton(label, this);
+            b->setObjectName(QStringLiteral("snap_") + id);
+            group->addButton(b);
+            v->addWidget(b);
+            connect(b, &QRadioButton::toggled, this, [this, id](bool on) {
+                if (!on || loading_) return;
+                AppPrefs p = store_.prefs();
+                p.connectionSnap = id;
+                store_.update(p);
+            });
+        }
+        auto* tip = new QLabel(tr("Tip: hold Alt (Option on a Mac) while dragging to place one part without snapping."),
+                               this);
+        tip->setObjectName(QStringLiteral("Muted"));
+        tip->setWordWrap(true);
+        v->addWidget(tip);
+    }
+
     // Help.
     {
         auto* v = card(tr("Help"));
@@ -362,6 +399,7 @@ void SettingsDialog::load() {
     }
     findChild<QCheckBox*>(QStringLiteral("largeText"))->setChecked(p.largeText);
     findChild<QCheckBox*>(QStringLiteral("helpIcons"))->setChecked(p.helpIcons);
+    if (auto* snap = findChild<QRadioButton*>(QStringLiteral("snap_") + p.connectionSnap)) snap->setChecked(true);
     const auto done = p.toursSeen.size();
     toursNote_->setText(done == 0 ? tr("You haven't finished any tours yet.")
                                   : done == 1 ? tr("You've seen one tour.") : tr("You've seen %1 tours.").arg(done));

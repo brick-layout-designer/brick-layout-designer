@@ -45,6 +45,8 @@ add_library(bld_ui STATIC
     MapViewInternal.h
     ConnectionSnap.cpp
     ConnectionSnap.h
+    SnapFeel.cpp
+    SnapFeel.h
     SelectionOverlay.cpp
     SelectionOverlay.h
     LayerPanel.cpp

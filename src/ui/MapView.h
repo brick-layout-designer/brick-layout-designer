@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../core/Brick.h"
+#include "SnapFeel.h"
 
 #include <QColor>
 #include <QEvent>
@@ -95,7 +96,9 @@ public:
     void nudgeSelected(double dxStuds, double dyStuds);
     void deleteSelected();
     void addPartAtViewCenter(const QString& partKey);
-    void addPartAtScenePos(const QString& partKey, QPointF scenePosPx);
+    // `dragSnap`: the snap session of the drag that drops it (its final
+    // snap keeps the join the drag held); none for a click or tap.
+    void addPartAtScenePos(const QString& partKey, QPointF scenePosPx, snapfeel::Session* dragSnap = nullptr);
 
     // Resolve where a new part of `partKey` should land if dropped at
     // `cursorScenePx`, applying the same selected-brick anchor + connection
@@ -105,10 +108,20 @@ public:
     // `outSnapPointScenePx` (when non-null and outSnapped is true) returns
     // the world-snap-point in scene coords so the caller can render a snap
     // ring. Used by the live drag preview.
+    // `session`: the drag's snap state (hold, speed gate), or none for a
+    // one-off placement; `final` is the drop.
     void resolvePartPlacement(const QString& partKey, QPointF cursorScenePx,
                               QPointF* outCentreStuds, float* outOrientation,
                               bool* outSnapped,
-                              QPointF* outSnapPointScenePx) const;
+                              QPointF* outSnapPointScenePx,
+                              snapfeel::Session* session = nullptr, bool final = false) const;
+
+    // Connection-snap reach in studs for the view as it is: about 14 screen
+    // px at the current zoom, kept between 0.5 and 4 studs, scaled by the
+    // Snap strength setting (SnapFeel.h).
+    double connectionSnapReachStuds() const;
+    // Alt (Option on a Mac) is held: place without connection snap.
+    bool snapBypassed() const;
 
     // Clipboard / selection ops.
     void copySelection();            // copy selected bricks to the internal clipboard
@@ -166,12 +179,14 @@ public:
     bool touchModuleDropAt(const QString& bbmPath, QPoint globalPos);
     // Places the module saved at `bbmPath` with its centre at `scenePos`
     // (a drop from the Module library); false when it can't be read.
-    bool dropModuleAt(const QString& bbmPath, QPointF scenePos);
+    // `dragSnap`: the snap session of the drag that drops it, if any.
+    bool dropModuleAt(const QString& bbmPath, QPointF scenePos, snapfeel::Session* dragSnap = nullptr);
     // Places a module's parts sheets (already read, e.g. from a server) as
     // one module named `name`, centred on `scenePos` (snapped like a drop),
     // reading its part pictures first with the loading card. Selects the
     // placed parts. False when it has no parts.
-    bool placeModule(core::Map& module, const QString& name, const QString& source, QPointF scenePos);
+    bool placeModule(core::Map& module, const QString& name, const QString& source, QPointF scenePos,
+                     snapfeel::Session* dragSnap = nullptr);
     // The scene point at the middle of what the map shows.
     QPointF viewCentre() const;
     class TouchActionBar* touchActionBar() const { return touchBar_; }
@@ -290,11 +305,20 @@ private:
     // items by the snap shift so connections take priority over Qt's
     // built-in per-item drag and over grid snap.
     void applyLiveConnectionSnap();
-    // Generous snap radius around free connection points. BlueBrick's
-    // getMovedSnapPoint uses roughly 2 × grid step as the search range;
-    // we use the larger of 16 studs (half a brick-unit wide) and 2 × grid
-    // step so connections feel "sticky" even on a 1-stud grid.
-    double connectionSnapThresholdStuds() const;
+    // Snap state of the brick drag, the part dragged in and the module
+    // dragged in (hold, pointer speed), and the clock their speeds use.
+    // Modifier keys of the latest pointer or drag event (Alt: no connection snap).
+    Qt::KeyboardModifiers snapMods_;
+    mutable snapfeel::Session dragSnap_;
+    mutable snapfeel::Session placeSnap_;
+    mutable snapfeel::Session moduleSnap_;
+    double snapClockMs() const;
+    // A pointer move at viewport position `vp` for `session`'s speed.
+    void sampleSnapSpeed(snapfeel::Session& session, QPointF vp) const;
+    // Re-runs the live snap once a fast drag stops dead.
+    class QTimer* snapSettle_ = nullptr;
+    // Snap marks: the ring on the target and the dot on the moving connection.
+    void setSnapMarks(bool active, QPointF ringScene, std::optional<QPointF> movingScene);
     std::vector<BrickOriginSnapshot> selectedBrickSnapshots() const;
 
     // Reads the pictures `map` needs that weren't read yet, counting them
@@ -443,6 +467,7 @@ private:
     // draw a ring at the exact connection point.
     bool    liveSnapActive_ = false;
     QPointF liveSnapPointScene_;
+    std::optional<QPointF> liveSnapMovingScene_;
 
     // Sidecar background-image cache. drawBackground reloads the pixmap
     // only when the path changes so panning over a large image stays
@@ -473,6 +498,12 @@ private:
     // Used so grid-snap can align the bbox top-left (matching how
     // single-brick drops snap their top-left), regardless of module size.
     QPointF dragPreviewModuleTopLeftOffsetStuds_;
+    // The dragged module's bricks, centroid at the origin, for its snap.
+    std::vector<core::Brick> dragPreviewModuleBricks_;
+    // Shift (studs) that connection-snaps `bricks` (already placed) onto the
+    // map's free ends, or nothing; `ringStuds` gets where they meet.
+    std::optional<QPointF> moduleSnapShift(const std::vector<const core::Brick*>& bricks, QPointF cursorStuds,
+                                           snapfeel::Session* session, bool final, QPointF* ringStuds) const;
     void clearDragPreview();
     void updateDragPreview(const QString& partKey, QPointF cursorScenePx);
     void updateModuleDragPreview(const QString& bbmPath, QPointF cursorScenePx);

@@ -111,7 +111,7 @@ TEST_F(FlexMoveTest, RestorePutsTheChainBack) {
     for (const auto& b : layer.bricks) all.insert(b.guid);
     auto flex = edit::FlexMove::start(layer, all, QStringLiteral("6887642994309303552"), { 68, 40 }, lib_);
     ASSERT_TRUE(flex);
-    flex->moveTo({ 62, 30 }, 0.0);
+    flex->moveTo({ 62, 30 }, 4.0);
     flex->restore();
     for (size_t i = 0; i < before.size(); ++i) {
         EXPECT_EQ(layer.bricks[i].displayArea, before[i].displayArea);

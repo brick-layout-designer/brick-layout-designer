@@ -32,6 +32,8 @@ struct AppPrefs {
     bool helpIcons = true;
     QStringList toursSeen;
     int partsIconSize = kPartsIconDefault;
+    // Connection Snap strength: "off", "gentle" or "strong" (SnapFeel.h).
+    QString connectionSnap = QStringLiteral("gentle");
     // When these were last changed (here or on the server); invalid when
     // they never were.
     QDateTime updatedAt;

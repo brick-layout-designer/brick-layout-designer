@@ -244,6 +244,13 @@ constexpr Raw kShared[] = {
       QT_TRANSLATE_NOOP("HelpTexts", "Short guided walks through the app."),
       QT_TRANSLATE_NOOP("HelpTexts", "A tour points at the real buttons, one step at a time. Press “Show "
                                      "tours again” to see the ones you have already finished.") },
+    { "settings.connectionSnap", "",
+      QT_TRANSLATE_NOOP("HelpTexts", "Snap strength"),
+      QT_TRANSLATE_NOOP("HelpTexts", "How strongly a part you drag pulls onto a matching connection nearby."),
+      QT_TRANSLATE_NOOP("HelpTexts", "Gentle pulls only when the ends are close and lets go once you move away; "
+                                     "Strong reaches further; Off never pulls, and the grid still lines parts up. "
+                                     "Hold Alt (Option on a Mac) while dragging to place one part without "
+                                     "snapping.") },
     // The venue designer
     { "room.tools", "/help#room",
       QT_TRANSLATE_NOOP("HelpTexts", "Drawing tools"),

@@ -12,6 +12,7 @@
 #include <QCheckBox>
 #include <QLabel>
 #include <QPushButton>
+#include <QRadioButton>
 #include <QSettings>
 #include <QTest>
 #include <QToolButton>
@@ -62,6 +63,26 @@ TEST_F(SettingsDialogTest, ShowsTheSettingsAndChangesThemAtOnce) {
     theirs.accent = QStringLiteral("plum");
     store.adopt(theirs);
     EXPECT_TRUE(dialog.findChild<QToolButton*>(QStringLiteral("accent_plum"))->isChecked());
+}
+
+TEST_F(SettingsDialogTest, SnapStrengthIsGentleUntilChanged) {
+    PrefsStore store(QString::fromLatin1(kGroup));
+    SettingsDialog dialog(store, QString());
+    auto* off = dialog.findChild<QRadioButton*>(QStringLiteral("snap_off"));
+    auto* gentle = dialog.findChild<QRadioButton*>(QStringLiteral("snap_gentle"));
+    auto* strong = dialog.findChild<QRadioButton*>(QStringLiteral("snap_strong"));
+    ASSERT_TRUE(off && gentle && strong);
+    EXPECT_TRUE(gentle->isChecked());
+    strong->click();
+    EXPECT_EQ(store.prefs().connectionSnap, QStringLiteral("strong"));
+    off->click();
+    EXPECT_EQ(store.prefs().connectionSnap, QStringLiteral("off"));
+    EXPECT_EQ(PrefsStore(QString::fromLatin1(kGroup)).prefs().connectionSnap, QStringLiteral("off"));  // kept
+
+    AppPrefs theirs = store.prefs();
+    theirs.connectionSnap = QStringLiteral("gentle");
+    store.adopt(theirs);
+    EXPECT_TRUE(gentle->isChecked());
 }
 
 TEST_F(SettingsDialogTest, TheNoteNamesTheConnectedServer) {

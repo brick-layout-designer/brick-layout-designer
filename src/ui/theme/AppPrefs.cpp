@@ -1,6 +1,7 @@
 #include "AppPrefs.h"
 
 #include "Tokens.h"
+#include "../SnapFeel.h"
 
 #include <QJsonArray>
 
@@ -44,6 +45,8 @@ QStringList cleanTours(const QStringList& in) {
     return out;
 }
 
+bool knownSnap(const QString& id) { return snapfeel::strengthFromId(id).has_value(); }
+
 }  // namespace
 
 int clampPartsIconSize(int px) { return std::clamp(px, kPartsIconMin, kPartsIconMax); }
@@ -57,6 +60,7 @@ QJsonObject AppPrefs::toJson() const {
         { QStringLiteral("helpIcons"), helpIcons },
         { QStringLiteral("toursSeen"), QJsonArray::fromStringList(toursSeen) },
         { QStringLiteral("partsIconSize"), partsIconSize },
+        { QStringLiteral("connectionSnap"), connectionSnap },
     };
 }
 
@@ -82,12 +86,15 @@ AppPrefs AppPrefs::fromJson(const QJsonObject& json, const AppPrefs& base) {
     }
     const QJsonValue icons = json.value(QLatin1String("partsIconSize"));
     if (icons.isDouble()) p.partsIconSize = clampPartsIconSize(static_cast<int>(std::lround(icons.toDouble())));
+    const QJsonValue snap = json.value(QLatin1String("connectionSnap"));
+    if (snap.isString() && knownSnap(snap.toString())) p.connectionSnap = snap.toString();
     return p;
 }
 
 bool AppPrefs::sameSettings(const AppPrefs& o) const {
     return theme == o.theme && accent == o.accent && largeText == o.largeText && expertMode == o.expertMode
-           && helpIcons == o.helpIcons && toursSeen == o.toursSeen && partsIconSize == o.partsIconSize;
+           && helpIcons == o.helpIcons && toursSeen == o.toursSeen && partsIconSize == o.partsIconSize
+           && connectionSnap == o.connectionSnap;
 }
 
 PrefsStore::PrefsStore(const QString& group, QObject* parent) : QObject(parent), group_(group) {
@@ -101,6 +108,8 @@ PrefsStore::PrefsStore(const QString& group, QObject* parent) : QObject(parent),
     prefs_.helpIcons = s.value(QStringLiteral("helpIcons"), true).toBool();
     prefs_.toursSeen = cleanTours(s.value(QStringLiteral("toursSeen")).toStringList());
     prefs_.partsIconSize = clampPartsIconSize(s.value(QStringLiteral("partsIconSize"), kPartsIconDefault).toInt());
+    const QString snap = s.value(QStringLiteral("connectionSnap")).toString();
+    if (knownSnap(snap)) prefs_.connectionSnap = snap;
     prefs_.updatedAt = QDateTime::fromString(s.value(QStringLiteral("updatedAt")).toString(), Qt::ISODateWithMs);
 }
 
@@ -139,6 +148,7 @@ void PrefsStore::save() {
     s.setValue(QStringLiteral("helpIcons"), prefs_.helpIcons);
     s.setValue(QStringLiteral("toursSeen"), prefs_.toursSeen);
     s.setValue(QStringLiteral("partsIconSize"), prefs_.partsIconSize);
+    s.setValue(QStringLiteral("connectionSnap"), prefs_.connectionSnap);
     s.setValue(QStringLiteral("updatedAt"), prefs_.updatedAt.toUTC().toString(Qt::ISODateWithMs));
 }
 

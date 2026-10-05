@@ -275,7 +275,7 @@ void MapView::loadMap(std::unique_ptr<core::Map> map) {
     labelDragStart_.clear();
     flex_.reset();
     flexItems_.clear();
-    liveSnapActive_ = false;
+    liveSnapActive_ = false; liveSnapMovingScene_.reset();
     // Any drag-from-browser preview ghost lives in the scene and would
     // dangle after the SceneBuilder rebuild; clear it before the load.
     if (dragPreviewItem_) {
@@ -345,7 +345,7 @@ void MapView::rebuildScene() {
     // A flex move points into the bricks being rebuilt from.
     flex_.reset();
     flexItems_.clear();
-    liveSnapActive_ = false;
+    liveSnapActive_ = false; liveSnapMovingScene_.reset();
     if (dragPreviewItem_) {
         scene()->removeItem(dragPreviewItem_);
         delete dragPreviewItem_;
@@ -543,6 +543,7 @@ bool MapView::rulerEndpointAt(QPointF clickScene, bool startDrag) {
 }
 
 void MapView::mousePressEvent(QMouseEvent* e) {
+    snapMods_ = e->modifiers();
     if (e->button() == Qt::LeftButton && scene()) {
         pressSelection_.clear();
         for (QGraphicsItem* it : scene()->selectedItems())
@@ -676,6 +677,7 @@ void MapView::mousePressEvent(QMouseEvent* e) {
 }
 
 void MapView::mouseMoveEvent(QMouseEvent* e) {
+    snapMods_ = e->modifiers();
     lastMouseScenePos_ = mapToScene(e->pos());
 
     if (gridOriginDragging_) {
@@ -690,11 +692,11 @@ void MapView::mouseMoveEvent(QMouseEvent* e) {
 
     if (flex_ && (e->buttons() & Qt::LeftButton)) {
         const double px = rendering::SceneBuilder::kPixelsPerStud;
-        const auto snapped = flex_->moveTo(lastMouseScenePos_ / px, snapStepStuds_);
+        // The editor's connection-snap reach; Alt bends without snapping.
+        const auto snapped = flex_->moveTo(lastMouseScenePos_ / px, connectionSnapReachStuds(), !snapBypassed());
         flexMoved_ = true;
         updateFlexItems();
-        liveSnapActive_ = snapped.has_value();
-        if (snapped) liveSnapPointScene_ = *snapped * px;
+        setSnapMarks(snapped.has_value(), snapped ? *snapped * px : QPointF(), std::nullopt);
         viewport()->update();
         e->accept();
         return;
@@ -817,11 +819,13 @@ void MapView::mouseMoveEvent(QMouseEvent* e) {
     // guarantees connections win over the per-item grid snap and keeps
     // a multi-brick group perfectly aligned while snapping.
     if (!dragStart_.empty() && (e->buttons() & Qt::LeftButton)) {
+        sampleSnapSpeed(dragSnap_, e->position());
         applyLiveConnectionSnap();
     }
 }
 
 void MapView::mouseReleaseEvent(QMouseEvent* e) {
+    snapMods_ = e->modifiers();
     if (gridOriginDragging_ && e->button() == Qt::LeftButton) {
         gridOriginDragging_ = false;
         unsetCursor();
@@ -973,7 +977,7 @@ void MapView::mouseReleaseEvent(QMouseEvent* e) {
         clearGrabAnchor();
         // Drag is done; clear the "live snap active" indicator so the
         // selection outline returns to its normal yellow colour.
-        liveSnapActive_ = false;
+        liveSnapActive_ = false; liveSnapMovingScene_.reset();
         refreshSelectionOverlay();
     }
 }
@@ -1266,7 +1270,8 @@ void MapView::addPartAtViewCenter(const QString& partKey) {
 void MapView::resolvePartPlacement(const QString& partKey, QPointF cursorScenePx,
                                    QPointF* outCentreStuds, float* outOrientation,
                                    bool* outSnapped,
-                                   QPointF* outSnapPointScenePx) const {
+                                   QPointF* outSnapPointScenePx,
+                                   snapfeel::Session* session, bool final) const {
     const double pxPerStud = rendering::SceneBuilder::kPixelsPerStud;
     QPointF centreStuds(cursorScenePx.x() / pxPerStud, cursorScenePx.y() / pxPerStud);
     float   orientation = 0.0f;
@@ -1352,42 +1357,36 @@ void MapView::resolvePartPlacement(const QString& partKey, QPointF cursorScenePx
     }
 
     // Cursor-proximity connection snap: only when not already anchored.
-    const double threshold = connectionSnapThresholdStuds();
+    // Each connection of the new part, at the cursor, against the map's
+    // free ends (SnapFeel: reach, hold, speed gate, Alt).
     if (!anchoredToSelection) {
-        auto snap = newPartPlacementSnap(*map_, parts_, partKey,
-                                         centreStuds, orientation, threshold);
-        if (snap.applied) {
-            QPointF newCenter = centreStuds;
-            if (snap.newOrientation) {
-                newCenter += snap.rotationAlignedTranslationStuds;
-                orientation = *snap.newOrientation;
-            } else {
-                newCenter += snap.translationStuds;
+        std::vector<MovingConn> moving;
+        std::vector<int> movingIdx;
+        if (newMeta) {
+            for (int i = 0; i < newMeta->connections.size(); ++i) {
+                const auto& c = newMeta->connections[i];
+                if (c.type.isEmpty()) continue;
+                // The part is centred on the cursor: a connection's distance
+                // to the cursor is its distance from the centre.
+                moving.push_back({ QStringLiteral("new#%1").arg(i), c.type,
+                                   centreStuds + rotatePoint(c.position, orientation),
+                                   std::hypot(c.position.x(), c.position.y()) });
+                movingIdx.push_back(i);
             }
-            // Snap point = the new part's active connection world position
-            // after the snap shift. Locate which new-part connection picked
-            // up the snap by re-running the alignment formula.
-            if (newMeta) {
-                const double rN = orientation * M_PI / 180.0;
-                const double caN = std::cos(rN), saN = std::sin(rN);
-                // Find the new-part connection whose post-snap world pos is
-                // closest to where the snap landed (= the saved targetWorld).
-                // Easier: the active conn ends up where target was — and the
-                // shift was target - activeWorld, so newCenter + rotated(c.pos)
-                // == targetWorld. Use the first compatible connection which
-                // is the one newPartPlacementSnap iterates.
-                for (int i = 0; i < newMeta->connections.size(); ++i) {
-                    const auto& c = newMeta->connections[i];
-                    if (c.type.isEmpty()) continue;
-                    const QPointF connWorld(
-                        newCenter.x() + c.position.x() * caN - c.position.y() * saN,
-                        newCenter.y() + c.position.x() * saN + c.position.y() * caN);
-                    snapPoint = QPointF(connWorld.x() * pxPerStud,
-                                        connWorld.y() * pxPerStud);
-                    break;
-                }
-            }
-            centreStuds = newCenter;
+        }
+        const double reach = connectionSnapReachStuds();
+        // Alt only counts in a drag; a click or tap places as usual.
+        const bool bypass = session && snapBypassed();
+        const auto targets = reach > 0.0 && !bypass && !moving.empty() ? freeTargets(*map_, parts_)
+                                                                        : std::vector<FreeTarget>{};
+        const SnapPick pick = pickConnectionSnap(moving, targets, reach, session, bypass, final);
+        if (pick.applied()) {
+            const auto& c = newMeta->connections[movingIdx[pick.moving]];
+            const FreeTarget& tc = targets[pick.target];
+            const double newOrient = facingOrientation(tc.angle, c.angleDegrees);
+            orientation = static_cast<float>(newOrient);
+            centreStuds = tc.world - rotatePoint(c.position, newOrient);
+            snapPoint = QPointF(tc.world.x() * pxPerStud, tc.world.y() * pxPerStud);
             snapped = true;
         } else if (snapStepStuds_ > 0.0) {
             // Snap the displayArea's corner, as for placed bricks.
@@ -1410,7 +1409,7 @@ void MapView::resolvePartPlacement(const QString& partKey, QPointF cursorScenePx
     if (outSnapPointScenePx) *outSnapPointScenePx = snapPoint;
 }
 
-void MapView::addPartAtScenePos(const QString& partKey, QPointF sceneCenterPx) {
+void MapView::addPartAtScenePos(const QString& partKey, QPointF sceneCenterPx, snapfeel::Session* dragSnap) {
     if (!map_) return;
     if (!budgetAllows(partKey)) return;
 
@@ -1493,8 +1492,10 @@ void MapView::addPartAtScenePos(const QString& partKey, QPointF sceneCenterPx) {
     QPointF centreStuds;
     float   orientation = 0.0f;
     bool    connectionSnapped = false;
+    // From a drag: the drop's final snap, keeping the join the drag held.
     resolvePartPlacement(partKey, sceneCenterPx,
-                         &centreStuds, &orientation, &connectionSnapped, nullptr);
+                         &centreStuds, &orientation, &connectionSnapped, nullptr, dragSnap, dragSnap != nullptr);
+    if (dragSnap) dragSnap->reset();
 
     core::Brick b;
     b.guid = core::newBbmId();
@@ -1838,7 +1839,7 @@ void MapView::updateFlexItems() {
 void MapView::finishFlexMove() {
     auto flex = std::move(flex_);
     flexItems_.clear();
-    if (liveSnapActive_) { liveSnapActive_ = false; viewport()->update(); }
+    setSnapMarks(false, {}, std::nullopt);
     if (!flexMoved_) {
         // A plain double-click: edit the brick, as BlueBrick does.
         flex->restore();
@@ -1944,6 +1945,10 @@ void MapView::clearDropTargetHint() {
 }
 
 void MapView::dragEnterEvent(QDragEnterEvent* e) {
+    snapMods_ = e->modifiers();
+    // A new drag: its own snap state.
+    placeSnap_.reset();
+    moduleSnap_.reset();
     const QString partMime   = QString::fromLatin1(PartsBrowser::kPartMimeType);
     const QString moduleMime = QString::fromLatin1(kModuleDragMimeType);
     const QPointF scenePos = mapToScene(e->position().toPoint());
@@ -1965,6 +1970,7 @@ void MapView::dragEnterEvent(QDragEnterEvent* e) {
 }
 
 void MapView::dragMoveEvent(QDragMoveEvent* e) {
+    snapMods_ = e->modifiers();
     const QString partMime   = QString::fromLatin1(PartsBrowser::kPartMimeType);
     const QString moduleMime = QString::fromLatin1(kModuleDragMimeType);
     const QPointF scenePos = mapToScene(e->position().toPoint());
@@ -1985,6 +1991,8 @@ void MapView::dragMoveEvent(QDragMoveEvent* e) {
 
 void MapView::dragLeaveEvent(QDragLeaveEvent* e) {
     clearDragPreview();
+    placeSnap_.reset();
+    moduleSnap_.reset();
     clearDropTargetHint();
     QGraphicsView::dragLeaveEvent(e);
 }
@@ -1996,10 +2004,8 @@ void MapView::clearDragPreview() {
         dragPreviewItem_ = nullptr;
     }
     dragPreviewKey_.clear();
-    if (liveSnapActive_) {
-        liveSnapActive_ = false;
-        viewport()->update();
-    }
+    dragPreviewModuleBricks_.clear();
+    setSnapMarks(false, {}, std::nullopt);
 }
 
 void MapView::updateDragPreview(const QString& partKey, QPointF cursorScenePx) {
@@ -2031,8 +2037,9 @@ void MapView::updateDragPreview(const QString& partKey, QPointF cursorScenePx) {
     float   orientation = 0.0f;
     bool    snapped = false;
     QPointF snapPointScene;
+    sampleSnapSpeed(placeSnap_, mapFromScene(cursorScenePx));
     resolvePartPlacement(partKey, cursorScenePx,
-                         &centreStuds, &orientation, &snapped, &snapPointScene);
+                         &centreStuds, &orientation, &snapped, &snapPointScene, &placeSnap_);
 
     const double pxPerStud = rendering::SceneBuilder::kPixelsPerStud;
     dragPreviewItem_->setRotation(orientation);
@@ -2041,13 +2048,7 @@ void MapView::updateDragPreview(const QString& partKey, QPointF cursorScenePx) {
 
     // Pipe through the existing live-snap overlay so the user gets the
     // green ring at the connection point exactly like during a brick drag.
-    if (snapped) {
-        liveSnapActive_ = true;
-        liveSnapPointScene_ = snapPointScene;
-    } else if (liveSnapActive_) {
-        liveSnapActive_ = false;
-    }
-    viewport()->update();
+    setSnapMarks(snapped, snapPointScene, snapped ? std::optional<QPointF>(snapPointScene) : std::nullopt);
 }
 
 void MapView::updateModuleDragPreview(const QString& bbmPath, QPointF cursorScenePx) {
@@ -2089,6 +2090,16 @@ void MapView::updateModuleDragPreview(const QString& bbmPath, QPointF cursorScen
         }
         if (count == 0 || bboxPx.isEmpty()) return;
         centroidStuds /= count;
+        // Its bricks around the centroid, for the connection snap.
+        std::vector<core::Brick> moduleBricks;
+        for (const auto& L : res.map->layers()) {
+            if (!L || L->kind() != core::LayerKind::Brick) continue;
+            for (const auto& b : static_cast<const core::LayerBrick&>(*L).bricks) {
+                core::Brick copy = b;
+                copy.displayArea.translate(-centroidStuds);
+                moduleBricks.push_back(std::move(copy));
+            }
+        }
         // Vector from centroid to bbox top-left (negative numbers).
         dragPreviewModuleTopLeftOffsetStuds_ = bboxStuds.topLeft() - centroidStuds;
 
@@ -2128,6 +2139,7 @@ void MapView::updateModuleDragPreview(const QString& bbmPath, QPointF cursorScen
         scene()->addItem(dragPreviewItem_);
         dragPreviewKey_ = cacheKey;
         dragPreviewModuleCentroidScenePx_ = centroidPx;
+        dragPreviewModuleBricks_ = std::move(moduleBricks);
     }
 
     // Modules drop centroid-at-cursor with no rotation. When grid snap
@@ -2148,26 +2160,70 @@ void MapView::updateModuleDragPreview(const QString& bbmPath, QPointF cursorScen
         placedScene = QPointF(snappedCentroid.x() * pxPerStud,
                                snappedCentroid.y() * pxPerStud);
     }
+    // Connection snap, as the drop will do it (with this drag's hold and
+    // speed gate).
+    const double pxPerStud = rendering::SceneBuilder::kPixelsPerStud;
+    const QPointF placedStuds(placedScene.x() / pxPerStud, placedScene.y() / pxPerStud);
+    std::vector<core::Brick> placed = dragPreviewModuleBricks_;
+    std::vector<const core::Brick*> refs;
+    for (auto& b : placed) {
+        b.displayArea.translate(placedStuds);
+        refs.push_back(&b);
+    }
+    sampleSnapSpeed(moduleSnap_, mapFromScene(cursorScenePx));
+    QPointF ring;
+    const auto shift = moduleSnapShift(refs, QPointF(cursorScenePx.x() / pxPerStud, cursorScenePx.y() / pxPerStud),
+                                       &moduleSnap_, false, &ring);
+    if (shift) placedScene += *shift * pxPerStud;
     dragPreviewItem_->setRotation(0.0);
     dragPreviewItem_->setPos(placedScene);
-
-    if (liveSnapActive_) {
-        liveSnapActive_ = false;
-        viewport()->update();
-    }
+    setSnapMarks(shift.has_value(), ring * pxPerStud,
+                 shift ? std::optional<QPointF>(ring * pxPerStud) : std::nullopt);
 }
 
-bool MapView::dropModuleAt(const QString& bbmPath, QPointF scenePos) {
+bool MapView::dropModuleAt(const QString& bbmPath, QPointF scenePos, snapfeel::Session* dragSnap) {
     clearDragPreview();
     if (bbmPath.isEmpty()) return false;
     auto res = saveload::readBbm(bbmPath);
     if (!res.ok()) return false;
-    return placeModule(*res.map, QFileInfo(bbmPath).completeBaseName(), bbmPath, scenePos);
+    return placeModule(*res.map, QFileInfo(bbmPath).completeBaseName(), bbmPath, scenePos, dragSnap);
 }
 
 QPointF MapView::viewCentre() const { return mapToScene(viewport()->rect().center()); }
 
-bool MapView::placeModule(core::Map& loaded, const QString& name, const QString& source, QPointF scenePos) {
+std::optional<QPointF> MapView::moduleSnapShift(const std::vector<const core::Brick*>& bricks, QPointF cursorStuds,
+                                                snapfeel::Session* session, bool final, QPointF* ringStuds) const {
+    if (!map_) return std::nullopt;
+    // Every connection of the module's bricks counts: one linked inside
+    // the module has its partner moving along, not on the map, so it
+    // can't find a target there.
+    std::vector<MovingConn> moving;
+    int index = 0;
+    for (const core::Brick* b : bricks) {
+        const int bi = index++;
+        auto meta = parts_.metadata(b->partNumber);
+        if (!meta) continue;
+        const QPointF cen = parts::placement::imageCentre(*b, parts_);
+        for (int i = 0; i < meta->connections.size(); ++i) {
+            const auto& c = meta->connections[i];
+            if (c.type.isEmpty()) continue;
+            const QPointF world = cen + rotatePoint(c.position, b->orientation);
+            const QPointF d = world - cursorStuds;
+            moving.push_back({ QStringLiteral("module#%1#%2").arg(bi).arg(i), c.type, world, std::hypot(d.x(), d.y()) });
+        }
+    }
+    const double reach = connectionSnapReachStuds();
+    const bool bypass = session && snapBypassed();  // Alt only counts in a drag
+    const auto targets = reach > 0.0 && !bypass && !moving.empty() ? freeTargets(*map_, parts_)
+                                                                    : std::vector<FreeTarget>{};
+    const SnapPick pick = pickConnectionSnap(moving, targets, reach, session, bypass, final);
+    if (!pick.applied()) return std::nullopt;
+    if (ringStuds) *ringStuds = targets[pick.target].world;
+    return targets[pick.target].world - moving[pick.moving].world;
+}
+
+bool MapView::placeModule(core::Map& loaded, const QString& name, const QString& source, QPointF scenePos,
+                          snapfeel::Session* dragSnap) {
     if (!map_) return false;
     parts::placement::fixStaleAreas(loaded, parts_);
     // Its pictures first, with the loading card ("Loading part pictures… 3 of 12").
@@ -2214,87 +2270,21 @@ bool MapView::placeModule(core::Map& loaded, const QString& name, const QString&
     for (auto& batch : batches)
         for (auto& b : batch.bricks) b.displayArea.translate(translation);
 
-    // Connection-snap pass: if any brick in the placed module has a
-    // free connection that lands within `connSnapThreshold` of a
-    // free compatible target in the host map, apply an additional
-    // group translation so they coincide. Picks the smallest-shift
-    // candidate so the module barely moves but locks against an
-    // existing free track end. No rotation — modules drop at fixed
-    // orientation; the user can rotate post-drop with R.
+    // Connection-snap pass: if a free connection of the placed module
+    // lands within reach of a free compatible end on the map, shift the
+    // whole module so they meet (SnapFeel: reach, hold, Alt; from a drag,
+    // the drop's final snap keeps the join the drag held). No rotation:
+    // modules drop at a fixed orientation; R turns them afterwards.
     {
-        auto rotPt = [](QPointF p, double deg) {
-            const double r = deg * M_PI / 180.0;
-            const double c = std::cos(r), s = std::sin(r);
-            return QPointF(p.x() * c - p.y() * s, p.x() * s + p.y() * c);
-        };
-        const double connThresh = connectionSnapThresholdStuds();
-        const double connThreshSq = connThresh * connThresh;
-
-        // Collect every free connection of the placed module bricks
-        // in world (stud) coords with its type.
-        struct ModConn { QString type; QPointF worldStuds; };
-        std::vector<ModConn> modConns;
-        for (const auto& batch : batches) {
-            for (const auto& b : batch.bricks) {
-                auto meta = parts_.metadata(b.partNumber);
-                if (!meta) continue;
-                const QPointF cen = parts::placement::imageCentre(b, parts_);
-                const int n = meta->connections.size();
-                for (int i = 0; i < n; ++i) {
-                    const auto& c = meta->connections[i];
-                    if (c.type.isEmpty()) continue;
-                    // Internal connections (linked to another module
-                    // brick) shouldn't seek host targets — they'll be
-                    // re-linked by rebuildConnectivity after insert.
-                    // We treat ALL module connections as candidates;
-                    // matching against an internal partner can't hit
-                    // because the partner moved with us so it's not
-                    // in the host map yet.
-                    modConns.push_back({ c.type,
-                                          cen + rotPt(c.position, b.orientation) });
-                }
-            }
-        }
-
-        // Scan host map for free targets and find the smallest-shift
-        // pairing.
-        QPointF bestShift;
-        double  bestShiftSq = std::numeric_limits<double>::max();
-        bool    bestFound = false;
-        for (const auto& layerPtr : map_->layers()) {
-            if (!layerPtr || layerPtr->kind() != core::LayerKind::Brick) continue;
-            const auto& BL = static_cast<const core::LayerBrick&>(*layerPtr);
-            for (const auto& tb : BL.bricks) {
-                auto tmeta = parts_.metadata(tb.partNumber);
-                if (!tmeta) continue;
-                const QPointF tCen = parts::placement::imageCentre(tb, parts_);
-                const int nT = tmeta->connections.size();
-                for (int tci = 0; tci < nT; ++tci) {
-                    const auto& tc = tmeta->connections[tci];
-                    if (tc.type.isEmpty()) continue;
-                    if (tci < static_cast<int>(tb.connections.size()) &&
-                        !tb.connections[tci].linkedToId.isEmpty()) continue;
-                    const QPointF tWorld = tCen + rotPt(tc.position, tb.orientation);
-                    for (const auto& mc : modConns) {
-                        if (mc.type != tc.type) continue;
-                        const QPointF d = tWorld - mc.worldStuds;
-                        const double sq = d.x() * d.x() + d.y() * d.y();
-                        if (sq > connThreshSq) continue;
-                        if (sq < bestShiftSq) {
-                            bestShiftSq = sq;
-                            bestShift = d;
-                            bestFound = true;
-                        }
-                    }
-                }
-            }
-        }
-
-        if (bestFound) {
+        std::vector<const core::Brick*> placed;
+        for (const auto& batch : batches)
+            for (const auto& b : batch.bricks) placed.push_back(&b);
+        const auto shift = moduleSnapShift(placed, QPointF(scenePos.x() / px, scenePos.y() / px), dragSnap, true, nullptr);
+        if (shift)
             for (auto& batch : batches)
-                for (auto& b : batch.bricks) b.displayArea.translate(bestShift);
-        }
+                for (auto& b : batch.bricks) b.displayArea.translate(*shift);
     }
+    if (dragSnap) dragSnap->reset();
 
     auto* cmd = new edit::ImportBbmAsModuleCommand(
         *map_, source, name, std::move(batches));
@@ -2323,13 +2313,14 @@ bool MapView::placeModule(core::Map& loaded, const QString& name, const QString&
 }
 
 void MapView::dropEvent(QDropEvent* e) {
+    snapMods_ = e->modifiers();
     clearDropTargetHint();
     const QString partMime   = QString::fromLatin1(PartsBrowser::kPartMimeType);
     const QString moduleMime = QString::fromLatin1(kModuleDragMimeType);
     const QPointF scenePos = mapToScene(e->position().toPoint());
 
     if (e->mimeData()->hasFormat(moduleMime)) {
-        if (dropModuleAt(QString::fromUtf8(e->mimeData()->data(moduleMime)), scenePos)) e->acceptProposedAction();
+        if (dropModuleAt(QString::fromUtf8(e->mimeData()->data(moduleMime)), scenePos, &moduleSnap_)) e->acceptProposedAction();
         else e->ignore();
         return;
     }
@@ -2342,7 +2333,7 @@ void MapView::dropEvent(QDropEvent* e) {
     clearDragPreview();
     const QString key = QString::fromUtf8(e->mimeData()->data(partMime));
     if (key.isEmpty()) { e->ignore(); return; }
-    addPartAtScenePos(key, scenePos);
+    addPartAtScenePos(key, scenePos, &placeSnap_);
     e->acceptProposedAction();
 }
 

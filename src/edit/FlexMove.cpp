@@ -369,19 +369,19 @@ std::unique_ptr<FlexMove> FlexMove::start(core::LayerBrick& layer, const QSet<QS
     return move;
 }
 
-std::optional<QPointF> FlexMove::moveTo(QPointF mouseStuds, double gridSnapStuds, bool snap) {
+std::optional<QPointF> FlexMove::moveTo(QPointF mouseStuds, double reachStuds, bool snap) {
     // LayerBrick.getMovedSnapPoint for a flex move: the grabbed brick's
     // active connection snaps to the nearest free connection of its type
-    // on a brick outside the chain, within max(grid, 4) studs.
+    // on a brick outside the chain, within `reachStuds` (the editor's
+    // connection-snap reach; BlueBrick used max(grid, 4) studs).
     Conn target;
     core::Brick* g = d_->grabbed;
     const int n = d_->connectionCount(g);
     const Conn active = d_->conn(g, std::clamp(g->activeConnectionPointIndex, 0, n - 1));
-    if (snap && d_->isFree(active)) {
+    if (snap && reachStuds > 0.0 && d_->isFree(active)) {
         const QString type = d_->type(active);
         const QPointF virtualPos = mouseStuds - d_->grabDelta;
-        const double threshold = std::max(gridSnapStuds, 4.0);
-        double best = threshold * threshold;
+        double best = reachStuds * reachStuds;
         for (auto& b : d_->layer.bricks) {
             if (std::find(d_->chainBricks.begin(), d_->chainBricks.end(), &b) != d_->chainBricks.end()) continue;
             const auto* m = d_->metaOf(&b);

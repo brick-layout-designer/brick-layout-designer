@@ -68,6 +68,8 @@ private:
     bool pulling_ = false;
     // The server answered with partsIconSize, so it takes it (newer servers).
     bool knowsIconSize_ = false;
+    // The same for connectionSnap.
+    bool knowsSnap_ = false;
 };
 
 }  // namespace bld::ui
