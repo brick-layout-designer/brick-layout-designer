@@ -74,9 +74,18 @@ if(WIN32 OR APPLE)
     option(BLD_DEPLOY_QT "Bundle the Qt runtime into the install tree" ON)
 endif()
 option(BLD_INSTALL_PARTS "Install the vendored BlueBrickParts library" ON)
-# Live sync with the collaborative web server (src/sync): yrs through its
-# C API, built with cargo. Off until the sync work is ready (phase P2 spike).
-option(BLD_SYNC "Build the live-sync library (needs Rust / cargo)" OFF)
+# The server features (src/sync: live layouts, server modules, the catalog)
+# are always built. They read the shared layout documents with yrs, a Rust
+# library, so building needs a Rust toolchain (cargo).
+find_program(BLD_CARGO cargo HINTS "$ENV{CARGO_HOME}/bin" "$ENV{HOME}/.cargo/bin" "$ENV{USERPROFILE}/.cargo/bin")
+if(NOT BLD_CARGO)
+    message(FATAL_ERROR
+        "Rust (cargo) was not found.\n"
+        "Brick Layout Designer's server features (live layouts, server modules, the catalog) "
+        "read shared layouts with yrs, a Rust library, so building needs a Rust toolchain.\n"
+        "Install it with rustup from https://rustup.rs (on Windows pick the MSVC toolchain), "
+        "open a new terminal so cargo is on PATH, and configure again.")
+endif()
 
 # compile_commands.json for clang-tidy and editors.
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)

@@ -1,5 +1,5 @@
 // File › Connect to Server… and the live-layout state of the main window
-// (sync phase P4). Built only with -DBLD_SYNC=ON.
+// (sync phase P4).
 
 #include "MainWindow.h"
 

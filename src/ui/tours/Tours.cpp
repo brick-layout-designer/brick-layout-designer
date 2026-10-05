@@ -538,9 +538,7 @@ WelcomeDialog::WelcomeDialog(QWidget* parent) : QDialog(parent) {
     };
     auto* fresh = way(QStringLiteral("WelcomeNewLayout"), tr("New layout"), Choice::NewLayout);
     way(QStringLiteral("WelcomeOpenFile"), tr("Open a file…"), Choice::OpenFile);
-#ifdef BLD_SYNC
     way(QStringLiteral("WelcomeServer"), tr("Connect to a server…"), Choice::Server);
-#endif
     waysRow->addStretch(1);
     ways->hide();
     row->addWidget(ways);

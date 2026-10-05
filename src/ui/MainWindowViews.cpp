@@ -9,9 +9,7 @@
 #include "SavedViews.h"
 #include "SharePictureDialog.h"
 #include "ViewsPanel.h"
-#ifdef BLD_SYNC
 #include "LiveLayout.h"
-#endif
 
 #include "../core/Layer.h"
 #include "../core/LayerGrid.h"
@@ -124,9 +122,7 @@ void MainWindow::refreshViews() {
 }
 
 QString MainWindow::layoutTitle() const {
-#ifdef BLD_SYNC
     if (live_ && live_->active() && !live_->title().isEmpty()) return live_->title();
-#endif
     if (!currentFilePath_.isEmpty()) return QFileInfo(currentFilePath_).completeBaseName();
     return tr("Layout");
 }

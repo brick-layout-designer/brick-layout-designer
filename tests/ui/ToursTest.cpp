@@ -383,9 +383,7 @@ TEST_F(Tours, StartOrOpenOffersANewLayoutAFileOrAServer) {
     } ways[] = {
         { "WelcomeNewLayout", tours::WelcomeDialog::Choice::NewLayout },
         { "WelcomeOpenFile", tours::WelcomeDialog::Choice::OpenFile },
-#ifdef BLD_SYNC
         { "WelcomeServer", tours::WelcomeDialog::Choice::Server },
-#endif
     };
     for (const auto& way : ways) {
         tours::WelcomeDialog dlg;

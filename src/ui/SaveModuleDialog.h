@@ -1,6 +1,6 @@
 #pragma once
 
-// "Save Selection as Module" when a server is signed in (BLD_SYNC builds),
+// "Save Selection as Module" when a server is signed in,
 // as the web's SaveModuleDialog: a new module, or a new version of one you
 // can change, with a "What changed?" note. A new one is saved to you or one
 // of your clubs ("Save to"); "This computer" keeps it in the Module library

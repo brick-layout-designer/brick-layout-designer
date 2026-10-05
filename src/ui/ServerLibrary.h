@@ -1,6 +1,6 @@
 #pragma once
 
-// The server half of the Module library (BLD_SYNC builds), like the web's
+// The server half of the Module library, like the web's
 // ModuleLibraryPanel and Catalog page:
 // - "On the server": your modules and each club's, with pictures and
 //   versions. Each row has "Add to layout" (or "Add to this module" while

@@ -18,9 +18,7 @@
 
 #include "LayerPanel.h"
 #include "MapView.h"
-#ifdef BLD_SYNC
 #include "LiveLayout.h"
-#endif
 #include "ModulesPanel.h"
 #include "PartDifferencesDialog.h"
 #include "PartsBrowser.h"
@@ -76,7 +74,6 @@ constexpr qint64 kAutosaveThrottleMs = 5000;
 void MainWindow::updateTitle() {
     QString name = currentFilePath_.isEmpty() ? tr("[untitled]") : QFileInfo(currentFilePath_).fileName();
     bool dirty = !mapView_->undoStack()->isClean();
-#ifdef BLD_SYNC
     // Live: the server keeps it saved.
     if (live_ && live_->active()) {
         name = tr("%1 — Live on %2").arg(live_->title(), liveServerName());
@@ -84,7 +81,6 @@ void MainWindow::updateTitle() {
     } else if (!editingModule_.id.isEmpty()) {
         name = tr("%1 — Module on %2").arg(editingModule_.title, editingModule_.server.host());
     }
-#endif
     // As BlueBrick, the open budget follows the map name.
     QString budget;
     if (budget_ && budget_->exists())
@@ -131,13 +127,11 @@ QString layoutAssetDir() {
 bool MainWindow::openFile(const QString& path) {
     if (!maybeSave()) return false;
     forgetFileSource();
-#ifdef BLD_SYNC
     // Another layout replaces the live one: leave the server session.
     if (live_ && live_->active()) {
         live_->close();
         updateLiveUi();
     }
-#endif
     mapView_->showOpening(tr("Reading the layout file."));
     if (isOtherMapFormat(path)) {
         auto ldraw = isTrackDesignerMap(path) ? import::readTrackDesignerMap(path, parts_)
@@ -405,10 +399,8 @@ QStringList MainWindow::resolvePartDifferences(const QStringList& keys, const QM
 
 bool MainWindow::onSave() {
     if (!mapView_->currentMap()) return false;
-#ifdef BLD_SYNC
     // A server module open for changing: Save makes a new version of it.
     if (!editingModule_.id.isEmpty()) return saveEditedModule();
-#endif
     if (currentFilePath_.isEmpty()) return onSaveAs();
     if (!import::isLayoutFile(currentFilePath_) && !saveFormatChosen_) return chooseSaveFormat();
     return writeMapTo(currentFilePath_);
@@ -548,13 +540,11 @@ void MainWindow::onNew() {
 bool MainWindow::newDocument() {
     if (!maybeSave()) return false;
     forgetFileSource();
-#ifdef BLD_SYNC
     // Another layout replaces the live one: leave the server session.
     if (live_ && live_->active()) {
         live_->close();
         updateLiveUi();
     }
-#endif
 
     // If the user configured a "new map template" file in Preferences
     // (general/newMapTemplate), load that as the starting point — vanilla
@@ -813,17 +803,9 @@ bool MainWindow::restoreAutosaveIfAny(const QString& lastFile) {
 
 // ---------- Where a layout file came from ------------------------------------
 
-#ifndef BLD_SYNC
-// Without the server features there is no live version to offer.
-void MainWindow::offerLayoutSource(const import::LayoutSource&) {}
-void MainWindow::openSourceLive(const import::LayoutSource&) {}
-#endif
-
 void MainWindow::forgetFileSource() {
-#ifdef BLD_SYNC
     // Another document: the module that was open for changing isn't any more.
     clearEditingModule();
-#endif
     keptManifest_ = {};
     fileSource_.reset();
     if (notices_) notices_->hideNotice(QStringLiteral("layoutSource"));
@@ -831,13 +813,11 @@ void MainWindow::forgetFileSource() {
 
 import::LayoutManifestExtras MainWindow::manifestExtras() const {
     import::LayoutManifestExtras extras{ keptManifest_, fileSource_ };
-#ifdef BLD_SYNC
     if (live_ && live_->active() && !liveLayoutId_.isEmpty()) {
         extras.source = import::LayoutSource{
             import::layoutServerBase(liveServer_.toString()), liveLayoutId_, live_->title(),
             QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs) };
     }
-#endif
     return extras;
 }
 

@@ -14,17 +14,13 @@
 #include "../saveload/VenueIO.h"
 #include "MapView.h"
 #include "ModuleLibraryPanel.h"
-#ifdef BLD_SYNC
 #include "ServerLibrary.h"
-#endif
 #include "ModulesPanel.h"
 #include "VenueLibraryPanel.h"
 #include "PartsBrowser.h"
 #include "PartUsagePanel.h"
 #include "help/HelpButton.h"
-#ifdef BLD_SYNC
 #include "LiveLayout.h"
-#endif
 
 #include "../core/Map.h"
 #include "../parts/BrickPlacement.h"
@@ -333,14 +329,12 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
     addDockWidget(Qt::RightDockWidgetArea, modulesPanel_);
     moduleLibraryPanel_ = new ModuleLibraryPanel(this);
     moduleLibraryPanel_->setParts(&parts_);
-#ifdef BLD_SYNC
     // Your modules and your clubs' on the server, and the catalog, as tabs.
     connect(moduleLibraryPanel_, &ModuleLibraryPanel::browseCatalogRequested, this, [this] { openCatalogOnWeb(false); });
     connect(moduleLibraryPanel_, &ModuleLibraryPanel::webModulesRequested, this, [this] { openServerHomeOnWeb(); });
     setupServerLibrary();
     partsBrowser_->setCatalogLinkVisible(true);
     connect(partsBrowser_, &PartsBrowser::browseCatalogRequested, this, [this] { openCatalogOnWeb(true); });
-#endif
     addDockWidget(Qt::RightDockWidgetArea, moduleLibraryPanel_);
     venueLibraryPanel_ = new VenueLibraryPanel(this);
     addDockWidget(Qt::RightDockWidgetArea, venueLibraryPanel_);
@@ -854,7 +848,6 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
 }
 
 MainWindow::~MainWindow() {
-#ifdef BLD_SYNC
     // Close a live layout while the map view it draws on still exists.
     if (live_) {
         live_->disconnect(this);
@@ -862,7 +855,6 @@ MainWindow::~MainWindow() {
     }
     // A child of the map view, deleted after this destructor.
     if (partsDownloadCard_) partsDownloadCard_->disconnect(this);
-#endif
 }
 
 
@@ -940,13 +932,11 @@ void MainWindow::onSaveSelectionAsModule() {
     }
     module.nbItems = total;
 
-#ifdef BLD_SYNC
     // Signed in to a server: a new module or version there (or this computer).
     if (serverLibrary_ && serverLibrary_->state() == ServerLibrary::State::Ready) {
         saveModuleToServer(module, static_cast<int>(picks.size()));
         return;
     }
-#endif
     saveModuleLocally(module, static_cast<int>(picks.size()));
 }
 
