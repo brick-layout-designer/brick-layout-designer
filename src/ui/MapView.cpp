@@ -2204,8 +2204,9 @@ std::optional<QPointF> MapView::moduleSnapShift(const std::vector<const core::Br
         auto meta = parts_.metadata(b->partNumber);
         if (!meta) continue;
         const QPointF cen = parts::placement::imageCentre(*b, parts_);
-        for (int i = 0; i < meta->connections.size(); ++i) {
-            const auto& c = meta->connections[i];
+        const auto& conns = meta->connections;
+        for (int i = 0; i < conns.size(); ++i) {
+            const auto& c = conns[i];
             if (c.type.isEmpty()) continue;
             const QPointF world = cen + rotatePoint(c.position, b->orientation);
             const QPointF d = world - cursorStuds;
