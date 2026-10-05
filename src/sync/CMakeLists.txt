@@ -43,9 +43,10 @@ if(APPLE AND _bld_osx_archs GREATER 1)
         list(APPEND _bld_yrs_libs "${CMAKE_CURRENT_BINARY_DIR}/yffi-target/${_triple}/release/libyrs.a")
     endforeach()
     set(_bld_yrs_universal "${CMAKE_CURRENT_BINARY_DIR}/libyrs-universal.a")
-    set(_bld_cargo_env "")
+    # yffi is third-party: its own lint warnings aren't ours to fix.
+    set(_bld_cargo_env "RUSTFLAGS=--cap-lints=allow")
     if(CMAKE_OSX_DEPLOYMENT_TARGET)
-        set(_bld_cargo_env "MACOSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}")
+        list(APPEND _bld_cargo_env "MACOSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}")
     endif()
     add_custom_command(
         OUTPUT "${_bld_yrs_universal}"
@@ -69,9 +70,10 @@ else()
         LOCKED
         PROFILE release
     )
+    # yffi is third-party: its own lint warnings aren't ours to fix.
+    corrosion_add_target_rustflags(yrs --cap-lints=allow)
 endif()
 
-find_package(Qt6 6.8 REQUIRED COMPONENTS WebSockets Widgets)
 
 # QtKeychain keeps the server sign-in token in the OS keychain (macOS
 # Keychain, Windows Credential Store, Secret Service on Linux). Built
@@ -89,8 +91,13 @@ FetchContent_Declare(
     URL      https://github.com/frankosterfeld/qtkeychain/archive/refs/tags/0.15.0.tar.gz
     URL_HASH SHA256=f4254dc8f0933b06d90672d683eab08ef770acd8336e44dfa030ce041dc2ca22
     DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    SYSTEM
 )
 FetchContent_MakeAvailable(qtkeychain)
+# Third-party: its own warnings aren't ours to fix.
+if(NOT MSVC)
+    target_compile_options(qt6keychain PRIVATE -w)
+endif()
 set(BUILD_SHARED_LIBS ${_bld_shared})
 set(BUILD_TESTING ${_bld_testing})
 
@@ -140,8 +147,9 @@ add_library(bld_sync STATIC
     EventStream.cpp
 )
 target_include_directories(bld_sync
-    PUBLIC  ${CMAKE_CURRENT_SOURCE_DIR}
-    PRIVATE ${CMAKE_SOURCE_DIR}/third_party/yrs)
+    PUBLIC  ${CMAKE_CURRENT_SOURCE_DIR})
+# cbindgen's header is third-party code: SYSTEM keeps its warnings out.
+target_include_directories(bld_sync SYSTEM PRIVATE ${CMAKE_SOURCE_DIR}/third_party/yrs)
 # `yrs` is yffi's library target (its [lib] name).
 target_link_libraries(bld_sync PUBLIC bld_core bld_saveload Qt6::Core Qt6::Gui Qt6::Network Qt6::WebSockets PRIVATE yrs qt6keychain)
 
