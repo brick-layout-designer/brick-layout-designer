@@ -25,12 +25,51 @@ FetchContent_Declare(
     DOWNLOAD_EXTRACT_TIMESTAMP TRUE
 )
 FetchContent_MakeAvailable(yffi)
-corrosion_import_crate(
-    MANIFEST_PATH "${yffi_SOURCE_DIR}/Cargo.toml"
-    CRATE_TYPES staticlib
-    LOCKED
-    PROFILE release
-)
+list(LENGTH CMAKE_OSX_ARCHITECTURES _bld_osx_archs)
+if(APPLE AND _bld_osx_archs GREATER 1)
+    # A universal macOS app: Corrosion 0.6 builds one Rust target, so build
+    # yffi for each architecture with cargo and lipo them into one library.
+    set(_bld_cargo_targets "")
+    set(_bld_yrs_libs "")
+    foreach(_arch IN LISTS CMAKE_OSX_ARCHITECTURES)
+        if(_arch STREQUAL "arm64")
+            set(_triple aarch64-apple-darwin)
+        elseif(_arch STREQUAL "x86_64")
+            set(_triple x86_64-apple-darwin)
+        else()
+            message(FATAL_ERROR "No Rust target for macOS architecture ${_arch}")
+        endif()
+        list(APPEND _bld_cargo_targets --target ${_triple})
+        list(APPEND _bld_yrs_libs "${CMAKE_CURRENT_BINARY_DIR}/yffi-target/${_triple}/release/libyrs.a")
+    endforeach()
+    set(_bld_yrs_universal "${CMAKE_CURRENT_BINARY_DIR}/libyrs-universal.a")
+    set(_bld_cargo_env "")
+    if(CMAKE_OSX_DEPLOYMENT_TARGET)
+        set(_bld_cargo_env "MACOSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}")
+    endif()
+    add_custom_command(
+        OUTPUT "${_bld_yrs_universal}"
+        COMMAND ${CMAKE_COMMAND} -E env ${_bld_cargo_env}
+                "${BLD_CARGO}" build --release --locked --lib
+                --manifest-path "${yffi_SOURCE_DIR}/Cargo.toml"
+                --target-dir "${CMAKE_CURRENT_BINARY_DIR}/yffi-target"
+                ${_bld_cargo_targets}
+        COMMAND lipo -create ${_bld_yrs_libs} -output "${_bld_yrs_universal}"
+        DEPENDS "${yffi_SOURCE_DIR}/Cargo.toml"
+        COMMENT "Building yffi (Rust) for ${CMAKE_OSX_ARCHITECTURES}"
+        VERBATIM)
+    add_custom_target(yrs_universal DEPENDS "${_bld_yrs_universal}")
+    add_library(yrs STATIC IMPORTED GLOBAL)
+    set_target_properties(yrs PROPERTIES IMPORTED_LOCATION "${_bld_yrs_universal}")
+    add_dependencies(yrs yrs_universal)
+else()
+    corrosion_import_crate(
+        MANIFEST_PATH "${yffi_SOURCE_DIR}/Cargo.toml"
+        CRATE_TYPES staticlib
+        LOCKED
+        PROFILE release
+    )
+endif()
 
 find_package(Qt6 6.8 REQUIRED COMPONENTS WebSockets Widgets)
 
@@ -42,6 +81,9 @@ set(BUILD_TRANSLATIONS OFF CACHE BOOL "" FORCE)
 set(BUILD_TEST_APPLICATION OFF CACHE BOOL "" FORCE)
 set(_bld_shared ${BUILD_SHARED_LIBS})
 set(BUILD_SHARED_LIBS OFF)
+# Not its own tests: they need a keychain, which CI machines lack.
+set(_bld_testing ${BUILD_TESTING})
+set(BUILD_TESTING OFF)
 FetchContent_Declare(
     qtkeychain
     URL      https://github.com/frankosterfeld/qtkeychain/archive/refs/tags/0.15.0.tar.gz
@@ -50,6 +92,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(qtkeychain)
 set(BUILD_SHARED_LIBS ${_bld_shared})
+set(BUILD_TESTING ${_bld_testing})
 
 add_library(bld_sync STATIC
     YDocSummary.h
