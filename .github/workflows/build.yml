@@ -278,7 +278,8 @@ jobs:
         run: |
           # Qt's deploy step requires an absolute install prefix.
           cmake --install build --config Release --prefix "$PWD/dist/brick-layout-designer"
-          ./dist/brick-layout-designer/brick-layout-designer.exe --version > version.txt
+          # Without Qt on PATH, so it runs only if the DLLs it needs are beside it.
+          PATH="/c/Windows/System32:/c/Windows" ./dist/brick-layout-designer/brick-layout-designer.exe --version > version.txt
           cat version.txt
           grep -F "$BLD_VERSION" version.txt
           test -f dist/brick-layout-designer/vcruntime140.dll

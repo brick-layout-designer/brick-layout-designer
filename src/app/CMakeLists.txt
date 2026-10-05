@@ -55,6 +55,11 @@ if(BLD_DEPLOY_QT)
         TARGET bld_app
         OUTPUT_SCRIPT _bld_deploy_script
         NO_UNSUPPORTED_PLATFORM_ERROR)
+    if(WIN32)
+        # Qt's DLLs beside the .exe (the deploy script defaults to bin/,
+        # where Windows doesn't look for them).
+        install(CODE "set(QT_DEPLOY_BIN_DIR \"${BLD_INSTALL_BINDIR}\")")
+    endif()
     install(SCRIPT "${_bld_deploy_script}")
 
     if(WIN32)
