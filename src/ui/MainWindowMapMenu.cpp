@@ -6,6 +6,7 @@
 // the venue dialog churn.
 
 #include "MainWindow.h"
+#include "ConfirmDialog.h"
 
 #include "../edit/venue/VenueDesign.h"
 #include "MapView.h"
@@ -249,9 +250,13 @@ void MainWindow::setupMapMenu() {
     connect(clearVenueAct, &QAction::triggered, this, [this]{
         auto* m = mapView_->currentMap();
         if (!m || !m->sidecar.venue) return;
-        const auto btn = QMessageBox::question(this, tr("Clear venue"),
-            tr("Remove the venue from this project?"));
-        if (btn != QMessageBox::Yes) return;
+        ConfirmOptions clearVenue;
+        clearVenue.title = tr("Remove the venue from this layout?");
+        clearVenue.removes = tr("The venue’s outline, walls, doors and obstacles leave this layout.");
+        clearVenue.keeps = tr("Your parts stay where they are, and the venue stays in the Venue library if you saved it there.");
+        clearVenue.undo = ConfirmDialog::undoWithCtrlZ();
+        clearVenue.confirmLabel = tr("Remove");
+        if (!ConfirmDialog::ask(this, clearVenue)) return;
         mapView_->undoStack()->push(new edit::SetVenueCommand(*m, std::nullopt));
     });
 

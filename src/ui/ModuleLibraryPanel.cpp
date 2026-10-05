@@ -1,16 +1,20 @@
 #include "ModuleLibraryPanel.h"
 #include "TouchMode.h"
 #include "ModuleThumbnail.h"
+#include "ConfirmDialog.h"
+#include "saveload/SidecarIO.h"
 
 #include <cmath>
 
 #include <QDir>
+#include <QFile>
 #include <QFileDialog>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QListWidget>
 #include <QListWidgetItem>
 #include <QMenu>
+#include <QMessageBox>
 #include <QMimeData>
 #include <QScroller>
 #include <QIcon>
@@ -121,6 +125,12 @@ ModuleLibraryPanel::ModuleLibraryPanel(QWidget* parent)
     QSettings s;
     const QString stored = s.value(QString::fromLatin1(kSettingsKey)).toString();
     path_ = stored.isEmpty() ? defaultModuleLibraryPath() : stored;
+    confirm_ = [this](const QString& name) {
+        DeleteWording w;
+        w.removes = tr("The module file is deleted from this computer.");
+        w.keeps = tr("Layouts that already use it don’t change.");
+        return ConfirmDialog::confirmDelete(this, name, w);
+    };
     refresh();
 
     connect(chooseBtn,  &QPushButton::clicked,     this, &ModuleLibraryPanel::onChooseFolder);
@@ -134,11 +144,30 @@ ModuleLibraryPanel::ModuleLibraryPanel(QWidget* parent)
         QMenu menu(this);
         auto* act = menu.addAction(tr("Import into map"));
         connect(act, &QAction::triggered, [this, it]{ onActivated(it); });
+        const QString path = it->data(Qt::UserRole).toString();
+        if (!path.isEmpty()) {
+            menu.addSeparator();
+            auto* del = menu.addAction(tr("Delete…"));
+            del->setObjectName(QStringLiteral("deleteLocalModule"));
+            connect(del, &QAction::triggered, this, [this, path] { deleteModule(path); });
+        }
         menu.exec(list_->mapToGlobal(pos));
     });
 }
 
 QString ModuleLibraryPanel::libraryPath() const { return path_; }
+
+bool ModuleLibraryPanel::deleteModule(const QString& bbmPath) {
+    const QString name = QFileInfo(bbmPath).completeBaseName();
+    if (!confirm_(name)) return false;
+    if (!QFile::remove(bbmPath)) {
+        QMessageBox::warning(this, tr("Delete module"), tr("Could not delete %1.").arg(name));
+        return false;
+    }
+    QFile::remove(saveload::sidecarPathFor(bbmPath));
+    refresh();
+    return true;
+}
 
 bool ModuleLibraryPanel::eventFilter(QObject* obj, QEvent* ev) {
     if (list_ && obj == list_->viewport()) {

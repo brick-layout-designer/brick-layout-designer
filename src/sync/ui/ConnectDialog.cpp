@@ -6,6 +6,7 @@
 #include "ServersDialog.h"
 #include "TokenStore.h"
 #include "core/Version.h"
+#include "ui/ConfirmDialog.h"
 #include "ui/help/HelpButton.h"
 #include "ui/help/SourceLinks.h"
 
@@ -182,6 +183,11 @@ ConnectDialog::ConnectDialog(ServerApi& api, TokenStore& tokens, std::function<v
         openUrl_(url);
     });
     bottom->addStretch(1);
+    deleteBtn_ = new QPushButton(tr("Delete…"), layoutsPage);
+    deleteBtn_->setObjectName(QStringLiteral("deleteItem"));
+    deleteBtn_->setToolTip(venues ? tr("Delete the picked venue from the server") : tr("Delete the picked layout from the server (you own it)"));
+    deleteBtn_->setEnabled(false);
+    bottom->addWidget(deleteBtn_);
     bottom->addWidget(openBtn_);
     show_ = new QComboBox(layoutsPage);
     show_->setObjectName(QStringLiteral("ownerFilter"));
@@ -235,8 +241,21 @@ ConnectDialog::ConnectDialog(ServerApi& api, TokenStore& tokens, std::function<v
     connect(signOut, &QPushButton::clicked, this, &ConnectDialog::signOut);
     connect(openBtn_, &QPushButton::clicked, this, &ConnectDialog::openSelected);
     if (!venues) connect(layouts_, &QTreeWidget::itemActivated, this, &ConnectDialog::openSelected);
-    connect(layouts_, &QTreeWidget::itemSelectionChanged, this,
-            [this] { openBtn_->setEnabled(!layouts_->selectedItems().isEmpty()); });
+    connect(layouts_, &QTreeWidget::itemSelectionChanged, this, [this] {
+        openBtn_->setEnabled(!layouts_->selectedItems().isEmpty());
+        updateDeleteButton();
+    });
+    connect(deleteBtn_, &QPushButton::clicked, this, &ConnectDialog::deleteSelected);
+    confirmDelete_ = [this](const QString& name, bool layout) {
+        return bld::ui::ConfirmDialog::confirmDelete(this, name, layout ? bld::ui::ConfirmDialog::layoutWording()
+                                                                        : bld::ui::ConfirmDialog::venueWording());
+    };
+    connect(&api_, &ServerApi::deleted, this, [this] {
+        afterList_ = tr("Deleted “%1”").arg(deleting_);
+        showMessage(afterList_);
+        deleting_.clear();
+        refreshList();
+    });
     connect(filter_, &QLineEdit::textChanged, this, &ConnectDialog::filterLayouts);
     connect(show_, &QComboBox::activated, this, [this] {
         QSettings().setValue(QLatin1String(kShowKey), show_->currentData().toString());
@@ -441,7 +460,34 @@ void ConnectDialog::signInAgain() {
     api_.startSignIn(tr("Brick Layout Designer %1").arg(QCoreApplication::applicationVersion()).trimmed());
 }
 
+void ConnectDialog::updateDeleteButton() {
+    const auto items = layouts_->selectedItems();
+    const bool venues = purpose_ == Purpose::DownloadVenues;
+    deleteBtn_->setEnabled(deleting_.isEmpty() && items.size() == 1
+                           && (venues || items.first()->data(AccessCol, Qt::UserRole + 1).toBool()));
+}
+
+void ConnectDialog::deleteSelected() {
+    const auto items = layouts_->selectedItems();
+    if (items.size() != 1 || !deleting_.isEmpty()) return;
+    const bool layout = purpose_ != Purpose::DownloadVenues;
+    const QString id = items.first()->data(TitleCol, Qt::UserRole).toString();
+    const QString name = items.first()->text(TitleCol);
+    if (!confirmDelete_ || !confirmDelete_(name, layout)) return;
+    deleting_ = name;
+    updateDeleteButton();
+    showMessage(tr("Deleting “%1”…").arg(name));
+    if (layout) api_.deleteLayout(id);
+    else api_.deleteVenue(id);
+}
+
 void ConnectDialog::onFailed(const QString& what, const QString& message, bool unauthorized) {
+    if (what == QLatin1String("delete")) {
+        deleting_.clear();
+        updateDeleteButton();
+        showMessage(tr("Could not delete it: %1").arg(message));
+        return;
+    }
     if (what == QLatin1String("publish")) {
         publishBtn_->setEnabled(true);
         if (unauthorized) {
@@ -550,7 +596,7 @@ void ConnectDialog::showVenues(const QList<VenueEntry>& venues) {
     filterLayouts(filter_->text());
     pickAgain(keep);
     pages_->setCurrentIndex(LayoutsPage);
-    showMessage(venues.isEmpty() ? tr("No saved venues on this server yet.") : QString());
+    showMessage(venues.isEmpty() ? tr("No saved venues on this server yet.") : std::exchange(afterList_, QString()));
 }
 
 void ConnectDialog::showLayouts(const QList<LayoutEntry>& layouts) {
@@ -571,6 +617,7 @@ void ConnectDialog::showLayouts(const QList<LayoutEntry>& layouts) {
         item->setText(UpdatedCol, QLocale().toString(e.updatedAt.toLocalTime(), QLocale::ShortFormat));
         item->setData(TitleCol, Qt::UserRole, e.id);
         item->setData(AccessCol, Qt::UserRole, e.role == QLatin1String("viewer"));
+        item->setData(AccessCol, Qt::UserRole + 1, e.role == QLatin1String("owner"));
         item->setData(UpdatedCol, Qt::UserRole, e.updatedAt);
     }
     setShowChoices(clubs);
@@ -579,7 +626,7 @@ void ConnectDialog::showLayouts(const QList<LayoutEntry>& layouts) {
     pickAgain(keep);
     pages_->setCurrentIndex(LayoutsPage);
     showMessage(layouts.isEmpty() ? tr("No layouts yet. Create one on the web, or publish one from here.")
-                                  : QString());
+                                  : std::exchange(afterList_, QString()));
     // A recent layout picked on the server list: open it, if it's still there.
     const QString pending = std::exchange(pendingLayout_, QString());
     if (pending.isEmpty()) return;

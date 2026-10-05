@@ -1,4 +1,5 @@
 #include "ServersDialog.h"
+#include "ui/ConfirmDialog.h"
 #include "RefreshOnFocus.h"
 
 #include "ConnectDialog.h"
@@ -404,12 +405,12 @@ void ServersDialog::onRemove() {
     const QUrl url = selectedServer();
     const ServerEntry* e = list_.find(url);
     if (!e) return;
-    const auto answer = QMessageBox::question(
-        this, tr("Remove Server"),
-        tr("Remove %1 from your servers? You'll be signed out of it here. Your layouts stay on the server.")
-            .arg(e->label()),
-        QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel);
-    if (answer == QMessageBox::Yes) removeServer(url);
+    bld::ui::DeleteWording w;
+    w.verb = tr("Remove");
+    w.removes = tr("%1 leaves your list of servers, and you’re signed out of it here.").arg(e->label());
+    w.keeps = tr("Your layouts stay on the server.");
+    w.undo = tr("You can add it again later.");
+    if (bld::ui::ConfirmDialog::confirmDelete(this, e->label(), w)) removeServer(url);
 }
 
 void ServersDialog::onSignInOut() {

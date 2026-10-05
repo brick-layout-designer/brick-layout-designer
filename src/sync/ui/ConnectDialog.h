@@ -81,6 +81,12 @@ public:
     // How to open File › Servers… from here (the app's; tests replace it).
     void setManageServers(std::function<void()> manage) { manageServers_ = std::move(manage); }
 
+    // Delete the picked layout (you own it) or venue on the server, after
+    // asking. How it asks (tests answer instead): the name, and whether
+    // it's a layout.
+    void deleteSelected();
+    void setConfirmDelete(std::function<bool(const QString& name, bool layout)> f) { confirmDelete_ = std::move(f); }
+
 private:
     void showMessage(const QString& text);
     // The server needs a newer app: say so, with a button to download it.
@@ -113,6 +119,8 @@ private:
 
     QString pendingLayout_;  // a recent layout to open once listed
     std::function<void()> manageServers_;
+    std::function<bool(const QString&, bool)> confirmDelete_;
+    void updateDeleteButton();
 
     QStackedWidget* pages_ = nullptr;
     QTreeWidget* servers_ = nullptr;  // your servers, each with its recent layouts
@@ -130,6 +138,9 @@ private:
     QComboBox* show_ = nullptr;  // All / Mine / each club
     QTreeWidget* layouts_ = nullptr;
     QPushButton* openBtn_ = nullptr;
+    QPushButton* deleteBtn_ = nullptr;
+    QString deleting_;  // the name being deleted
+    QString afterList_; // said once the list comes back ("Deleted …")
     QByteArray publishBbm_, publishSidecar_;
     QComboBox* owner_ = nullptr;
     QLineEdit* publishTitle_ = nullptr;

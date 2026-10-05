@@ -1,4 +1,5 @@
 #include "ServerLibrary.h"
+#include "ConfirmDialog.h"
 
 #include "../sync/ServerList.h"
 
@@ -339,7 +340,7 @@ ServerModulesTab::ServerModulesTab(ServerLibrary& library, QWidget* parent) : QW
         return ok ? t.trimmed() : QString();
     };
     confirmDelete = [this](const sync::ServerModule& m) {
-        return QMessageBox::question(this, tr("Delete module"), tr("Delete module \"%1\"?").arg(m.title)) == QMessageBox::Yes;
+        return ConfirmDialog::confirmDelete(this, m.title, ConfirmDialog::moduleWording());
     };
 
     connect(filter_, &QLineEdit::textChanged, this, &ServerModulesTab::rebuild);

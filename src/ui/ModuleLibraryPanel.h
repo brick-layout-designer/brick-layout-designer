@@ -1,6 +1,8 @@
 #pragma once
 
 #include <QDockWidget>
+
+#include <functional>
 #include <QString>
 #include <QStringList>
 
@@ -54,6 +56,12 @@ public:
     int addTab(QWidget* page, const QString& label);
     QTabWidget* tabs() const { return tabs_; }
 
+    // Delete a module file from the folder (its sidecar too), after asking.
+    // Returns whether it went.
+    bool deleteModule(const QString& bbmPath);
+    // How it asks (tests answer instead); gets the module's name.
+    void setConfirm(std::function<bool(const QString& name)> f) { confirm_ = std::move(f); }
+
 signals:
     void moduleImportRequested(const QString& bbmPath);
     // "Browse the catalog on the web…" was clicked.
@@ -81,6 +89,7 @@ private:
     QPushButton* webModulesLink_ = nullptr;
     QListWidget* list_   = nullptr;
     QString      path_;
+    std::function<bool(const QString&)> confirm_;
     parts::PartsLibrary* parts_ = nullptr;
     QString thumbCacheDir_;
     QStringList pendingThumbs_;  // module paths whose row waits for its picture
