@@ -18,6 +18,12 @@ enum class ThemeChoice { Light, Dark, System };
 QString themeChoiceId(ThemeChoice t);                 // light / dark / system
 ThemeChoice themeChoiceFromId(const QString& id, ThemeChoice fallback = ThemeChoice::System);
 
+// The Parts list's picture size, in pixels (the web's slider has the same range).
+constexpr int kPartsIconMin = 32;
+constexpr int kPartsIconMax = 160;
+constexpr int kPartsIconDefault = 96;
+int clampPartsIconSize(int px);
+
 struct AppPrefs {
     ThemeChoice theme = ThemeChoice::System;
     QString accent = QStringLiteral("brick");
@@ -25,6 +31,7 @@ struct AppPrefs {
     bool expertMode = false;
     bool helpIcons = true;
     QStringList toursSeen;
+    int partsIconSize = kPartsIconDefault;
     // When these were last changed (here or on the server); invalid when
     // they never were.
     QDateTime updatedAt;

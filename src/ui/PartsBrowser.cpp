@@ -5,6 +5,7 @@
 #include "../core/Map.h"
 
 #include "../parts/PartsLibrary.h"
+#include "theme/AppPrefs.h"
 
 #include <QApplication>
 #include <QClipboard>
@@ -17,6 +18,12 @@
 #include <QFileInfo>
 #include <QHBoxLayout>
 #include <QIcon>
+#include <QKeySequence>
+#include <QLabel>
+#include <QLineF>
+#include <QNativeGestureEvent>
+#include <QSlider>
+#include <QWheelEvent>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QListWidgetItem>
@@ -38,8 +45,6 @@
 namespace bld::ui {
 
 namespace {
-
-constexpr int kIconSize = 96;
 
 // Store the part key on each item so we can retrieve it on activation.
 constexpr int kPartKeyRole  = Qt::UserRole + 1;
@@ -138,7 +143,6 @@ PartsBrowser::PartsBrowser(parts::PartsLibrary& lib, QWidget* parent)
     grid_->setViewMode(QListView::IconMode);
     grid_->setResizeMode(QListView::Adjust);
     grid_->setMovement(QListView::Static);
-    grid_->setIconSize(QSize(kIconSize, kIconSize));
     grid_->setSpacing(6);
     // Enable drag so users can pick a part and drop it anywhere on the map.
     grid_->setDragEnabled(true);
@@ -153,10 +157,30 @@ PartsBrowser::PartsBrowser(parts::PartsLibrary& lib, QWidget* parent)
     // (e.g. 2x16 bricks) still show their full silhouette rather than getting
     // squished into a tall/thin letterbox inside a fixed square cell.
     grid_->setUniformItemSizes(false);
-    grid_->setGridSize(QSize(kIconSize + 32, kIconSize + 52));
     loading_ = new LoadingCard(host);
     col->addWidget(loading_);
     col->addWidget(grid_);
+
+    // Picture size: a slider under the list, Ctrl+wheel or a pinch over it.
+    auto* sizeRow = new QHBoxLayout();
+    auto* sizeLabel = new QLabel(tr("Picture size"), host);
+    sizeRow->addWidget(sizeLabel);
+    sizeSlider_ = new QSlider(Qt::Horizontal, host);
+    sizeSlider_->setObjectName(QStringLiteral("partsIconSize"));
+    sizeSlider_->setRange(theme::kPartsIconMin, theme::kPartsIconMax);
+    sizeSlider_->setSingleStep(8);
+    sizeSlider_->setPageStep(16);
+    sizeSlider_->setAccessibleName(tr("Picture size"));
+    sizeSlider_->setToolTip(tr("How big the part pictures are. %1+wheel or a pinch over the list also resizes them.")
+                                .arg(QKeySequence(Qt::CTRL).toString(QKeySequence::NativeText).remove(QLatin1Char('+'))));
+    sizeLabel->setBuddy(sizeSlider_);
+    sizeRow->addWidget(sizeSlider_, 1);
+    col->addLayout(sizeRow);
+    connect(sizeSlider_, &QSlider::valueChanged, this, &PartsBrowser::chooseIconSize);
+    saveSize_ = new QTimer(this);
+    saveSize_->setSingleShot(true);
+    saveSize_->setInterval(400);
+    connect(saveSize_, &QTimer::timeout, this, &PartsBrowser::saveIconSize);
     iconTimer_ = new QTimer(this);
     iconTimer_->setInterval(0);
     connect(iconTimer_, &QTimer::timeout, this, &PartsBrowser::loadSomeIcons);
@@ -191,7 +215,66 @@ PartsBrowser::PartsBrowser(parts::PartsLibrary& lib, QWidget* parent)
         QMetaObject::invokeMethod(this, [this, at] { showPartMenu(at); }, Qt::QueuedConnection);
     });
 
+    setPrefsStore(&theme::PrefsStore::instance());
     rebuild();
+}
+
+void PartsBrowser::setPrefsStore(theme::PrefsStore* store) {
+    if (prefs_) prefs_->disconnect(this);
+    prefs_ = store;
+    if (!prefs_) return;
+    // A size chosen on another device (or the web) shows here too.
+    connect(prefs_, &theme::PrefsStore::changed, this, [this] { setIconSize(prefs_->prefs().partsIconSize); });
+    setIconSize(prefs_->prefs().partsIconSize);
+}
+
+void PartsBrowser::chooseIconSize(int px) {
+    setIconSize(px);
+    saveSize_->start();
+}
+
+void PartsBrowser::saveIconSize() {
+    if (!prefs_ || prefs_->prefs().partsIconSize == iconSize_) return;
+    theme::AppPrefs p = prefs_->prefs();
+    p.partsIconSize = iconSize_;
+    prefs_->update(p);
+}
+
+void PartsBrowser::setIconSize(int px) {
+    px = theme::clampPartsIconSize(px);
+    if (px == iconSize_) return;
+    const bool first = iconSize_ == 0;
+    iconSize_ = px;
+    grid_->setIconSize(QSize(px, px));
+    updateGridSize();
+    {
+        const QSignalBlocker quiet(sizeSlider_);
+        sizeSlider_->setValue(px);
+    }
+    if (first || grid_->count() == 0) return;
+    // Read the pictures again at the new size, the ones in view first.
+    const bool loading = !iconQueue_.isEmpty();
+    iconQueue_.clear();
+    iconItems_.clear();
+    QStringList later;
+    const QRect view = grid_->viewport()->rect();
+    for (int i = 0; i < grid_->count(); ++i) {
+        QListWidgetItem* item = grid_->item(i);
+        const QString key = item->data(kPartKeyRole).toString();
+        if (iconItems_.contains(key)) continue;
+        iconItems_.insert(key, item);
+        (!item->isHidden() && grid_->visualItemRect(item).intersects(view) ? iconQueue_ : later) << key;
+    }
+    iconQueue_ << later;
+    iconsDone_ = 0;
+    iconsTotal_ = static_cast<int>(iconQueue_.size());
+    quietIcons_ = !loading;
+    iconTimer_->start();
+}
+
+void PartsBrowser::updateGridSize() {
+    // Room for a two-line caption, and the budget numbers when shown.
+    grid_->setGridSize(QSize(iconSize_ + 32, iconSize_ + (budgetNumbers_ ? 68 : 52)));
 }
 
 void PartsBrowser::showPartMenu(const QPoint& pos) {
@@ -261,10 +344,10 @@ QString PartsBrowser::categoryForPath(const QString& absPath) const {
 
 namespace {
 
-void setPartIcon(parts::PartsLibrary& lib, const QString& key, QListWidgetItem* item) {
+void setPartIcon(parts::PartsLibrary& lib, const QString& key, QListWidgetItem* item, int size) {
     QPixmap pm = lib.pixmap(key);
     if (!pm.isNull()) {
-        item->setIcon(QIcon(pm.scaled(kIconSize, kIconSize,
+        item->setIcon(QIcon(pm.scaled(size, size,
                                       Qt::KeepAspectRatio,
                                       Qt::SmoothTransformation)));
     }
@@ -276,7 +359,7 @@ void setPartIcon(parts::PartsLibrary& lib, const QString& key, QListWidgetItem* 
 QListWidgetItem* makePartItem(parts::PartsLibrary& lib,
                               const QString& key,
                               const QString& cat,
-                              bool withIcon = true) {
+                              int iconSize = 0) {
     auto meta = lib.metadata(key);
     if (!meta) return nullptr;
 
@@ -299,7 +382,7 @@ QListWidgetItem* makePartItem(parts::PartsLibrary& lib,
     // Go through PartsLibrary::pixmap() rather than loading meta->gifFilePath
     // directly — sets without a companion image (BrickTracks/4DBrix/TrixBrix
     // and any user-saved set) get a composite synthesized from their subparts.
-    if (withIcon) setPartIcon(lib, key, item);
+    if (iconSize > 0) setPartIcon(lib, key, item, iconSize);
 
     item->setData(kCaptionRole,  caption);
     item->setData(kPartKeyRole,  key);
@@ -315,6 +398,7 @@ void PartsBrowser::rebuild() {
     iconQueue_.clear();
     iconItems_.clear();
     iconsDone_ = iconsTotal_ = 0;
+    quietIcons_ = false;
     loading_->finish();
     grid_->clear();
     const QString previousCat = category_->currentText();
@@ -329,7 +413,7 @@ void PartsBrowser::rebuild() {
         if (!meta) continue;
         const QString cat = categoryForPath(meta->xmlFilePath);
         cats.insert(cat);
-        if (auto* item = makePartItem(lib_, key, cat, /*withIcon=*/false)) {
+        if (auto* item = makePartItem(lib_, key, cat)) {
             grid_->addItem(item);
         }
     }
@@ -362,13 +446,14 @@ void PartsBrowser::loadSomeIcons() {
     clock.start();
     while (!iconQueue_.isEmpty() && clock.elapsed() < 15) {
         const QString key = iconQueue_.takeFirst();
-        if (QListWidgetItem* item = iconItems_.take(key)) setPartIcon(lib_, key, item);
+        if (QListWidgetItem* item = iconItems_.take(key)) setPartIcon(lib_, key, item, iconSize_);
         ++iconsDone_;
     }
     if (iconQueue_.isEmpty()) {
         iconTimer_->stop();
         loading_->finish();
-    } else {
+        quietIcons_ = false;
+    } else if (!quietIcons_) {
         loading_->showProgress(tr("Loading part pictures…"), iconsDone_, iconsTotal_);
     }
 }
@@ -403,7 +488,7 @@ void PartsBrowser::addOne(const QString& key) {
         category_->setCurrentIndex(restoreIdx >= 0 ? restoreIdx : 0);
         category_->blockSignals(false);
     }
-    if (auto* item = makePartItem(lib_, key, cat)) {
+    if (auto* item = makePartItem(lib_, key, cat, iconSize_)) {
         grid_->addItem(item);
         grid_->sortItems(Qt::AscendingOrder);
         refreshBudget();
@@ -421,7 +506,8 @@ void PartsBrowser::refreshBudget() {
     const bool numbers = budget_ && budget_->exists() && budget_->showBudgetNumbers();
     const core::Map* map = map_ ? map_() : nullptr;
     const auto usage = numbers && map ? edit::countPartUsage(*map) : QHash<QString, int>{};
-    grid_->setGridSize(QSize(kIconSize + 32, kIconSize + (numbers ? 68 : 52)));  // room for the numbers line
+    budgetNumbers_ = numbers;
+    updateGridSize();
     for (int i = 0; i < grid_->count(); ++i) {
         auto* it = grid_->item(i);
         const QString caption = it->data(kCaptionRole).toString();
@@ -496,6 +582,25 @@ bool PartsBrowser::eventFilter(QObject* obj, QEvent* ev) {
         case QEvent::TouchCancel:
             if (handleTouch(static_cast<QTouchEvent*>(ev))) return true;
             break;
+        case QEvent::Wheel: {
+            // Ctrl (⌘ on a Mac)+wheel resizes the pictures; 8 px a notch.
+            auto* w = static_cast<QWheelEvent*>(ev);
+            if (!(w->modifiers() & Qt::ControlModifier)) break;
+            wheelSteps_ += w->angleDelta().y() / 120.0;
+            const int notches = static_cast<int>(wheelSteps_);
+            if (notches != 0) {
+                wheelSteps_ -= notches;
+                chooseIconSize(iconSize_ + notches * 8);
+            }
+            return true;
+        }
+        case QEvent::NativeGesture: {
+            // A trackpad pinch.
+            auto* g = static_cast<QNativeGestureEvent*>(ev);
+            if (g->gestureType() != Qt::ZoomNativeGesture) break;
+            chooseIconSize(static_cast<int>(std::lround(iconSize_ * (1.0 + g->value()))));
+            return true;
+        }
         default:
             break;
         }
@@ -506,6 +611,26 @@ bool PartsBrowser::eventFilter(QObject* obj, QEvent* ev) {
 bool PartsBrowser::handleTouch(QTouchEvent* e) {
     if (!TouchMode::fromTouchScreen(e) || e->points().isEmpty()) return false;
     e->accept();
+    // Two fingers: pinch the pictures bigger or smaller.
+    if (e->points().size() >= 2 && e->type() != QEvent::TouchEnd && e->type() != QEvent::TouchCancel) {
+        const qreal dist = QLineF(e->points().at(0).position(), e->points().at(1).position()).length();
+        if (touch_ != TouchState::Pinch) {
+            holdTimer_->stop();
+            QScroller::scroller(grid_->viewport())->stop();
+            if (touch_ == TouchState::Drag) emit touchDragCancelled();
+            touch_ = TouchState::Pinch;
+            pinchStartDist_ = dist;
+            pinchStartSize_ = iconSize_;
+        } else if (pinchStartDist_ > 1) {
+            chooseIconSize(static_cast<int>(std::lround(pinchStartSize_ * dist / pinchStartDist_)));
+        }
+        return true;
+    }
+    if (touch_ == TouchState::Pinch) {
+        // One finger left of the pinch: nothing until they all lift.
+        if (e->type() == QEvent::TouchEnd || e->type() == QEvent::TouchCancel) touch_ = TouchState::None;
+        return true;
+    }
     const QEventPoint& p = e->points().first();
     const QPointF pos = p.position();
     QScroller* scroller = QScroller::scroller(grid_->viewport());
