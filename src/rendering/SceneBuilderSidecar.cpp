@@ -11,6 +11,7 @@
 #include "SceneBuilderInternal.h"
 #include "MapText.h"
 #include "ModuleLabels.h"
+#include "VenueLabels.h"
 #include "VenueDraw.h"
 
 #include "../core/AnchoredLabel.h"
@@ -32,6 +33,8 @@
 #include <QPainterPath>
 #include <QPen>
 #include <QPolygonF>
+#include <QGuiApplication>
+#include <QPalette>
 #include <QSettings>
 #include <QTransform>
 
@@ -121,67 +124,6 @@ void SceneBuilder::addVenue(const core::Map& map) {
         item->setData(kBrickDataKind,       QStringLiteral("venue"));
         sink.add(item);
 
-        // Measurement label on the OUTSIDE of each segment. Uses feet
-        // by default; converts via 1 stud = 0.026248 ft.
-        if (edge.polyline.size() >= 2) {
-            const QPointF a = edge.polyline.first();
-            const QPointF b = edge.polyline.last();
-            const QPointF d = b - a;
-            const double lenStuds = std::hypot(d.x(), d.y());
-            if (lenStuds > 0.5) {
-                const double lenFt = lenStuds * 0.026248;
-                const double lenIn = lenFt * 12.0;
-                QString txt;
-                if (lenFt < 1.0) {
-                    txt = QStringLiteral("%1\"").arg(lenIn, 0, 'f', 1);
-                } else {
-                    txt = QStringLiteral("%1 ft").arg(lenFt, 0, 'f', 2);
-                }
-                if (!edge.label.isEmpty()) {
-                    txt = edge.label + QStringLiteral(" — ") + txt;
-                }
-                if (edge.estimated) txt = venuedraw::estimatedText(txt);
-
-                // Right-hand normal (positive 90° rotation of the
-                // segment direction). Users can reverse the polygon
-                // winding if they want labels on the other side.
-                const QPointF unit(d.x() / lenStuds, d.y() / lenStuds);
-                const QPointF normal(-unit.y(), unit.x());
-                constexpr double kLabelOffsetPx = 16.0;
-                const QPointF midStuds = (a + b) * 0.5;
-                const QPointF labelScenePos = midStuds * kPx
-                                              + normal * kLabelOffsetPx;
-
-                auto* lbl = new QGraphicsSimpleTextItem(txt);
-                QFont f(mapFontFamily());
-                f.setBold(true);
-                // Font size is user-configurable via Preferences
-                // (settings key venue/labelPx). Default 28 px stays
-                // legible at map-scale zooms that show the whole venue.
-                const int labelPx =
-                    venueLabelPx_
-                        ? std::max(1, static_cast<int>(std::lround(*venueLabelPx_)))
-                        : std::max(10, QSettings().value(QStringLiteral("venue/labelPx"), 28).toInt());
-                f.setPixelSize(labelPx);
-                lbl->setFont(f);
-                lbl->setBrush(QBrush(QColor(20, 20, 20)));
-                double angleDeg = std::atan2(d.y(), d.x()) * 180.0 / M_PI;
-                if (angleDeg > 90.0 || angleDeg < -90.0) angleDeg += 180.0;
-                const QRectF tb = lbl->boundingRect();
-                QTransform tr;
-                tr.translate(labelScenePos.x(), labelScenePos.y());
-                tr.rotate(angleDeg);
-                tr.translate(-tb.width() / 2.0, -tb.height() / 2.0);
-                lbl->setTransform(tr);
-
-                const QRectF sceneBb = lbl->sceneBoundingRect();
-                auto* bg = new QGraphicsRectItem(sceneBb.adjusted(-3, -1, 3, 1));
-                bg->setPen(Qt::NoPen);
-                bg->setBrush(QBrush(QColor(255, 255, 255, 220)));
-                sink.add(bg);
-                sink.add(lbl);
-            }
-        }
     }
     // Venue model v2 parts (VenueDraw.h): obstacles styled by kind,
     // power points, measurements and notes.
@@ -274,6 +216,52 @@ void SceneBuilder::addVenue(const core::Map& map) {
     for (const auto& n : v.notes) {
         text(n.estimated ? venuedraw::estimatedText(n.text) : n.text, n.pos, labelPx * 0.8,
              n.estimated ? venuedraw::estimateColor() : QColor(30, 30, 30), n.estimated, 0, false);
+    }
+    // Wall labels: pills just outside the room, upright, clear of each
+    // other and of the selection handles (VenueLabels.h, as the web).
+    {
+        const double labelPx = venueLabelPx_
+                                   ? std::max(1.0, *venueLabelPx_)
+                                   : std::max(10, QSettings().value(QStringLiteral("venue/labelPx"), 28).toInt());
+        const LineWidthAt width = mapLineWidth(QStringLiteral("Bold"));
+        VenueLabelOptions opts;
+        opts.fontPx = labelPx;
+        opts.measure = [&width](const QString& t, double px) { return width(t, px); };
+        opts.selectedEdge = venueSelectedEdge_;
+        opts.handles = venueHandles_;
+        opts.handleHalfPx = venueHandleHalfPx_;
+        const bool dark = QGuiApplication::palette().color(QPalette::Window).lightness() < 128;
+        const VenueLabelColours colours = venueLabelColours(dark);
+        const QFont font = mapFont(QStringLiteral("Bold"), labelPx);
+        for (const VenueLabel& l : venueEdgeLabels(v.edges, opts)) {
+            QTransform tr;
+            tr.translate(l.centre.x(), l.centre.y());
+            tr.rotate(l.angle);
+            QPainterPath pill;
+            const double r = VenueLabelPill::radius * labelPx;
+            pill.addRoundedRect(QRectF(-l.width / 2, -l.height / 2, l.width, l.height), r, r);
+            auto* bg = new QGraphicsPathItem(pill);
+            QPen edgePen(colours.border, 1);
+            edgePen.setCosmetic(true);
+            bg->setPen(edgePen);
+            bg->setBrush(colours.fill);
+            bg->setTransform(tr);
+            bg->setAcceptedMouseButtons(Qt::NoButton);
+            if (l.shortened) bg->setToolTip(l.full);
+            bg->setData(kBrickDataKind, QStringLiteral("venueLabel"));
+            bg->setData(kVenueLabelTextRole, l.full);
+            bg->setZValue(5);
+            sink.add(bg);
+            const double tw = width(l.text, labelPx);
+            auto* text = new QGraphicsPathItem(textPath(font, { { l.text, -tw / 2, -labelPx / 2 } }, 1.0));
+            text->setPen(Qt::NoPen);
+            text->setBrush(colours.text);
+            text->setTransform(tr);
+            text->setAcceptedMouseButtons(Qt::NoButton);
+            if (l.shortened) text->setToolTip(l.full);
+            text->setZValue(6);
+            sink.add(text);
+        }
     }
 }
 

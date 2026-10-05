@@ -6,6 +6,8 @@ add_library(bld_rendering STATIC
     SceneBuilderSidecar.cpp
     ModuleLabels.cpp
     ModuleLabels.h
+    VenueLabels.cpp
+    VenueLabels.h
     MapText.cpp
     MapText.h
     UnknownPart.cpp

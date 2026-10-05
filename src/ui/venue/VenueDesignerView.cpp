@@ -1,4 +1,5 @@
 #include "VenueDesignerView.h"
+#include "rendering/VenueLabels.h"
 
 #include "core/Map.h"
 #include "parts/PartsLibrary.h"
@@ -7,6 +8,7 @@
 #include <QGraphicsEllipseItem>
 #include <QGraphicsLineItem>
 #include <QGraphicsPixmapItem>
+#include <QGraphicsPolygonItem>
 #include <QGraphicsRectItem>
 #include <QGraphicsSimpleTextItem>
 #include <QMouseEvent>
@@ -83,8 +85,26 @@ void VenueDesignerView::setState(const ev::DesignerState& s, const QImage& plan,
     last_ = { s, plan, planRect, planOpacity };
     core::Map map;
     map.sidecar.venue = visibleVenue(s.venue(), s.show);
-    // Labels about 13 px on screen at any zoom, as on the web.
+    // Labels about 13 px on screen at any zoom, as on the web; the selected
+    // wall's label whole, and every label clear of the selection handles.
     builder_->setVenueLabelPx(13.0 / transform().m11());
+    {
+        std::optional<int> edge;
+        QVector<QPointF> grips;
+        if (s.selection) {
+            const auto sel = *s.selection;
+            const core::Venue& sv = s.venue();
+            if (sel.kind == ev::PartKind::Edge && sel.index < sv.edges.size()) {
+                edge = static_cast<int>(sel.index);
+                grips = sv.edges[sel.index].polyline;
+            } else if (sel.kind == ev::PartKind::Obstacle && sel.index < sv.obstacles.size()) {
+                grips = sv.obstacles[sel.index].polygon;
+            } else if (sel.kind == ev::PartKind::Dimension && sel.index < sv.dimensions.size()) {
+                grips = { sv.dimensions[sel.index].from, sv.dimensions[sel.index].to };
+            }
+        }
+        builder_->setVenueSelection(edge, grips, 7.0 / transform().m11());
+    }
     builder_->build(map); // clears its own items, including earlier overlays below
 
     // Everything else is ours: remove what the last call added.
@@ -114,6 +134,18 @@ void VenueDesignerView::setState(const ev::DesignerState& s, const QImage& plan,
     }
 
     const core::Venue& v = s.venue();
+    // The grid fades a little under the room: its walls end to end.
+    {
+        QPolygonF room;
+        for (const auto& e : map.sidecar.venue->edges)
+            for (const QPointF& p : e.polyline) room << p * kPx;
+        if (room.size() >= 3) {
+            auto* fade = new QGraphicsPolygonItem(room);
+            fade->setPen(Qt::NoPen);
+            fade->setBrush(rendering::kVenueGridFade);
+            own(fade, -2e5);
+        }
+    }
     QVector<QPointF> handles;
     if (s.selection) {
         const auto sel = *s.selection;
@@ -225,7 +257,13 @@ void VenueDesignerView::zoomBy(double factor) {
 void VenueDesignerView::fit() {
     fitted_ = true;
     const QRectF r(venueBounds_.topLeft() * kPx, venueBounds_.size() * kPx);
-    fitInView(r.adjusted(-40 * kPx, -40 * kPx, 40 * kPx, 40 * kPx), Qt::KeepAspectRatio);
+    // The room with 40 studs round it, plus about 50 px on each side for
+    // the wall labels outside it (they keep their size on screen).
+    const QRectF want = r.adjusted(-40 * kPx, -40 * kPx, 40 * kPx, 40 * kPx);
+    const double vw = std::max(1, viewport()->width() - 100), vh = std::max(1, viewport()->height() - 100);
+    const double k = std::min(vw / std::max(1e-9, want.width()), vh / std::max(1e-9, want.height()));
+    setTransform(QTransform::fromScale(k, k));
+    centerOn(want.center());
     redraw();
 }
 

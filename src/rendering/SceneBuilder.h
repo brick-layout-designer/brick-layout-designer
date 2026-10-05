@@ -11,6 +11,7 @@
 #include <QPointF>
 #include <QRectF>
 #include <QString>
+#include <QVector>
 
 class QGraphicsItem;
 class QGraphicsScene;
@@ -48,6 +49,13 @@ public:
     // Venue label size in scene px; unset reads Preferences (venue/labelPx).
     // The Venue Designer sets it from the zoom so labels read the same at any scale.
     void setVenueLabelPx(std::optional<double> px) { venueLabelPx_ = px; }
+    // The Venue Designer: the selected wall keeps its whole label, and
+    // labels keep clear of the selection handles (studs; half size in px).
+    void setVenueSelection(std::optional<int> edge, QVector<QPointF> handles, double handleHalfPx) {
+        venueSelectedEdge_ = edge;
+        venueHandles_ = std::move(handles);
+        venueHandleHalfPx_ = handleHalfPx;
+    }
 
     // Configure live drag-snap. `snapStepStuds` of 0 disables snapping.
     // Applied by the per-item ItemPositionChange override so the brick snaps
@@ -84,6 +92,9 @@ public:
 
 private:
     std::optional<double> venueLabelPx_;
+    std::optional<int> venueSelectedEdge_;
+    QVector<QPointF> venueHandles_;
+    double venueHandleHalfPx_ = 0;
     void addLayer(const core::Layer& layer, int layerIndex);
     void addVenue(const core::Map& map);
     void addAnchoredLabels(const core::Map& map);

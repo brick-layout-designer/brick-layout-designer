@@ -24,6 +24,8 @@
 #include "rendering/MapText.h"
 #include "rendering/ModuleLabels.h"
 #include "rendering/UnknownPart.h"
+#include "rendering/VenueLabels.h"
+#include "core/Venue.h"
 #include "rendering/SceneBuilder.h"
 
 #include <gtest/gtest.h>
@@ -379,4 +381,81 @@ TEST(RenderParity, PicturesMatchTheGoldens) {
             EXPECT_LE(static_cast<double>(off) / (img.width() * img.height()), 0.002) << view.name.toStdString();
         }
     }
+}
+
+// Venue wall labels: the cases the web's renderParity test checks too.
+TEST(RenderParity, VenueWallLabelsMatchTheSharedDescription) {
+    const QJsonObject spec = readJson(kDir + QStringLiteral("/venue-labels.json"));
+    const double cw = spec[QLatin1String("charWidth")].toDouble();
+    const QJsonObject pill = spec[QLatin1String("pill")].toObject();
+    EXPECT_DOUBLE_EQ(rendering::VenueLabelPill::padX, pill[QLatin1String("padX")].toDouble());
+    EXPECT_DOUBLE_EQ(rendering::VenueLabelPill::padY, pill[QLatin1String("padY")].toDouble());
+    EXPECT_DOUBLE_EQ(rendering::VenueLabelPill::gap, pill[QLatin1String("gap")].toDouble());
+    EXPECT_DOUBLE_EQ(rendering::VenueLabelPill::handleGap, pill[QLatin1String("handleGap")].toDouble());
+    EXPECT_DOUBLE_EQ(rendering::VenueLabelPill::radius, pill[QLatin1String("radius")].toDouble());
+    const auto rgba = [](const QColor& c) {
+        return c.alpha() == 255 ? QStringLiteral("rgb(%1,%2,%3)").arg(c.red()).arg(c.green()).arg(c.blue())
+                                : QStringLiteral("rgba(%1,%2,%3,%4)").arg(c.red()).arg(c.green()).arg(c.blue()).arg(c.alphaF(), 0, 'g', 2);
+    };
+    for (const bool dark : { false, true }) {
+        const QJsonObject t = spec[QLatin1String("theme")].toObject()[dark ? QLatin1String("dark") : QLatin1String("light")].toObject();
+        const auto c = rendering::venueLabelColours(dark);
+        EXPECT_EQ(rgba(c.fill), t[QLatin1String("fill")].toString());
+        EXPECT_EQ(rgba(c.border), t[QLatin1String("border")].toString());
+        EXPECT_EQ(rgba(c.text), t[QLatin1String("text")].toString());
+    }
+    EXPECT_EQ(rgba(rendering::kVenueGridFade), spec[QLatin1String("gridFade")].toString());
+    for (const QJsonValue& v : spec[QLatin1String("cases")].toArray()) {
+        const QJsonObject c = v.toObject();
+        QVector<core::VenueEdge> edges;
+        for (const QJsonValue& ev : c[QLatin1String("edges")].toArray()) {
+            const QJsonObject e = ev.toObject();
+            core::VenueEdge edge;
+            edge.label = e[QLatin1String("label")].toString();
+            edge.estimated = e[QLatin1String("estimated")].toBool();
+            for (const QJsonValue& p : e[QLatin1String("poly")].toArray())
+                edge.polyline << QPointF(p[QLatin1String("x")].toDouble(), p[QLatin1String("y")].toDouble());
+            edges.push_back(edge);
+        }
+        rendering::VenueLabelOptions opts;
+        opts.fontPx = c[QLatin1String("fontPx")].toDouble();
+        opts.measure = [cw](const QString& t, double f) { return t.size() * cw * f; };
+        if (c.contains(QLatin1String("selectedEdge"))) opts.selectedEdge = c[QLatin1String("selectedEdge")].toInt();
+        for (const QJsonValue& h : c[QLatin1String("handles")].toArray())
+            opts.handles << QPointF(h[QLatin1String("x")].toDouble(), h[QLatin1String("y")].toDouble());
+        opts.handleHalfPx = c[QLatin1String("handleHalfPx")].toDouble();
+        const auto got = rendering::venueEdgeLabels(edges, opts);
+        const QJsonArray want = c[QLatin1String("expect")].toArray();
+        const std::string what = c[QLatin1String("name")].toString().toStdString();
+        ASSERT_EQ(got.size(), static_cast<size_t>(want.size())) << what;
+        for (size_t i = 0; i < got.size(); ++i) {
+            const QJsonObject w = want[static_cast<int>(i)].toObject();
+            EXPECT_EQ(got[i].edge, w[QLatin1String("edge")].toInt()) << what;
+            EXPECT_EQ(got[i].text, w[QLatin1String("text")].toString()) << what;
+            EXPECT_EQ(got[i].full, w[QLatin1String("full")].toString()) << what;
+            EXPECT_EQ(got[i].shortened, w[QLatin1String("shortened")].toBool()) << what;
+            EXPECT_NEAR(got[i].centre.x(), w[QLatin1String("x")].toDouble(), 1e-4) << what;
+            EXPECT_NEAR(got[i].centre.y(), w[QLatin1String("y")].toDouble(), 1e-4) << what;
+            EXPECT_NEAR(got[i].angle, w[QLatin1String("angle")].toDouble(), 1e-6) << what;
+            EXPECT_NEAR(got[i].width, w[QLatin1String("width")].toDouble(), 1e-4) << what;
+            EXPECT_NEAR(got[i].height, w[QLatin1String("height")].toDouble(), 1e-4) << what;
+        }
+    }
+    // Turned pills: touching isn't overlapping.
+    const auto box = [](double x, double y, double angle, double w, double h) {
+        rendering::VenueLabel l;
+        l.centre = QPointF(x, y);
+        l.angle = angle;
+        l.width = w;
+        l.height = h;
+        return l;
+    };
+    EXPECT_TRUE(rendering::pillsOverlap(box(0, 0, 0, 10, 2), box(9, 0, 0, 10, 2)));
+    EXPECT_FALSE(rendering::pillsOverlap(box(0, 0, 0, 10, 2), box(10, 0, 0, 10, 2)));
+    EXPECT_TRUE(rendering::pillsOverlap(box(0, 0, 0, 10, 2), box(0, 4, 90, 6, 2)));
+    EXPECT_FALSE(rendering::pillsOverlap(box(0, 0, 0, 10, 2), box(0, 5.5, 90, 6, 2)));
+    // Upright: left to right, bottom to top on a vertical wall.
+    EXPECT_DOUBLE_EQ(rendering::uprightAngle(0, 1), -90.0);
+    EXPECT_DOUBLE_EQ(rendering::uprightAngle(0, -1), -90.0);
+    EXPECT_NEAR(rendering::uprightAngle(-1, -1), 45.0, 1e-9);
 }
