@@ -6,6 +6,7 @@
 
 #include "MainWindow.h"
 #include "help/HelpButton.h"
+#include "help/SourceLinks.h"
 #include "BudgetSession.h"
 
 #include "../edit/PartList.h"
@@ -679,7 +680,8 @@ void MainWindow::onAbout() {
            "still contain mistakes. Please report any you find.</p>"
            "<p>Licensed under GPL-3.0, like BlueBrick.</p>"
            "<p>Parts library: %1 parts indexed.</p>")
-        .arg(parts_.partCount()));
+        .arg(parts_.partCount())
+        + QStringLiteral("<p>%1</p>").arg(help::sourceLinksHtml()));
 }
 
 // ---------- Recent files ---------------------------------------------------

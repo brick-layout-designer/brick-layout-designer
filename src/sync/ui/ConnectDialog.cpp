@@ -7,6 +7,7 @@
 #include "TokenStore.h"
 #include "core/Version.h"
 #include "ui/help/HelpButton.h"
+#include "ui/help/SourceLinks.h"
 
 #include <QComboBox>
 #include <QCoreApplication>
@@ -62,6 +63,8 @@ ConnectDialog::ConnectDialog(ServerApi& api, TokenStore& tokens, std::function<v
     auto* col = new QVBoxLayout(this);
     pages_ = new QStackedWidget(this);
     col->addWidget(pages_, 1);
+    // A quiet line at the foot: where the app's code lives.
+    col->addWidget(bld::ui::help::makeSourceLinksLabel(this), 0, Qt::AlignRight);
 
     // Your servers (with each one's recent layouts), or a new address
     auto* addressPage = new QWidget(pages_);
