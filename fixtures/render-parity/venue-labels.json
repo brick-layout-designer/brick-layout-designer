@@ -1,0 +1,703 @@
+{
+  "about": "Venue wall labels as both apps place them (web venueLabels.ts, desktop rendering/VenueLabels.cpp). Scene px at 8 px per stud; a label is charWidth x font px wide per character. Same file in both repos.",
+  "charWidth": 0.6,
+  "pill": {
+    "padX": 0.5,
+    "padY": 0.25,
+    "gap": 0.6,
+    "handleGap": 0.3,
+    "radius": 0.75
+  },
+  "theme": {
+    "light": {
+      "fill": "rgba(255,255,255,0.92)",
+      "border": "rgba(15,23,42,0.2)",
+      "text": "rgb(20,20,20)"
+    },
+    "dark": {
+      "fill": "rgba(30,41,59,0.92)",
+      "border": "rgba(255,255,255,0.25)",
+      "text": "rgb(241,245,249)"
+    }
+  },
+  "gridFade": "rgba(255,255,255,0.55)",
+  "cases": [
+    {
+      "name": "a plain room: outside, upright, vertical walls bottom to top",
+      "fontPx": 20,
+      "edges": [
+        {
+          "kind": 0,
+          "label": "North",
+          "poly": [
+            {
+              "x": 0,
+              "y": 0
+            },
+            {
+              "x": 600,
+              "y": 0
+            }
+          ]
+        },
+        {
+          "kind": 0,
+          "label": "East",
+          "poly": [
+            {
+              "x": 600,
+              "y": 0
+            },
+            {
+              "x": 600,
+              "y": 400
+            }
+          ]
+        },
+        {
+          "kind": 0,
+          "label": "South",
+          "poly": [
+            {
+              "x": 600,
+              "y": 400
+            },
+            {
+              "x": 0,
+              "y": 400
+            }
+          ]
+        },
+        {
+          "kind": 0,
+          "label": "West",
+          "poly": [
+            {
+              "x": 0,
+              "y": 400
+            },
+            {
+              "x": 0,
+              "y": 0
+            }
+          ]
+        }
+      ],
+      "expect": [
+        {
+          "edge": 0,
+          "text": "North — 15.75 ft",
+          "full": "North — 15.75 ft",
+          "shortened": false,
+          "x": 2400.0,
+          "y": -27.0,
+          "angle": 0.0,
+          "width": 212.0,
+          "height": 30.0
+        },
+        {
+          "edge": 1,
+          "text": "East — 10.50 ft",
+          "full": "East — 10.50 ft",
+          "shortened": false,
+          "x": 4827.0,
+          "y": 1600.0,
+          "angle": -90.0,
+          "width": 200.0,
+          "height": 30.0
+        },
+        {
+          "edge": 2,
+          "text": "South — 15.75 ft",
+          "full": "South — 15.75 ft",
+          "shortened": false,
+          "x": 2400.0,
+          "y": 3227.0,
+          "angle": 0.0,
+          "width": 212.0,
+          "height": 30.0
+        },
+        {
+          "edge": 3,
+          "text": "West — 10.50 ft",
+          "full": "West — 10.50 ft",
+          "shortened": false,
+          "x": -27.0,
+          "y": 1600.0,
+          "angle": -90.0,
+          "width": 200.0,
+          "height": 30.0
+        }
+      ]
+    },
+    {
+      "name": "a room drawn the other way round",
+      "fontPx": 20,
+      "edges": [
+        {
+          "kind": 0,
+          "label": "",
+          "poly": [
+            {
+              "x": 0,
+              "y": 0
+            },
+            {
+              "x": 0,
+              "y": 400
+            }
+          ]
+        },
+        {
+          "kind": 0,
+          "label": "",
+          "poly": [
+            {
+              "x": 0,
+              "y": 400
+            },
+            {
+              "x": 600,
+              "y": 400
+            }
+          ]
+        }
+      ],
+      "expect": [
+        {
+          "edge": 0,
+          "text": "10.50 ft",
+          "full": "10.50 ft",
+          "shortened": false,
+          "x": -27.0,
+          "y": 1600.0,
+          "angle": -90.0,
+          "width": 116.0,
+          "height": 30.0
+        },
+        {
+          "edge": 1,
+          "text": "15.75 ft",
+          "full": "15.75 ft",
+          "shortened": false,
+          "x": 2400.0,
+          "y": 3227.0,
+          "angle": 0.0,
+          "width": 116.0,
+          "height": 30.0
+        }
+      ]
+    },
+    {
+      "name": "an opening between two wall pieces: overlapping labels show just the length",
+      "fontPx": 60,
+      "edges": [
+        {
+          "kind": 0,
+          "label": "North",
+          "poly": [
+            {
+              "x": 0,
+              "y": 0
+            },
+            {
+              "x": 600,
+              "y": 0
+            }
+          ]
+        },
+        {
+          "kind": 0,
+          "label": "East",
+          "poly": [
+            {
+              "x": 600,
+              "y": 0
+            },
+            {
+              "x": 600,
+              "y": 400
+            }
+          ]
+        },
+        {
+          "kind": 0,
+          "label": "South",
+          "poly": [
+            {
+              "x": 600,
+              "y": 400
+            },
+            {
+              "x": 0,
+              "y": 400
+            }
+          ]
+        },
+        {
+          "kind": 0,
+          "label": "West wall by the stage",
+          "poly": [
+            {
+              "x": 0,
+              "y": 400
+            },
+            {
+              "x": 0,
+              "y": 210
+            }
+          ]
+        },
+        {
+          "kind": 1,
+          "label": "Fire door",
+          "poly": [
+            {
+              "x": 0,
+              "y": 210
+            },
+            {
+              "x": 0,
+              "y": 190
+            }
+          ]
+        },
+        {
+          "kind": 0,
+          "label": "West wall by the bar",
+          "poly": [
+            {
+              "x": 0,
+              "y": 190
+            },
+            {
+              "x": 0,
+              "y": 0
+            }
+          ],
+          "estimated": true
+        }
+      ],
+      "expect": [
+        {
+          "edge": 0,
+          "text": "North — 15.75 ft",
+          "full": "North — 15.75 ft",
+          "shortened": false,
+          "x": 2400.0,
+          "y": -81.0,
+          "angle": 0.0,
+          "width": 636.0,
+          "height": 90.0
+        },
+        {
+          "edge": 1,
+          "text": "East — 10.50 ft",
+          "full": "East — 10.50 ft",
+          "shortened": false,
+          "x": 4881.0,
+          "y": 1600.0,
+          "angle": -90.0,
+          "width": 600.0,
+          "height": 90.0
+        },
+        {
+          "edge": 2,
+          "text": "South — 15.75 ft",
+          "full": "South — 15.75 ft",
+          "shortened": false,
+          "x": 2400.0,
+          "y": 3281.0,
+          "angle": 0.0,
+          "width": 636.0,
+          "height": 90.0
+        },
+        {
+          "edge": 3,
+          "text": "4.99 ft",
+          "full": "West wall by the stage — 4.99 ft",
+          "shortened": true,
+          "x": -81.0,
+          "y": 2440.0,
+          "angle": -90.0,
+          "width": 312.0,
+          "height": 90.0
+        },
+        {
+          "edge": 4,
+          "text": "6.3\"",
+          "full": "Fire door — 6.3\"",
+          "shortened": true,
+          "x": -81.0,
+          "y": 1600.0,
+          "angle": -90.0,
+          "width": 204.0,
+          "height": 90.0
+        },
+        {
+          "edge": 5,
+          "text": "4.99 ft (est.)",
+          "full": "West wall by the bar — 4.99 ft (est.)",
+          "shortened": true,
+          "x": -81.0,
+          "y": 760.0,
+          "angle": -90.0,
+          "width": 564.0,
+          "height": 90.0
+        }
+      ]
+    },
+    {
+      "name": "the selected wall keeps its whole label",
+      "fontPx": 60,
+      "edges": [
+        {
+          "kind": 0,
+          "label": "North",
+          "poly": [
+            {
+              "x": 0,
+              "y": 0
+            },
+            {
+              "x": 600,
+              "y": 0
+            }
+          ]
+        },
+        {
+          "kind": 0,
+          "label": "East",
+          "poly": [
+            {
+              "x": 600,
+              "y": 0
+            },
+            {
+              "x": 600,
+              "y": 400
+            }
+          ]
+        },
+        {
+          "kind": 0,
+          "label": "South",
+          "poly": [
+            {
+              "x": 600,
+              "y": 400
+            },
+            {
+              "x": 0,
+              "y": 400
+            }
+          ]
+        },
+        {
+          "kind": 0,
+          "label": "West wall by the stage",
+          "poly": [
+            {
+              "x": 0,
+              "y": 400
+            },
+            {
+              "x": 0,
+              "y": 210
+            }
+          ]
+        },
+        {
+          "kind": 1,
+          "label": "Fire door",
+          "poly": [
+            {
+              "x": 0,
+              "y": 210
+            },
+            {
+              "x": 0,
+              "y": 190
+            }
+          ]
+        },
+        {
+          "kind": 0,
+          "label": "West wall by the bar",
+          "poly": [
+            {
+              "x": 0,
+              "y": 190
+            },
+            {
+              "x": 0,
+              "y": 0
+            }
+          ],
+          "estimated": true
+        }
+      ],
+      "selectedEdge": 3,
+      "expect": [
+        {
+          "edge": 0,
+          "text": "North — 15.75 ft",
+          "full": "North — 15.75 ft",
+          "shortened": false,
+          "x": 2400.0,
+          "y": -81.0,
+          "angle": 0.0,
+          "width": 636.0,
+          "height": 90.0
+        },
+        {
+          "edge": 1,
+          "text": "East — 10.50 ft",
+          "full": "East — 10.50 ft",
+          "shortened": false,
+          "x": 4881.0,
+          "y": 1600.0,
+          "angle": -90.0,
+          "width": 600.0,
+          "height": 90.0
+        },
+        {
+          "edge": 2,
+          "text": "South — 15.75 ft",
+          "full": "South — 15.75 ft",
+          "shortened": false,
+          "x": 2400.0,
+          "y": 3281.0,
+          "angle": 0.0,
+          "width": 636.0,
+          "height": 90.0
+        },
+        {
+          "edge": 3,
+          "text": "West wall by the stage — 4.99 ft",
+          "full": "West wall by the stage — 4.99 ft",
+          "shortened": false,
+          "x": -81.0,
+          "y": 2440.0,
+          "angle": -90.0,
+          "width": 1212.0,
+          "height": 90.0
+        },
+        {
+          "edge": 4,
+          "text": "6.3\"",
+          "full": "Fire door — 6.3\"",
+          "shortened": true,
+          "x": -81.0,
+          "y": 1600.0,
+          "angle": -90.0,
+          "width": 204.0,
+          "height": 90.0
+        },
+        {
+          "edge": 5,
+          "text": "4.99 ft (est.)",
+          "full": "West wall by the bar — 4.99 ft (est.)",
+          "shortened": true,
+          "x": -81.0,
+          "y": 760.0,
+          "angle": -90.0,
+          "width": 564.0,
+          "height": 90.0
+        }
+      ]
+    },
+    {
+      "name": "selection handles push the label out",
+      "fontPx": 60,
+      "edges": [
+        {
+          "kind": 0,
+          "label": "North",
+          "poly": [
+            {
+              "x": 0,
+              "y": 0
+            },
+            {
+              "x": 600,
+              "y": 0
+            }
+          ]
+        },
+        {
+          "kind": 0,
+          "label": "East",
+          "poly": [
+            {
+              "x": 600,
+              "y": 0
+            },
+            {
+              "x": 600,
+              "y": 400
+            }
+          ]
+        },
+        {
+          "kind": 0,
+          "label": "South",
+          "poly": [
+            {
+              "x": 600,
+              "y": 400
+            },
+            {
+              "x": 0,
+              "y": 400
+            }
+          ]
+        },
+        {
+          "kind": 0,
+          "label": "West wall by the stage",
+          "poly": [
+            {
+              "x": 0,
+              "y": 400
+            },
+            {
+              "x": 0,
+              "y": 210
+            }
+          ]
+        },
+        {
+          "kind": 1,
+          "label": "Fire door",
+          "poly": [
+            {
+              "x": 0,
+              "y": 210
+            },
+            {
+              "x": 0,
+              "y": 190
+            }
+          ]
+        },
+        {
+          "kind": 0,
+          "label": "West wall by the bar",
+          "poly": [
+            {
+              "x": 0,
+              "y": 190
+            },
+            {
+              "x": 0,
+              "y": 0
+            }
+          ],
+          "estimated": true
+        }
+      ],
+      "selectedEdge": 4,
+      "handles": [
+        {
+          "x": 0,
+          "y": 210
+        },
+        {
+          "x": 0,
+          "y": 190
+        }
+      ],
+      "handleHalfPx": 60,
+      "expect": [
+        {
+          "edge": 0,
+          "text": "North — 15.75 ft",
+          "full": "North — 15.75 ft",
+          "shortened": false,
+          "x": 2400.0,
+          "y": -81.0,
+          "angle": 0.0,
+          "width": 636.0,
+          "height": 90.0
+        },
+        {
+          "edge": 1,
+          "text": "East — 10.50 ft",
+          "full": "East — 10.50 ft",
+          "shortened": false,
+          "x": 4881.0,
+          "y": 1600.0,
+          "angle": -90.0,
+          "width": 600.0,
+          "height": 90.0
+        },
+        {
+          "edge": 2,
+          "text": "South — 15.75 ft",
+          "full": "South — 15.75 ft",
+          "shortened": false,
+          "x": 2400.0,
+          "y": 3281.0,
+          "angle": 0.0,
+          "width": 636.0,
+          "height": 90.0
+        },
+        {
+          "edge": 3,
+          "text": "4.99 ft",
+          "full": "West wall by the stage — 4.99 ft",
+          "shortened": true,
+          "x": -81.0,
+          "y": 2440.0,
+          "angle": -90.0,
+          "width": 312.0,
+          "height": 90.0
+        },
+        {
+          "edge": 4,
+          "text": "Fire door — 6.3\"",
+          "full": "Fire door — 6.3\"",
+          "shortened": false,
+          "x": -219.0,
+          "y": 1600.0,
+          "angle": -90.0,
+          "width": 636.0,
+          "height": 90.0
+        },
+        {
+          "edge": 5,
+          "text": "4.99 ft (est.)",
+          "full": "West wall by the bar — 4.99 ft (est.)",
+          "shortened": true,
+          "x": -81.0,
+          "y": 760.0,
+          "angle": -90.0,
+          "width": 564.0,
+          "height": 90.0
+        }
+      ]
+    },
+    {
+      "name": "a tiny wall gets no label",
+      "fontPx": 20,
+      "edges": [
+        {
+          "kind": 0,
+          "label": "x",
+          "poly": [
+            {
+              "x": 0,
+              "y": 0
+            },
+            {
+              "x": 0.4,
+              "y": 0
+            }
+          ]
+        }
+      ],
+      "expect": []
+    }
+  ]
+}

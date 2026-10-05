@@ -102,3 +102,24 @@ TEST(VenueDesignerDialog, FloorPlanTravelsInTheVenueAndCalibrates) {
     EXPECT_DOUBLE_EQ(c.topLeft.x(), 60 - 50 * 1.5);
     EXPECT_DOUBLE_EQ(c.topLeft.y(), 20);
 }
+
+// BLD_VENUE_SHOTS=<dir>: a picture of a room's wall labels, to look at (not compared).
+TEST(VenueDesignerDialog, PictureForReview) {
+    const QString out = qEnvironmentVariable("BLD_VENUE_SHOTS");
+    if (out.isEmpty()) GTEST_SKIP() << "BLD_VENUE_SHOTS not set";
+    ui::VenueDesignerDialog dlg(ev::emptyVenue(QStringLiteral("Hall")), QStringLiteral("test"), QStringLiteral("Save"),
+                                [](const core::Venue&) { return QString(); });
+    dlg.resize(1200, 800);
+    dlg.show();
+    auto* view = dlg.findChild<ui::VenueDesignerView*>();
+    type(dlg, QStringLiteral("r"));
+    emit view->pressed(QPointF(10 * FT, 10 * FT), false);
+    emit view->moved(QPointF(40 * FT, 30 * FT), false);
+    type(dlg, QStringLiteral("40'x20'"));
+    key(dlg, Qt::Key_Return);
+    key(dlg, Qt::Key_Escape);
+    QApplication::processEvents();  // the window's final size first
+    view->fit();
+    QApplication::processEvents();
+    dlg.grab().save(out + QStringLiteral("/desk-venue.png"));
+}

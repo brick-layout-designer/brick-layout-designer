@@ -4,6 +4,7 @@
 
 #include "rendering/VenueDraw.h"
 #include "rendering/SceneBuilder.h"
+#include "rendering/VenueLabels.h"
 
 #include "core/Map.h"
 #include "parts/PartsLibrary.h"
@@ -81,6 +82,8 @@ TEST(VenueDraw, SceneShowsTheGrandLobbysPowerNotesAndEstimates) {
             if (e->brush().color() != QColor(Qt::white)) ++floor;
         }
         if (auto* t = dynamic_cast<QGraphicsSimpleTextItem*>(it)) texts << t->text();
+        // Wall labels are pills (VenueLabels.h) with their whole text on them.
+        if (it->data(rendering::kVenueLabelTextRole).isValid()) texts << it->data(rendering::kVenueLabelTextRole).toString();
         if (dynamic_cast<QGraphicsPathItem*>(it) && std::abs(it->opacity() - 0.45) < 1e-9) ++faded;
     }
     EXPECT_EQ(power, venue->power.size());
