@@ -50,6 +50,7 @@ void PrefsSync::start(const QUrl& server, const QString& token) {
     api_->setToken(token);
     connect(api_, &sync::ServerApi::preferencesReady, this, &PrefsSync::onPulled);
     connect(api_, &sync::ServerApi::preferencesSaved, this, [this](const QJsonObject& prefs, const QDateTime& at) {
+        knowsIconSize_ = knowsIconSize_ || prefs.contains(QLatin1String("partsIconSize"));
         remember(prefs, at);
         // Still what we have (no change since): keep the server's time.
         if (AppPrefs::fromJson(prefs, store_.prefs()).sameSettings(store_.prefs())) store_.confirm(at);
@@ -68,6 +69,7 @@ void PrefsSync::start(const QUrl& server, const QString& token) {
 void PrefsSync::stop() {
     push_.stop();
     pulling_ = false;
+    knowsIconSize_ = false;
     server_ = QUrl();
     if (api_) {
         api_->disconnect(this);
@@ -78,6 +80,7 @@ void PrefsSync::stop() {
 
 void PrefsSync::onPulled(const QJsonObject& prefs, const QDateTime& updatedAt) {
     pulling_ = false;
+    knowsIconSize_ = prefs.contains(QLatin1String("partsIconSize"));
     remember(prefs, updatedAt);
     const AppPrefs& local = store_.prefs();
     if (!updatedAt.isValid()) {
@@ -104,7 +107,13 @@ void PrefsSync::onPulled(const QJsonObject& prefs, const QDateTime& updatedAt) {
 void PrefsSync::pushNow() {
     push_.stop();
     if (!api_) return;
-    api_->savePreferences(store_.prefs().toJson());
+    api_->savePreferences(outgoing());
+}
+
+QJsonObject PrefsSync::outgoing() const {
+    QJsonObject json = store_.prefs().toJson();
+    if (!knowsIconSize_) json.remove(QLatin1String("partsIconSize"));
+    return json;
 }
 
 void PrefsSync::remember(const QJsonObject& prefs, const QDateTime& updatedAt) {

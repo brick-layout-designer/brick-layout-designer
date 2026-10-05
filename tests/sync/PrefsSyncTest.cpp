@@ -53,7 +53,9 @@ QJsonObject serverPrefs(const QString& accent, const QString& theme) {
     AppPrefs p;
     p.accent = accent;
     p.theme = ui::theme::themeChoiceFromId(theme);
-    return p.toJson();
+    QJsonObject json = p.toJson();
+    json.remove(QStringLiteral("partsIconSize"));  // a server from before the Parts list's size was synced
+    return json;
 }
 
 int count(const FakeHttp& http, const QByteArray& method) {
@@ -193,6 +195,37 @@ TEST_F(PrefsSyncTest, EachServerIsRememberedByItsHost) {
     EXPECT_EQ(PrefsSync::syncedPrefs(one.base()).value(QStringLiteral("accent")).toString(), QStringLiteral("forest"));
     EXPECT_EQ(PrefsSync::syncedPrefs(two.base()).value(QStringLiteral("accent")).toString(), QStringLiteral("plum"));
     EXPECT_EQ(store.prefs().accent, QStringLiteral("plum"));  // the newest won
+}
+
+TEST_F(PrefsSyncTest, ThePartsPictureSizeGoesOnlyToAServerThatKeepsIt) {
+    // An older server refuses unknown keys, so it never gets partsIconSize
+    // (PullPushesMineWhenTheyAreNewer: six keys). A newer one answers with it.
+    PrefsStore store(QString::fromLatin1(kGroup));
+    AppPrefs mine;
+    mine.partsIconSize = 40;
+    store.update(mine);
+
+    FakeHttp http;
+    QJsonObject theirs = serverPrefs(QStringLiteral("brick"), QStringLiteral("system"));
+    theirs.insert(QStringLiteral("partsIconSize"), 128);
+    http.reply(kPath, 200, answer(theirs, QStringLiteral("2020-01-01T00:00:00.000Z")));
+    http.reply(kPath, 200, answer(store.prefs().toJson(), QStringLiteral("2031-01-01T00:00:00.000Z")));
+    PrefsSync sync(store);
+    sync.start(http.base(), QStringLiteral("bld_pat_test"));
+    ASSERT_TRUE(waitFor([&] { return count(http, "PUT") == 1; }));
+    const QJsonObject sent =
+        QJsonDocument::fromJson(http.requests.back().body).object().value(QStringLiteral("prefs")).toObject();
+    EXPECT_EQ(sent.value(QStringLiteral("partsIconSize")).toInt(), 40);  // mine were newer
+    EXPECT_EQ(sent.keys().size(), 7);
+
+    // The server's newer size is taken in.
+    http.clear(kPath);
+    theirs.insert(QStringLiteral("partsIconSize"), 152);
+    http.reply(kPath, 200, answer(theirs, QStringLiteral("2032-01-01T00:00:00.000Z")));
+    int synced = 0;
+    QObject::connect(&sync, &PrefsSync::synced, [&synced] { ++synced; });
+    sync.start(http.base(), QStringLiteral("bld_pat_test"));
+    ASSERT_TRUE(waitFor([&] { return synced > 0 && store.prefs().partsIconSize == 152; }));
 }
 
 TEST_F(PrefsSyncTest, ATokenWithoutTheScopeSaysSo) {

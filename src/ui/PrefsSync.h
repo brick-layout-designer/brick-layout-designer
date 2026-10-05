@@ -57,12 +57,17 @@ private:
     void onPulled(const QJsonObject& prefs, const QDateTime& updatedAt);
     void pushNow();
     void remember(const QJsonObject& prefs, const QDateTime& updatedAt);
+    // What we send: our settings, less the keys this server doesn't know
+    // yet (it refuses a save with an unknown key).
+    QJsonObject outgoing() const;
 
     theme::PrefsStore& store_;
     sync::ServerApi* api_ = nullptr;
     QUrl server_;
     QTimer push_;
     bool pulling_ = false;
+    // The server answered with partsIconSize, so it takes it (newer servers).
+    bool knowsIconSize_ = false;
 };
 
 }  // namespace bld::ui

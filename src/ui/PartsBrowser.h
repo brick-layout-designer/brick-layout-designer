@@ -16,8 +16,10 @@ class QTimer;
 class QTouchEvent;
 
 class QPushButton;
+class QSlider;
 
 namespace bld::core  { class Map; }
+namespace bld::ui::theme { class PrefsStore; }
 namespace bld::parts { class PartsLibrary; }
 
 namespace bld::ui {
@@ -85,13 +87,25 @@ public:
 
     QListWidget* grid() const { return grid_; }
 
+    // The pictures' size in pixels (theme::kPartsIconMin..Max); the grid's
+    // cells follow it. Set by the slider under the list, Ctrl+wheel or a
+    // pinch over it, and the synced setting partsIconSize.
+    int iconSize() const { return iconSize_; }
+    void setIconSize(int px);
+    QSlider* sizeSlider() const { return sizeSlider_; }
+    // Where the size is kept (synced with the account while connected).
+    // The app's store by default; tests pass their own.
+    void setPrefsStore(theme::PrefsStore* store);
+    // A size the person chose: shown now, saved once they pause.
+    void chooseIconSize(int px);
+
 protected:
     bool eventFilter(QObject* obj, QEvent* ev) override;
 
 private:
     QPushButton* catalogLink_ = nullptr;
     // A finger on the grid: undecided, scrolling it, or dragging a part out.
-    enum class TouchState { None, Undecided, Scroll, Drag, Held };
+    enum class TouchState { None, Undecided, Scroll, Drag, Held, Pinch };
     TouchState touch_ = TouchState::None;
     QPointF touchStart_;
     QString touchKey_;
@@ -99,6 +113,10 @@ private:
     // A finger held still on a part opens the same menu as a right-click.
     QTimer* holdTimer_ = nullptr;
     void showPartMenu(const QPoint& pos);
+    // Two fingers apart or together: the size when they landed, and how far apart.
+    qreal pinchStartDist_ = 0;
+    int pinchStartSize_ = 0;
+    qreal wheelSteps_ = 0;  // Ctrl+wheel, in notches, for high-resolution wheels
 
 public:
     // How long a finger is held on a part before its menu opens (as on the map).
@@ -107,6 +125,8 @@ public:
 private:
     void applyFilter();
     void loadSomeIcons();
+    void updateGridSize();
+    void saveIconSize();
     QString categoryForPath(const QString& absPath) const;
 
     parts::PartsLibrary& lib_;
@@ -121,6 +141,13 @@ private:
     QHash<QString, QListWidgetItem*> iconItems_;  // key -> item still without its thumbnail
     int iconsDone_ = 0;
     int iconsTotal_ = 0;
+    // Re-reading the pictures at a new size, without the loading card.
+    bool quietIcons_ = false;
+    bool budgetNumbers_ = false;
+    int iconSize_ = 0;
+    QSlider* sizeSlider_ = nullptr;
+    QTimer* saveSize_ = nullptr;
+    theme::PrefsStore* prefs_ = nullptr;
 };
 
 }
