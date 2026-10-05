@@ -72,7 +72,18 @@ jobs:
           # aqtinstall 3.3.0 (the latest release) cannot find Qt >= 6.11 for Windows.
           aqtsource: git+https://github.com/miurahr/aqtinstall.git@076e1659807d0b362a3ed684d54c2e9c775eb9c7
           version: ${{ env.QT_VERSION }}
+          # The server features (src/sync) talk to the server over WebSockets.
+          modules: qtwebsockets
           cache: true
+
+      # The server features read shared layouts with yrs, a Rust library
+      # built by cargo. macOS builds it for both architectures and Corrosion
+      # lipo's them into one universal static library; Windows uses the
+      # default x86_64-pc-windows-msvc target, matching MSVC.
+      - name: Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ runner.os == 'macOS' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       # Compiler cache, saved per platform. PR runs restore main's cache,
       # so only what changed recompiles. ccache understands macOS's
@@ -99,7 +110,7 @@ jobs:
             libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
             libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-sync1 \
             libxcb-xfixes0 libxcb-xinerama0 libxcb-xkb1 \
-            libcups2-dev xvfb weston
+            libcups2-dev libsecret-1-dev xvfb weston
 
       - name: Configure
         shell: bash
@@ -168,6 +179,9 @@ jobs:
           # bundle is self-contained.
           xvfb-run -a "./$ARTIFACT.AppImage" --version | grep -F "$BLD_VERSION"
           xvfb-run -a ./dist/brick-layout-designer/brick-layout-designer --version | grep -F "$BLD_VERSION"
+          # The server features are in: Qt WebSockets bundled, the Servers screens built in.
+          test -f dist/brick-layout-designer/usr/lib/libQt6WebSockets.so.6
+          grep -q ServersDialog dist/brick-layout-designer/usr/bin/brick-layout-designer
           test -d dist/brick-layout-designer/usr/share/brick-layout-designer/parts/BlueBrickParts/parts
           # No scripts from the upstream parts library in the package.
           if find dist -iname '*.bat' -o -iname '*.cmd' | grep .; then exit 1; fi
@@ -193,6 +207,9 @@ jobs:
           codesign --force --deep --sign - "$APP"
           lipo -archs "$APP/Contents/MacOS/brick-layout-designer"
           lipo "$APP/Contents/MacOS/brick-layout-designer" -verify_arch arm64 x86_64
+          # The server features are in: Qt WebSockets bundled, the Servers screens built in.
+          test -d "$APP/Contents/Frameworks/QtWebSockets.framework"
+          grep -q ServersDialog "$APP/Contents/MacOS/brick-layout-designer"
 
       - name: Codesign (macOS)
         # No-op unless the Apple Developer secrets are configured; see
@@ -263,6 +280,9 @@ jobs:
           cat version.txt
           grep -F "$BLD_VERSION" version.txt
           test -f dist/brick-layout-designer/vcruntime140.dll
+          # The server features are in: Qt WebSockets bundled, the Servers screens built in.
+          test -f dist/brick-layout-designer/Qt6WebSockets.dll
+          grep -q ServersDialog dist/brick-layout-designer/brick-layout-designer.exe
           test -d dist/brick-layout-designer/parts/BlueBrickParts/parts
           test -f dist/brick-layout-designer/help/en/index.html
 

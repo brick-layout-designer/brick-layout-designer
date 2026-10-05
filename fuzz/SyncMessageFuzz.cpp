@@ -1,5 +1,5 @@
-// libFuzzer harness for the y-websocket message decoder (src/sync,
-// BLD_SYNC): arbitrary bytes from the network are decoded or refused, and
+// libFuzzer harness for the y-websocket message decoder (src/sync):
+// arbitrary bytes from the network are decoded or refused, and
 // a decoded message re-encodes to the same bytes.
 
 #include "SyncProtocol.h"

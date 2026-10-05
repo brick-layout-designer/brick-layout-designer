@@ -17,12 +17,10 @@ target_link_libraries(bld_fuzz_seeds PRIVATE bld_edit bld_saveload bld_core Qt6:
 # QZipWriter (for a Studio .io seed) is private.
 target_link_libraries(bld_fuzz_seeds PRIVATE Qt6::CorePrivate)
 
-# The sync document reader (yrs), when built.
-if(BLD_SYNC)
-    add_executable(fuzz_ydoc YDocFuzz.cpp)
-    target_link_libraries(fuzz_ydoc PRIVATE bld_sync)
-    target_link_options(fuzz_ydoc PRIVATE -fsanitize=fuzzer)
-    add_executable(fuzz_sync_message SyncMessageFuzz.cpp)
-    target_link_libraries(fuzz_sync_message PRIVATE bld_sync)
-    target_link_options(fuzz_sync_message PRIVATE -fsanitize=fuzzer)
-endif()
+# The sync document reader (yrs) and the server message decoder.
+add_executable(fuzz_ydoc YDocFuzz.cpp)
+target_link_libraries(fuzz_ydoc PRIVATE bld_sync)
+target_link_options(fuzz_ydoc PRIVATE -fsanitize=fuzzer)
+add_executable(fuzz_sync_message SyncMessageFuzz.cpp)
+target_link_libraries(fuzz_sync_message PRIVATE bld_sync)
+target_link_options(fuzz_sync_message PRIVATE -fsanitize=fuzzer)

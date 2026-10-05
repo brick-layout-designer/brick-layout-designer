@@ -1,4 +1,4 @@
-// The server half of the Module library (BLD_SYNC builds): your modules and
+// The server half of the Module library: your modules and
 // your clubs' on the server, the catalog, Save to server with versions, and
 // your warnings as a notice over the map. Kept up to date by the server's
 // live hints (GET /api/events) and when you come back to the window.

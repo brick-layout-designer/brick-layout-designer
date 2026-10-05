@@ -51,58 +51,6 @@ jobs:
   build:
     uses: ./.github/workflows/build.yml
 
-  sync:
-    # Live-sync spike (sync phase P2): yrs, Rust Yjs, through its C API,
-    # plus Qt WebSockets, built and tested on every platform. Native arch
-    # only; universal macOS builds come when sync ships.
-    name: Sync (${{ matrix.name }})
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { os: ubuntu-22.04, name: linux }
-          - { os: windows-2022, name: windows }
-          - { os: macos-15, name: macos }
-    runs-on: ${{ matrix.os }}
-    env:
-      QT_QPA_PLATFORM: offscreen
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Install Qt
-        uses: jurplel/install-qt-action@v4
-        with:
-          # aqtinstall 3.3.0 (the latest release) cannot find Qt >= 6.11 for Windows.
-          aqtsource: git+https://github.com/miurahr/aqtinstall.git@076e1659807d0b362a3ed684d54c2e9c775eb9c7
-          version: '6.12.*'
-          modules: qtwebsockets
-          cache: true
-
-      - name: Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Ninja
-        uses: seanmiddleditch/gha-setup-ninja@v6
-
-      - name: MSVC environment (Windows)
-        if: runner.os == 'Windows'
-        uses: ilammy/msvc-dev-cmd@v1
-
-      - name: Install dependencies (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgl1-mesa-dev libxkbcommon-dev libcups2-dev libsecret-1-dev
-
-      - name: Configure
-        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBLD_SYNC=ON
-
-      - name: Build
-        run: cmake --build build --config Release --target bld_sync_tests --parallel
-
-      - name: Test
-        run: ctest --test-dir build --build-config Release --output-on-failure -L sync
-
   sanitizers:
     # Whole test suite under AddressSanitizer + UndefinedBehaviorSanitizer.
     # UB is made fatal so a report fails the job instead of scrolling past.
@@ -119,7 +67,12 @@ jobs:
           # aqtinstall 3.3.0 (the latest release) cannot find Qt >= 6.11 for Windows.
           aqtsource: git+https://github.com/miurahr/aqtinstall.git@076e1659807d0b362a3ed684d54c2e9c775eb9c7
           version: '6.12.*'
+          modules: qtwebsockets
           cache: true
+
+      # The server features (src/sync) need Rust for yrs.
+      - name: Rust
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Compiler cache
         uses: hendrikmuhs/ccache-action@v1.2
@@ -130,7 +83,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgl1-mesa-dev libxkbcommon-dev libcups2-dev ninja-build
+          sudo apt-get install -y libgl1-mesa-dev libxkbcommon-dev libcups2-dev libsecret-1-dev ninja-build
 
       - name: Configure
         run: |
@@ -167,7 +120,12 @@ jobs:
           # aqtinstall 3.3.0 (the latest release) cannot find Qt >= 6.11 for Windows.
           aqtsource: git+https://github.com/miurahr/aqtinstall.git@076e1659807d0b362a3ed684d54c2e9c775eb9c7
           version: '6.12.*'
+          modules: qtwebsockets
           cache: true
+
+      # The server features (src/sync) need Rust for yrs.
+      - name: Rust
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Compiler cache
         uses: hendrikmuhs/ccache-action@v1.2
@@ -178,7 +136,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgl1-mesa-dev libxkbcommon-dev libcups2-dev ninja-build clang
+          sudo apt-get install -y libgl1-mesa-dev libxkbcommon-dev libcups2-dev libsecret-1-dev ninja-build clang
 
       - name: Fuzz
         env:
@@ -208,7 +166,12 @@ jobs:
           # aqtinstall 3.3.0 (the latest release) cannot find Qt >= 6.11 for Windows.
           aqtsource: git+https://github.com/miurahr/aqtinstall.git@076e1659807d0b362a3ed684d54c2e9c775eb9c7
           version: '6.12.*'
+          modules: qtwebsockets
           cache: true
+
+      # The server features (src/sync) need Rust for yrs.
+      - name: Rust
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Compiler cache
         uses: hendrikmuhs/ccache-action@v1.2
@@ -219,7 +182,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgl1-mesa-dev libxkbcommon-dev libcups2-dev ninja-build mono-complete xvfb
+          sudo apt-get install -y libgl1-mesa-dev libxkbcommon-dev libcups2-dev libsecret-1-dev ninja-build mono-complete xvfb
 
       - name: Get BlueBrick 1.9.2
         run: |
@@ -263,7 +226,6 @@ jobs:
           modules: qtwebsockets
           cache: true
 
-      # The sync library (src/sync) is linted too, so it's in the build.
       - name: Rust
         uses: dtolnay/rust-toolchain@stable
 
@@ -282,8 +244,7 @@ jobs:
         run: |
           cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug \
             -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
-            -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-            -DBLD_SYNC=ON
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
           cmake --build build --parallel
 
       - name: Lint
@@ -305,7 +266,12 @@ jobs:
           # aqtinstall 3.3.0 (the latest release) cannot find Qt >= 6.11 for Windows.
           aqtsource: git+https://github.com/miurahr/aqtinstall.git@076e1659807d0b362a3ed684d54c2e9c775eb9c7
           version: '6.12.*'
+          modules: qtwebsockets
           cache: true
+
+      # The server features (src/sync) need Rust for yrs.
+      - name: Rust
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Compiler cache
         uses: hendrikmuhs/ccache-action@v1.2
@@ -316,7 +282,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgl1-mesa-dev libxkbcommon-dev libcups2-dev ninja-build
+          sudo apt-get install -y libgl1-mesa-dev libxkbcommon-dev libcups2-dev libsecret-1-dev ninja-build
           pip install --user gcovr
 
       - name: Build

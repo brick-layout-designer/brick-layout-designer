@@ -232,7 +232,25 @@ AI-assisted warning above and keep backups. What works today:
 
 ## Building
 
-Requires CMake 3.25+, a C++20 compiler, and Qt 6.8+ (CI and the releases use the latest, 6.12).
+Requires CMake 3.25+, a C++20 compiler, Qt 6.8+ with the Qt WebSockets
+module (CI and the releases use the latest, 6.12), and a current stable
+Rust toolchain. Rust is needed because the server features (live layouts,
+server modules, the catalog) read shared layouts with
+[yrs](https://github.com/y-crdt/y-crdt), the Rust port of Yjs, which
+`src/sync` builds with cargo and links through its C API. Configuring
+stops with a message if cargo is missing.
+
+Install Rust with [rustup](https://rustup.rs):
+
+- **Linux / macOS:** `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`,
+  then open a new terminal. On Linux also install the libsecret headers
+  (`libsecret-1-dev` on Debian/Ubuntu, `libsecret-devel` on Fedora,
+  `libsecret` on Arch), used to keep server sign-ins in the keychain.
+- **macOS universal builds** (`-DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"`)
+  need both targets: `rustup target add aarch64-apple-darwin x86_64-apple-darwin`.
+- **Windows:** run `rustup-init.exe` from [rustup.rs](https://rustup.rs) and
+  keep the default MSVC toolchain (`x86_64-pc-windows-msvc`), which matches
+  the Visual Studio compiler; or `winget install Rustlang.Rustup`.
 
 ```sh
 git clone --recurse-submodules <this-repo>
@@ -247,12 +265,7 @@ Run the test suite:
 ctest --test-dir build
 ```
 
-Live sync with a collaborative web server is being built behind
-`-DBLD_SYNC=ON` (off by default). It needs a current stable Rust
-toolchain: `src/sync` links [yrs](https://github.com/y-crdt/y-crdt), the
-Rust port of Yjs, through its C API.
-
-With `BLD_SYNC` on, the build also makes `bld_sync_driver`, a headless
+The build also makes `bld_sync_driver`, a headless
 live-sync client driven by commands on stdin. The web repo's end-to-end
 test (`apps/web/e2e/test/desktopLiveSync.spec.ts`, see its
 `references/DESKTOP-SYNC-E2E.md`) runs it against a real server beside

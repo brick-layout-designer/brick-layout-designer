@@ -21,9 +21,7 @@
 #include "theme/AppPrefs.h"
 #include "theme/Icons.h"
 #include "theme/PanelHeader.h"
-#ifdef BLD_SYNC
 #include "PrefsSync.h"
-#endif
 
 #include "../core/Layer.h"
 #include "../core/LayerBrick.h"
@@ -122,32 +120,24 @@ void MainWindow::setupShell() {
     // Undo / Redo follow whichever menu action is in use (the live one while
     // a server layout is open).
     auto* undo = addTool(QStringLiteral("undo"), tr("Undo"), tr("Undo the last change"), [this] {
-#ifdef BLD_SYNC
         if (liveUndoAct_ && liveUndoAct_->isVisible()) { liveUndoAct_->trigger(); return; }
-#endif
         undoAct_->trigger();
     });
     auto* redo = addTool(QStringLiteral("redo"), tr("Redo"), tr("Redo what you undid"), [this] {
-#ifdef BLD_SYNC
         if (liveRedoAct_ && liveRedoAct_->isVisible()) { liveRedoAct_->trigger(); return; }
-#endif
         redoAct_->trigger();
     });
     const auto syncUndo = [this, undo, redo] {
         QAction* u = undoAct_;
         QAction* r = redoAct_;
-#ifdef BLD_SYNC
         if (liveUndoAct_ && liveUndoAct_->isVisible()) { u = liveUndoAct_; r = liveRedoAct_; }
-#endif
         undo->setEnabled(u && u->isEnabled());
         redo->setEnabled(r && r->isEnabled());
     };
     for (QAction* a : { undoAct_, redoAct_ })
         if (a) connect(a, &QAction::changed, this, syncUndo);
-#ifdef BLD_SYNC
     for (QAction* a : { liveUndoAct_, liveRedoAct_ })
         if (a) connect(a, &QAction::changed, this, syncUndo);
-#endif
     syncUndo();
     toolbar->addSeparator();
 
@@ -490,13 +480,11 @@ void MainWindow::startTourNamed(const QString& id) {
             return;
         }
     }
-#ifdef BLD_SYNC
     if (id == QLatin1String("clubs")) {
         tours::startTourOnNext("bld::sync::ConnectDialog", id, store);
         QTimer::singleShot(0, this, &MainWindow::onConnectToServer);
         return;
     }
-#endif
     tours::startTour(this, id, store);
 }
 
@@ -516,9 +504,7 @@ void MainWindow::showWelcomeIfNew() {
         break;
     case tours::WelcomeDialog::Choice::Server:
     case tours::WelcomeDialog::Choice::Club:
-#ifdef BLD_SYNC
         QTimer::singleShot(0, this, &MainWindow::onConnectToServer);
-#endif
         break;
     case tours::WelcomeDialog::Choice::Tour:
         QTimer::singleShot(0, this, [this] { startTourNamed(QStringLiteral("editor")); });
@@ -529,9 +515,7 @@ void MainWindow::showWelcomeIfNew() {
 }
 
 QString MainWindow::syncedHost() const {
-#ifdef BLD_SYNC
     if (prefsSync_ && prefsSync_->active()) return prefsSync_->host();
-#endif
     return {};
 }
 

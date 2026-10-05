@@ -1,7 +1,7 @@
 # Live sync with the collaborative web server (docs: DESKTOP-LIVE-SYNC in the
 # web repo). Phase P2 spike: yrs (Rust Yjs) linked through its C API, yffi,
-# plus Qt WebSockets, on every platform CI builds. Only built with
-# -DBLD_SYNC=ON; needs a current stable Rust toolchain (cargo on PATH).
+# plus Qt WebSockets, on every platform. Always built; needs a current stable
+# Rust toolchain (cargo, checked in the top-level CMakeLists.txt).
 
 include(FetchContent)
 

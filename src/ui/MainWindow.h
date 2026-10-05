@@ -11,13 +11,11 @@
 #include <functional>
 #include <memory>
 
-#ifdef BLD_SYNC
 #include "LibraryApi.h"
 #include "PartsUpload.h"
 #include "ServerApi.h"
 #include "TokenStore.h"
 #include <QSet>
-#endif
 
 class QAction;
 class QLabel;
@@ -253,7 +251,6 @@ private:
     QList<QPair<QAction*, QString>> shellIcons_;  // toolbar actions and their icon names
     std::function<void()> refreshPaintSwatch_;
 
-#ifdef BLD_SYNC
     // Live layouts on a collaborative server (MainWindowLive.cpp).
     void setupLiveMenu(QMenu* file);
     void onConnectToServer();
@@ -379,7 +376,6 @@ public:
     class ServerLibrary* serverLibrary() const { return serverLibrary_; }
     const EditingModule& editingModule() const { return editingModule_; }
 private:
-#endif
 
     // Auto-save: flushes the current map to a sidecar file every N seconds if
     // the undo stack is dirty. On startup, if an autosave file is newer than

@@ -1,4 +1,4 @@
-// libFuzzer harness for the sync document reader (src/sync, BLD_SYNC):
+// libFuzzer harness for the sync document reader (src/sync):
 // arbitrary bytes as a Yjs update must be refused or read, and read
 // documents mapped onto a layout and written back, or refused, never crash.
 // Seed: fixtures/sync/*.ydoc.
