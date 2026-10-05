@@ -35,6 +35,7 @@
 #include <QPushButton>
 #include <QStandardPaths>
 #include <QTemporaryDir>
+#include <QTest>
 #include <QTimer>
 
 #include <functional>
@@ -134,14 +135,19 @@ protected:
 }  // namespace
 
 TEST_F(MainWindowFile, AboutLinksToTheSourceOfBothApps) {
+    // The About box blocks on most platforms but is a non-blocking sheet on
+    // macOS: look for it among the window's children either way.
     QString text;
-    QTimer::singleShot(0, [&] {
-        if (auto* box = qobject_cast<QMessageBox*>(QApplication::activeModalWidget())) {
+    const auto readAbout = [&] {
+        for (auto* box : window_->findChildren<QMessageBox*>()) {
+            if (!box->isVisible()) continue;
             text = box->text();
             box->accept();
         }
-    });
+    };
+    QTimer::singleShot(0, readAbout);
     QMetaObject::invokeMethod(window_.get(), "onAbout", Qt::DirectConnection);
+    if (text.isEmpty()) QTest::qWaitFor([&] { readAbout(); return !text.isEmpty(); }, 2000);
     EXPECT_TRUE(text.contains(QStringLiteral("https://github.com/brick-layout-designer/brick-layout-designer\"")));
     EXPECT_TRUE(text.contains(QStringLiteral("https://github.com/brick-layout-designer/collaborative-brick-layout-designer\"")));
 }
