@@ -20,7 +20,7 @@ QString colorFor(const QString& userId, const QString& layoutId) {
 }
 
 QJsonObject state(const User& user, std::optional<QPointF> cursor, const QStringList& brickIds,
-                  qint64 nowMs) {
+                  qint64 nowMs, const QString& editingModule) {
     QJsonArray ids;
     for (const auto& id : brickIds) ids.append(id);
     return {
@@ -35,6 +35,7 @@ QJsonObject state(const User& user, std::optional<QPointF> cursor, const QString
                  : QJsonValue(QJsonValue::Null) },
         { QStringLiteral("selection"), QJsonObject{ { QStringLiteral("brickIds"), ids } } },
         { QStringLiteral("tool"), QStringLiteral("select") },
+        { QStringLiteral("editingModule"), editingModule.isEmpty() ? QJsonValue(QJsonValue::Null) : QJsonValue(editingModule) },
         { QStringLiteral("lastActivityMs"), static_cast<double>(nowMs) },
     };
 }
@@ -53,6 +54,7 @@ Peer peerFrom(const QJsonObject& s) {
     for (const auto& v :
          s.value(QLatin1String("selection")).toObject().value(QLatin1String("brickIds")).toArray())
         if (v.isString()) p.brickIds << v.toString();
+    p.editingModule = s.value(QLatin1String("editingModule")).toString();
     return p;
 }
 

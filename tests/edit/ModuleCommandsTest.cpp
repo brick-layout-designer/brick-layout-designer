@@ -187,3 +187,19 @@ TEST(ModuleCommands, UpdateModuleChangesTheLookAndUndoes) {
     EXPECT_EQ(map.sidecar.modules[0].outlineColor, QStringLiteral("#ff8800"));
     EXPECT_TRUE(map.sidecar.modules[0].memberIds.contains(QStringLiteral("b")));
 }
+
+TEST(ModuleCommands, SetMembersAddsAndTakesOutPartsAndUndoes) {
+    core::Map map = makeMapWithBrickLayer();
+    core::Module m;
+    m.id = QStringLiteral("m1");
+    m.memberIds = { QStringLiteral("a") };
+    map.sidecar.modules.push_back(m);
+    QUndoStack stack;
+    stack.push(new edit::SetModuleMembersCommand(map, QStringLiteral("m1"), { QStringLiteral("a"), QStringLiteral("b") },
+                                                 QStringLiteral("Add to module")));
+    EXPECT_EQ(map.sidecar.modules[0].memberIds, (QSet<QString>{ QStringLiteral("a"), QStringLiteral("b") }));
+    stack.undo();
+    EXPECT_EQ(map.sidecar.modules[0].memberIds, QSet<QString>{ QStringLiteral("a") });
+    stack.redo();
+    EXPECT_TRUE(map.sidecar.modules[0].memberIds.contains(QStringLiteral("b")));
+}

@@ -33,8 +33,13 @@ signals:
     // The module's look: its colours (the Module look dialog), and its name on or off.
     void lookRequested(const QString& moduleId);
     void showNameRequested(const QString& moduleId, bool show);
+    // Edit module (or Done editing: an empty id), and Pin in place / Unpin.
+    void editRequested(const QString& moduleId);
+    void pinRequested(const QString& moduleId, bool pinned);
 
 public:
+    // The module being edited on the map (empty for none), for the menu.
+    void setEditingModule(const QString& moduleId) { editingId_ = moduleId; }
     // The ⋯ button: the current module's menu.
     QToolButton* moreButton() const { return more_; }
 
@@ -43,6 +48,7 @@ private:
     QListWidget* list_ = nullptr;
     QToolButton* more_ = nullptr;
     const core::Map* map_ = nullptr;
+    QString editingId_;
 };
 
 }

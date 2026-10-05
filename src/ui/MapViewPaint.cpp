@@ -149,6 +149,8 @@ void MapView::drawCellIndices(QPainter* painter, const QRectF& rect, const core:
 }
 
 void MapView::drawForeground(QPainter* painter, const QRectF& rect) {
+    // Edit module: the rest of the layout dimmed, the module outlined.
+    paintModuleEdit(painter);
     QGraphicsView::drawForeground(painter, rect);
     paintLongPressRing(painter);
 

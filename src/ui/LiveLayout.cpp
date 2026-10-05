@@ -45,6 +45,7 @@ LiveLayout::LiveLayout(MapView& view, QObject* parent) : QObject(parent), view_(
     presenceTimer_->setInterval(50);
     connect(presenceTimer_, &QTimer::timeout, this, &LiveLayout::publishPresence);
     connect(&view_, &MapView::selectionChanged, this, &LiveLayout::schedulePresence);
+    connect(&view_, &MapView::editingModuleChanged, this, &LiveLayout::schedulePresence);
     connect(&session_, &sync::SyncSession::peersChanged, this, &LiveLayout::drawPeers);
 }
 
@@ -64,7 +65,7 @@ void LiveLayout::publishPresence() {
     for (QGraphicsItem* it : view_.scene()->selectedItems())
         if (detail::isBrickItem(it)) bricks << it->data(detail::kBrickDataGuid).toString();
     session_.setPresence(
-        sync::presence::state(user_, cursorStuds_, bricks, QDateTime::currentMSecsSinceEpoch()));
+        sync::presence::state(user_, cursorStuds_, bricks, QDateTime::currentMSecsSinceEpoch(), view_.editingModule()));
 }
 
 void LiveLayout::drawPeers() {
@@ -74,6 +75,14 @@ void LiveLayout::drawPeers() {
     }
     peerItems_.clear();
     drawnPeers_ = 0;
+    // Who is editing which module, for the Edit module bar.
+    QHash<QString, QStringList> editing;
+    if (active_)
+        for (const auto& state : session_.peers()) {
+            const auto peer = sync::presence::peerFrom(state);
+            if (!peer.editingModule.isEmpty()) editing[peer.editingModule] << peer.name;
+        }
+    view_.setPeersEditing(editing);
     if (!active_ || !view_.currentMap()) return;
     // Bricks by id, for selection outlines.
     QHash<QString, QRectF> bricks;

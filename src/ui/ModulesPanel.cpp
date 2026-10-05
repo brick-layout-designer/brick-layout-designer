@@ -112,11 +112,25 @@ ModulesPanel::ModulesPanel(QWidget* parent)
 void ModulesPanel::showMenu(const QString& id, const QPoint& globalPos) {
     QMenu menu(this);
 
+    const core::Module* mod = nullptr;
+    if (map_)
+        for (const auto& m : map_->sidecar.modules)
+            if (m.id == id) mod = &m;
+    const bool pinned = mod && mod->pinned;
+
     auto* selAct = menu.addAction(tr("Select Its Parts"));
     connect(selAct, &QAction::triggered, [this, id]{ emit selectMembersRequested(id); });
+    auto* editAct = menu.addAction(editingId_ == id ? tr("Done editing") : tr("Edit module"));
+    editAct->setObjectName(QStringLiteral("moduleEdit"));
+    connect(editAct, &QAction::triggered, [this, id]{ emit editRequested(editingId_ == id ? QString() : id); });
+    auto* pinAct = menu.addAction(pinned ? tr("Unpin") : tr("Pin in place"));
+    pinAct->setObjectName(QStringLiteral("modulePin"));
+    connect(pinAct, &QAction::triggered, [this, id, pinned]{ emit pinRequested(id, !pinned); });
 
     menu.addSeparator();
     auto* moveAct = menu.addAction(tr("Move..."));
+    moveAct->setEnabled(!pinned);
+    if (pinned) moveAct->setToolTip(tr("Pinned in place: unpin it to move it"));
     connect(moveAct, &QAction::triggered, [this, id]{
         QDialog dlg(this);
         dlg.setWindowTitle(tr("Move module"));
@@ -135,6 +149,7 @@ void ModulesPanel::showMenu(const QString& id, const QPoint& globalPos) {
             emit moveRequested(id, dx->value(), dy->value());
     });
     auto* rotMenu = menu.addMenu(tr("Rotate"));
+    rotMenu->setEnabled(!pinned);
     for (double deg : { -90.0, -45.0, 45.0, 90.0, 180.0 }) {
         auto* a = rotMenu->addAction(tr("%1°").arg(deg > 0 ? QStringLiteral("+") + QString::number(deg)
                                                            : QString::number(deg)));
@@ -144,10 +159,6 @@ void ModulesPanel::showMenu(const QString& id, const QPoint& globalPos) {
     menu.addSeparator();
     auto* renameAct = menu.addAction(tr("Rename..."));
     connect(renameAct, &QAction::triggered, [this, id]{ emit renameRequested(id); });
-    const core::Module* mod = nullptr;
-    if (map_)
-        for (const auto& m : map_->sidecar.modules)
-            if (m.id == id) mod = &m;
     auto* showName = menu.addAction(tr("Show name"));
     showName->setCheckable(true);
     showName->setChecked(!mod || mod->showName);
@@ -183,10 +194,11 @@ void ModulesPanel::setMap(const core::Map* map) {
             suffix = QStringLiteral(" — %1").arg(QFileInfo(m.sourceFile).fileName());
         }
         auto* item = new QListWidgetItem(
-            QStringLiteral("%1 (%2 members%3)")
+            QStringLiteral("%1 (%2 members%3)%4")
                 .arg(m.name.isEmpty() ? tr("[unnamed]") : m.name)
                 .arg(m.memberIds.size())
-                .arg(suffix));
+                .arg(suffix)
+                .arg(m.pinned ? QStringLiteral(" 📌") : QString()));
         item->setToolTip(m.id);
         if (!m.outlineColor.isEmpty() || !m.nameColor.isEmpty()) {
             QPixmap dot(12, 12);

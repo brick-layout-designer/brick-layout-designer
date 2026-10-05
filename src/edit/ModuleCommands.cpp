@@ -248,6 +248,26 @@ bool UpdateModuleCommand::mergeWith(const QUndoCommand* other) {
     return true;
 }
 
+// ----- SetModuleMembersCommand -----
+
+SetModuleMembersCommand::SetModuleMembersCommand(core::Map& map, QString moduleId, QSet<QString> members,
+                                                 const QString& text, QUndoCommand* parent)
+    : QUndoCommand(parent), map_(map), moduleId_(std::move(moduleId)), after_(std::move(members)) {
+    const int i = findModuleIndex(map_, moduleId_);
+    if (i >= 0) before_ = map_.sidecar.modules[i].memberIds;
+    setText(text);
+}
+
+void SetModuleMembersCommand::redo() {
+    const int i = findModuleIndex(map_, moduleId_);
+    if (i >= 0) map_.sidecar.modules[i].memberIds = after_;
+}
+
+void SetModuleMembersCommand::undo() {
+    const int i = findModuleIndex(map_, moduleId_);
+    if (i >= 0) map_.sidecar.modules[i].memberIds = before_;
+}
+
 // ----- CloneModuleCommand -----
 
 CloneModuleCommand::CloneModuleCommand(core::Map& map, QString sourceModuleId,

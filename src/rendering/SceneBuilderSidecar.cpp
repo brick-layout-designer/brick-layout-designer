@@ -360,6 +360,8 @@ void SceneBuilder::addModuleLabels(const core::Map& map) {
         frame->setPen(framePen);
         frame->setBrush(Qt::NoBrush);
         frame->setData(kModuleAnnotationRole, QStringLiteral("frame"));
+        // Clicks go through to the parts.
+        frame->setAcceptedMouseButtons(Qt::NoButton);
         frame->setData(kModuleIdRole, mod.id);
         sink.add(frame);
         moduleAnnotationRects_.append({ mod.id, at.bounds });
@@ -369,6 +371,7 @@ void SceneBuilder::addModuleLabels(const core::Map& map) {
         // line (Konva's "middle" baseline), the outline drawn under the fill.
         const QFont f = mapFont(QStringLiteral("Bold"), at.fontPx);
         std::vector<TextCellLayout::Line> lines;
+        lines.reserve(static_cast<size_t>(at.lines.size()));
         for (qsizetype i = 0; i < at.lines.size(); ++i)
             lines.push_back({ at.lines[i], (at.width - lineWidth(at.lines[i], at.fontPx)) / 2.0, i * at.fontPx });
         const QPainterPath path = textPath(f, lines, kModuleNameLineHeight);
@@ -383,12 +386,14 @@ void SceneBuilder::addModuleLabels(const core::Map& map) {
         outline->setBrush(Qt::NoBrush);
         outline->setTransform(tr);
         outline->setData(kModuleAnnotationRole, QStringLiteral("outline"));
+        outline->setAcceptedMouseButtons(Qt::NoButton);
         sink.add(outline);
         auto* label = new QGraphicsPathItem(path);
         label->setPen(Qt::NoPen);
         label->setBrush(look.nameFill);
         label->setTransform(tr);
         label->setData(kModuleAnnotationRole, QStringLiteral("name"));
+        label->setAcceptedMouseButtons(Qt::NoButton);
         label->setData(kModuleIdRole, mod.id);
         sink.add(label);
         if (at.truncated) {

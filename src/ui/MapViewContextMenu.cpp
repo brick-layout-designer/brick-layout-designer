@@ -10,6 +10,9 @@
 // stays focused on drag / paint / selection plumbing rather than menu wiring.
 
 #include "MapView.h"
+#include "../core/ModuleEdit.h"
+#include "../core/ModuleLook.h"
+#include "../edit/ModuleCommands.h"
 
 #include "../core/Layer.h"
 #include "../core/LayerRuler.h"
@@ -99,6 +102,7 @@ void MapView::contextMenuEvent(QContextMenuEvent* e) {
     }
 
     QMenu menu(this);
+    addModuleMenu(menu, clickedBrickGuid);
     const auto sel = scene()->selectedItems();
     const bool hasSel = !sel.isEmpty();
     int brickCount = 0, textCount = 0;
@@ -240,6 +244,43 @@ void MapView::contextMenuEvent(QContextMenuEvent* e) {
 
     menu.exec(e->globalPos());
     e->accept();
+}
+
+void MapView::addModuleMenu(QMenu& menu, const QString& clickedBrickGuid) {
+    if (!map_) return;
+    if (!editingModuleId_.isEmpty()) {
+        menu.addAction(tr("Done editing module"), this, [this] { setEditingModule({}); });
+        menu.addSeparator();
+        return;
+    }
+    // The module of the part right-clicked, or a whole module that is the selection.
+    const auto byPart = core::moduleByPart(map_->sidecar.modules);
+    const core::Module* mod = clickedBrickGuid.isEmpty() ? nullptr : byPart.value(clickedBrickGuid);
+    if (!mod) {
+        QSet<QString> sel;
+        for (QGraphicsItem* it : scene()->selectedItems())
+            if (isBrickItem(it)) sel.insert(it->data(kBrickDataGuid).toString());
+        if (!sel.isEmpty()) {
+            const core::Module* first = byPart.value(*sel.begin());
+            if (first && first->memberIds == sel) mod = first;
+        }
+    }
+    if (!mod) return;
+    const QString id = mod->id;
+    menu.addSection(mod->name.isEmpty() ? tr("Module") : mod->name);
+    menu.addAction(tr("Edit module"), this, [this, id] { setEditingModule(id); });
+    menu.addAction(mod->pinned ? tr("Unpin") : tr("Pin in place"), this, [this, id] {
+        if (const core::Module* m = map_ ? core::findModule(map_->sidecar.modules, id) : nullptr)
+            undoStack_->push(new edit::UpdateModuleCommand(*map_, core::withPinned(*m, !m->pinned),
+                                                           m->pinned ? tr("Unpin module") : tr("Pin module in place")));
+    });
+    menu.addAction(mod->showName ? tr("Hide name") : tr("Show name"), this, [this, id] {
+        if (const core::Module* m = map_ ? core::findModule(map_->sidecar.modules, id) : nullptr)
+            undoStack_->push(new edit::UpdateModuleCommand(*map_, core::withShowName(*m, !m->showName),
+                                                           m->showName ? tr("Hide module name") : tr("Show module name")));
+    });
+    menu.addAction(tr("Colours..."), this, [this, id] { emit moduleLookRequested(id); });
+    menu.addSeparator();
 }
 
 }  // namespace bld::ui

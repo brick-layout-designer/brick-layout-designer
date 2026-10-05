@@ -161,6 +161,13 @@ constexpr Raw kShared[] = {
       QT_TRANSLATE_NOOP("HelpTexts", "With Same colour on, the outline and the name change together. Reset "
                                      "to default brings back the light blue. Long names wrap, get smaller, "
                                      "and are only cut short when nothing else fits.") },
+    { "module.edit", "",
+      QT_TRANSLATE_NOOP("HelpTexts", "Edit module"),
+      QT_TRANSLATE_NOOP("HelpTexts", "Change this module part by part; the rest of the layout waits, dimmed."),
+      QT_TRANSLATE_NOOP("HelpTexts", "A module moves as one piece until you edit it: then new parts you drop in "
+                                     "join it, and a part dragged outside it asks whether to leave. Done, Esc or "
+                                     "a click outside goes back to the whole layout. Pin in place stops the whole "
+                                     "module moving, but you can still edit it.") },
     // Downloading
     { "download.formats", "/help#files",
       QT_TRANSLATE_NOOP("HelpTexts", "Download as"),

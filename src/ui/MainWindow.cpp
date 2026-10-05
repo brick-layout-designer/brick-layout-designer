@@ -18,6 +18,7 @@
 #include "ModulesPanel.h"
 #include "ModuleLookDialog.h"
 #include "../core/ModuleLook.h"
+#include "../core/ModuleEdit.h"
 #include "VenueLibraryPanel.h"
 #include "PartsBrowser.h"
 #include "PartUsagePanel.h"
@@ -431,6 +432,7 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
     connect(modulesPanel_, &ModulesPanel::moveRequested, this,
             [this](const QString& id, double dx, double dy){
         if (!mapView_->currentMap() || (dx == 0 && dy == 0)) return;
+        if (const auto* m = core::findModule(mapView_->currentMap()->sidecar.modules, id); m && m->pinned) return;
         mapView_->undoStack()->push(new edit::MoveModuleCommand(
             *mapView_->currentMap(), id, QPointF(dx, dy)));
     });
@@ -438,6 +440,7 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
     connect(modulesPanel_, &ModulesPanel::rotateRequested, this,
             [this](const QString& id, double deg){
         if (!mapView_->currentMap()) return;
+        if (const auto* m = core::findModule(mapView_->currentMap()->sidecar.modules, id); m && m->pinned) return;
         mapView_->undoStack()->push(new edit::RotateModuleCommand(
             *mapView_->currentMap(), parts_, id, deg));
     });
@@ -476,6 +479,23 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
         modulesPanel_->setMap(mapView_->currentMap());
     });
     connect(modulesPanel_, &ModulesPanel::lookRequested, this, &MainWindow::editModuleLook);
+    connect(mapView_, &MapView::moduleLookRequested, this, &MainWindow::editModuleLook);
+    // Edit module and Pin in place.
+    connect(modulesPanel_, &ModulesPanel::editRequested, mapView_, &MapView::setEditingModule);
+    connect(mapView_, &MapView::editingModuleChanged, this, [this](const QString& id) {
+        modulesPanel_->setEditingModule(id);
+    });
+    connect(modulesPanel_, &ModulesPanel::pinRequested, this, [this](const QString& id, bool pinned) {
+        auto* map = mapView_->currentMap();
+        if (!map) return;
+        for (const auto& m : map->sidecar.modules) {
+            if (m.id != id || m.pinned == pinned) continue;
+            mapView_->undoStack()->push(new edit::UpdateModuleCommand(*map, core::withPinned(m, pinned),
+                                                                      pinned ? tr("Pin module in place") : tr("Unpin module")));
+            break;
+        }
+        modulesPanel_->setMap(mapView_->currentMap());
+    });
 
     // Clone: duplicate a module in-place so the user can have multiple
     // independent instances. Offset the clone by a small stud delta (or by

@@ -96,7 +96,8 @@ const QStringList& knownModuleKeys() {
                                    QStringLiteral("members"),    QStringLiteral("transform"),
                                    QStringLiteral("sourceFile"), QStringLiteral("importedAt"),
                                    QStringLiteral("showName"),   QStringLiteral("outlineColor"),
-                                   QStringLiteral("nameColor"),  QStringLiteral("sameColor") };
+                                   QStringLiteral("nameColor"),  QStringLiteral("sameColor"),
+                                   QStringLiteral("pinned") };
     return keys;
 }
 
@@ -120,6 +121,7 @@ QJsonObject encodeModule(const core::Module& m) {
     if (!m.outlineColor.isEmpty()) o[QStringLiteral("outlineColor")] = m.outlineColor;
     if (!m.nameColor.isEmpty()) o[QStringLiteral("nameColor")] = m.nameColor;
     if (!m.sameColor) o[QStringLiteral("sameColor")] = false;
+    if (m.pinned) o[QStringLiteral("pinned")] = true;
     return o;
 }
 
@@ -144,6 +146,7 @@ core::Module decodeModule(const QJsonObject& o) {
     m.outlineColor = o.value(QStringLiteral("outlineColor")).toString();
     m.nameColor = o.value(QStringLiteral("nameColor")).toString();
     m.sameColor = o.value(QStringLiteral("sameColor")).toBool(true);
+    m.pinned = o.value(QStringLiteral("pinned")).toBool(false);
     for (auto it = o.constBegin(); it != o.constEnd(); ++it)
         if (!knownModuleKeys().contains(it.key())) m.extras.insert(it.key(), it.value());
     return m;

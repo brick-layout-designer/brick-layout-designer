@@ -114,6 +114,21 @@ private:
     int          mergeKey_;
 };
 
+// Set which parts a module has (parts placed while it's edited join it;
+// parts taken out leave it). Undo puts the old list back.
+class SetModuleMembersCommand : public QUndoCommand {
+public:
+    SetModuleMembersCommand(core::Map& map, QString moduleId, QSet<QString> members, const QString& text,
+                            QUndoCommand* parent = nullptr);
+    void undo() override;
+    void redo() override;
+private:
+    core::Map&    map_;
+    QString       moduleId_;
+    QSet<QString> before_;
+    QSet<QString> after_;
+};
+
 // Clone an existing module in-project: duplicates every member brick
 // (fresh guids, same part numbers / orientation / altitude / layer) at an
 // offset from the source, and registers a new Module entry over the

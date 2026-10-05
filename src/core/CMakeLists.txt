@@ -21,6 +21,7 @@ add_library(bld_core STATIC
     AnchoredLabel.h
     Module.h
     ModuleLook.h
+    ModuleEdit.h
     Venue.h
     Sidecar.h
     SavedView.h

@@ -12,6 +12,7 @@
 //     a pan gesture pans. Wheel and two-finger scroll stay as they were.
 
 #include "MapView.h"
+#include "ModuleEditBar.h"
 
 #include "../core/LayerRuler.h"
 #include "../core/Map.h"
@@ -72,6 +73,7 @@ bool MapView::viewportEvent(QEvent* e) {
 void MapView::resizeEvent(QResizeEvent* e) {
     QGraphicsView::resizeEvent(e);
     if (touchBar_ && touchBar_->isVisible()) touchBar_->place(viewport()->geometry());
+    if (editBar_ && editBar_->isVisible()) editBar_->place(viewport()->geometry());
 }
 
 void MapView::panBy(QPointF delta) {
