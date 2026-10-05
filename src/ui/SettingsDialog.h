@@ -33,11 +33,20 @@ public:
     // The note under the options: synced with the host, or kept here.
     QLabel* syncNote() const { return syncNote_; }
 
+    // The Servers section's "Manage servers…" opens this (MainWindow's
+    // Servers dialog); the section then says what changed. Without it the
+    // section only lists them.
+    void setManageServers(const std::function<void()>& manage);
+
 private:
     void load();
+    void loadServers();
     theme::PrefsStore& store_;
     QLabel* syncNote_ = nullptr;
     QLabel* toursNote_ = nullptr;
+    QLabel* serversNote_ = nullptr;
+    class QPushButton* manageServers_ = nullptr;
+    std::function<void()> manage_;
     class QPushButton* showToursAgain_ = nullptr;
     bool loading_ = false;
 };

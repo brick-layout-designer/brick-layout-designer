@@ -196,8 +196,10 @@ void MainWindow::openSourceLive(const import::LayoutSource& source) {
 void MainWindow::onManageServers() {
     sync::ServersDialog dialog(*tokens_, [](const QUrl& u) { QDesktopServices::openUrl(u); }, this);
     dialog.exec();
-    // A renamed live server shows its new name.
+    // A renamed live server shows its new name; a new or signed-in one
+    // fills the Module library and the status bar.
     updateLiveUi();
+    updateLibraryServer();
 }
 
 void MainWindow::onPublishToServer() {

@@ -547,6 +547,10 @@ WelcomeDialog::WelcomeDialog(QWidget* parent) : QDialog(parent) {
         fresh->setFocus(Qt::OtherFocusReason);
         adjustSize();
     });
+    serverCard_ = tile(QStringLiteral("WelcomeConnect"), tr("Connect to a server"),
+                       tr("Sign in to your club's server to share layouts, modules and your settings."),
+                       Choice::Server);
+    serverCard_->hide();
     tile(QStringLiteral("WelcomeClub"), w.clubLabel, w.clubText, Choice::Club);
     tile(QStringLiteral("WelcomeTour"), w.tourLabel, w.tourText, Choice::Tour);
     col->addLayout(row);
@@ -562,11 +566,13 @@ WelcomeDialog::WelcomeDialog(QWidget* parent) : QDialog(parent) {
 
     const theme::Accent& accent = theme::accent(theme::PrefsStore::instance().prefs().accent);
     setStyleSheet(QStringLiteral(
-        "QAbstractButton#WelcomeLayout, QAbstractButton#WelcomeClub, QAbstractButton#WelcomeTour {"
+        "QAbstractButton#WelcomeLayout, QAbstractButton#WelcomeConnect, QAbstractButton#WelcomeClub,"
+        " QAbstractButton#WelcomeTour {"
         " border-radius: %1px; background: %2; border: 1px solid %3; }"
         "QAbstractButton#WelcomeLayout { border: 2px solid %4; }"
         "QAbstractButton#WelcomeTour { background: %5; border: 2px solid %5; }"
-        "QAbstractButton#WelcomeClub:focus, QAbstractButton#WelcomeTour:focus, QAbstractButton#WelcomeLayout:focus {"
+        "QAbstractButton#WelcomeClub:focus, QAbstractButton#WelcomeTour:focus, QAbstractButton#WelcomeLayout:focus,"
+        " QAbstractButton#WelcomeConnect:focus {"
         " border: 2px solid %4; }"
         "QAbstractButton#WelcomeTour QLabel { color: %6; }"
         "QLabel#WelcomeText { color: %7; }")
@@ -574,6 +580,11 @@ WelcomeDialog::WelcomeDialog(QWidget* parent) : QDialog(parent) {
                       .arg(n.panel.name(), n.line.name(), accent.main.name(), n.tourBg.name(), n.tourInk.name(),
                            n.muted.name()));
     layout->setFocus(Qt::OtherFocusReason);
+}
+
+void WelcomeDialog::setServerCardVisible(bool on) {
+    serverCard_->setVisible(on);
+    adjustSize();
 }
 
 }  // namespace bld::ui::tours

@@ -14,6 +14,7 @@
 #include "NoticeArea.h"
 #include "SaveModuleDialog.h"
 #include "ServerLibrary.h"
+#include "tours/Tours.h"
 
 #include "../core/LayerBrick.h"
 #include "../core/Map.h"
@@ -27,6 +28,8 @@
 #include "ServerList.h"
 
 #include <QBuffer>
+#include <QPainter>
+#include <QToolButton>
 #include <QDesktopServices>
 #include <QInputDialog>
 #include <QJsonObject>
@@ -84,6 +87,22 @@ void MainWindow::setupServerLibrary() {
     connect(serverLibrary_, &ServerLibrary::stateChanged, this, retitle);
     connect(serverLibrary_, &ServerLibrary::changed, this, retitle);
 
+    // The status bar says how the server is doing; a click opens Servers.
+    serverStatus_ = new QToolButton(this);
+    serverStatus_->setObjectName(QStringLiteral("serverStatus"));
+    serverStatus_->setAutoRaise(true);
+    serverStatus_->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    serverStatus_->setCursor(Qt::PointingHandCursor);
+    tours::tag(serverStatus_, QStringLiteral("servers.status"));
+    statusBar()->addPermanentWidget(serverStatus_);
+    connect(serverStatus_, &QToolButton::clicked, this, [this] {
+        // Not inside the button's own click.
+        QTimer::singleShot(0, this, &MainWindow::onManageServers);
+    });
+    connect(serverLibrary_, &ServerLibrary::stateChanged, this, &MainWindow::updateServerStatus);
+    connect(serverLibrary_, &ServerLibrary::changed, this, &MainWindow::updateServerStatus);
+    updateServerStatus();
+
     connect(serverLibrary_, &ServerLibrary::signInRequested, this, &MainWindow::signInToLibraryServer);
     connect(serverLibrary_, &ServerLibrary::addServerRequested, this, [this] {
         // Not inside the button's own click.
@@ -130,6 +149,61 @@ void MainWindow::setupServerLibrary() {
         }
     });
     QTimer::singleShot(0, this, &MainWindow::updateLibraryServer);
+}
+
+namespace {
+
+QIcon statusDot(const QColor& c) {
+    QPixmap pm(10, 10);
+    pm.fill(Qt::transparent);
+    QPainter p(&pm);
+    p.setRenderHint(QPainter::Antialiasing);
+    p.setPen(Qt::NoPen);
+    p.setBrush(c);
+    p.drawEllipse(QRectF(1, 1, 8, 8));
+    return QIcon(pm);
+}
+
+}  // namespace
+
+void MainWindow::updateServerStatus() {
+    if (!serverStatus_ || !serverLibrary_) return;
+    const QString name = serverLibrary_->label();
+    QString text;
+    QString tip;
+    QColor dot(150, 150, 150);
+    switch (serverLibrary_->state()) {
+    case ServerLibrary::State::NoServer:
+        text = tr("No server");
+        tip = tr("You're not connected to a server. Click to add your club's server and share layouts with it.");
+        break;
+    case ServerLibrary::State::SignedOut:
+    case ServerLibrary::State::Refused:
+        text = tr("Signed out of %1").arg(name);
+        tip = tr("You're not signed in to %1. Click to sign in.").arg(name);
+        dot = QColor(214, 140, 30);
+        break;
+    case ServerLibrary::State::Loading:
+        text = tr("Connecting to %1…").arg(name);
+        tip = tr("Reaching %1. Click to see your servers.").arg(name);
+        break;
+    case ServerLibrary::State::Ready:
+        text = tr("Connected to %1").arg(name);
+        tip = tr("Signed in to %1: your modules, the catalog and your settings come from there. Click to see your "
+                 "servers.")
+                  .arg(name);
+        dot = QColor(46, 157, 91);
+        break;
+    case ServerLibrary::State::Offline:
+        text = tr("%1 is offline").arg(name);
+        tip = tr("%1 can't be reached right now; the app tries again by itself. Click to see your servers.").arg(name);
+        dot = QColor(200, 70, 60);
+        break;
+    }
+    serverStatus_->setText(text);
+    serverStatus_->setToolTip(tip);
+    serverStatus_->setAccessibleName(text);
+    serverStatus_->setIcon(statusDot(dot));
 }
 
 void MainWindow::updateLibraryServer() {

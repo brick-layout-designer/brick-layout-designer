@@ -602,6 +602,44 @@ TEST_F(ServerModulesWindow, TheLibraryShowsTheServersModulesAsItsOwnTab) {
     EXPECT_EQ(lastRequest(http_, "GET", "/api/modules")->authorization, QByteArray("Bearer bld_pat_win"));
 }
 
+TEST_F(ServerModulesWindow, TheStatusBarSaysHowTheServerIsAndOpensServers) {
+    auto* status = window_->findChild<QToolButton*>(QStringLiteral("serverStatus"));
+    ASSERT_NE(status, nullptr);
+    EXPECT_EQ(status->text(), QStringLiteral("Connected to Club server"));
+    EXPECT_EQ(status->property("tourTarget").toString(), QStringLiteral("servers.status"));
+    // Not signed in.
+    library_->setServer(http_.base(), QStringLiteral("Club server"), QString());
+    EXPECT_EQ(status->text(), QStringLiteral("Signed out of Club server"));
+    // Can't be reached.
+    QTcpServer gone;
+    gone.listen(QHostAddress::LocalHost, 0);
+    const QUrl unreachable(QStringLiteral("http://127.0.0.1:%1").arg(gone.serverPort()));
+    gone.close();
+    library_->setServer(unreachable, QStringLiteral("Away"), QStringLiteral("bld_pat_t"));
+    ASSERT_TRUE(waitFor([&] { return library_->state() == ui::ServerLibrary::State::Offline; }));
+    EXPECT_EQ(status->text(), QStringLiteral("Away is offline"));
+    // None at all.
+    library_->setServer({}, {}, {});
+    EXPECT_EQ(status->text(), QStringLiteral("No server"));
+
+    // A click opens Servers.
+    QString opened;
+    QTimer closer;
+    closer.setInterval(20);
+    QObject::connect(&closer, &QTimer::timeout, [&] {
+        if (QWidget* w = QApplication::activeModalWidget()) {
+            opened = QString::fromLatin1(w->metaObject()->className());
+            w->close();
+        }
+    });
+    closer.start();
+    status->click();
+    ASSERT_TRUE(waitFor([&] { return !opened.isEmpty(); }));
+    EXPECT_EQ(opened, QStringLiteral("bld::sync::ServersDialog"));
+    // Back from it: the window asks the list again, so the Main server is shown once more.
+    ASSERT_TRUE(waitFor([&] { return status->text() == QStringLiteral("Connected to Club server"); }));
+}
+
 TEST_F(ServerModulesWindow, AddToLayoutPutsTheModulesPartsInAsOneModule) {
     emit library_->insertRequested(QStringLiteral("m1"));
     ASSERT_TRUE(waitFor([&] { return bricksInMap() == 3; }));

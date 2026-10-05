@@ -5,6 +5,8 @@
 #include "theme/Tokens.h"
 #include "tours/Tours.h"
 
+#include "ServerList.h"
+
 #include <QApplication>
 #include <QButtonGroup>
 #include <QCheckBox>
@@ -16,6 +18,7 @@
 #include <QPainterPath>
 #include <QPushButton>
 #include <QScrollArea>
+#include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
 
@@ -260,6 +263,31 @@ SettingsDialog::SettingsDialog(PrefsStore& store, const QString& syncedHost,
         }
     }
 
+    // Servers: where your club's layouts, modules and these settings live.
+    {
+        auto* v = card(tr("Servers"), QStringLiteral("servers.pick"));
+        auto* row = new QHBoxLayout;
+        serversNote_ = new QLabel(this);
+        serversNote_->setObjectName(QStringLiteral("serversNote"));
+        serversNote_->setWordWrap(true);
+        row->addWidget(serversNote_, 1);
+        manageServers_ = new QPushButton(tr("Manage servers…"), this);
+        manageServers_->setObjectName(QStringLiteral("manageServers"));
+        manageServers_->setToolTip(tr("Add a server, sign in or out, and pick your Main one"));
+        manageServers_->setAutoDefault(false);
+        manageServers_->hide();
+        connect(manageServers_, &QPushButton::clicked, this, [this] {
+            // Not inside the button's own click.
+            QTimer::singleShot(0, this, [this] {
+                if (manage_) manage_();
+                loadServers();
+            });
+        });
+        row->addWidget(manageServers_);
+        v->addLayout(row);
+        loadServers();
+    }
+
     syncNote_ = new QLabel(page);
     syncNote_->setWordWrap(true);
     syncNote_->setTextFormat(Qt::RichText);
@@ -295,6 +323,29 @@ SettingsDialog::SettingsDialog(PrefsStore& store, const QString& syncedHost,
 
     connect(&store_, &PrefsStore::changed, this, [this] { load(); });
     load();
+}
+
+void SettingsDialog::setManageServers(const std::function<void()>& manage) {
+    manage_ = manage;
+    manageServers_->setVisible(static_cast<bool>(manage_));
+}
+
+void SettingsDialog::loadServers() {
+    const sync::ServerList list = sync::ServerList::load();
+    const sync::ServerEntry* main = list.mainServer();
+    if (!main) main = list.lastUsed();
+    if (list.servers().isEmpty() || !main) {
+        serversNote_->setText(tr("No servers yet. Add your club's server to share layouts and modules with it, "
+                                 "and to keep these settings with your account."));
+        manageServers_->setText(tr("Add a server…"));
+        return;
+    }
+    const auto others = static_cast<int>(list.servers().size()) - 1;
+    QString text = main->label() == main->address() ? tr("Main: %1").arg(main->label())
+                                                    : tr("Main: %1 (%2)").arg(main->label(), main->address());
+    if (others > 0) text += QLatin1Char(' ') + tr("and %n more", nullptr, others);
+    serversNote_->setText(text);
+    manageServers_->setText(tr("Manage servers…"));
 }
 
 void SettingsDialog::load() {

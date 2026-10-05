@@ -339,6 +339,10 @@ private:
     // Which server the library shows: the live layout's, else the one used
     // last; with its token from the keychain.
     void updateLibraryServer();
+    // The status bar's server line (connected / signed out / offline /
+    // no server); a click opens Servers.
+    void updateServerStatus();
+    QToolButton* serverStatus_ = nullptr;
     void signInToLibraryServer();
     void onServerHint(const QJsonObject& hint);
     // Adds the server module to the open layout (its parts fetched first

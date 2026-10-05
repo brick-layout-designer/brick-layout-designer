@@ -4,6 +4,7 @@
 
 #include "ui/SettingsDialog.h"
 #include "ui/theme/AppPrefs.h"
+#include "ServerList.h"
 
 #include <gtest/gtest.h>
 
@@ -12,6 +13,7 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QSettings>
+#include <QTest>
 #include <QToolButton>
 
 using namespace bld::ui;
@@ -84,4 +86,36 @@ TEST_F(SettingsDialogTest, MoreOptionsOpensPreferences) {
 
     SettingsDialog without(store, QString());
     EXPECT_EQ(without.findChild<QPushButton*>(QStringLiteral("moreOptions")), nullptr);
+}
+
+TEST_F(SettingsDialogTest, ServersSaysWhatIsSetUpAndOpensServers) {
+    const QVariant before = QSettings().value(QLatin1String(bld::sync::ServerList::kKey));
+    QSettings().setValue(QLatin1String(bld::sync::ServerList::kKey), QByteArray("[]"));
+    PrefsStore store(QString::fromLatin1(kGroup));
+    {
+        SettingsDialog dlg(store, QString());
+        auto* note = dlg.findChild<QLabel*>(QStringLiteral("serversNote"));
+        auto* manage = dlg.findChild<QPushButton*>(QStringLiteral("manageServers"));
+        ASSERT_NE(note, nullptr);
+        ASSERT_NE(manage, nullptr);
+        EXPECT_TRUE(note->text().startsWith(QStringLiteral("No servers yet")));
+        EXPECT_TRUE(manage->isHidden());  // nothing to open it with
+
+        // Opened from the app: the button opens Servers; a server added there shows at once.
+        int opened = 0;
+        dlg.setManageServers([&opened] {
+            ++opened;
+            bld::sync::ServerList list;
+            list.add(QUrl(QStringLiteral("https://layouts.example.org")), QStringLiteral("Club server"));
+            list.add(QUrl(QStringLiteral("https://other.example.org")), QString());
+            list.save();
+        });
+        EXPECT_FALSE(manage->isHidden());
+        EXPECT_EQ(manage->text(), QStringLiteral("Add a server…"));
+        manage->click();
+        ASSERT_TRUE(QTest::qWaitFor([&] { return opened == 1; }, 2000));
+        EXPECT_EQ(note->text(), QStringLiteral("Main: Club server (layouts.example.org) and 1 more"));
+        EXPECT_EQ(manage->text(), QStringLiteral("Manage servers…"));
+    }
+    QSettings().setValue(QLatin1String(bld::sync::ServerList::kKey), before);
 }
