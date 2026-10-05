@@ -87,7 +87,7 @@ jobs:
 
       - name: Configure
         run: |
-          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug \
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DBLD_WARNINGS_AS_ERRORS=ON \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer" \
             -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
@@ -144,7 +144,7 @@ jobs:
 
       - name: Fuzz
         env:
-          BLD_FUZZ_CMAKE_ARGS: -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          BLD_FUZZ_CMAKE_ARGS: -DBLD_WARNINGS_AS_ERRORS=ON -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
         run: fuzz/run.sh 30 build-fuzz
 
       - name: Upload crash inputs
@@ -200,7 +200,7 @@ jobs:
 
       - name: Build bld-convert
         run: |
-          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF \
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DBLD_WARNINGS_AS_ERRORS=ON \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
           cmake --build build --target bld_convert
 
@@ -246,7 +246,7 @@ jobs:
 
       - name: Build (clang, for the compile database)
         run: |
-          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug \
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DBLD_WARNINGS_AS_ERRORS=ON \
             -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
           cmake --build build --parallel
@@ -291,7 +291,7 @@ jobs:
 
       - name: Build
         run: |
-          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DBLD_DEPLOY_QT=OFF \
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DBLD_DEPLOY_QT=OFF -DBLD_WARNINGS_AS_ERRORS=ON \
             -DCMAKE_C_FLAGS=--coverage -DCMAKE_CXX_FLAGS=--coverage -DCMAKE_EXE_LINKER_FLAGS=--coverage \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
           cmake --build build --parallel

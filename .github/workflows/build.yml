@@ -118,14 +118,21 @@ jobs:
           VERSION_ARG=()
           if [ -n "${{ inputs.version }}" ]; then VERSION_ARG=(-DBLD_VERSION="${{ inputs.version }}"); fi
           LAUNCHER=${{ runner.os == 'Windows' && 'sccache' || 'ccache' }}
-          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+          # Warnings are errors in CI (off by default for local builds).
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBLD_WARNINGS_AS_ERRORS=ON \
             -DCMAKE_C_COMPILER_LAUNCHER=$LAUNCHER -DCMAKE_CXX_COMPILER_LAUNCHER=$LAUNCHER \
-            "${VERSION_ARG[@]}" ${{ matrix.cmake_extra }}
+            "${VERSION_ARG[@]}" ${{ matrix.cmake_extra }} 2>&1 | tee configure.log
           # Resolved version (input or CMake default) for package names / MSI.
           echo "BLD_VERSION=$(cmake -N -L build | sed -n 's/^BLD_VERSION:STRING=//p')" >> "$GITHUB_ENV"
 
       - name: Build
-        run: cmake --build build --config Release --parallel
+        shell: bash
+        run: cmake --build build --config Release --parallel 2>&1 | tee build.log
+
+      # The build is warning-free: a new compiler, linker or CMake warning fails it.
+      - name: No warnings
+        shell: bash
+        run: scripts/ci/check-warnings.sh configure.log build.log
 
       - name: Test
         run: ctest --test-dir build --build-config Release --output-on-failure --timeout 300

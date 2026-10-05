@@ -265,6 +265,12 @@ Run the test suite:
 ctest --test-dir build
 ```
 
+The build is warning-free (`-Wall -Wextra -Wpedantic`, `/W4` on MSVC). CI
+treats warnings as errors with `-DBLD_WARNINGS_AS_ERRORS=ON` and fails on
+any compiler, linker or CMake warning (`scripts/ci/check-warnings.sh`).
+It's off by default, so a newer compiler's new warnings never stop a local
+build; turn it on to check a change before you push.
+
 The build also makes `bld_sync_driver`, a headless
 live-sync client driven by commands on stdin. The web repo's end-to-end
 test (`apps/web/e2e/test/desktopLiveSync.spec.ts`, see its
