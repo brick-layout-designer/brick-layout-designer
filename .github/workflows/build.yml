@@ -125,9 +125,13 @@ jobs:
           # Resolved version (input or CMake default) for package names / MSI.
           echo "BLD_VERSION=$(cmake -N -L build | sed -n 's/^BLD_VERSION:STRING=//p')" >> "$GITHUB_ENV"
 
+      # PowerShell, not bash: in Git Bash `link` is coreutils' link, which
+      # cargo would run instead of MSVC's link.exe.
       - name: Build
-        shell: bash
-        run: cmake --build build --config Release --parallel 2>&1 | tee build.log
+        shell: pwsh
+        run: |
+          cmake --build build --config Release --parallel 2>&1 | Tee-Object -FilePath build.log
+          exit $LASTEXITCODE
 
       # The build is warning-free: a new compiler, linker or CMake warning fails it.
       - name: No warnings
