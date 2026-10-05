@@ -147,7 +147,9 @@ TEST_F(MainWindowFile, AboutLinksToTheSourceOfBothApps) {
     };
     QTimer::singleShot(0, readAbout);
     QMetaObject::invokeMethod(window_.get(), "onAbout", Qt::DirectConnection);
-    if (text.isEmpty()) QTest::qWaitFor([&] { readAbout(); return !text.isEmpty(); }, 2000);
+    if (text.isEmpty()) {
+        EXPECT_TRUE(QTest::qWaitFor([&] { readAbout(); return !text.isEmpty(); }, 2000));
+    }
     EXPECT_TRUE(text.contains(QStringLiteral("https://github.com/brick-layout-designer/brick-layout-designer\"")));
     EXPECT_TRUE(text.contains(QStringLiteral("https://github.com/brick-layout-designer/collaborative-brick-layout-designer\"")));
 }

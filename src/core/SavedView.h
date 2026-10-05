@@ -26,7 +26,7 @@ struct SavedView {
     bool grid = true;    // draw the grid layer's lines under the picture
     bool labels = true;  // show the anchored labels
     // Fields this build doesn't know, kept as they were.
-    QJsonObject extras;
+    QJsonObject extras{};
 
     bool operator==(const SavedView& o) const {
         return id == o.id && name == o.name && fit == o.fit && rect == o.rect && sheets == o.sheets

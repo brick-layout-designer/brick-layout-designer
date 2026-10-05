@@ -312,9 +312,11 @@ TEST_F(HelpInMainWindow, HelpMenuTurnsHelpButtonsOffAndOn) {
     for (HelpButton* b : buttons) EXPECT_TRUE(hidden(b)) << b->key().toStdString();
     toggle->trigger();
     EXPECT_TRUE(theme::PrefsStore::instance().prefs().helpIcons);
-    for (HelpButton* b : buttons)
-        if (b->key().startsWith(QLatin1String("panel.")) || b->parentWidget()->inherits("QToolBar"))
+    for (HelpButton* b : buttons) {
+        if (b->key().startsWith(QLatin1String("panel.")) || b->parentWidget()->inherits("QToolBar")) {
             EXPECT_FALSE(hidden(b)) << b->key().toStdString();
+        }
+    }
 }
 
 TEST_F(HelpInMainWindow, HelpMenuHasGettingStartedAndShortcuts) {
@@ -375,6 +377,9 @@ TEST_F(HelpInMainWindow, PartsActionsLiveInOneToolsPartsMenu) {
         if (!a->isSeparator()) inParts << a->text().remove(QLatin1Char('&'));
     EXPECT_EQ(inParts, (QStringList{ QStringLiteral("Get More Parts..."), QStringLiteral("Parts Folders..."),
                                      QStringLiteral("Reload Parts") }));
-    for (QAction* a : parts->actions())
-        if (!a->isSeparator()) EXPECT_FALSE(a->toolTip().isEmpty()) << a->text().toStdString();
+    for (QAction* a : parts->actions()) {
+        if (!a->isSeparator()) {
+            EXPECT_FALSE(a->toolTip().isEmpty()) << a->text().toStdString();
+        }
+    }
 }

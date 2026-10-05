@@ -43,7 +43,8 @@ TEST(LifReader, RejectsTruncatedHeader) {
 // proprietary and can't be checked in. To run locally:
 //   BLD_LDD_ASSETS_LIF=/path/to/Assets.lif ctest -R LifReader.RealAssetsSmoke
 TEST(LifReader, RealAssetsSmoke) {
-    const char* env = std::getenv("BLD_LDD_ASSETS_LIF");
+    const QByteArray envValue = qgetenv("BLD_LDD_ASSETS_LIF");
+    const char* env = envValue.constData();
     if (!env || !*env) GTEST_SKIP() << "BLD_LDD_ASSETS_LIF not set";
     const QString path = QString::fromLocal8Bit(env);
     if (!QFileInfo::exists(path)) GTEST_SKIP() << "no file at " << env;

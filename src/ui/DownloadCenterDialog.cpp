@@ -120,9 +120,6 @@ DownloadCenterDialog::DownloadCenterDialog(QString libraryRoot, QWidget* parent)
     }
 
     connect(cbCustom_, &QCheckBox::toggled, this, &DownloadCenterDialog::onCustomToggled);
-    connect(customUrl_, &QLineEdit::textChanged, this, [this](const QString&){
-        // Saved on accept; nothing more to do here.
-    });
     connect(searchBtn_, &QPushButton::clicked, this, &DownloadCenterDialog::onSearchClicked);
     connect(downloadBtn_, &QPushButton::clicked, this, &DownloadCenterDialog::onDownloadClicked);
     connect(closeBtn_, &QPushButton::clicked, this, &DownloadCenterDialog::reject);
@@ -367,14 +364,14 @@ bool DownloadCenterDialog::downloadAndInstall(const Package& pkg, QString* error
             }
             continue;
         }
-        const auto data = zip.read(entry);
-        if (!data) {
+        const auto bytes = zip.read(entry);
+        if (!bytes) {
             if (error) *error = tr("Damaged archive entry: %1").arg(entry.name);
             return false;
         }
         QDir().mkpath(QFileInfo(abs).absolutePath());
         QFile out(abs);
-        if (!out.open(QIODevice::WriteOnly | QIODevice::Truncate) || out.write(*data) < 0) {
+        if (!out.open(QIODevice::WriteOnly | QIODevice::Truncate) || out.write(*bytes) < 0) {
             if (error) *error = tr("Could not extract files into %1").arg(libraryRoot_);
             return false;
         }

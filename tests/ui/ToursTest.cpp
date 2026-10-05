@@ -100,8 +100,9 @@ TEST_F(Tours, TheCatalogueIsTheWebAppsFile) {
     EXPECT_TRUE(about.contains(QStringLiteral("apps/web/src/tours/tours.json")));
     // With the web repo beside it, the two files are identical.
     const QByteArray web = qgetenv("BLD_WEB_REPO");
-    if (!web.isEmpty())
+    if (!web.isEmpty()) {
         EXPECT_EQ(embedded, readAll(QString::fromLocal8Bit(web) + QStringLiteral("/apps/web/src/tours/tours.json")));
+    }
 }
 
 namespace {

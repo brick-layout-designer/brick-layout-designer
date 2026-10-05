@@ -539,8 +539,11 @@ TEST(ConnectDialog, PublishingWithAnOldSignInSignsInAgain) {
     ASSERT_TRUE(waitFor([&] { return !h.opened.isEmpty(); }));
     EXPECT_TRUE(h.tokens.tokens.isEmpty());
     // The sign-in request carries no dead token.
-    for (const auto& r : h.http.requests)
-        if (r.path == "/api/auth/device/code") EXPECT_TRUE(r.authorization.isEmpty());
+    for (const auto& r : h.http.requests) {
+        if (r.path == "/api/auth/device/code") {
+            EXPECT_TRUE(r.authorization.isEmpty());
+        }
+    }
 }
 
 // The "?"s: the server address, and the owner when publishing.

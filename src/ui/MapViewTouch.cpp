@@ -194,7 +194,7 @@ void MapView::paintLongPressRing(QPainter* painter) {
     painter->setRenderHint(QPainter::Antialiasing, true);
     const QRectF r(touchStart_ - QPointF(26, 26), QSizeF(52, 52));
     QColor fill = palette().color(QPalette::Highlight);
-    fill.setAlphaF(0.18);
+    fill.setAlphaF(0.18f);
     painter->setPen(Qt::NoPen);
     painter->setBrush(fill);
     painter->drawEllipse(r);

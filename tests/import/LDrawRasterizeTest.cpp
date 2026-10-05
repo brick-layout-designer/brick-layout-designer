@@ -150,11 +150,11 @@ TEST(LDrawRasterize, MixOfTrisAndLinesProducesComplexSprite) {
         const QRgb* line = reinterpret_cast<const QRgb*>(img.constScanLine(y));
         for (int x = 0; x < img.width(); ++x) {
             if (qAlpha(line[x]) == 0) continue;
-            const int r = qRed(line[x]);
-            const int g = qGreen(line[x]);
-            const int b = qBlue(line[x]);
-            if (r > 180 && g < 80 && b < 80) sawRed = true;
-            if (r < 60  && g < 60 && b < 60) sawDark = true;
+            const int red = qRed(line[x]);
+            const int green = qGreen(line[x]);
+            const int blue = qBlue(line[x]);
+            if (red > 180 && green < 80 && blue < 80) sawRed = true;
+            if (red < 60  && green < 60 && blue < 60) sawDark = true;
         }
     }
     EXPECT_TRUE(sawRed)  << "no red-triangle pixels found";

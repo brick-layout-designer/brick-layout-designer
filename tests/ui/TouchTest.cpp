@@ -563,7 +563,7 @@ TEST(TouchModeTest, BiggerDividersHeadersAndMenus) {
     mw.resize(800, 600);
     mw.show();
     const QString saved = qApp->styleSheet();
-    const auto& accent = ui::theme::accent(QString());
+    const auto accent = ui::theme::accent(QString());
 
     qApp->setStyleSheet(ui::theme::buildStyleSheet(ui::theme::Mode::Light, accent, false));
     EXPECT_LT(mw.style()->pixelMetric(QStyle::PM_DockWidgetSeparatorExtent, nullptr, &mw), ui::TouchMode::kMinTarget);

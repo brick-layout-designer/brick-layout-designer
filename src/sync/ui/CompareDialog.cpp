@@ -34,10 +34,9 @@ CompareDialog::CompareDialog(const QList<ItemChange>& changes, QWidget* parent)
     setWindowTitle(tr("Your offline changes"));
     resize(760, 480);
 
-    int mine = 0, clashes = 0, theirs = 0;
+    int mine = 0, clashes = 0;
     for (const auto& c : changes_) {
-        if (c.status == Status::Server) ++theirs;
-        else if (c.status == Status::Conflict) ++clashes;
+        if (c.status == Status::Conflict) ++clashes;
         else if (c.status == Status::Mine) ++mine;
     }
     auto* intro = new QLabel(this);

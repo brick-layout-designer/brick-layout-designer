@@ -44,7 +44,7 @@ VenueDialog::VenueDialog(const std::optional<core::Venue>& current, QWidget* par
     auto* enabledChk = new QCheckBox(tr("Render this venue"), this);
     enabledChk->setChecked(venue->enabled);
     form->addRow(enabledChk);
-    constexpr double kStudsPerFoot = 38.09814081;
+    static constexpr double kStudsPerFoot = 38.09814081;
     auto* walkwaySpin = new QDoubleSpinBox(this);
     walkwaySpin->setRange(0.0, 500.0);
     walkwaySpin->setDecimals(2);
@@ -61,7 +61,7 @@ VenueDialog::VenueDialog(const std::optional<core::Venue>& current, QWidget* par
     edgeTable->verticalHeader()->setVisible(false);
     vbox->addWidget(edgeTable, 1);
 
-    auto rebuildEdgeTable = [edgeTable, venue, kStudsPerFoot]{
+    auto rebuildEdgeTable = [edgeTable, venue]{
         edgeTable->setRowCount(venue->edges.size());
         for (int i = 0; i < venue->edges.size(); ++i) {
             const auto& e = venue->edges[i];
@@ -104,7 +104,7 @@ VenueDialog::VenueDialog(const std::optional<core::Venue>& current, QWidget* par
 
     connect(bb, &QDialogButtonBox::rejected, this, &QDialog::reject);
     connect(bb, &QDialogButtonBox::accepted, this,
-        [this, venue, nameE, enabledChk, walkwaySpin, edgeTable, kStudsPerFoot]{
+        [this, venue, nameE, enabledChk, walkwaySpin, edgeTable]{
         // Pull back edge kind / width / label from the table widgets.
         for (int i = 0; i < venue->edges.size(); ++i) {
             auto* kindCombo = qobject_cast<QComboBox*>(edgeTable->cellWidget(i, 1));

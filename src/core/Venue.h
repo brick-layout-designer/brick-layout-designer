@@ -29,7 +29,7 @@ struct VenueEdge {
     double   doorWidthStuds = 0.0;    // only meaningful when kind == Door
     QString  label;
     bool estimated = false; // not measured yet
-    QJsonObject extras;
+    QJsonObject extras{};
 };
 
 enum class ObstacleKind { Other, Column, Stairs, Elevator, Counter, Railing };
@@ -38,8 +38,8 @@ struct VenueObstacle {
     QVector<QPointF> polygon;          // closed polygon in world studs
     QString label;
     ObstacleKind kind = ObstacleKind::Other;
-    std::optional<double> upDegrees; // stairs: the way up
-    QJsonObject extras;
+    std::optional<double> upDegrees{}; // stairs: the way up
+    QJsonObject extras{};
 };
 
 struct VenuePower {
@@ -48,21 +48,21 @@ struct VenuePower {
     QString label;
     double amps = 0.0; // 0 = not given
     double volts = 0.0;
-    QJsonObject extras;
+    QJsonObject extras{};
 };
 
 struct VenueNote {
     QPointF pos;
     QString text;
     bool estimated = false;
-    QJsonObject extras;
+    QJsonObject extras{};
 };
 
 struct VenueDimension {
     QPointF from, to;
     QString label;
     bool estimated = false;
-    QJsonObject extras;
+    QJsonObject extras{};
 };
 
 // Per-project venue definition. At most one venue per project.
@@ -76,6 +76,6 @@ struct Venue {
     double minWalkwayStuds = 112.5;   // ~900 mm @ 8 studs/mm
     QRectF layoutBoundsStuds;          // optional reserved layout footprint
     bool   enabled = true;
-    QJsonObject extras;
+    QJsonObject extras{};
 };
 }

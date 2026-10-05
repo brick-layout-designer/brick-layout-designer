@@ -18,7 +18,7 @@ namespace {
 QString writeTempLDraw(QTemporaryDir& dir, const QString& body, const QString& name = "t.ldr") {
     const QString path = dir.filePath(name);
     QFile f(path);
-    f.open(QIODevice::WriteOnly | QIODevice::Text);
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Text)) return {};
     QTextStream out(&f);
     out << body;
     return path;

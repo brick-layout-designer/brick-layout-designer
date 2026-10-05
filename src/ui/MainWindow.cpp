@@ -102,10 +102,6 @@
 
 namespace bld::ui {
 
-namespace {
-constexpr const char* kLastFileKey = "recent/lastFile";
-}
-
 MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
     : QMainWindow(parent), parts_(parts) {
     resize(1400, 900);
@@ -159,11 +155,6 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
         if (!mapView_->currentMap()) return;
         mapView_->undoStack()->push(new edit::RenameLayerCommand(*mapView_->currentMap(), idx, name));
         layerPanel_->setMap(mapView_->currentMap(), mapView_->builder());
-    });
-    connect(layerPanel_, &LayerPanel::activeLayerChanged, this, [this](int){
-        // Active-layer change is a soft UI state — no undo entry, no scene
-        // rebuild. We don't need to do anything else here besides what
-        // LayerPanel already did (set map_->selectedLayerIndex).
     });
     connect(layerPanel_, &LayerPanel::layerOptionsRequested, this, [this](int idx){
         auto* map = mapView_->currentMap();
@@ -1177,7 +1168,7 @@ void MainWindow::onImportModuleFromLibraryPath(const QString& bbmPath) {
     auto batches = batchesFromModuleMap(*loaded.map);
     if (batches.empty()) return;
     int total = 0;
-    for (const auto& b : batches) total += b.bricks.size();
+    for (const auto& b : batches) total += static_cast<int>(b.bricks.size());
     const QString name = QFileInfo(bbmPath).baseName();
     mapView_->undoStack()->push(new edit::ImportBbmAsModuleCommand(
         *map, bbmPath, name, std::move(batches)));
@@ -1207,7 +1198,7 @@ void MainWindow::onImportBbmAsModule() {
         return;
     }
     int imported = 0;
-    for (const auto& b : batches) imported += b.bricks.size();
+    for (const auto& b : batches) imported += static_cast<int>(b.bricks.size());
     const QString name = QFileInfo(path).baseName();
     mapView_->undoStack()->push(new edit::ImportBbmAsModuleCommand(
         *map, path, name, std::move(batches)));
