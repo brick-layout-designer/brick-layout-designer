@@ -70,7 +70,8 @@ TEST(YDocSummary, ReadsTheServerDocOfARealLayout) {
 
 TEST(YDocSummary, RefusesAnUpdateItCannotApply) {
     QString err;
-    EXPECT_FALSE(sync::summarizeDoc(QByteArray("\x05\xff\xff\xff\xff not a yjs update", 30), &err));
+    static const char bad[] = "\x05\xff\xff\xff\xff not a yjs update";
+    EXPECT_FALSE(sync::summarizeDoc(QByteArray(bad, sizeof bad - 1), &err));
     EXPECT_FALSE(err.isEmpty());
     // An empty doc is a valid update with no layers.
     const auto empty = sync::summarizeDoc(QByteArray("\x00\x00", 2), &err);

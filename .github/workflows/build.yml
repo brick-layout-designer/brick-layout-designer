@@ -179,9 +179,10 @@ jobs:
           # bundle is self-contained.
           xvfb-run -a "./$ARTIFACT.AppImage" --version | grep -F "$BLD_VERSION"
           xvfb-run -a ./dist/brick-layout-designer/brick-layout-designer --version | grep -F "$BLD_VERSION"
-          # The server features are in: Qt WebSockets bundled, the Servers screens built in.
+          # The server features are in: the app links Qt WebSockets (only
+          # src/sync uses it) and the package bundles it.
           test -f dist/brick-layout-designer/usr/lib/libQt6WebSockets.so.6
-          grep -q ServersDialog dist/brick-layout-designer/usr/bin/brick-layout-designer
+          readelf -d dist/brick-layout-designer/usr/bin/brick-layout-designer | grep -q 'libQt6WebSockets'
           test -d dist/brick-layout-designer/usr/share/brick-layout-designer/parts/BlueBrickParts/parts
           # No scripts from the upstream parts library in the package.
           if find dist -iname '*.bat' -o -iname '*.cmd' | grep .; then exit 1; fi
@@ -207,9 +208,10 @@ jobs:
           codesign --force --deep --sign - "$APP"
           lipo -archs "$APP/Contents/MacOS/brick-layout-designer"
           lipo "$APP/Contents/MacOS/brick-layout-designer" -verify_arch arm64 x86_64
-          # The server features are in: Qt WebSockets bundled, the Servers screens built in.
+          # The server features are in: the app links Qt WebSockets (only
+          # src/sync uses it) and the bundle has it.
           test -d "$APP/Contents/Frameworks/QtWebSockets.framework"
-          grep -q ServersDialog "$APP/Contents/MacOS/brick-layout-designer"
+          otool -L "$APP/Contents/MacOS/brick-layout-designer" | grep -q QtWebSockets
 
       - name: Codesign (macOS)
         # No-op unless the Apple Developer secrets are configured; see
@@ -276,13 +278,18 @@ jobs:
         run: |
           # Qt's deploy step requires an absolute install prefix.
           cmake --install build --config Release --prefix "$PWD/dist/brick-layout-designer"
-          ./dist/brick-layout-designer/brick-layout-designer.exe --version > version.txt
+          # Without Qt on PATH, so it runs only if the DLLs it needs are beside it.
+          PATH="/c/Windows/System32:/c/Windows" ./dist/brick-layout-designer/brick-layout-designer.exe --version > version.txt
           cat version.txt
           grep -F "$BLD_VERSION" version.txt
           test -f dist/brick-layout-designer/vcruntime140.dll
-          # The server features are in: Qt WebSockets bundled, the Servers screens built in.
-          test -f dist/brick-layout-designer/Qt6WebSockets.dll
-          grep -q ServersDialog dist/brick-layout-designer/brick-layout-designer.exe
+          # The server features are in: the app links Qt WebSockets (only
+          # src/sync uses it; dumpbin lists the DLLs it imports) and the zip has it.
+          ls dist/brick-layout-designer | grep -i -E 'websockets|vcruntime' || true
+          test -f dist/brick-layout-designer/Qt6WebSockets.dll || { echo "::error::Qt6WebSockets.dll not bundled"; exit 1; }
+          dumpbin //dependents dist/brick-layout-designer/brick-layout-designer.exe > deps.txt
+          cat deps.txt
+          grep -qi 'Qt6WebSockets.dll' deps.txt || { echo "::error::the app doesn't link Qt WebSockets"; exit 1; }
           test -d dist/brick-layout-designer/parts/BlueBrickParts/parts
           test -f dist/brick-layout-designer/help/en/index.html
 

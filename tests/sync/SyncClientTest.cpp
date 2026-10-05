@@ -64,7 +64,8 @@ TEST(SyncClient, EditsMadeWhileOfflineArriveOnReconnect) {
 }
 
 TEST(SyncClient, StopsWhenTheServerEndsTheSession) {
-    for (const auto code : { QWebSocketProtocol::CloseCodePolicyViolated, static_cast<QWebSocketProtocol::CloseCode>(4404) }) {
+    // As ints: 4404 is outside CloseCode's named values (UBSan flags a load of it).
+    for (const int code : { static_cast<int>(QWebSocketProtocol::CloseCodePolicyViolated), 4404 }) {
         FakeServer server;
         sync::SyncDoc local;
         sync::SyncClient client(local);
@@ -73,9 +74,9 @@ TEST(SyncClient, StopsWhenTheServerEndsTheSession) {
         QObject::connect(&client, &sync::SyncClient::closedForGood, [&](int c, const QString&) { finalCode = c; });
         client.open(server.url(), {});
         ASSERT_TRUE(waitFor([&] { return client.status() == sync::SyncClient::Status::Synced; }));
-        server.dropAll(code, QStringLiteral("access_revoked"));
+        server.dropAll(static_cast<QWebSocketProtocol::CloseCode>(code), QStringLiteral("access_revoked"));
         ASSERT_TRUE(waitFor([&] { return finalCode != 0; }));
-        EXPECT_EQ(finalCode, static_cast<int>(code));
+        EXPECT_EQ(finalCode, code);
         EXPECT_EQ(client.status(), sync::SyncClient::Status::Offline);
         // No retry follows.
         waitFor([] { return false; }, 200);
