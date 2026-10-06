@@ -79,214 +79,257 @@ If this fork is useful to you, **please also go star the original
 BlueBrick and BlueBrickParts repos**. They are the foundation. We are a
 skin on top.
 
-## Goals
+## What it does
 
-- **Native on every desktop**: Windows x64, Linux x64, macOS universal
-  (x86_64 + arm64). No .NET / Mono dependency.
-- **Save-file compatible**: byte-faithful round-trip of vanilla BlueBrick
-  `.bbm` files so projects move freely between the two tools.
-- **Library compatible**: uses the existing
-  [BlueBrickParts](https://github.com/Lswbanban/BlueBrickParts) library
-  (bundled as a git submodule).
-- **Built for train-club collaboration** with a few additions on top of
-  vanilla BlueBrick:
-  - **Cross-layer modules** — bundle items spanning multiple layers into a
-    named module; move or rotate the whole module as a single unit; save
-    and re-import modules as standalone `.bbm` files.
-  - **Save Selection as Set** — export the current brick selection as a
-    BrickTracks-style `.set.xml` drop-in for the parts library. Sets
-    written by this feature expand cleanly in both vanilla BlueBrick
-    and this fork, with hull-bbox-centre positions preserved so rotated
-    curves / switches line up exactly.
-  - **Anchored text labels** — labels that stick to bricks, groups, and
-    modules when they move or rotate, instead of drifting in world
-    coordinates.
-  - **Event venues** — describe the physical space a layout targets
-    (convention hall / store / exhibition room): outline, edge classes
-    (wall / door / open), obstacles (pillars), walkway buffer, with
-    non-blocking validation warnings.
+Everything vanilla BlueBrick 1.9.2 does, with the same files, plus tools for
+clubs that plan a layout together.
 
-Layouts save as one `.bld-layout` file that holds everything, labels,
-modules, venue and background image included ([docs/layout-file.md](docs/layout-file.md)).
-File › Export as BlueBrick Map writes a `.bbm` for vanilla BlueBrick 1.9.2
-with what it supports. `.bbm` files, and their `.bbm.bld` sidecars from
-earlier versions, still open and can still be saved as they are.
+**Planning a layout**
+- Place parts from the bundled [BlueBrickParts](https://github.com/Lswbanban/BlueBrickParts)
+  library (or your own folders) by drag and drop, click or touch. Connection
+  snapping joins track the way BlueBrick does, with a calmer feel: a reach,
+  a short hold and a speed gate, and Alt (Option on a Mac) to place freely.
+- Sheets (BlueBrick's layers), grid with cell indices, rulers, text, areas,
+  find and replace, groups, and undo for every change.
+- **Sets** from the library (flex track, houses, station kits) are placed as
+  real BlueBrick groups and move as one part. Sets that may not be split
+  (flex track) can't be ungrouped. A part added while a set is selected joins
+  the set's free end, in the set's own preferred order.
+- **Flex track**: select a flex track and drag the round handle on its free
+  end to bend the whole run, each joint within its hinge limit (joints at
+  the limit show an amber ring). Double-click-drag still works, as in
+  BlueBrick.
+- **Electric circuits** drawn along the rails, with polarity colours and
+  short-circuit marks.
+- **Modules**: bundle parts from several sheets into a named module that moves
+  and turns as one piece; give it its own outline and name colours; *Pin in
+  place* so it can't be moved by accident, and *Edit module* to change its
+  parts. Save modules to a library and drop them into other layouts.
+- **Anchored labels** that stay with a part, group or module when it moves.
+- **Venues**: draw the hall in the Venue Designer (walls, doors, open sides,
+  columns and other obstacles, power points, notes, measurements, a traced
+  floor plan) in feet, inches or metres. The layout warns, without blocking
+  you, when track gets too close to a wall or a walkway.
+- **Saved views and pictures**: save areas of the map, then share a picture,
+  print, or export images and PDFs of every view at once.
+- **Budgets** and **part lists** like BlueBrick's (HTML with pictures, text
+  or CSV).
 
-## Status
+**Working with a club (optional, needs a server)**
+- Connect to one or more servers that run the
+  [web app](https://github.com/brick-layout-designer/collaborative-brick-layout-designer).
+  Open a layout live and see everyone's changes and cursors as they happen;
+  undo only undoes your own changes.
+- Publish a local layout to a server (yours or a club's), keep editing it
+  offline, then review your offline changes against the server's version.
+- The Module library and the Catalog tab list your modules, your clubs'
+  modules, and the public layouts, venues and collections on the server.
+- Parts the server has are downloaded on connect; parts you place that the
+  server lacks can be uploaded so everyone sees them.
+- Settings (theme, snapping, picture sizes and more) sync with your account.
 
-**Beta** — tagged releases ship for Windows, macOS and Linux (see
-[Releases](https://github.com/brick-layout-designer/brick-layout-designer/releases)).
-The `.bbm` round-trip and the editor are in daily use, but read the
-AI-assisted warning above and keep backups. What works today:
+**Importing**
+- Open LDraw (`.ldr` / `.mpd`), TrackDesigner (`.tdl`) and 4DBrix
+  nControl (`.ncp`) maps as BlueBrick does.
+- Turn LDraw, Studio (`.io`) and LDD (`.lxf` / `.lxfml`) models into library
+  parts: a top-down picture at 32 px per stud (plus an 8 px per stud `.gif`
+  for vanilla BlueBrick), with connection points found from the track pieces
+  inside. Batch import, re-import from the source, and a preview to rotate the
+  part and drop connection points.
 
-- Save / load with byte-exact `.bbm` round-trip across a fixture corpus.
-- Native viewer and editor with most vanilla BlueBrick menus and dialogs.
-- Sidecar format for modules / anchored labels / venues.
-- Connection-snap during drag (ported from BlueBrick's
-  `getMovedSnapPoint`) with auto-link rebuild after every mutation.
-- Brick hull outlines from the sprite alpha channel.
-- Electric circuits rendering (colour-coded graph).
-- Venue walkway / obstacle / outline validator (non-blocking warnings).
-- Ruler attachment rendering (rulers follow their attached bricks).
-- Find & Replace live updates as you type.
-- Localization scaffolding for 8 languages beyond English — fr, de, es,
-  it, nl, pt, zh, ja (translations accept PRs).
-- Budgets like BlueBrick's: the Budget menu (New / Open / Import and
-  Merge / Close / Save), *Show Only Budgeted Parts*, *Show Budget
-  Numbers* in the parts library, *Use Budget Limitation*, and a
-  status-bar readout. `.bbb` files are byte-identical to BlueBrick's.
-- Help → Contents (F1): BlueBrick's manual as offline HTML (converted
-  from its `.chm` by `scripts/help/chm_to_html.py`).
-- Grid cell indices (A, B, C… / 1, 2, 3…), and moving their origin by
-  dragging the map with the grid layer selected, as in BlueBrick.
-- Part list export as HTML (with part pictures), text or CSV, laid out
-  like BlueBrick's, with budget columns and optional per-layer tables.
-- Flex track: double-click and drag a piece of a selected chain with
-  hinged connections (PFS flex track, magnet couplings) to bend it,
-  solved like BlueBrick's `FlexMove`.
-- Open and save LDraw (`.ldr` / `.mpd`), TrackDesigner (`.tdl`) and
-  4DBrix nControl (`.ncp`) files as maps, the way BlueBrick does
-  (checked against vanilla BlueBrick's own output in the tests).
-- **External format import → composite library part**: LDraw
-  (`.ldr` / `.dat` / `.mpd`), Studio (`.io`), and LDD (`.lxf` / `.lxfml`)
-  all render to a top-down sprite + XML saved as a new part in the
-  user library, one at a time or with **Batch Import**. With an LDraw
-  library (or LDD's brick database for LDD files) the sprite is real
-  geometry at 32 px/stud (`.png`), plus an 8 px/stud `.gif` so the same
-  part folder also loads in vanilla BlueBrick. Imports snap like track:
-  pieces that BlueBrickParts knows (matched by part number, including
-  LDraw's renumbered parts and LDD parts via LDD's `ldraw.xml`) are
-  placed with BlueBrick's own LDraw mapping, and their free ends become
-  the part's connection points. The preview shows them and lets you
-  rotate the part, drop connection points, pick a category and replace
-  an earlier import. Imported parts remember their source: *Re-import
-  from Source* (parts panel) or *Tools → Import → Re-import Changed
-  Parts* rebuilds them after the model changes, with the same rotation
-  and removed connection points.
-- Autosave on every edit (5 s throttled) + crash-recovery prompt.
-- Help → Check for Updates (and a quiet check at startup, at most daily,
-  off in Preferences): tells you about a newer release and links to it;
-  nothing is downloaded or installed automatically.
-- Cross-platform CI/CD: every PR builds, tests and packages Linux x86_64,
-  Windows x64 and a universal (arm64 + x86_64) macOS bundle, smoke-launches
-  each package, and runs the test suite under ASan + UBSan. Every package
-  bundles its runtime (Qt, plus the MSVC runtime on Windows), the
-  BlueBrickParts library and the translations. Each release tag emits:
-  - Linux: AppImage + `.tar.gz` (built on Ubuntu 22.04, so glibc 2.35+)
-  - macOS: universal `.zip` (app bundle) + `.dmg` disk image
-  - Windows: `.zip` + WiX v4 MSI installer (with `.bbm` file association)
-  Unsigned by default — signing + notarization activate when the
-  secrets described in [`docs/SIGNING.md`](docs/SIGNING.md) are
-  configured in the repo.
-- Render-goldens regression harness over the `.bbm` corpus (fixed
-  1600 × 1200 PNGs under [`fixtures/render-goldens/`](fixtures/render-goldens/);
-  re-capture via [`scripts/capture-render-goldens.sh`](scripts/capture-render-goldens.sh)).
-- Unit tests for every external-format reader (LDraw, Studio `.io`,
-  LDD `.lxf`/`.lxfml`), covering archive extraction, material mapping,
-  missing-component fallbacks.
-- Top-down sprite generation for parts not in BlueBrickParts: inline
-  LDraw primitive rasteriser + [`bld_sprite_gen`](src/app/bld_sprite_gen.cpp)
-  CLI for batch converting `.ldr` / `.io` / `.lxf` files into BlueBrick-
-  compatible PNG/GIF sprites without launching the app.
+**Easy to use**
+- A welcome card and short guided tours, ⓘ help buttons beside settings,
+  and Help › Contents (BlueBrick's manual, offline).
+- Light, dark and colour themes; touchscreen support (pinch, pan, long-press
+  menus, a touch action bar); 10 languages besides English, seeded from
+  BlueBrick's translations.
+- Autosave every few seconds with crash recovery, and a check for updates
+  (never automatic downloads).
 
-### Remaining work
+## Install
 
-**Small / finishing touches**
-- Completed `.ts` [translations](translations/) for the 8 bundled
-  languages — stubs ship, real strings are volunteer-driven.
-- `MainWindowMenus.cpp` used to be 909 lines; the Map / Venue menu
-  split out into its own file (see [`MainWindowMapMenu.cpp`](src/ui/MainWindowMapMenu.cpp)).
-  Tools menu is the last candidate — low-priority, manageable as-is.
+Download a release from
+[Releases](https://github.com/brick-layout-designer/brick-layout-designer/releases):
 
-**Medium**
-- Vanilla-captured reference PNGs for the render-goldens harness. The
-  current references are captures of what *we* render today — they
-  lock in regressions but don't enforce parity with BlueBrick. Once
-  someone captures the same corpus on Windows in BlueBrick 1.9.2,
-  drop them into [`fixtures/render-goldens/`](fixtures/render-goldens/)
-  and the gate becomes a parity gate.
-- Forward-compat CI leg: scripted vanilla BlueBrick 1.9.2 run on
-  Windows against every `.bbm` the fork produces. Deferred — Windows
-  Forms UI automation is too brittle for a CI pipeline. Covered by
-  byte-exact round-trip (automated) + manual checklist in
-  [`docs/MANUAL_TESTING.md`](docs/MANUAL_TESTING.md) §4.5.
+| Platform | Files |
+|---|---|
+| Windows x64 | `.msi` installer (opens `.bld-layout` and `.bbm` files) or a portable `.zip` |
+| macOS (Apple Silicon and Intel) | `.dmg` or `.zip` with the app bundle |
+| Linux x86_64 | AppImage or `.tar.gz` (glibc 2.35 or newer) |
 
-**Volunteer / budget-gated**
-- **macOS code-signing + notarization**: wired into the release
-  workflow but requires an [Apple Developer Program](https://developer.apple.com/programs/)
-  membership ($99/yr). Drop the secrets listed in
-  [`docs/SIGNING.md`](docs/SIGNING.md) into the repo and signing
-  activates on the next tag.
-- **Windows code-signing**: wired as above but requires a
-  code-signing certificate from a CA ($200–500/yr, OV preferred for
-  CI automation). Activates when `WINDOWS_PFX_BASE64` is set.
-- **Flatpak for Linux**: AppImage covers portable Linux distribution
-  already; Flatpak is a follow-up if someone wants it.
+Every package carries its runtime (Qt, and the MSVC runtime on Windows), the
+BlueBrickParts library and the translations. Releases are not code-signed,
+so Windows SmartScreen and macOS Gatekeeper ask once before the first start
+(on macOS: right-click the app, then Open).
 
-**Feature-parity gaps vs. BlueBrick 1.9.2**
-- None known; report anything you miss.
+## Connecting to a server
 
-**Deferred (niche)**
-- Async-signal-safe crash autosave (the 5 s throttled autosave covers
-  the common loss case; a real signal handler would cover hard crashes).
+A server is the web app, run by you or your club (see the web repository's
+README for self-hosting). On the desktop:
+
+1. **File › Servers…** (or the server status in the status bar): add the
+   server's address, such as `https://layouts.example.org`.
+2. **Sign in.** The app opens the server's sign-in page in your browser and
+   shows a short code to approve there. The desktop gets its own app token;
+   your password never passes through the desktop. The token is kept in the
+   system keychain (Windows Credential Manager, macOS Keychain, or the
+   Secret Service / libsecret on Linux), one per server.
+3. **File › Connect to Server…** lists the layouts you may open. Pick one to
+   open it live. **File › Publish to Server…** puts the open layout on the
+   server and keeps editing it live.
+
+Several servers can be added; the one marked *Main* is used for the Module
+library and the catalog. **File › Disconnect** closes the live session; the
+layout stays open as an unsaved copy. A `.bld-layout` saved from a live
+layout remembers its server, and opening it offers the live version.
+
+## File formats
+
+| File | What it is |
+|---|---|
+| `.bld-layout` | The app's own layout file (the default): a ZIP holding the map as `layout.bbm`, a `sidecar.json` with labels, modules, venue, saved views and background image, the background picture, and the parts the layout uses that aren't in the bundled library. See [docs/layout-file.md](docs/layout-file.md). |
+| `.bbm` | A BlueBrick map. **File › Export as BlueBrick Map** writes one that vanilla BlueBrick 1.9.2 opens, with what BlueBrick supports. `.bbm` files still open and can be saved as they are. See [docs/bbm-schema.md](docs/bbm-schema.md). |
+| `.bbm.bld` | The sidecar next to a `.bbm` that earlier versions wrote. It still opens. Its fields are those of `sidecar.json`: `anchoredLabels`, `modules` (with their look: `showName`, `outlineColor`, `nameColor`, `sameColor`, and `pinned`), `venue`, `views` and `backgroundImage`. See [docs/bbm-bld-schema.md](docs/bbm-bld-schema.md). |
+| `.bld-venue` | A venue on its own, for the venue library. |
+| `.set.xml` | A set written by **Save Selection as Set**, a library part that vanilla BlueBrick also reads ([docs/set-schema.md](docs/set-schema.md)). |
+| `.bbb` | A BlueBrick budget, byte-identical to BlueBrick's. |
+
+Readers keep the fields they don't know, so a newer app's additions survive
+a save in an older one.
+
+## BlueBrick compatibility
+
+- **Save files.** A `.bbm` read and written again is byte-for-byte the same,
+  checked against a corpus of real files. Maps, budgets, part lists and the
+  LDraw / TrackDesigner / nControl conversions are compared with vanilla
+  BlueBrick 1.9.2's own output, which CI produces under Wine (the
+  *Vanilla BlueBrick compatibility* job; see
+  [scripts/bluebrick-oracle/](scripts/bluebrick-oracle/)).
+- **Parts library.** The bundled BlueBrickParts library is used unchanged,
+  including sets, connection preferences, old part names and the LDraw and
+  TrackDesigner mappings.
+- **Groups and sets** are written as BlueBrick `<Group>`s. A module also
+  becomes one plain group per sheet, so vanilla BlueBrick shows the parts
+  grouped; the module itself (and labels, venues and views) live only in
+  this app's files.
+- **Behaviour** follows BlueBrick's source where it matters: connection
+  snapping, the flex solver, grouping, the active connection, electric
+  circuits and budgets.
 
 ## Building
 
-Requires CMake 3.25+, a C++20 compiler, Qt 6.8+ with the Qt WebSockets
-module (CI and the releases use the latest, 6.12), and a current stable
-Rust toolchain. Rust is needed because the server features (live layouts,
-server modules, the catalog) read shared layouts with
-[yrs](https://github.com/y-crdt/y-crdt), the Rust port of Yjs, which
-`src/sync` builds with cargo and links through its C API. Configuring
-stops with a message if cargo is missing.
+Requirements:
+
+- CMake 3.25 or newer, Ninja, and a C++20 compiler (GCC, Clang, or MSVC 2022).
+- Qt 6.8 or newer with **Core, Gui, Widgets, Network, PrintSupport and
+  WebSockets** (LinguistTools to build the translations). CI and the releases
+  use the latest Qt (6.12).
+- A current stable **Rust** toolchain. The server features read shared
+  layouts with [yrs](https://github.com/y-crdt/y-crdt), the Rust port of
+  Yjs, which `src/sync` builds with cargo and links through its C API.
+  Configuring stops with a message if cargo is missing.
+- On Linux, the libsecret headers (`libsecret-1-dev` on Debian/Ubuntu,
+  `libsecret-devel` on Fedora, `libsecret` on Arch) for the keychain.
 
 Install Rust with [rustup](https://rustup.rs):
 
 - **Linux / macOS:** `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`,
-  then open a new terminal. On Linux also install the libsecret headers
-  (`libsecret-1-dev` on Debian/Ubuntu, `libsecret-devel` on Fedora,
-  `libsecret` on Arch), used to keep server sign-ins in the keychain.
+  then open a new terminal.
 - **macOS universal builds** (`-DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"`)
   need both targets: `rustup target add aarch64-apple-darwin x86_64-apple-darwin`.
 - **Windows:** run `rustup-init.exe` from [rustup.rs](https://rustup.rs) and
-  keep the default MSVC toolchain (`x86_64-pc-windows-msvc`), which matches
-  the Visual Studio compiler; or `winget install Rustlang.Rustup`.
+  keep the default MSVC toolchain (`x86_64-pc-windows-msvc`), or
+  `winget install Rustlang.Rustup`.
+
+Build:
 
 ```sh
-git clone --recurse-submodules <this-repo>
+git clone --recurse-submodules https://github.com/brick-layout-designer/brick-layout-designer.git
 cd brick-layout-designer
 cmake -S . -B build -G Ninja
 cmake --build build
+./build/src/app/bld_app        # Windows: build\src\app\bld_app.exe
 ```
 
-Run the test suite:
+Forgot `--recurse-submodules`? Run `git submodule update --init` for the
+parts library; without it the app starts with an empty library and many
+tests skip.
+
+CMake options:
+
+| Option | Default | What it does |
+|---|---|---|
+| `BLD_WARNINGS_AS_ERRORS` | `OFF` | Treat compiler warnings in our own code as errors. CI turns it on and also fails on any linker or CMake warning (`scripts/ci/check-warnings.sh`); turn it on to check a change before you push. The build is warning-free with `-Wall -Wextra -Wpedantic` (`/W4` on MSVC). |
+| `BLD_DEPLOY_QT` | `ON` (Windows, macOS) | Bundle the Qt runtime into the install tree. |
+| `BLD_INSTALL_PARTS` | `ON` | Install the bundled BlueBrickParts library with the app. |
+| `BLD_FUZZ` | `OFF` | Build the libFuzzer parser harnesses (clang only). |
+
+### Tests
 
 ```sh
-ctest --test-dir build
+ctest --test-dir build --output-on-failure
 ```
 
-The build is warning-free (`-Wall -Wextra -Wpedantic`, `/W4` on MSVC). CI
-treats warnings as errors with `-DBLD_WARNINGS_AS_ERRORS=ON` and fails on
-any compiler, linker or CMake warning (`scripts/ci/check-warnings.sh`).
-It's off by default, so a newer compiler's new warnings never stop a local
-build; turn it on to check a change before you push.
+The tests run off screen (`QT_QPA_PLATFORM=offscreen`), also when you start
+a test binary such as `build/tests/ui/bld_ui_tests` by hand. CI runs them on
+all three platforms, again under AddressSanitizer and UndefinedBehaviorSanitizer,
+for coverage, and with clang-tidy on the changed lines.
 
-The build also makes `bld_sync_driver`, a headless
-live-sync client driven by commands on stdin. The web repo's end-to-end
-test (`apps/web/e2e/test/desktopLiveSync.spec.ts`, see its
-`references/DESKTOP-SYNC-E2E.md`) runs it against a real server beside
-the web editor. That test needs both repos, so it is not run in CI.
+The build also makes `bld_sync_driver`, a headless live-sync client driven
+by commands on stdin. The web repository's end-to-end test
+(`apps/web/e2e/test/desktopLiveSync.spec.ts`) runs it against a real server
+beside the web editor. That test needs both repositories, so CI doesn't run it.
 
-Build a self-contained install tree (what CI packages):
+### Fuzzing
+
+libFuzzer harnesses cover every file and message the app reads (maps,
+sidecars, venues, part XML, budgets, imports, live-sync documents and
+server messages). With clang:
+
+```sh
+fuzz/run.sh 60           # seconds per target; crashes land in build-fuzz/fuzz-artifacts/
+```
+
+CI runs each target briefly on every pull request. Inputs that once crashed
+are kept in `fixtures/fuzz-regressions/` and replayed by the tests. See
+[fuzz/README.md](fuzz/README.md).
+
+### Packaging
 
 ```sh
 cmake --install build --prefix dist
 ```
 
-On Windows and macOS this also bundles the Qt runtime (`BLD_DEPLOY_QT`,
-on by default). On Linux the tree uses the system Qt; CI bundles it with
-[linuxdeploy](https://github.com/linuxdeploy/linuxdeploy) — see
-[`.github/workflows/build.yml`](.github/workflows/build.yml).
+builds a self-contained install tree. On Windows and macOS it bundles the Qt
+runtime (`BLD_DEPLOY_QT`). On Linux the tree uses the system Qt; CI bundles
+it with [linuxdeploy](https://github.com/linuxdeploy/linuxdeploy) into the
+AppImage. CI makes every package on each pull request and smoke-starts it;
+a release tag publishes them. The steps are in
+[.github/workflows/build.yml](.github/workflows/build.yml). Signing and
+notarization switch on when the secrets in [docs/SIGNING.md](docs/SIGNING.md)
+are set; releases are unsigned today.
+
+### Troubleshooting
+
+- **`undefined reference to ...::staticMetaObject` or a missing `moc_*.cpp`
+  after switching branches.** CMake's AUTOMOC output in the build folder is
+  stale (a class moved, or a file was added or removed). Delete the
+  `*_autogen` folders (`build/src/ui/bld_ui_autogen`,
+  `build/src/app/*_autogen`, and the test ones) and build again, or start
+  with a fresh build folder.
+- **Configuring stops: cargo not found.** Install Rust (above) and open a
+  new terminal so `cargo` is on the PATH.
+- **The parts list is empty.** The parts submodule isn't checked out:
+  `git submodule update --init`.
+
+## More documentation
+
+- [docs/layout-file.md](docs/layout-file.md): the `.bld-layout` file.
+- [docs/bbm-schema.md](docs/bbm-schema.md), [docs/bbm-bld-schema.md](docs/bbm-bld-schema.md),
+  [docs/set-schema.md](docs/set-schema.md): the `.bbm`, the sidecar and sets.
+- [docs/TRANSLATING.md](docs/TRANSLATING.md): translating the app.
+- [docs/MANUAL_TESTING.md](docs/MANUAL_TESTING.md): what to check by hand.
+- [docs/SIGNING.md](docs/SIGNING.md): code signing for releases.
 
 ## License
 
