@@ -235,6 +235,10 @@ struct FlexMove::Impl {
     void createChain(const QSet<core::Brick*>& list, core::Brick* g, Conn currentFirst) {
         core::Brick* current = g;
         int hingedLink = -1;  // counted from the chain's end: links are inserted at the front
+        // Each brick once: links that lead round in a circle not through `g`
+        // (two parts sharing connection ids, a stale link) would otherwise
+        // grow the chain without end. BlueBrick trusted the links.
+        QSet<const core::Brick*> seen{ g };
         addBone(currentFirst, g, 0.0);
         while (current && list.contains(current) && (currentFirst.isNull() || connectionCount(current) == 2)) {
             const int secondIndex = currentFirst == conn(current, 0) ? 1 : 0;
@@ -266,8 +270,14 @@ struct FlexMove::Impl {
             current = next;
             currentFirst = nextFirst;
             if (current == g) break;
+            if (current && seen.contains(current)) break;
+            seen.insert(current);
         }
         if (hingedLink >= 0) rootLink = hingedLink;
+        if (chain.empty() || rootLink < 0 || rootLink >= static_cast<int>(chain.size())) {
+            chain.clear();
+            return;  // no chain: start() says so
+        }
 
         if (bones.size() > 2) {
             const size_t last = bones.size() - 1;
@@ -428,7 +438,7 @@ std::unique_ptr<FlexMove> FlexMove::start(core::LayerBrick& layer, const QSet<QS
         startConn = *s;
     }
     d->createChain(list, g, startConn);
-    if (d->bones.size() < 2) return nullptr;
+    if (d->bones.size() < 2 || d->chain.empty() || d->chainBricks.empty()) return nullptr;
 
     d->active = std::clamp(activeConnection >= 0 ? activeConnection : g->activeConnectionPointIndex, 0, n - 1);
     d->grabDelta = mouseStuds - d->world(d->conn(g, d->active));

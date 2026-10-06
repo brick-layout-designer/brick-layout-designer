@@ -8,6 +8,7 @@
 #include "../parts/PartsLibrary.h"
 
 #include <QHash>
+#include <QSet>
 #include <QPointF>
 
 #include <algorithm>
@@ -76,6 +77,24 @@ void rebuildConnectivity(Map& map, parts::PartsLibrary& lib) {
     // updateFullBrickConnectivity does it (per layer), but the previous
     // links are remembered so the active-connection rules only react to
     // links that actually changed.
+    // Every connection id once in the map: a part pasted or inserted twice
+    // used to keep its connection ids, so links named the wrong part (and a
+    // bend followed them round in a circle). A repeat gets a new id; the
+    // links are made again from positions below anyway.
+    QSet<QString> ids;
+    for (auto& layerPtr : map.layers()) {
+        if (!layerPtr || layerPtr->kind() != LayerKind::Brick) continue;
+        for (auto& brick : static_cast<LayerBrick&>(*layerPtr).bricks)
+            for (auto& cp : brick.connections) {
+                if (cp.guid.isEmpty()) continue;
+                if (ids.contains(cp.guid)) {
+                    cp.guid = core::newBbmId();
+                    cp.linkedToId.clear();
+                }
+                ids.insert(cp.guid);
+            }
+    }
+
     for (auto& layerPtr : map.layers()) {
         if (!layerPtr || layerPtr->kind() != LayerKind::Brick) continue;
         auto& layer = static_cast<LayerBrick&>(*layerPtr);

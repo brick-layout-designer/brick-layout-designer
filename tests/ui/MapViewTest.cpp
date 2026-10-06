@@ -474,6 +474,109 @@ TEST_F(MapViewTest, BendingTheEndOntoTrackAtALargeAngleLinksIt) {
     EXPECT_EQ(L.bricks[1].connections[0].linkedToId, L.bricks[0].connections[1].guid) << "the run still holds on to the first straight";
 }
 
+namespace {
+
+// Drags the first bend handle a little: true when it bent (one step).
+bool bendByFirstHandle(ui::MapView& view, QPointF by) {
+    const double px = 8.0;  // SceneBuilder::kPixelsPerStud
+    const auto handles = view.bendHandlePositions();
+    if (handles.empty()) return false;
+    const int before = view.undoStack()->count();
+    QWidget* vp = view.viewport();
+    const QPoint at = view.mapFromScene(handles.front() * px);
+    mouse(vp, QEvent::MouseButtonPress, at, Qt::LeftButton);
+    for (int i = 1; i <= 4; ++i) mouse(vp, QEvent::MouseMove, view.mapFromScene((handles.front() + by * (i / 4.0)) * px), Qt::LeftButton);
+    mouse(vp, QEvent::MouseButtonRelease, view.mapFromScene((handles.front() + by) * px), Qt::NoButton);
+    return view.undoStack()->count() == before + 1 && view.undoStack()->undoText() == QStringLiteral("Bend flex track");
+}
+
+std::unique_ptr<core::Map> oneBrickLayer() {
+    auto map = std::make_unique<core::Map>();
+    auto layer = std::make_unique<core::LayerBrick>();
+    layer->guid = core::newBbmId();
+    layer->name = QStringLiteral("Tracks");
+    map->layers().push_back(std::move(layer));
+    return map;
+}
+
+}  // namespace
+
+TEST_F(MapViewTest, AHandleOnASingleSetBends) {
+    if (!parts_.metadata(QStringLiteral("flex.group")))
+        GTEST_SKIP() << "the BlueBrickParts library isn't checked out (run git submodule update --init)";
+    view_->loadMap(oneBrickLayer());
+    view_->resize(800, 600);
+    view_->centerOn(QPointF(0, 0));
+    view_->addPartAtScenePos(QStringLiteral("flex.group"), QPointF(0, 0));
+    ASSERT_EQ(view_->bendHandlePositions().size(), 2u);
+    EXPECT_TRUE(bendByFirstHandle(*view_, { 0.2, 0.6 }));
+}
+
+TEST_F(MapViewTest, ADuplicatedSetOnTopOfItsOriginalStillBends) {
+    // Aaron's crash: Duplicate puts the copy where the view is (here on the
+    // original), and the copy kept the original's connection ids, so the
+    // links went round in a circle and the bend never ended.
+    if (!parts_.metadata(QStringLiteral("flex.group")))
+        GTEST_SKIP() << "the BlueBrickParts library isn't checked out (run git submodule update --init)";
+    view_->loadMap(oneBrickLayer());
+    view_->resize(800, 600);
+    view_->centerOn(QPointF(0, 0));
+    view_->addPartAtScenePos(QStringLiteral("flex.group"), QPointF(0, 0));
+    view_->duplicateSelection();
+    view_->duplicateSelection();
+    const auto& L = static_cast<const core::LayerBrick&>(*view_->currentMap()->layers().front());
+    ASSERT_EQ(L.bricks.size(), 6u);
+    QSet<QString> ids;
+    for (const auto& b : L.bricks)
+        for (const auto& c : b.connections) {
+            EXPECT_FALSE(ids.contains(c.guid)) << "a repeated connection id";
+            ids.insert(c.guid);
+        }
+    for (QGraphicsItem* it : brickItems(*view_->scene())) it->setSelected(true);
+    ASSERT_FALSE(view_->bendHandlePositions().empty());
+    bendByFirstHandle(*view_, { 0.2, 0.6 });  // it ends: that's the test
+    view_->undoStack()->undo();
+}
+
+TEST_F(MapViewTest, BendingRightAfterModulesBecomeSets) {
+    // A layout from before: two flex sets kept as modules, the second a
+    // copy that kept the first's connection ids, joined end to end. Opened,
+    // they become sets; bending them then must work.
+    if (!parts_.metadata(QStringLiteral("flex.group")))
+        GTEST_SKIP() << "the BlueBrickParts library isn't checked out (run git submodule update --init)";
+    auto map = oneBrickLayer();
+    auto& layer = static_cast<core::LayerBrick&>(*map->layers().front());
+    for (int k = 0; k < 2; ++k) {
+        auto set = edit::expandSet(parts_, QStringLiteral("flex.group"), QPointF(4.0 * k, 0.0));
+        core::Module m;
+        m.id = core::newBbmId();
+        m.name = QStringLiteral("Flex Track");
+        for (int i = 0; i < static_cast<int>(set.bricks.size()); ++i) {
+            auto& b = set.bricks[i];
+            b.myGroupId.clear();
+            m.memberIds.insert(b.guid);
+            layer.bricks.push_back(b);
+        }
+        map->sidecar.modules.push_back(m);
+    }
+    edit::rebuildConnectivity(*map, parts_);
+    // The copy's connection ids, as an old Duplicate left them.
+    for (int i = 0; i < 2; ++i) layer.bricks[2 + i].connections = layer.bricks[i].connections;
+    view_->loadMap(std::move(map));
+    view_->resize(800, 600);
+    view_->centerOn(QPointF(2, 0) * 8.0);
+    auto* cur = view_->currentMap();
+    const auto sets = edit::findSetModules(*cur, parts_);
+    ASSERT_EQ(sets.size(), 2u);
+    view_->undoStack()->push(edit::makeSetsCommand(*cur, sets));
+    EXPECT_TRUE(cur->sidecar.modules.empty());
+    const auto& L = static_cast<const core::LayerBrick&>(*cur->layers().front());
+    for (QGraphicsItem* it : brickItems(*view_->scene()))
+        if (it->data(ui::detail::kBrickDataGuid).toString() == L.bricks[0].guid) it->setSelected(true);
+    ASSERT_EQ(view_->bendHandlePositions().size(), 2u) << "one run of two sets, two free ends";
+    EXPECT_TRUE(bendByFirstHandle(*view_, { 0.2, -0.8 }));
+}
+
 TEST_F(MapViewTest, BudgetLimitationRefusesPartsOverTheirLimit) {
     QSettings().setValue(QStringLiteral("general/warnBudgetLimitation"), false);  // no modal message
     ui::BudgetSession budget(parts_);
