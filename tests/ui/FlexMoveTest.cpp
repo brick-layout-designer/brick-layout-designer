@@ -6,6 +6,9 @@
 #include "core/Map.h"
 #include "edit/Connectivity.h"
 #include "edit/FlexMove.h"
+#include "edit/Sets.h"
+#include "core/Ids.h"
+#include "parts/BrickPlacement.h"
 #include "parts/PartsLibrary.h"
 #include "saveload/BbmReader.h"
 
@@ -137,5 +140,122 @@ TEST_F(FlexMoveTest, RestorePutsTheChainBack) {
     for (size_t i = 0; i < before.size(); ++i) {
         EXPECT_EQ(layer.bricks[i].displayArea, before[i].displayArea);
         EXPECT_EQ(layer.bricks[i].orientation, before[i].orientation);
+    }
+}
+
+namespace {
+
+// `sets` flex track sets end to end from x = 0, linked.
+core::Map flexRow(parts::PartsLibrary& lib, int sets) {
+    core::Map map;
+    auto layer = std::make_unique<core::LayerBrick>();
+    for (int k = 0; k < sets; ++k) {
+        auto set = edit::expandSet(lib, QStringLiteral("flex.group"), QPointF(4.0 * k, 0.0));
+        for (auto& b : set.bricks) layer->bricks.push_back(b);
+        for (auto& g : set.groups) layer->groups.push_back(g);
+    }
+    map.layers().push_back(std::move(layer));
+    edit::rebuildConnectivity(map, lib);
+    return map;
+}
+
+QSet<QString> everyBrick(const core::LayerBrick& layer) {
+    QSet<QString> all;
+    for (const auto& b : layer.bricks) all.insert(b.guid);
+    return all;
+}
+
+}  // namespace
+
+TEST_F(FlexMoveTest, LinksGoingRoundInACircleAwayFromTheGrabbedPartEnd) {
+    // A stale one-way link from the last set back to the middle one: the
+    // chain from the first female went round B, C, B, C... for ever, a
+    // vector growing at its front until the app was killed (Aaron's crash).
+    auto map = flexRow(lib_, 3);
+    auto& layer = brickLayer(map);
+    ASSERT_EQ(layer.bricks.size(), 6u);
+    layer.bricks[5].connections[0].linkedToId = layer.bricks[2].connections[0].guid;
+    auto flex = edit::FlexMove::start(layer, everyBrick(layer), layer.bricks[0].guid, { -1.9, 0.0 }, lib_);
+    ASSERT_TRUE(flex);
+    EXPECT_LE(flex->initialState().size(), layer.bricks.size());
+    flex->moveTo({ -1.5, -1.5 }, 0.0, false);
+    flex->restore();
+}
+
+TEST_F(FlexMoveTest, AClosedLoopOfFlexTrackStartsOrSaysNo) {
+    // Two sets joined at both ends (the second turned round onto the
+    // first): every link leads back, never to a free end.
+    auto map = flexRow(lib_, 2);
+    auto& layer = brickLayer(map);
+    layer.bricks[0].connections[0].linkedToId = layer.bricks[3].connections[0].guid;
+    layer.bricks[3].connections[0].linkedToId = layer.bricks[0].connections[0].guid;
+    for (const auto& b : layer.bricks) {
+        auto flex = edit::FlexMove::start(layer, everyBrick(layer), b.guid, b.displayArea.center(), lib_);
+        if (!flex) continue;
+        EXPECT_LE(flex->initialState().size(), layer.bricks.size() + 1);
+        flex->moveTo(b.displayArea.center() + QPointF(0.5, 0.5), 0.0, false);
+        flex->restore();
+    }
+}
+
+TEST_F(FlexMoveTest, RepeatedConnectionIdsAreMadeUniqueAndLinkBothWays) {
+    // Parts pasted (or a module inserted) twice used to keep their
+    // connection ids: links then named the wrong part.
+    auto map = flexRow(lib_, 2);
+    auto& layer = brickLayer(map);
+    for (int i = 0; i < 2; ++i) layer.bricks[2 + i].connections = layer.bricks[i].connections;
+    edit::rebuildConnectivity(map, lib_);
+    QHash<QString, std::pair<int, int>> owner;
+    for (int b = 0; b < static_cast<int>(layer.bricks.size()); ++b)
+        for (int c = 0; c < static_cast<int>(layer.bricks[b].connections.size()); ++c) {
+            const QString& id = layer.bricks[b].connections[c].guid;
+            EXPECT_FALSE(owner.contains(id)) << "repeated id " << id.toStdString();
+            owner.insert(id, { b, c });
+        }
+    int links = 0;
+    for (const auto& b : layer.bricks)
+        for (const auto& c : b.connections) {
+            if (c.linkedToId.isEmpty()) continue;
+            ++links;
+            const auto [ob, oc] = owner.value(c.linkedToId, { -1, -1 });
+            ASSERT_GE(ob, 0);
+            EXPECT_EQ(layer.bricks[ob].connections[oc].linkedToId, c.guid) << "both ways";
+        }
+    EXPECT_EQ(links, 6) << "two hinges and the joint between the sets";
+}
+
+TEST_F(FlexMoveTest, TwoHalvesJoinedAtBothEndsEnteredByAStaleLink) {
+    // The links in Aaron's crash (from the core dump): a female half turned
+    // round on a male one, joined at both ends to each other (a set
+    // duplicated and turned onto another), and a stale one-way link into
+    // them (a duplicate that kept its connection ids). The chain from the
+    // grabbed half went X, Y, X, Y... 124758 links before the app was killed.
+    auto map = flexRow(lib_, 1);
+    auto& layer = brickLayer(map);
+    core::Brick male = layer.bricks[1];
+    male.guid = core::newBbmId();
+    male.myGroupId.clear();
+    parts::placement::placeByAreaCentre(male, QPointF(20, 0), lib_);
+    core::Brick female = layer.bricks[0];
+    female.guid = core::newBbmId();
+    female.myGroupId.clear();
+    female.orientation = 180.0f;
+    parts::placement::placeByConnection(female, 1, parts::placement::connectionWorld(male, 1, lib_), lib_);
+    for (auto* b : { &male, &female })
+        for (auto& c : b->connections) { c.guid = core::newBbmId(); c.linkedToId.clear(); }
+    layer.bricks.push_back(male);
+    layer.bricks.push_back(female);
+    edit::rebuildConnectivity(map, lib_);
+    auto& X = layer.bricks[2];
+    auto& Y = layer.bricks[3];
+    ASSERT_EQ(X.connections[0].linkedToId, Y.connections[0].guid) << "joined at both ends";
+    ASSERT_EQ(X.connections[1].linkedToId, Y.connections[1].guid);
+    // The stale link: the grabbed set's free rail end names the pair's rail.
+    layer.bricks[1].connections[0].linkedToId = X.connections[0].guid;
+    auto flex = edit::FlexMove::start(layer, everyBrick(layer), layer.bricks[0].guid, { -1.9, 0.0 }, lib_);
+    if (flex) {
+        EXPECT_LE(flex->initialState().size(), layer.bricks.size());
+        flex->moveTo({ -1.5, -1.5 }, 0.0, false);
+        flex->restore();
     }
 }

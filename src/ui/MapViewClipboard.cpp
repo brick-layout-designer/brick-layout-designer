@@ -104,6 +104,11 @@ void MapView::pasteClipboard() {
         }
         core::Brick b = src.brick;
         b.guid = core::newBbmId();
+        // Its own connections: new ids, joined again where it lands.
+        for (auto& c : b.connections) {
+            c.guid = core::newBbmId();
+            c.linkedToId.clear();
+        }
         newGuids.insert(b.guid);
         b.displayArea.translate(translation);
         const QString key = src.sourceLayerName.isEmpty()
