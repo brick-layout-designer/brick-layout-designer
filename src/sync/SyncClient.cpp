@@ -92,7 +92,7 @@ void SyncClient::onDisconnected() {
     // all): reconnecting is the resync; the same again ends the session.
     if (code == QWebSocketProtocol::CloseCodeTooMuchData) {
         qWarning().noquote() << "Live layout: a message from the server is over the"
-                             << guard::kMaxUpdateBytes / (1024 * 1024) << "MiB limit";
+                             << guard::kMaxUpdateBytes / guard::kMiB << "MiB limit";
         if (closedForSize_) {
             wantOpen_ = false;
             setStatus(Status::Offline);

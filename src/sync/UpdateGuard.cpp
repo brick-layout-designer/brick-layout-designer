@@ -243,7 +243,7 @@ private:
 };
 
 QString tooBig(qsizetype size) {
-    return QStringLiteral("%1 bytes is over the %2 MiB limit").arg(size).arg(kMaxUpdateBytes / (1024 * 1024));
+    return QStringLiteral("%1 bytes is over the %2 MiB limit").arg(size).arg(kMaxUpdateBytes / kMiB);
 }
 
 }  // namespace

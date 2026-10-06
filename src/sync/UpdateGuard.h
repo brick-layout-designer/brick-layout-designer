@@ -28,7 +28,8 @@ namespace bld::sync::guard {
 // few MB as a shared document (a 540 KB .bbm is 250 KB); the server takes
 // whole documents up to 50 MiB and messages up to 16 MiB. 64 MiB leaves room
 // for a full resync of a layout far past either.
-constexpr qsizetype kMaxUpdateBytes = 64 * 1024 * 1024;
+constexpr qsizetype kMiB = qsizetype{ 1024 } * 1024;
+constexpr qsizetype kMaxUpdateBytes = 64 * kMiB;
 
 // How deep values (lists and objects in a layout's JSON) may nest. The web's
 // layout model nests 5 deep.
