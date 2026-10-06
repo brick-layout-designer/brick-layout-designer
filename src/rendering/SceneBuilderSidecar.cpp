@@ -220,25 +220,25 @@ void SceneBuilder::addVenue(const core::Map& map) {
     // Wall labels: pills just outside the room, upright, clear of each
     // other and of the selection handles (VenueLabels.h, as the web).
     {
-        const double labelPx = venueLabelPx_
+        const double wallLabelPx = venueLabelPx_
                                    ? std::max(1.0, *venueLabelPx_)
-                                   : std::max(10, QSettings().value(QStringLiteral("venue/labelPx"), 28).toInt());
+                                   : std::max(10, QSettings().value(QStringLiteral("venue/wallLabelPx"), 28).toInt());
         const LineWidthAt width = mapLineWidth(QStringLiteral("Bold"));
         VenueLabelOptions opts;
-        opts.fontPx = labelPx;
+        opts.fontPx = wallLabelPx;
         opts.measure = [&width](const QString& t, double px) { return width(t, px); };
         opts.selectedEdge = venueSelectedEdge_;
         opts.handles = venueHandles_;
         opts.handleHalfPx = venueHandleHalfPx_;
         const bool dark = QGuiApplication::palette().color(QPalette::Window).lightness() < 128;
         const VenueLabelColours colours = venueLabelColours(dark);
-        const QFont font = mapFont(QStringLiteral("Bold"), labelPx);
+        const QFont font = mapFont(QStringLiteral("Bold"), wallLabelPx);
         for (const VenueLabel& l : venueEdgeLabels(v.edges, opts)) {
             QTransform tr;
             tr.translate(l.centre.x(), l.centre.y());
             tr.rotate(l.angle);
             QPainterPath pill;
-            const double r = VenueLabelPill::radius * labelPx;
+            const double r = VenueLabelPill::radius * wallLabelPx;
             pill.addRoundedRect(QRectF(-l.width / 2, -l.height / 2, l.width, l.height), r, r);
             auto* bg = new QGraphicsPathItem(pill);
             QPen edgePen(colours.border, 1);
@@ -252,15 +252,15 @@ void SceneBuilder::addVenue(const core::Map& map) {
             bg->setData(kVenueLabelTextRole, l.full);
             bg->setZValue(5);
             sink.add(bg);
-            const double tw = width(l.text, labelPx);
-            auto* text = new QGraphicsPathItem(textPath(font, { { l.text, -tw / 2, -labelPx / 2 } }, 1.0));
-            text->setPen(Qt::NoPen);
-            text->setBrush(colours.text);
-            text->setTransform(tr);
-            text->setAcceptedMouseButtons(Qt::NoButton);
-            if (l.shortened) text->setToolTip(l.full);
-            text->setZValue(6);
-            sink.add(text);
+            const double tw = width(l.text, wallLabelPx);
+            auto* caption = new QGraphicsPathItem(textPath(font, { { l.text, -tw / 2, -wallLabelPx / 2 } }, 1.0));
+            caption->setPen(Qt::NoPen);
+            caption->setBrush(colours.text);
+            caption->setTransform(tr);
+            caption->setAcceptedMouseButtons(Qt::NoButton);
+            if (l.shortened) caption->setToolTip(l.full);
+            caption->setZValue(6);
+            sink.add(caption);
         }
     }
 }

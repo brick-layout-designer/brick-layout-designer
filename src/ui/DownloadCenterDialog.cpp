@@ -364,14 +364,14 @@ bool DownloadCenterDialog::downloadAndInstall(const Package& pkg, QString* error
             }
             continue;
         }
-        const auto bytes = zip.read(entry);
-        if (!bytes) {
+        const auto entryBytes = zip.read(entry);
+        if (!entryBytes) {
             if (error) *error = tr("Damaged archive entry: %1").arg(entry.name);
             return false;
         }
         QDir().mkpath(QFileInfo(abs).absolutePath());
         QFile out(abs);
-        if (!out.open(QIODevice::WriteOnly | QIODevice::Truncate) || out.write(*bytes) < 0) {
+        if (!out.open(QIODevice::WriteOnly | QIODevice::Truncate) || out.write(*entryBytes) < 0) {
             if (error) *error = tr("Could not extract files into %1").arg(libraryRoot_);
             return false;
         }
