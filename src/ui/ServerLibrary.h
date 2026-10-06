@@ -105,6 +105,10 @@ signals:
     void catalogInsertRequested(const bld::sync::CatalogItem& item);
     // Catalog parts came in (yours or a club's): fetch the server's parts.
     void partsAdded();
+    // A catalog layout was copied to you (or a club): open the copy, live.
+    void catalogLayoutCopied(const QString& layoutId, const QString& title);
+    // A catalog venue was copied to your venues (or a club's): use it.
+    void catalogVenueCopied(const QString& venueId, const QString& name);
     // Something to say in the status bar.
     void message(const QString& text);
 
@@ -173,11 +177,12 @@ private:
     QHash<QString, QWidget*> rows_;
 };
 
-// "Catalog": the server's public modules, parts and collections.
+// "Catalog": the server's public modules, parts, layouts, venues and collections.
 class CatalogTab : public QWidget {
     Q_OBJECT
 public:
-    enum class Kind { Modules, Parts, Collections };
+    // (Layouts and Venues came later: their numbers follow, so the older buttons keep their names.)
+    enum class Kind { Modules, Parts, Collections, Layouts, Venues };
     CatalogTab(ServerLibrary& library, QWidget* parent = nullptr);
     void setKind(Kind kind);
     Kind kind() const { return kind_; }
@@ -198,6 +203,7 @@ private:
     QWidget* collectionRow(const sync::CatalogCollection& c);
     void clearRows();
     void addItem(const sync::CatalogItem& it, QPushButton* button);
+    bool kindOn(Kind k) const;
     void addAll(const sync::CatalogCollection& c);
     std::optional<QString> owner(const QString& title);
 

@@ -106,6 +106,11 @@ CatalogItem LibraryApi::catalogItemFromJson(const QJsonObject& o) {
     it.uses = intOf(o.value(QLatin1String("uses")));
     it.version = intOf(o.value(QLatin1String("version")));
     it.previewPath = o.value(QLatin1String("previewUrl")).toString();
+    it.coverPath = o.value(QLatin1String("coverUrl")).toString();
+    const QJsonObject sum = o.value(QLatin1String("summary")).toObject();
+    it.widthStuds = intOf(sum.value(QLatin1String("widthStuds")));
+    it.heightStuds = intOf(sum.value(QLatin1String("heightStuds")));
+    if (sum.contains(QLatin1String("partCount"))) it.partCount = intOf(sum.value(QLatin1String("partCount")));
     return it;
 }
 
@@ -216,6 +221,8 @@ void LibraryApi::catalogSettings(std::function<void(const CatalogSettings&)> don
         CatalogSettings s;
         s.modules = o.value(QLatin1String("modules")).toBool();
         s.parts = o.value(QLatin1String("parts")).toBool();
+        s.layouts = o.value(QLatin1String("layouts")).toBool();
+        s.venues = o.value(QLatin1String("venues")).toBool();
         if (done) done(s);
     }, std::move(failed));
 }
@@ -245,6 +252,17 @@ void LibraryApi::addCatalogItem(const QString& itemId, const QString& orgSlug,
              },
              std::move(failed));
 }
+
+void LibraryApi::venueFile(const QString& id, std::function<void(const QString&, const QByteArray&)> done, Fail failed) {
+    sendJson("GET", QStringLiteral("/api/venues/%1").arg(idPath(id)), {}, [done = std::move(done)](const QJsonObject& o) {
+        // Kept as the web wrote it: a .bld-venue file without its schema tag.
+        QJsonObject file = o.value(QLatin1String("data")).toObject();
+        file.insert(QStringLiteral("schema"), QStringLiteral("bld-venue/1"));
+        if (done) done(o.value(QLatin1String("name")).toString(), QJsonDocument(file).toJson(QJsonDocument::Indented));
+    }, std::move(failed));
+}
+
+QUrl LibraryApi::catalogItemWebUrl(const QString& id) const { return url(QStringLiteral("/catalog/items/") + idPath(id)); }
 
 void LibraryApi::collections(std::function<void(const QList<CatalogCollection>&)> done, Fail failed) {
     sendJson("GET", QStringLiteral("/api/catalog/collections"), {}, [done = std::move(done)](const QJsonObject& o) {
