@@ -3,12 +3,15 @@
 // Module frames and names, drawn as the web draws them
 // (apps/web/src/editor/render/moduleLabels.ts + ModuleOverlay.tsx): a
 // dashed frame 4 px outside the module's pieces, and the name in bold with
-// a dark outline, 16 px outside the frame, centred above it (or turned
-// along the left side of a tall module, reading bottom to top). A name is
-// never longer than the side it sits on: it wraps to two lines, then
+// a dark outline, 16 px outside the frame, on the side placeModuleNames
+// picks: clear of parts and of other names, on the outside edge of a ring
+// of modules, level above or below, turned along the left (reading bottom
+// to top) or the right (top to bottom), inside only as a last resort. A
+// name is never longer than the module's edge: it wraps to two lines, then
 // shrinks, and only as a last resort is cut short with an ellipsis (the
-// whole name shows on hover or select). Each module can have its own
-// outline and name colours and hide its name.
+// whole name shows on hover or select). Each module has its own default
+// colour (moduleColours, from its id; neighbours differ), and can have its
+// own chosen outline and name colours and hide its name.
 // fixtures/render-parity/modules.json holds the numbers both apps are
 // tested against.
 
@@ -18,7 +21,10 @@
 #include <QString>
 #include <QStringList>
 
+#include <QHash>
+
 #include <functional>
+#include <vector>
 
 namespace bld::core { struct Module; }
 
@@ -83,12 +89,34 @@ struct ModuleLook {
     QColor nameFill = kModuleNameFill;
     bool showName = true;
 };
-ModuleLook moduleLook(const core::Module& m);
+// `defaultHex`: the module's own default colour (moduleColours); empty: the light blue.
+ModuleLook moduleLook(const core::Module& m, const QString& defaultHex = {});
+
+// Each module's own default colour comes from this palette (the web's
+// MODULE_PALETTE): distinct hues, light enough to read inside the name's
+// dark outline, apart from the map's default blue.
+inline const QStringList kModulePalette{ QStringLiteral("#FFE066"), QStringLiteral("#FFA94D"), QStringLiteral("#FCC2D7"),
+                                         QStringLiteral("#E599F7"), QStringLiteral("#8CE99A"), QStringLiteral("#C0EB75"),
+                                         QStringLiteral("#66D9E8"), QStringLiteral("#63E6BE") };
+// Modules this close (studs) count as neighbours, which get different colours.
+inline constexpr double kModuleNeighbourStuds = 4.0;
+// FNV-1a over the id's UTF-16 code units: the same number in both apps.
+quint32 moduleIdHash(const QString& id);
+// Every module's default colour (a palette hex) from its id, stepping on
+// through the palette when a neighbour earlier in the list has it. `box`:
+// its visible parts' bounds in studs (empty: none show; no neighbours).
+struct ModuleColourInput {
+    QString id;
+    QRectF box;
+};
+QHash<QString, QString> moduleColours(const std::vector<ModuleColourInput>& modules);
 
 struct ModuleLabelLayout {
     QRectF frame;     // scene px
     bool hasName = false;  // false when the module's name is hidden
-    QPointF textPos;  // the name's anchor; a portrait name turns -90° about it
+    // The name's anchor: a name turned -90° reads bottom to top from the
+    // bottom-left of its box, one turned 90° top to bottom from the top-right.
+    QPointF textPos;
     double rotation = 0;
     double width = 0;   // the name's box, along the side it sits on
     double height = 0;  // the name's box, across it (its lines)
@@ -96,11 +124,31 @@ struct ModuleLabelLayout {
     QStringList lines;
     bool truncated = false;
     QRectF bounds;  // frame and name together
+    QString side;   // top, bottom, left, right or inside; empty when hidden
+    QString slot;   // which candidate place ("top:0", "inside:1"): a live drag keeps it
 };
 
-// Where one module's frame and name go, from its pieces' bounds in studs.
+// Where one module's frame and name go, from its pieces' bounds in studs,
+// on its own (no other modules or parts about).
 ModuleLabelLayout moduleLabelLayout(const QRectF& studs, const QString& name, double labelPercent,
                                     const NameWidthAt& widthAt, bool showName = true);
+
+// Places every module's frame and name together, as the web's
+// placeModuleNames, step by step: each name in turn takes the lowest-
+// scoring candidate place round its module (or inside it), keeping clear of
+// `partsPx` (scene px) and the names placed before it, and on a ring of
+// modules (nothing at the layout's middle) the outside edge.
+struct ModuleNameInput {
+    QString id;
+    QString name;
+    QRectF studs;  // its visible parts' bounds
+    bool showName = true;
+};
+// `keep`: module id → the slot to keep (while parts are dragged, names stay on their side).
+std::vector<ModuleLabelLayout> placeModuleNames(const std::vector<ModuleNameInput>& modules,
+                                                const std::vector<QRectF>& partsPx, double labelPercent,
+                                                const NameWidthAt& widthAt,
+                                                const QHash<QString, QString>& keep = {});
 
 // The pill with the whole name over a shortened one, in the name's own
 // turned frame (x along the side, y across it): one line at the name's

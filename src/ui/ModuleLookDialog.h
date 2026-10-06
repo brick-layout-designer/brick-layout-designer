@@ -30,6 +30,8 @@ public:
 
     // Reads the module again (after any change); closes when it's gone.
     void refresh();
+    // The module's own default colour (what its pickers show when none is chosen).
+    std::function<QString()> defaultColour;
 
     // For tests: the controls.
     QCheckBox* showNameBox() const { return showName_; }

@@ -1,5 +1,5 @@
 {
-  "about": "Module frames and names as both apps draw them (web moduleLabels.ts, desktop rendering/ModuleLabels.cpp). Scene px at 8 px per stud; a name is charWidth x font px wide per character so fonts do not matter. A name is never longer than the side it sits on: it wraps to two lines, then shrinks (not under minFontPx), then is cut short with an ellipsis. A module with some parts on a hidden sheet frames only the parts that show, dashed with partlyHiddenFrameDash. Same file in both repos.",
+  "about": "Module frames and names as both apps draw them (web moduleLabels.ts, desktop rendering/ModuleLabels.cpp). Scene px at 8 px per stud; a name is charWidth x font px wide per character so fonts do not matter. A name is never longer than the module's edge it sits on (its parts, the frame less 4 px each end): it wraps to two lines, then shrinks (not under minFontPx), then is cut short with an ellipsis. A module with some parts on a hidden sheet frames only the parts that show, dashed with partlyHiddenFrameDash. Same file in both repos. Names are placed together (placement): each in turn takes the lowest-scoring place around its module (scores in moduleLabels.ts MODULE_NAME_SCORE), keeping clear of parts and other names, on the outside edge of a ring, never upside down (left reads bottom to top, rotation -90; right top to bottom, rotation 90); parts are scene rectangles in studs, compare positions within 0.01 px. Each module's default colour (colours) comes from its id (FNV-1a over UTF-16 code units, modulo the palette), stepping on through the palette when a neighbour within neighbourStuds has it.",
   "charWidth": 0.6,
   "minFontPx": 16,
   "style": {
@@ -286,11 +286,11 @@
         },
         "text": {
           "x": -4,
-          "y": -128,
+          "y": -126,
           "rotation": 0,
           "width": 520,
-          "height": 108,
-          "fontPx": 54,
+          "height": 106,
+          "fontPx": 53,
           "lines": [
             "A rather long",
             "module name here"
@@ -299,9 +299,9 @@
         },
         "bounds": {
           "x": -4,
-          "y": -128,
+          "y": -126,
           "width": 520,
-          "height": 388
+          "height": 386
         }
       }
     },
@@ -358,12 +358,12 @@
           "height": 1288
         },
         "text": {
-          "x": -272,
+          "x": -270,
           "y": 1284,
           "rotation": -90,
           "width": 1288,
-          "height": 252,
-          "fontPx": 126,
+          "height": 250,
+          "fontPx": 125,
           "lines": [
             "Main Line Station",
             "and Goods Yard"
@@ -371,9 +371,9 @@
           "truncated": false
         },
         "bounds": {
-          "x": -272,
+          "x": -270,
           "y": -4,
-          "width": 660,
+          "width": 658,
           "height": 1288
         }
       }
@@ -405,5 +405,589 @@
         }
       }
     }
-  ]
+  ],
+  "placement": [
+    {
+      "name": "Fordyce 2026: a ring of tables, names on the outside edge",
+      "labelPercent": 35,
+      "modules": [
+        {
+          "id": "kelly",
+          "name": "Kelly's Corner",
+          "studs": {
+            "x": 0,
+            "y": 0,
+            "w": 192,
+            "h": 192
+          }
+        },
+        {
+          "id": "ninjago",
+          "name": "Aaron's Ninjago City",
+          "studs": {
+            "x": 384,
+            "y": 0,
+            "w": 192,
+            "h": 192
+          }
+        },
+        {
+          "id": "nicki",
+          "name": "Nicki's Minecraft World",
+          "studs": {
+            "x": 576,
+            "y": 0,
+            "w": 384,
+            "h": 192
+          }
+        },
+        {
+          "id": "desert",
+          "name": "Brad's Desert Corner",
+          "studs": {
+            "x": 960,
+            "y": 0,
+            "w": 192,
+            "h": 389
+          }
+        },
+        {
+          "id": "bridge",
+          "name": "Brad's Bridge",
+          "studs": {
+            "x": 1075,
+            "y": 389,
+            "w": 67,
+            "h": 187
+          }
+        },
+        {
+          "id": "aaron",
+          "name": "Aaron's section",
+          "studs": {
+            "x": 0,
+            "y": 192,
+            "w": 192,
+            "h": 384
+          }
+        }
+      ],
+      "parts": [
+        {
+          "x": 0,
+          "y": 0,
+          "w": 192,
+          "h": 192
+        },
+        {
+          "x": 384,
+          "y": 0,
+          "w": 192,
+          "h": 192
+        },
+        {
+          "x": 576,
+          "y": 0,
+          "w": 384,
+          "h": 192
+        },
+        {
+          "x": 960,
+          "y": 0,
+          "w": 192,
+          "h": 389
+        },
+        {
+          "x": 1075,
+          "y": 389,
+          "w": 67,
+          "h": 187
+        },
+        {
+          "x": 0,
+          "y": 192,
+          "w": 192,
+          "h": 384
+        },
+        {
+          "x": 192,
+          "y": 0,
+          "w": 192,
+          "h": 192
+        },
+        {
+          "x": 0,
+          "y": 576,
+          "w": 192,
+          "h": 192
+        },
+        {
+          "x": 192,
+          "y": 672,
+          "w": 768,
+          "h": 96
+        },
+        {
+          "x": 960,
+          "y": 576,
+          "w": 192,
+          "h": 192
+        }
+      ],
+      "expect": [
+        {
+          "id": "kelly",
+          "side": "top",
+          "text": {
+            "x": -4,
+            "y": -750,
+            "rotation": 0,
+            "width": 1544,
+            "height": 730,
+            "fontPx": 365,
+            "lines": [
+              "Kelly's",
+              "Corner"
+            ],
+            "truncated": false
+          }
+        },
+        {
+          "id": "ninjago",
+          "side": "top",
+          "text": {
+            "x": 3068,
+            "y": -446,
+            "rotation": 0,
+            "width": 1544,
+            "height": 426,
+            "fontPx": 213,
+            "lines": [
+              "Aaron's",
+              "Ninjago City"
+            ],
+            "truncated": false
+          }
+        },
+        {
+          "id": "nicki",
+          "side": "top",
+          "text": {
+            "x": 4604,
+            "y": -702,
+            "rotation": 0,
+            "width": 3080,
+            "height": 682,
+            "fontPx": 341,
+            "lines": [
+              "Nicki's",
+              "Minecraft World"
+            ],
+            "truncated": false
+          }
+        },
+        {
+          "id": "desert",
+          "side": "right",
+          "text": {
+            "x": 10032,
+            "y": -4,
+            "rotation": 90,
+            "width": 3120,
+            "height": 796,
+            "fontPx": 398,
+            "lines": [
+              "Brad's",
+              "Desert Corner"
+            ],
+            "truncated": false
+          }
+        },
+        {
+          "id": "bridge",
+          "side": "right",
+          "text": {
+            "x": 9956,
+            "y": 3108,
+            "rotation": 90,
+            "width": 1504,
+            "height": 800,
+            "fontPx": 400,
+            "lines": [
+              "Brad's",
+              "Bridge"
+            ],
+            "truncated": false
+          }
+        },
+        {
+          "id": "aaron",
+          "side": "left",
+          "text": {
+            "x": -820,
+            "y": 4612,
+            "rotation": -90,
+            "width": 3080,
+            "height": 800,
+            "fontPx": 400,
+            "lines": [
+              "Aaron's",
+              "section"
+            ],
+            "truncated": false
+          }
+        }
+      ]
+    },
+    {
+      "name": "a part right above: the name goes below",
+      "labelPercent": 35,
+      "modules": [
+        {
+          "id": "yard",
+          "name": "Yard",
+          "studs": {
+            "x": 0,
+            "y": 0,
+            "w": 200,
+            "h": 100
+          }
+        }
+      ],
+      "parts": [
+        {
+          "x": 0,
+          "y": 0,
+          "w": 200,
+          "h": 100
+        },
+        {
+          "x": -50,
+          "y": -150,
+          "w": 300,
+          "h": 140
+        }
+      ],
+      "expect": [
+        {
+          "id": "yard",
+          "side": "bottom",
+          "text": {
+            "x": -4,
+            "y": 820,
+            "rotation": 0,
+            "width": 1608,
+            "height": 400,
+            "fontPx": 400,
+            "lines": [
+              "Yard"
+            ],
+            "truncated": false
+          }
+        }
+      ]
+    },
+    {
+      "name": "two modules side by side, not a ring: the second name goes below, clear of the first",
+      "labelPercent": 35,
+      "modules": [
+        {
+          "id": "a",
+          "name": "Long name for a module",
+          "studs": {
+            "x": 0,
+            "y": 0,
+            "w": 100,
+            "h": 50
+          }
+        },
+        {
+          "id": "b",
+          "name": "Another long module name",
+          "studs": {
+            "x": 96,
+            "y": 0,
+            "w": 100,
+            "h": 50
+          }
+        }
+      ],
+      "parts": [
+        {
+          "x": 0,
+          "y": 0,
+          "w": 100,
+          "h": 50
+        },
+        {
+          "x": 96,
+          "y": 0,
+          "w": 100,
+          "h": 50
+        }
+      ],
+      "expect": [
+        {
+          "id": "a",
+          "side": "top",
+          "text": {
+            "x": -4,
+            "y": -242,
+            "rotation": 0,
+            "width": 808,
+            "height": 222,
+            "fontPx": 111,
+            "lines": [
+              "Long name",
+              "for a module"
+            ],
+            "truncated": false
+          }
+        },
+        {
+          "id": "b",
+          "side": "bottom",
+          "text": {
+            "x": 764,
+            "y": 420,
+            "rotation": 0,
+            "width": 808,
+            "height": 222,
+            "fontPx": 111,
+            "lines": [
+              "Another long",
+              "module name"
+            ],
+            "truncated": false
+          }
+        }
+      ]
+    },
+    {
+      "name": "boxed in on every side: inside, where it is emptiest",
+      "labelPercent": 35,
+      "modules": [
+        {
+          "id": "core",
+          "name": "Core",
+          "studs": {
+            "x": 0,
+            "y": 0,
+            "w": 300,
+            "h": 100
+          }
+        }
+      ],
+      "parts": [
+        {
+          "x": 0,
+          "y": 0,
+          "w": 300,
+          "h": 40
+        },
+        {
+          "x": -400,
+          "y": -400,
+          "w": 1100,
+          "h": 390
+        },
+        {
+          "x": -400,
+          "y": 110,
+          "w": 1100,
+          "h": 390
+        },
+        {
+          "x": -400,
+          "y": -10,
+          "w": 390,
+          "h": 120
+        },
+        {
+          "x": 310,
+          "y": -10,
+          "w": 390,
+          "h": 120
+        }
+      ],
+      "expect": [
+        {
+          "id": "core",
+          "side": "inside",
+          "text": {
+            "x": -4,
+            "y": 400,
+            "rotation": 0,
+            "width": 2408,
+            "height": 400,
+            "fontPx": 400,
+            "lines": [
+              "Core"
+            ],
+            "truncated": false
+          }
+        }
+      ]
+    }
+  ],
+  "colours": {
+    "palette": [
+      "#FFE066",
+      "#FFA94D",
+      "#FCC2D7",
+      "#E599F7",
+      "#8CE99A",
+      "#C0EB75",
+      "#66D9E8",
+      "#63E6BE"
+    ],
+    "neighbourStuds": 4,
+    "hashes": [
+      {
+        "id": "",
+        "hash": 2166136261
+      },
+      {
+        "id": "a",
+        "hash": 3826002220
+      },
+      {
+        "id": "kelly",
+        "hash": 2872183916
+      },
+      {
+        "id": "Module 1",
+        "hash": 264787874
+      },
+      {
+        "id": "b5c1d2e3-0000-4000-8000-000000000001",
+        "hash": 1790463213
+      },
+      {
+        "id": "Grüße",
+        "hash": 2012106360
+      }
+    ],
+    "cases": [
+      {
+        "name": "Fordyce 2026",
+        "modules": [
+          {
+            "id": "kelly",
+            "box": {
+              "x": 0,
+              "y": 0,
+              "w": 192,
+              "h": 192
+            }
+          },
+          {
+            "id": "ninjago",
+            "box": {
+              "x": 384,
+              "y": 0,
+              "w": 192,
+              "h": 192
+            }
+          },
+          {
+            "id": "nicki",
+            "box": {
+              "x": 576,
+              "y": 0,
+              "w": 384,
+              "h": 192
+            }
+          },
+          {
+            "id": "desert",
+            "box": {
+              "x": 960,
+              "y": 0,
+              "w": 192,
+              "h": 389
+            }
+          },
+          {
+            "id": "bridge",
+            "box": {
+              "x": 1075,
+              "y": 389,
+              "w": 67,
+              "h": 187
+            }
+          },
+          {
+            "id": "aaron",
+            "box": {
+              "x": 0,
+              "y": 192,
+              "w": 192,
+              "h": 384
+            }
+          }
+        ],
+        "expect": {
+          "kelly": "#8CE99A",
+          "ninjago": "#FFA94D",
+          "nicki": "#C0EB75",
+          "desert": "#8CE99A",
+          "bridge": "#FFE066",
+          "aaron": "#FCC2D7"
+        }
+      },
+      {
+        "name": "neighbours step on through the palette; far apart they may share",
+        "modules": [
+          {
+            "id": "mod-1",
+            "box": {
+              "x": 0,
+              "y": 0,
+              "w": 96,
+              "h": 96
+            }
+          },
+          {
+            "id": "mod-9",
+            "box": {
+              "x": 96,
+              "y": 0,
+              "w": 96,
+              "h": 96
+            }
+          },
+          {
+            "id": "mod-17",
+            "box": {
+              "x": 192,
+              "y": 0,
+              "w": 96,
+              "h": 96
+            }
+          },
+          {
+            "id": "far",
+            "box": {
+              "x": 5000,
+              "y": 0,
+              "w": 10,
+              "h": 10
+            }
+          },
+          {
+            "id": "nowhere",
+            "box": null
+          }
+        ],
+        "expect": {
+          "mod-1": "#FFA94D",
+          "mod-9": "#FCC2D7",
+          "mod-17": "#E599F7",
+          "far": "#66D9E8",
+          "nowhere": "#FFA94D"
+        }
+      }
+    ]
+  }
 }

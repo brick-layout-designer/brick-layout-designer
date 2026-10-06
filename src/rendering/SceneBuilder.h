@@ -111,7 +111,9 @@ private:
     void addLayer(const core::Layer& layer, int layerIndex);
     void addVenue(const core::Map& map);
     void addAnchoredLabels(const core::Map& map);
-    void addModuleLabels(const core::Map& map);
+    // `posed`: parts are being dragged: names keep the places (and modules
+    // the colours) they had on the settled layout, so nothing jumps.
+    void addModuleLabels(const core::Map& map, bool posed = false);
     void addElectricCircuits(const core::Map& map);
 
     QGraphicsScene& scene_;
@@ -130,6 +132,8 @@ private:
     QList<QGraphicsItem*>             moduleLabelItems_;
     QList<QPair<QString, QRectF>>     moduleAnnotationRects_;
     QList<ShortenedModuleName>        shortenedModuleNames_;
+    QHash<QString, QString>           settledNameSlots_;    // module id → slot, from the last settled build
+    QHash<QString, QString>           settledModuleColours_; // module id → its default colour then
 };
 
 }

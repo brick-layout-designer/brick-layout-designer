@@ -105,6 +105,114 @@ TEST(RenderParity, ModuleLabelLayoutsMatchTheSharedDescription) {
     }
 }
 
+// Names placed together (the Fordyce ring and friends): the same sides,
+// turns, sizes and places as the web's placeModuleNames.
+TEST(RenderParity, ModuleNamePlacementMatchesTheSharedDescription) {
+    const QJsonObject spec = readJson(kDir + QStringLiteral("/modules.json"));
+    const auto width = fixedWidth(spec[QLatin1String("charWidth")].toDouble());
+    const QJsonArray cases = spec[QLatin1String("placement")].toArray();
+    ASSERT_GE(cases.size(), 4);
+    for (const QJsonValue& v : cases) {
+        const QJsonObject c = v.toObject();
+        const std::string what = c[QLatin1String("name")].toString().toStdString();
+        std::vector<rendering::ModuleNameInput> in;
+        for (const QJsonValue& m : c[QLatin1String("modules")].toArray()) {
+            const QJsonObject o = m.toObject();
+            const QJsonObject r = o[QLatin1String("studs")].toObject();
+            in.push_back({ o[QLatin1String("id")].toString(), o[QLatin1String("name")].toString(),
+                           QRectF(r[QLatin1String("x")].toDouble(), r[QLatin1String("y")].toDouble(),
+                                  r[QLatin1String("w")].toDouble(), r[QLatin1String("h")].toDouble()) });
+        }
+        std::vector<QRectF> parts;
+        for (const QJsonValue& p : c[QLatin1String("parts")].toArray()) {
+            const QJsonObject r = p.toObject();
+            parts.emplace_back(r[QLatin1String("x")].toDouble() * 8, r[QLatin1String("y")].toDouble() * 8,
+                               r[QLatin1String("w")].toDouble() * 8, r[QLatin1String("h")].toDouble() * 8);
+        }
+        const auto got = rendering::placeModuleNames(in, parts, c[QLatin1String("labelPercent")].toDouble(), width);
+        const QJsonArray want = c[QLatin1String("expect")].toArray();
+        ASSERT_EQ(got.size(), static_cast<std::size_t>(want.size())) << what;
+        for (qsizetype i = 0; i < want.size(); ++i) {
+            const QJsonObject e = want[i].toObject();
+            const QJsonObject t = e[QLatin1String("text")].toObject();
+            const std::string who = what + " / " + e[QLatin1String("id")].toString().toStdString();
+            const auto& g = got[static_cast<std::size_t>(i)];
+            EXPECT_EQ(g.side, e[QLatin1String("side")].toString()) << who;
+            EXPECT_DOUBLE_EQ(g.rotation, t[QLatin1String("rotation")].toDouble()) << who;
+            EXPECT_NEAR(g.textPos.x(), t[QLatin1String("x")].toDouble(), 0.01) << who;
+            EXPECT_NEAR(g.textPos.y(), t[QLatin1String("y")].toDouble(), 0.01) << who;
+            EXPECT_DOUBLE_EQ(g.width, t[QLatin1String("width")].toDouble()) << who;
+            EXPECT_DOUBLE_EQ(g.height, t[QLatin1String("height")].toDouble()) << who;
+            EXPECT_DOUBLE_EQ(g.fontPx, t[QLatin1String("fontPx")].toDouble()) << who;
+            EXPECT_EQ(g.lines, stringsOf(t[QLatin1String("lines")].toArray())) << who;
+        }
+    }
+}
+
+// While a module is dragged its name keeps its place (keep), as on the web.
+TEST(RenderParity, ADraggedModuleKeepsItsNamesPlace) {
+    const QJsonObject spec = readJson(kDir + QStringLiteral("/modules.json"));
+    const auto width = fixedWidth(spec[QLatin1String("charWidth")].toDouble());
+    const std::vector<QRectF> parts{ QRectF(0, 0, 1600, 800), QRectF(-400, -1200, 2400, 1120) };
+    std::vector<rendering::ModuleNameInput> in{ { QStringLiteral("yard"), QStringLiteral("Yard"), QRectF(0, 0, 200, 100) } };
+    const auto settled = rendering::placeModuleNames(in, parts, 35, width).front();
+    EXPECT_EQ(settled.slot, QStringLiteral("bottom:0"));
+    in.front().studs.translate(0, -400);
+    EXPECT_EQ(rendering::placeModuleNames(in, parts, 35, width).front().slot, QStringLiteral("top:0"));
+    const auto kept = rendering::placeModuleNames(in, parts, 35, width, { { QStringLiteral("yard"), settled.slot } }).front();
+    EXPECT_EQ(kept.slot, QStringLiteral("bottom:0"));
+    EXPECT_NEAR(kept.textPos.y() - settled.textPos.y(), -400 * 8, 1e-6);
+}
+
+// Each module's own default colour: from its id, neighbours apart.
+TEST(RenderParity, ModuleDefaultColoursMatchTheSharedDescription) {
+    const QJsonObject spec = readJson(kDir + QStringLiteral("/modules.json"))[QLatin1String("colours")].toObject();
+    EXPECT_EQ(rendering::kModulePalette, stringsOf(spec[QLatin1String("palette")].toArray()));
+    EXPECT_DOUBLE_EQ(rendering::kModuleNeighbourStuds, spec[QLatin1String("neighbourStuds")].toDouble());
+    for (const QJsonValue& v : spec[QLatin1String("hashes")].toArray()) {
+        const QJsonObject h = v.toObject();
+        EXPECT_EQ(rendering::moduleIdHash(h[QLatin1String("id")].toString()),
+                  static_cast<quint32>(h[QLatin1String("hash")].toDouble()))
+            << h[QLatin1String("id")].toString().toStdString();
+    }
+    for (const QJsonValue& v : spec[QLatin1String("cases")].toArray()) {
+        const QJsonObject c = v.toObject();
+        std::vector<rendering::ModuleColourInput> in;
+        for (const QJsonValue& m : c[QLatin1String("modules")].toArray()) {
+            const QJsonObject o = m.toObject();
+            const QJsonObject r = o[QLatin1String("box")].toObject();
+            in.push_back({ o[QLatin1String("id")].toString(),
+                           r.isEmpty() ? QRectF() : QRectF(r[QLatin1String("x")].toDouble(), r[QLatin1String("y")].toDouble(),
+                                                           r[QLatin1String("w")].toDouble(), r[QLatin1String("h")].toDouble()) });
+        }
+        const auto got = rendering::moduleColours(in);
+        const QJsonObject want = c[QLatin1String("expect")].toObject();
+        for (auto it = want.begin(); it != want.end(); ++it)
+            EXPECT_EQ(got.value(it.key()), it.value().toString()) << c[QLatin1String("name")].toString().toStdString() << " / " << it.key().toStdString();
+    }
+}
+
+// The palette is readable: light inside the dark outline, apart from the
+// map's default blue and from each other.
+TEST(RenderParity, ModuleDefaultColoursAreReadable) {
+    const auto lum = [](const QColor& c) {
+        const auto ch = [](double v) { return v <= 0.03928 ? v / 12.92 : std::pow((v + 0.055) / 1.055, 2.4); };
+        return 0.2126 * ch(c.redF()) + 0.7152 * ch(c.greenF()) + 0.0722 * ch(c.blueF());
+    };
+    const auto contrast = [&](const QColor& a, const QColor& b) {
+        const double x = lum(a), y = lum(b);
+        return (std::max(x, y) + 0.05) / (std::min(x, y) + 0.05);
+    };
+    const auto gap = [](double a, double b) { return std::min(std::abs(a - b), 360 - std::abs(a - b)); };
+    const QColor blue(QStringLiteral("#6495ED"));
+    for (const QString& hex : rendering::kModulePalette) {
+        const QColor c(hex);
+        EXPECT_GE(contrast(c, Qt::black), 10.0) << hex.toStdString();
+        EXPECT_GE(contrast(c, blue), 1.4) << hex.toStdString();
+        EXPECT_GE(gap(c.hsvHueF() * 360, blue.hsvHueF() * 360), 30.0) << hex.toStdString();
+    }
+}
+
 // Wrap, then shrink, then cut short: the same answers as the web's fitModuleName.
 TEST(RenderParity, ModuleNameFitsMatchTheSharedDescription) {
     const QJsonObject spec = readJson(kDir + QStringLiteral("/modules.json"));

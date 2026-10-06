@@ -307,7 +307,7 @@ void SceneBuilder::setLabelsVisible(bool visible) {
         if (it->data(kBrickDataKind).toString() == QLatin1String("label")) it->setVisible(visible);
 }
 
-void SceneBuilder::addModuleLabels(const core::Map& map) {
+void SceneBuilder::addModuleLabels(const core::Map& map, bool posed) {
     if (map.sidecar.modules.empty()) return;
     // View > Module Names: on by default, so a new module shows its name.
     QSettings vs;
@@ -325,10 +325,21 @@ void SceneBuilder::addModuleLabels(const core::Map& map) {
     // The web's look (ModuleOverlay.tsx): one dashed frame and an outlined
     // bold name per module, in its own colours or the default light blue.
     const LineWidthAt lineWidth = mapLineWidth(QStringLiteral("Bold"));
+    // Where each module's visible parts are, and every visible part (names
+    // keep clear of them). Pieces on hidden sheets don't frame or name their
+    // module; when some are hidden, the frame round the rest is dashed more sparsely.
+    struct Placed { const core::Module* mod; QRectF studs; bool partlyHidden; };
+    std::vector<Placed> shown;
+    std::vector<ModuleColourInput> colourInput;
+    std::vector<QRectF> partsPx;
+    const double k = kPixelsPerStud;
+    for (const auto& L : map.layers()) {
+        if (!L || L->kind() != core::LayerKind::Brick || !L->visible) continue;
+        for (const auto& b : static_cast<const core::LayerBrick&>(*L).bricks)
+            partsPx.emplace_back(b.displayArea.x() * k, b.displayArea.y() * k, b.displayArea.width() * k, b.displayArea.height() * k);
+    }
     for (const auto& mod : map.sidecar.modules) {
         QRectF studs;
-        // Pieces on hidden sheets don't frame or name their module; when
-        // some are hidden, the frame round the rest is dashed more sparsely.
         bool partlyHidden = false;
         for (const auto& L : map.layers()) {
             if (!L || L->kind() != core::LayerKind::Brick) continue;
@@ -338,10 +349,28 @@ void SceneBuilder::addModuleLabels(const core::Map& map) {
                 else partlyHidden = true;
             }
         }
-        if (studs.isEmpty()) continue;
-        const QString name = mod.name.isEmpty() ? QStringLiteral("(module)") : mod.name;
-        const ModuleLook look = moduleLook(mod);
-        const ModuleLabelLayout at = moduleLabelLayout(studs, name, labelPercent, lineWidth, look.showName);
+        colourInput.push_back({ mod.id, studs });
+        if (!studs.isEmpty()) shown.push_back({ &mod, studs, partlyHidden });
+    }
+    // Each module's own default colour; names placed together.
+    const QHash<QString, QString> colours = posed ? settledModuleColours_ : moduleColours(colourInput);
+    std::vector<ModuleNameInput> inputs;
+    inputs.reserve(shown.size());
+    for (const auto& p : shown)
+        inputs.push_back({ p.mod->id, p.mod->name.isEmpty() ? QStringLiteral("(module)") : p.mod->name, p.studs, p.mod->showName });
+    const std::vector<ModuleLabelLayout> placed =
+        placeModuleNames(inputs, partsPx, labelPercent, lineWidth, posed ? settledNameSlots_ : QHash<QString, QString>{});
+    if (!posed) {
+        settledModuleColours_ = colours;
+        settledNameSlots_.clear();
+        for (std::size_t i = 0; i < placed.size(); ++i) settledNameSlots_.insert(inputs[i].id, placed[i].slot);
+    }
+    for (std::size_t i = 0; i < shown.size(); ++i) {
+        const core::Module& mod = *shown[i].mod;
+        const bool partlyHidden = shown[i].partlyHidden;
+        const QString name = inputs[i].name;
+        const ModuleLook look = moduleLook(mod, colours.value(mod.id));
+        const ModuleLabelLayout& at = placed[i];
 
         auto* frame = new QGraphicsRectItem(at.frame);
         QPen framePen(look.frame);
