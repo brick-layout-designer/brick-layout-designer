@@ -396,6 +396,54 @@ TEST_F(LibraryTabs, YoursFirstThenEachClubWithVersionsAndPictures) {
     EXPECT_NE(tab.findChild<QLabel*>(QStringLiteral("serverModulesEmpty")), nullptr);
 }
 
+TEST_F(LibraryTabs, APictureOnItsWayDuringARefreshStillArrives) {
+    serveModules();
+    QByteArray png;
+    {
+        QImage img(8, 8, QImage::Format_ARGB32);
+        img.fill(Qt::red);
+        QBuffer b(&png);
+        b.open(QIODevice::WriteOnly);
+        img.save(&b, "PNG");
+    }
+    http_.replyRaw("/api/modules/m1/thumbnail?v=77&size=small", 200, png, "image/png");
+    ui::ServerModulesTab tab(library_);
+    tab.resize(320, 700);
+    tab.show();
+    connectSignedIn();
+    // A live hint refreshes the list while the picture is still coming.
+    ASSERT_TRUE(waitFor([&] { return count(http_, "GET", "/api/modules/m1/thumbnail") == 1; }, 5000));
+    library_.refresh();
+    ASSERT_TRUE(waitFor([&] {
+        QWidget* row = tab.row(QStringLiteral("m1"));
+        return row && !row->findChild<QLabel*>(QStringLiteral("rowPicture"))->pixmap().isNull();
+    }));
+    EXPECT_EQ(count(http_, "GET", "/api/modules/m1/thumbnail"), 1);
+}
+
+TEST_F(LibraryTabs, APictureTheServerHasntGotIsAskedForOnce) {
+    // m1 says it has a picture, but the server answers 404 (FakeHttp's default).
+    serveModules();
+    ui::ServerModulesTab tab(library_);
+    tab.resize(320, 700);
+    tab.show();
+    connectSignedIn();
+    ASSERT_TRUE(waitFor([&] { return count(http_, "GET", "/api/modules/m1/thumbnail") == 1; }));
+    waitFor([] { return false; }, 300);  // its 404 lands
+    // Every refresh (each live hint) redraws the rows: still asked only once,
+    // so a show's shared address never sends a burst of 404s.
+    for (int i = 0; i < 3; ++i) {
+        QWidget* before = tab.row(QStringLiteral("m1"));
+        library_.refresh();
+        ASSERT_TRUE(waitFor([&] { QWidget* now = tab.row(QStringLiteral("m1")); return now && now != before; }));
+    }
+    QCoreApplication::processEvents();
+    EXPECT_EQ(count(http_, "GET", "/api/modules/m1/thumbnail"), 1);
+    // Signing in again asks afresh.
+    library_.setServer(http_.base(), QStringLiteral("Club server"), QStringLiteral("bld_pat_u"));
+    ASSERT_TRUE(waitFor([&] { return count(http_, "GET", "/api/modules/m1/thumbnail") == 2; }));
+}
+
 TEST_F(LibraryTabs, TheModuleBeingChangedSaysEditingNowAndTheOthersGoIntoIt) {
     serveModules();
     ui::ServerModulesTab tab(library_);

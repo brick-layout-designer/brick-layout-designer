@@ -84,10 +84,12 @@ void ServerLibrary::setServer(const QUrl& url, const QString& label, const QStri
     api_.setToken(token);
     if (same && state_ != State::NoServer) return;
     ++generation_;
+    ++session_;
     modules_.clear();
     orgs_.clear();
     catalog_ = {};
     waiting_.clear();
+    missing_.clear();
     if (!url.isValid()) {
         setState(State::NoServer);
     } else if (token.isEmpty()) {
@@ -232,7 +234,7 @@ QString ServerLibrary::pictureCacheDir() const {
 }
 
 void ServerLibrary::picture(const QString& path, QObject* context, std::function<void(const QImage&)> done) {
-    if (path.isEmpty() || !server_.isValid()) return;
+    if (path.isEmpty() || !server_.isValid() || missing_.contains(path)) return;
     const QString dir = pictureCacheDir();
     const QString file = dir.isEmpty() ? QString()
                                        : dir + QLatin1Char('/') +
@@ -254,9 +256,11 @@ void ServerLibrary::picture(const QString& path, QObject* context, std::function
     auto& queue = waiting_[path];
     queue << deliver;
     if (queue.size() > 1) return;  // already on its way
-    const int gen = generation_;
-    api_.picture(path, [this, gen, path, file, dir](const QByteArray& bytes) {
-        if (gen != generation_) return;
+    // Only another server (or sign-in) drops the answer: a refresh while it
+    // is on its way still delivers it to the rows drawn since.
+    const int session = session_;
+    api_.picture(path, [this, session, path, file, dir](const QByteArray& bytes) {
+        if (session != session_) return;
         QImage img;
         img.loadFromData(bytes);
         if (!img.isNull() && !file.isEmpty() && QDir().mkpath(dir)) {
@@ -265,9 +269,11 @@ void ServerLibrary::picture(const QString& path, QObject* context, std::function
         }
         const auto callbacks = waiting_.take(path);
         for (const auto& cb : callbacks) cb(img);
-    }, [this, gen, path](const sync::ServerRefusal&) {
-        if (gen != generation_) return;
-        // No picture yet: the placeholder stays.
+    }, [this, session, path](const sync::ServerRefusal& r) {
+        if (session != session_) return;
+        // Not there (or not yours to see): don't ask this server again.
+        if (r.status == 403 || r.status == 404 || r.status == 410) missing_.insert(path);
+        // The placeholder stays.
         waiting_.remove(path);
     });
 }
