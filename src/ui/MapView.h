@@ -456,6 +456,7 @@ public:
     // The bend handles now (tests): where each sits, in studs.
     std::vector<QPointF> bendHandlePositions() const {
         std::vector<QPointF> out;
+        out.reserve(bendHandles_.size());
         for (const auto& h : bendHandles_) out.push_back(h.studs);
         return out;
     }
