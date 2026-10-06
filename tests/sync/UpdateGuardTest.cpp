@@ -18,6 +18,7 @@
 #include <QElapsedTimer>
 #include <QFile>
 #include <QJsonArray>
+#include <QJsonDocument>
 
 using namespace bld;
 
@@ -108,8 +109,10 @@ TEST(UpdateGuard, PassesRealDocumentsAndWhatTheDesktopWrites) {
     sync::SyncDoc d;
     QString err;
     ASSERT_TRUE(d.applyUpdate(nested, &err)) << err.toStdString();
-    EXPECT_EQ(d.toJson().value(QStringLiteral("meta")).toObject().value(QStringLiteral("x")),
-              QJsonValue(QJsonArray{ QJsonArray{ QJsonArray{ QJsonValue::Null } } }));
+    // As text: brace-initialising a QJsonArray from a QJsonArray copies it on
+    // some compilers instead of nesting it.
+    const QJsonArray x{ d.toJson().value(QStringLiteral("meta")).toObject().value(QStringLiteral("x")) };
+    EXPECT_EQ(QJsonDocument(x).toJson(QJsonDocument::Compact), QByteArray("[[[[null]]]]"));
 }
 
 // Byte strings from https://github.com/y-crdt/y-crdt/issues/675 and
