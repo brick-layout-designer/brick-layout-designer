@@ -31,6 +31,13 @@ double strengthScale(Strength s) {
     return 1.0;
 }
 
+double wrap180(double deg) {
+    double d = std::fmod(deg, 360.0);
+    if (d > 180.0) d -= 360.0;
+    if (d <= -180.0) d += 360.0;
+    return d;
+}
+
 double reachStuds(double screenPxPerStud, Strength strength) {
     const double scale = strengthScale(strength);
     if (scale <= 0.0) return 0.0;
@@ -44,6 +51,7 @@ namespace {
 // a before b among level candidates: nearer the cursor, then nearer, then
 // the lower keys.
 bool better(const Candidate& a, const Candidate& b) {
+    if (std::abs(a.turn - b.turn) > kTurnTieDeg) return a.turn < b.turn;
     if (std::abs(a.mouseDist - b.mouseDist) > 1e-9) return a.mouseDist < b.mouseDist;
     if (std::abs(a.dist - b.dist) > 1e-9) return a.dist < b.dist;
     if (a.targetKey != b.targetKey) return a.targetKey < b.targetKey;

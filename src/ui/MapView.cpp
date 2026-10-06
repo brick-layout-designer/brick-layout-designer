@@ -1462,7 +1462,7 @@ void MapView::resolvePartPlacement(const QString& partKey, QPointF cursorScenePx
                 // to the cursor is its distance from the centre.
                 moving.push_back({ QStringLiteral("new#%1").arg(i), c.type,
                                    centreStuds + rotatePoint(c.position, orientation),
-                                   std::hypot(c.position.x(), c.position.y()) });
+                                   std::hypot(c.position.x(), c.position.y()), c.angleDegrees + orientation });
                 movingIdx.push_back(i);
             }
         }
@@ -2429,14 +2429,14 @@ void MapView::updateModuleDragPreview(const QString& bbmPath, QPointF cursorScen
         refs.push_back(&b);
     }
     sampleSnapSpeed(moduleSnap_, mapFromScene(cursorScenePx));
-    QPointF ring;
-    const auto shift = moduleSnapShift(refs, QPointF(cursorScenePx.x() / pxPerStud, cursorScenePx.y() / pxPerStud),
-                                       &moduleSnap_, false, &ring);
-    if (shift) placedScene += *shift * pxPerStud;
-    dragPreviewItem_->setRotation(0.0);
+    const auto snap = moduleSnapShift(refs, QPointF(cursorScenePx.x() / pxPerStud, cursorScenePx.y() / pxPerStud),
+                                      &moduleSnap_, false);
+    // The ghost turns about its centroid (its origin) as the module does.
+    if (snap) placedScene = turnPoint(placedStuds, snap->turn, snap->pivot, snap->to) * pxPerStud;
+    dragPreviewItem_->setRotation(snap ? snap->turn : 0.0);
     dragPreviewItem_->setPos(placedScene);
-    setSnapMarks(shift.has_value(), ring * pxPerStud,
-                 shift ? std::optional<QPointF>(ring * pxPerStud) : std::nullopt);
+    const QPointF ring = snap ? snap->to * pxPerStud : QPointF();
+    setSnapMarks(snap.has_value(), ring, snap ? std::optional<QPointF>(ring) : std::nullopt);
 }
 
 bool MapView::dropModuleAt(const QString& bbmPath, QPointF scenePos, snapfeel::Session* dragSnap) {
@@ -2449,8 +2449,9 @@ bool MapView::dropModuleAt(const QString& bbmPath, QPointF scenePos, snapfeel::S
 
 QPointF MapView::viewCentre() const { return mapToScene(viewport()->rect().center()); }
 
-std::optional<QPointF> MapView::moduleSnapShift(const std::vector<const core::Brick*>& bricks, QPointF cursorStuds,
-                                                snapfeel::Session* session, bool final, QPointF* ringStuds) const {
+std::optional<MapView::ModuleSnap> MapView::moduleSnapShift(const std::vector<const core::Brick*>& bricks,
+                                                            QPointF cursorStuds, snapfeel::Session* session,
+                                                            bool final) const {
     if (!map_) return std::nullopt;
     // Every connection of the module's bricks counts: one linked inside
     // the module has its partner moving along, not on the map, so it
@@ -2468,17 +2469,18 @@ std::optional<QPointF> MapView::moduleSnapShift(const std::vector<const core::Br
             if (c.type.isEmpty()) continue;
             const QPointF world = cen + rotatePoint(c.position, b->orientation);
             const QPointF d = world - cursorStuds;
-            moving.push_back({ QStringLiteral("module#%1#%2").arg(bi).arg(i), c.type, world, std::hypot(d.x(), d.y()) });
+            moving.push_back({ QStringLiteral("module#%1#%2").arg(bi).arg(i), c.type, world, std::hypot(d.x(), d.y()),
+                               c.angleDegrees + b->orientation });
         }
     }
     const double reach = connectionSnapReachStuds();
     const bool bypass = session && snapBypassed();  // Alt only counts in a drag
     const auto targets = reach > 0.0 && !bypass && !moving.empty() ? freeTargets(*map_, parts_)
                                                                     : std::vector<FreeTarget>{};
-    const SnapPick pick = pickConnectionSnap(moving, targets, reach, session, bypass, final);
+    // A module turns as a whole to face the end, at most a quarter.
+    const SnapPick pick = pickConnectionSnap(moving, targets, reach, session, bypass, final, /*group=*/true);
     if (!pick.applied()) return std::nullopt;
-    if (ringStuds) *ringStuds = targets[pick.target].world;
-    return targets[pick.target].world - moving[pick.moving].world;
+    return ModuleSnap{ moving[pick.moving].world, targets[pick.target].world, pick.turn };
 }
 
 bool MapView::placeModule(core::Map& loaded, const QString& name, const QString& source, QPointF scenePos,
@@ -2534,17 +2536,26 @@ bool MapView::placeModule(core::Map& loaded, const QString& name, const QString&
 
     // Connection-snap pass: if a free connection of the placed module
     // lands within reach of a free compatible end on the map, shift the
-    // whole module so they meet (SnapFeel: reach, hold, Alt; from a drag,
-    // the drop's final snap keeps the join the drag held). No rotation:
-    // modules drop at a fixed orientation; R turns them afterwards.
+    // whole module so they meet, turned as a whole about that connection
+    // when the ends don't face yet (SnapFeel: reach, hold, Alt, at most a
+    // quarter turn; from a drag, the drop's final snap keeps the join the
+    // drag held).
     {
         std::vector<const core::Brick*> placed;
         for (const auto& batch : batches)
             for (const auto& b : batch.bricks) placed.push_back(&b);
-        const auto shift = moduleSnapShift(placed, QPointF(scenePos.x() / px, scenePos.y() / px), dragSnap, true, nullptr);
-        if (shift)
-            for (auto& batch : batches)
-                for (auto& b : batch.bricks) b.displayArea.translate(*shift);
+        const auto snap = moduleSnapShift(placed, QPointF(scenePos.x() / px, scenePos.y() / px), dragSnap, true);
+        if (snap) {
+            for (auto& batch : batches) {
+                for (auto& b : batch.bricks) {
+                    const QPointF centre = parts::placement::imageCentre(b, parts_);
+                    b.displayArea.translate(turnPoint(centre, snap->turn, snap->pivot, snap->to) - centre);
+                    if (std::abs(snap->turn) > 1e-6)
+                        parts::placement::rotateAroundImageCentre(
+                            b, static_cast<float>(snapfeel::wrap180(b.orientation + snap->turn)), parts_);
+                }
+            }
+        }
     }
     if (dragSnap) dragSnap->reset();
 

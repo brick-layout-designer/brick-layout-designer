@@ -113,6 +113,7 @@ std::vector<MapView::BrickOriginSnapshot> MapView::selectedBrickSnapshots() cons
         s.layerIndex = it->data(kBrickDataLayerIndex).toInt();
         s.guid       = it->data(kBrickDataGuid).toString();
         s.scenePosAtPress = it->scenePos();
+        s.rotationAtPress = it->rotation();
         if (auto* b = findBrick(*map_, s.layerIndex, s.guid)) {
             s.studTopLeftAtPress = b->displayArea.topLeft();
         }
@@ -124,6 +125,7 @@ std::vector<MapView::BrickOriginSnapshot> MapView::selectedBrickSnapshots() cons
 void MapView::captureDragStart() {
     dragStart_ = selectedBrickSnapshots();
     dragSnap_.reset();
+    dragRawDeltaPx_.reset();
     rulerDragStart_.clear();
     labelDragStart_.clear();
     if (!map_) return;
@@ -265,11 +267,22 @@ void MapView::setSnapMarks(bool active, QPointF ringScene, std::optional<QPointF
     viewport()->update();
 }
 
-void MapView::applyLiveConnectionSnap() {
+void MapView::applyLiveConnectionSnap(bool fromMove) {
     if (!map_ || dragStart_.empty()) {
         setSnapMarks(false, {}, std::nullopt);
         return;
     }
+    // Where the pointer has the parts: Qt has just moved every item by
+    // the same delta from its press position. A settle re-run (no move)
+    // keeps the last delta: the items may stand snapped meanwhile.
+    if (fromMove) {
+        for (const auto& s : dragStart_) {
+            if (!s.item) continue;
+            dragRawDeltaPx_ = s.item->scenePos() - s.scenePosAtPress;
+            break;
+        }
+    }
+    const auto rawPos = [this](const BrickOriginSnapshot& s) { return s.scenePosAtPress + dragRawDeltaPx_.value_or(QPointF()); };
 
     const double px = studToPx();
     const QPointF mouseStuds(lastMouseScenePos_.x() / px,
@@ -293,7 +306,7 @@ void MapView::applyLiveConnectionSnap() {
         if (!meta) continue;
         // The item sits at the displayArea centre; connections hang off
         // the sprite centre.
-        const QPointF centerPx = s.item->scenePos();
+        const QPointF centerPx = rawPos(s);
         const QPointF centerStuds = QPointF(centerPx.x() / px, centerPx.y() / px)
                                   + parts_.imageOffset(b->partNumber, b->orientation);
         const int n = meta->connections.size();
@@ -305,14 +318,24 @@ void MapView::applyLiveConnectionSnap() {
             const QPointF world = centerStuds + rotatePoint(c.position, b->orientation);
             const QPointF d = world - mouseStuds;
             if (s.guid == grabBrickGuid_ && i == grabActiveConnIdx_) grabbed = static_cast<int>(moving.size());
-            moving.push_back({ connKey(s.guid, i), c.type, world, std::hypot(d.x(), d.y()) });
+            moving.push_back({ connKey(s.guid, i), c.type, world, std::hypot(d.x(), d.y()), c.angleDegrees + b->orientation });
         }
     }
 
     const auto targets = reach > 0.0 && !bypass && !moving.empty()
                              ? freeTargets(*map_, parts_, movingGuids)
                              : std::vector<FreeTarget>{};
-    const SnapPick best = pickConnectionSnap(moving, targets, reach, &dragSnap_, bypass, false);
+    const SnapPick best = pickConnectionSnap(moving, targets, reach, &dragSnap_, bypass, false, dragStart_.size() > 1);
+
+    // Put every item where the pointer has it, unturned; a snap below
+    // moves (and turns) them from there.
+    rendering::SceneBuilder::setSuppressItemSnap(true);
+    for (const auto& s : dragStart_) {
+        if (!s.item) continue;
+        s.item->setPos(rawPos(s));
+        s.item->setRotation(s.rotationAtPress);
+    }
+    rendering::SceneBuilder::setSuppressItemSnap(false);
 
     // A fast drag that stops dead gets no more moves: snap shortly after.
     if (!snapSettle_) {
@@ -323,7 +346,7 @@ void MapView::applyLiveConnectionSnap() {
             // Still where it was: a still sample slows the speed.
             if (dragSnap_.meter.hasSamples())
                 dragSnap_.sample(dragSnap_.meter.lastX(), dragSnap_.meter.lastY(), snapClockMs());
-            applyLiveConnectionSnap();
+            applyLiveConnectionSnap(false);
         });
     }
     snapSettle_->stop();
@@ -390,20 +413,24 @@ void MapView::applyLiveConnectionSnap() {
     statusHint(tr("Connection snap active (%1 candidate conn(s))")
                .arg(moving.size()));
 
-    // Shift every dragged item by the same translation. Suppress the
-    // per-item grid-snap itemChange for this pass so our connection
-    // alignment survives the setPos round-trip.
+    // Turn every dragged item about the joined connection so the ends
+    // face (a straight join only moves), then land it on the target: the
+    // live preview of what the drop commits. Suppress the per-item grid
+    // snap so the alignment survives the setPos round-trip.
     const QPointF target = targets[best.target].world;
-    const QPointF shift = target - moving[best.moving].world;
-    const QPointF shiftPx(shift.x() * px, shift.y() * px);
-    if (std::abs(shiftPx.x()) > 0.01 || std::abs(shiftPx.y()) > 0.01) {
-        rendering::SceneBuilder::setSuppressItemSnap(true);
-        for (const auto& s : dragStart_) {
-            if (!s.item) continue;
-            s.item->setPos(s.item->scenePos() + shiftPx);
-        }
-        rendering::SceneBuilder::setSuppressItemSnap(false);
+    const QPointF pivot = moving[best.moving].world;
+    rendering::SceneBuilder::setSuppressItemSnap(true);
+    for (const auto& s : dragStart_) {
+        if (!s.item) continue;
+        const auto* b = findBrick(*map_, s.layerIndex, s.guid);
+        const QPointF off = b ? parts_.imageOffset(b->partNumber, b->orientation) : QPointF();
+        // The sprite centre turns; the item stands `off` behind it.
+        const QPointF centre = rawPos(s) / px + off;
+        const QPointF moved = turnPoint(centre, best.turn, pivot, target) - off;
+        s.item->setPos(moved * px);
+        s.item->setRotation(s.rotationAtPress + best.turn);
     }
+    rendering::SceneBuilder::setSuppressItemSnap(false);
     // The ring on the target; the joined connection's dot inside it.
     setSnapMarks(true, target * px, target * px);
 }
@@ -452,16 +479,16 @@ void MapView::commitDragIfMoved() {
 
     const double px = studToPx();
 
-    // Derive the group delta from the FIRST dragged snapshot — Qt moves
-    // every selected movable item by the same vector, so the delta at
-    // any one item represents the whole group.
+    // The group delta where the pointer has it: the live snap's raw
+    // delta (items may stand snapped and turned), else the FIRST dragged
+    // snapshot's — Qt moves every selected item by the same vector.
     std::vector<edit::MoveBricksCommand::Entry> entries;
     QPointF groupDelta(0, 0);
     bool haveDelta = false;
     for (const auto& s : dragStart_) {
         if (!s.item) continue;
         if (!haveDelta) {
-            const QPointF d = s.item->scenePos() - s.scenePosAtPress;
+            const QPointF d = dragRawDeltaPx_ ? *dragRawDeltaPx_ : s.item->scenePos() - s.scenePosAtPress;
             if (std::abs(d.x()) < 0.5 && std::abs(d.y()) < 0.5) {
                 dragStart_.clear();
                 return;
@@ -482,7 +509,7 @@ void MapView::commitDragIfMoved() {
     // leads the snap. Same strategy as the live drag so release just
     // locks in what the user already saw on-screen.
     bool connectionSnapped = false;
-    std::optional<edit::RotateBricksCommand::Entry> connectionRotate;
+    std::vector<edit::RotateBricksCommand::Entry> connectionRotates;
     {
         const QPointF mouseStuds(lastMouseScenePos_.x() / px,
                                  lastMouseScenePos_.y() / px);
@@ -492,14 +519,7 @@ void MapView::commitDragIfMoved() {
         const double reach = connectionSnapReachStuds();
         const bool bypass = snapBypassed();
 
-        struct FreeConn {
-            const core::Brick* brick;
-            int connIdx;
-            QPointF centerStuds;
-        };
-        std::vector<FreeConn> free;
         std::vector<MovingConn> moving;
-
         for (const auto& e : entries) {
             const auto* b = findBrick(*map_, e.ref.layerIndex, e.ref.guid);
             if (!b) continue;
@@ -517,8 +537,8 @@ void MapView::commitDragIfMoved() {
                     takenWhileMoving(b->connections[i].linkedToId, links)) continue;
                 const QPointF world = centerStuds + rotatePoint(c.position, b->orientation);
                 const QPointF d = world - mouseStuds;
-                free.push_back({ b, i, centerStuds });
-                moving.push_back({ connKey(b->guid, i), c.type, world, std::hypot(d.x(), d.y()) });
+                moving.push_back({ connKey(b->guid, i), c.type, world, std::hypot(d.x(), d.y()),
+                                   c.angleDegrees + b->orientation });
             }
         }
 
@@ -527,52 +547,37 @@ void MapView::commitDragIfMoved() {
         const auto targets = reach > 0.0 && !bypass && !moving.empty()
                                  ? freeTargets(*map_, parts_, movingGuids)
                                  : std::vector<FreeTarget>{};
-        const SnapPick pick = pickConnectionSnap(moving, targets, reach, &dragSnap_, bypass, true);
+        const SnapPick pick = pickConnectionSnap(moving, targets, reach, &dragSnap_, bypass, true, entries.size() > 1);
         dragSnap_.reset();
 
-        struct Best {
-            bool applied = false;
-            QPointF translationStuds;
-            QPointF rotationAlignedTranslationStuds;
-            std::optional<float> newOrientation;
-        } best;
-        const core::Brick* bestBrick = nullptr;
         if (pick.applied()) {
-            const FreeConn& fc = free[pick.moving];
-            const FreeTarget& tc = targets[pick.target];
-            const auto meta = parts_.metadata(fc.brick->partNumber);
-            const auto& ac = meta->connections[fc.connIdx];
-            best.applied = true;
-            best.translationStuds = tc.world - moving[pick.moving].world;
-            const double newOrient = facingOrientation(tc.angle, ac.angleDegrees);
-            const QPointF newCenter = tc.world - rotatePoint(ac.position, newOrient);
-            best.rotationAlignedTranslationStuds = newCenter - fc.centerStuds;
-            best.newOrientation = static_cast<float>(newOrient);
-            bestBrick = fc.brick;
-        }
-
-        if (best.applied && bestBrick) {
-            const bool singleBrick = (entries.size() == 1);
-            const QPointF t = (singleBrick && best.newOrientation)
-                                  ? best.rotationAlignedTranslationStuds
-                                  : best.translationStuds;
-            for (auto& e : entries) e.afterTopLeft += t;
-            connectionSnapped = true;
-            if (singleBrick && best.newOrientation
-                && std::abs(*best.newOrientation - bestBrick->orientation) > 0.01f) {
-                // The translation above put the sprite centre where the
-                // turned brick's sprite centre belongs; turn around it.
-                core::Brick turned = *bestBrick;
-                turned.displayArea.moveTo(entries.front().afterTopLeft);
+            // Every brick turns about the joined connection so the ends
+            // face (a single part and a group alike), then lands with it.
+            const QPointF pivot = moving[pick.moving].world;
+            const QPointF to = targets[pick.target].world;
+            const bool turns = std::abs(pick.turn) > 1e-6;
+            for (auto& e : entries) {
+                const auto* b = findBrick(*map_, e.ref.layerIndex, e.ref.guid);
+                if (!b || !turns) {
+                    e.afterTopLeft += to - pivot;
+                    continue;
+                }
+                core::Brick turned = *b;
+                turned.displayArea.moveTopLeft(e.afterTopLeft);
+                const QPointF centre = parts::placement::imageCentre(turned, parts_);
+                turned.displayArea.translate(turnPoint(centre, pick.turn, pivot, to) - centre);
+                e.afterTopLeft = turned.displayArea.topLeft();
                 edit::RotateBricksCommand::Entry re;
-                re.ref = entries.front().ref;
-                re.beforeOrientation = bestBrick->orientation;
+                re.ref = e.ref;
+                re.beforeOrientation = b->orientation;
                 re.beforeArea = turned.displayArea;
-                parts::placement::rotateAroundImageCentre(turned, *best.newOrientation, parts_);
-                re.afterOrientation  = turned.orientation;
+                parts::placement::rotateAroundImageCentre(
+                    turned, static_cast<float>(snapfeel::wrap180(b->orientation + pick.turn)), parts_);
+                re.afterOrientation = turned.orientation;
                 re.afterArea = turned.displayArea;
-                connectionRotate = re;
+                connectionRotates.push_back(re);
             }
+            connectionSnapped = true;
         }
     }
 
@@ -588,11 +593,12 @@ void MapView::commitDragIfMoved() {
     }
 
     dragStart_.clear();
+    dragRawDeltaPx_.reset();
     if (!entries.empty()) {
-        if (connectionRotate) {
+        if (!connectionRotates.empty()) {
             undoStack_->beginMacro(tr("Snap to connection"));
             undoStack_->push(new edit::MoveBricksCommand(*map_, std::move(entries)));
-            undoStack_->push(new edit::RotateBricksCommand(*map_, { *connectionRotate }));
+            undoStack_->push(new edit::RotateBricksCommand(*map_, std::move(connectionRotates)));
             undoStack_->endMacro();
         } else {
             undoStack_->push(new edit::MoveBricksCommand(*map_, std::move(entries)));

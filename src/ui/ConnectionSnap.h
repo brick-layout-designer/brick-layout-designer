@@ -62,19 +62,28 @@ struct MovingConn {
     QString type;
     QPointF world;          // studs
     double mouseDist = 0.0; // studs to the cursor
+    double angle = 0.0;     // world angle it faces, degrees
 };
 
 struct SnapPick {
     int moving = -1;  // index into the moving connections
     int target = -1;  // index into the targets
+    double turn = 0.0;  // degrees the moving set turns about the joined connection to face
     bool applied() const { return moving >= 0 && target >= 0; }
 };
 
 // Choose the join for this frame. With a session the hold and the speed
 // gate apply and the choice is remembered; without one it's a one-off
-// snap at `reach`. `final` is the drop.
+// snap at `reach`. `final` is the drop. `group`: the moving connections
+// belong to more than one part (a group or module), which turns at most
+// snapfeel::kMaxGroupTurnDeg to join; a single part turns freely.
 SnapPick pickConnectionSnap(const std::vector<MovingConn>& moving, const std::vector<FreeTarget>& targets,
-                            double reach, snapfeel::Session* session, bool bypass = false, bool final = false);
+                            double reach, snapfeel::Session* session, bool bypass = false, bool final = false,
+                            bool group = false);
+
+// Where a point of the moving set lands: turned `degrees` about `pivot`
+// (the moving connection), then moved so the pivot is on `to`.
+QPointF turnPoint(QPointF p, double degrees, QPointF pivot, QPointF to);
 
 // The orientation (-180, 180] that turns a connection of local angle
 // `connAngle` to face a target whose world angle is `targetAngle`.

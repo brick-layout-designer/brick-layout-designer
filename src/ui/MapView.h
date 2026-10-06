@@ -274,6 +274,7 @@ private:
         QString guid;
         QPointF scenePosAtPress;      // item->pos() at mousePress
         QPointF studTopLeftAtPress;   // brick.displayArea.topLeft() at mousePress
+        double  rotationAtPress = 0;  // item->rotation() at mousePress
     };
 
     // Ruler / label drag snapshots. One per logical item (rulers may
@@ -334,7 +335,12 @@ private:
     // item by the mouse delta. If a snap fires, translates all dragged
     // items by the snap shift so connections take priority over Qt's
     // built-in per-item drag and over grid snap.
-    void applyLiveConnectionSnap();
+    // `fromMove`: Qt has just moved the items (a pointer move); false for
+    // a settle re-run, which keeps the last raw delta.
+    void applyLiveConnectionSnap(bool fromMove = true);
+    // The drag's delta where the pointer has the parts (scene px), before
+    // any snap moved or turned them; none until the first live snap.
+    std::optional<QPointF> dragRawDeltaPx_;
     // Snap state of the brick drag, the part dragged in and the module
     // dragged in (hold, pointer speed), and the clock their speeds use.
     // Modifier keys of the latest pointer or drag event (Alt: no connection snap).
@@ -585,10 +591,16 @@ private:
     QPointF dragPreviewModuleTopLeftOffsetStuds_;
     // The dragged module's bricks, centroid at the origin, for its snap.
     std::vector<core::Brick> dragPreviewModuleBricks_;
-    // Shift (studs) that connection-snaps `bricks` (already placed) onto the
-    // map's free ends, or nothing; `ringStuds` gets where they meet.
-    std::optional<QPointF> moduleSnapShift(const std::vector<const core::Brick*>& bricks, QPointF cursorStuds,
-                                           snapfeel::Session* session, bool final, QPointF* ringStuds) const;
+    // The connection snap of `bricks` (already placed) onto the map's free
+    // ends: the module turns `turn` degrees about `pivot` (its joining
+    // connection) and lands it on `to` (turnPoint). Nothing when none.
+    struct ModuleSnap {
+        QPointF pivot;
+        QPointF to;
+        double turn = 0;
+    };
+    std::optional<ModuleSnap> moduleSnapShift(const std::vector<const core::Brick*>& bricks, QPointF cursorStuds,
+                                              snapfeel::Session* session, bool final) const;
     void clearDragPreview();
     void updateDragPreview(const QString& partKey, QPointF cursorScenePx);
     void updateModuleDragPreview(const QString& bbmPath, QPointF cursorScenePx);
