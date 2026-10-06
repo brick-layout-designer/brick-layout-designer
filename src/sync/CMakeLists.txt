@@ -102,6 +102,8 @@ set(BUILD_SHARED_LIBS ${_bld_shared})
 set(BUILD_TESTING ${_bld_testing})
 
 add_library(bld_sync STATIC
+    UpdateGuard.h
+    UpdateGuard.cpp
     YDocSummary.h
     YDocSummary.cpp
     DocJson.h

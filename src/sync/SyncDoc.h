@@ -24,7 +24,8 @@ public:
     SyncDoc(const SyncDoc&) = delete;
     SyncDoc& operator=(const SyncDoc&) = delete;
 
-    // Apply a Yjs v1 update (the server's state, or a peer's change).
+    // Apply a Yjs v1 update (the server's state, or a peer's change). One
+    // that fails UpdateGuard's checks is refused before yrs reads it.
     bool applyUpdate(const QByteArray& update, QString* error = nullptr);
 
     // The whole document as a v1 update, and its state vector.

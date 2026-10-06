@@ -1,6 +1,7 @@
 #include "SyncDoc.h"
 
 #include "DocJsonDetail.h"
+#include "UpdateGuard.h"
 #include "WebModelWriter.h"
 
 #include "core/Map.h"
@@ -302,6 +303,11 @@ SyncDoc::~SyncDoc() {
 }
 
 bool SyncDoc::applyUpdate(const QByteArray& update, QString* error) {
+    // Checked before yrs sees it (UpdateGuard.h); a refused update changes nothing.
+    if (const QString refused = guard::checkUpdate(update); !refused.isEmpty()) {
+        if (error) *error = QStringLiteral("refused the document update: %1").arg(refused);
+        return false;
+    }
     YTransaction* txn = ydoc_write_transaction(d_->doc, 0, nullptr);
     const uint8_t rc = ytransaction_apply(txn, update.constData(), static_cast<uint32_t>(update.size()));
     ytransaction_commit(txn);
@@ -318,6 +324,7 @@ QByteArray SyncDoc::encodeState() const {
 }
 
 QByteArray SyncDoc::diffSince(const QByteArray& sv) const {
+    if (!guard::checkStateVector(sv).isEmpty()) return encodeState();
     YTransaction* txn = ydoc_read_transaction(d_->doc);
     uint32_t len = 0;
     char* data = ytransaction_state_diff_v1(txn, sv.constData(), static_cast<uint32_t>(sv.size()), &len);

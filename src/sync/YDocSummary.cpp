@@ -1,5 +1,7 @@
 #include "YDocSummary.h"
 
+#include "UpdateGuard.h"
+
 extern "C" {
 #include "libyrs.h"
 }
@@ -44,6 +46,10 @@ std::optional<double> jsonField(const YOutput* o, const char* key) {
 }  // namespace
 
 std::optional<DocSummary> summarizeDoc(const QByteArray& update, QString* error) {
+    if (const QString refused = guard::checkUpdate(update); !refused.isEmpty()) {
+        if (error) *error = QStringLiteral("refused the document update: %1").arg(refused);
+        return std::nullopt;
+    }
     DocPtr doc(ydoc_new());
     // Root types must be declared before they can be read.
     Branch* meta = ymap(doc.get(), "meta");

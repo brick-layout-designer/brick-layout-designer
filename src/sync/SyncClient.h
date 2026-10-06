@@ -10,6 +10,11 @@
 // and local ones (SyncDoc::writeMap's result) sent with sendLocal. Lost
 // connections are retried with backoff; a revoked sign-in (1008) or a
 // deleted / no longer shared layout (4404) ends the session.
+//
+// An update that can't be read (damaged, or refused by UpdateGuard before
+// yrs sees it) is logged and dropped, never half applied, and the client
+// asks the server once for the whole layout again. If that can't be read
+// either, the session ends with kUnreadableUpdateCode.
 
 #include <QByteArray>
 #include <QObject>
@@ -49,13 +54,16 @@ public:
 
     // Retry backoff: `initial`, doubling up to `max`.
     void setReconnectDelays(std::chrono::milliseconds initial, std::chrono::milliseconds max);
+    // For tests: the largest message accepted (UpdateGuard's limit otherwise).
+    void setMaxMessageSize(quint64 bytes) { socket_.setMaxAllowedIncomingMessageSize(bytes); }
 
 signals:
     void statusChanged(bld::sync::SyncClient::Status status);
     // The document changed from the network; re-read it.
     void remoteChange();
     void awarenessReceived(const QByteArray& awarenessUpdate);
-    // The server ended the session for good (1008, 4404): no more retries.
+    // The server ended the session for good (1008, 4404), or the layout's
+    // updates can't be read (kUnreadableUpdateCode): no more retries.
     void closedForGood(int code, const QString& reason);
 
 private:
@@ -64,6 +72,7 @@ private:
     void onConnected();
     void onDisconnected();
     void onMessage(const QByteArray& message);
+    void unreadableUpdate(bool syncStep2, const QString& why);
     void send(const QByteArray& message);
 
     SyncDoc& doc_;
@@ -73,6 +82,10 @@ private:
     QString token_;
     Status status_ = Status::Offline;
     bool wantOpen_ = false;
+    // A full resync asked for after an unreadable update, not answered yet.
+    bool resyncAsked_ = false;
+    // The connection closed for a message over the size limit; once more ends the session.
+    bool closedForSize_ = false;
     std::chrono::milliseconds initialDelay_{ 1000 };
     std::chrono::milliseconds maxDelay_{ 30000 };
     std::chrono::milliseconds delay_{ 1000 };
