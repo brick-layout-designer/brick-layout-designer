@@ -248,7 +248,7 @@ git clone --recurse-submodules https://github.com/brick-layout-designer/brick-la
 cd brick-layout-designer
 cmake -S . -B build -G Ninja
 cmake --build build
-./build/src/app/bld_app        # Windows: build\src\app\bld_app.exe
+./build/src/app/brick-layout-designer   # Windows: build\src\app\brick-layout-designer.exe
 ```
 
 Forgot `--recurse-submodules`? Run `git submodule update --init` for the
