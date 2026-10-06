@@ -292,7 +292,7 @@ void MainWindow::pullModule(const QString& moduleId) {
             QMessageBox::warning(this, tr("Update from Module library"),
                                  tr("Couldn't update from the Module library: %1").arg(ServerLibrary::refusalText(r)));
         };
-        serverLibrary_->api().moduleSnapshot(libraryId, [this, moduleId, libraryId, latest, was, ask, failed](const QByteArray& bytes) {
+        serverLibrary_->api().moduleSnapshot(libraryId, [this, moduleId, libraryId, latest, was, ask](const QByteArray& bytes) {
             QString error;
             std::shared_ptr<core::Map> lib(sync::mapFromModuleSnapshot(bytes, &error).release());
             if (!lib) {

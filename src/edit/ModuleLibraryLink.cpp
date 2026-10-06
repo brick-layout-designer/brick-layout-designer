@@ -56,6 +56,7 @@ std::vector<const core::Brick*> refs(const LayerBatches& batches) {
 
 std::vector<const core::Brick*> refs(const std::vector<core::Brick>& bricks) {
     std::vector<const core::Brick*> out;
+    out.reserve(bricks.size());
     for (const auto& b : bricks) out.push_back(&b);
     return out;
 }
