@@ -148,7 +148,6 @@ void addBrickLayer(const core::LayerBrick& L, LayerSink& sink, parts::PartsLibra
     const bool displayHulls    = settings.value(QStringLiteral("view/brickHulls"), false).toBool()
                                  || L.hull.displayHulls;
     const bool displayElev     = settings.value(QStringLiteral("view/brickElevation"), false).toBool();
-    const bool displayElectric = settings.value(QStringLiteral("view/electricCircuits"), false).toBool();
     // Part number -> library key actually used (after the prefix fallback
     // below). Memoised so a map with many copies of an unresolved part
     // scans the library once per distinct part number, not once per brick.
@@ -366,31 +365,6 @@ void addBrickLayer(const core::LayerBrick& L, LayerSink& sink, parts::PartsLibra
                         centerPx.y() - bb.height() / 2.0);
             alt->setZValue(brick.altitude + 0.6);
             sink.add(alt);
-        }
-
-        // Electric circuits — draw a thin coloured line between each pair
-        // of connected connection points. We don't parse BrickLibrary's
-        // ElectricCircuit list; approximate by colouring each active
-        // LinkedTo connection. Cheap visual hint rather than upstream's
-        // polarity-aware rendering.
-        if (displayElectric && meta) {
-            for (const auto& c : brick.connections) {
-                if (c.linkedToId.isEmpty()) continue;
-                // Find the local position of this connection on this brick.
-                const auto& conns = meta->connections;
-                const int idx = &c - &brick.connections[0];
-                if (idx < 0 || idx >= conns.size()) continue;
-                const auto& cm = conns[idx];
-                const QPointF localPx(cm.position.x() * kPx, cm.position.y() * kPx);
-                auto* marker = new QGraphicsEllipseItem(
-                    localPx.x() - 2.5, localPx.y() - 2.5, 5.0, 5.0, item);
-                QPen ep(QColor(220, 140, 0));
-                ep.setWidthF(1.5);
-                ep.setCosmetic(true);
-                marker->setPen(ep);
-                marker->setBrush(QBrush(QColor(255, 200, 50, 160)));
-                marker->setZValue(999);
-            }
         }
 
         brickByGuid.insert(brick.guid, item);

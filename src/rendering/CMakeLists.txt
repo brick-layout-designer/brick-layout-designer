@@ -3,6 +3,8 @@ add_library(bld_rendering STATIC
     SceneBuilder.h
     SceneBuilderInternal.h
     SceneBuilderElectric.cpp
+    CircuitPath.cpp
+    CircuitPath.h
     SceneBuilderSidecar.cpp
     ModuleLabels.cpp
     ModuleLabels.h
