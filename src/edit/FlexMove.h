@@ -61,6 +61,20 @@ public:
     // the snap point if any.
     std::optional<QPointF> moveTo(QPointF mouseStuds, double reachStuds, bool snap = true);
 
+    // For the editor's calm snapping (ConnectionSnap / SnapFeel): the free
+    // connections the moving end may join (of its type, on bricks outside
+    // the chain), where the moving end is for a pointer at `mouseStuds`,
+    // and its type and world angle.
+    struct SnapTarget { QString key; QString type; QPointF world; double angle = 0.0; };
+    const std::vector<SnapTarget>& snapTargets();
+    QPointF endFor(QPointF mouseStuds) const;
+    QString endType();
+    double endAngle();
+    // Bend the chain so its end follows `mouseStuds`, or onto snapTargets()[target]
+    // (the end facing it). False when that target is out of the chain's
+    // reach (each hinge within its limit): the end then follows the pointer.
+    bool bendTo(QPointF mouseStuds, int target = -1);
+
     struct State { QString guid; float orientation = 0.0f; QRectF area; };
     // The chain's bricks (those the move changes) before the move and now.
     const std::vector<State>& initialState() const { return initial_; }

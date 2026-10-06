@@ -12,6 +12,9 @@
 #include "core/LayerGrid.h"
 #include "core/Ids.h"
 #include "core/Map.h"
+#include "edit/Connectivity.h"
+#include "edit/Sets.h"
+#include "parts/BrickPlacement.h"
 
 #include <gtest/gtest.h>
 
@@ -357,6 +360,118 @@ TEST_F(MapViewTest, ABendHandleOnTheFreeEndBendsTheWholeRun) {
     EXPECT_EQ(L.bricks[0].displayArea, before[0].displayArea) << "the other end stays";
     EXPECT_NE(L.bricks[3].orientation, before[3].orientation);
     EXPECT_EQ(L.groups.size(), 2u) << "still two sets";
+}
+
+namespace {
+
+// A brick layer holding one flex track set, selected, for the bend handle.
+void oneSelectedFlexSet(ui::MapView& view, QGraphicsScene& scene) {
+    auto map = std::make_unique<core::Map>();
+    auto layer = std::make_unique<core::LayerBrick>();
+    layer->guid = core::newBbmId();
+    map->layers().push_back(std::move(layer));
+    view.loadMap(std::move(map));
+    view.resize(800, 600);
+    view.addPartAtScenePos(QStringLiteral("flex.group"), QPointF(0, 0));
+    for (QGraphicsItem* it : brickItems(scene)) it->setSelected(true);
+}
+
+}  // namespace
+
+TEST_F(MapViewTest, ABendHandleKeepsItsScreenSizeAtEveryZoom) {
+    if (!parts_.metadata(QStringLiteral("flex.group")))
+        GTEST_SKIP() << "the BlueBrickParts library isn't checked out (run git submodule update --init)";
+    oneSelectedFlexSet(*view_, *view_->scene());
+    ASSERT_EQ(view_->bendHandlePositions().size(), 2u);
+    const double px = 8.0;  // SceneBuilder::kPixelsPerStud
+    // The left end's handle: grabbed from the side away from the other one.
+    const auto ends = view_->bendHandlePositions();
+    const int left = ends[0].x() < ends[1].x() ? 0 : 1;
+    const QPointF handle = ends[left] * px;
+    // Zoomed far out, as drawn, and far in: the same 9 px ring, grabbed
+    // within 12 px, frame after frame.
+    for (double zoom : { 0.25, 1.0, 6.0 }) {
+        view_->setTransform(QTransform::fromScale(zoom, zoom));
+        view_->centerOn(handle);
+        QCoreApplication::processEvents();
+        EXPECT_NEAR(view_->bendHandleRadiusScenePx() * zoom, 9.0, 1e-9) << "zoom " << zoom;
+        EXPECT_NEAR(view_->bendHandleRadiusScenePx(true) * zoom, 12.0, 1e-9) << "zoom " << zoom;
+        const QPoint at = view_->mapFromScene(handle);
+        EXPECT_EQ(view_->bendHandleAt(at + QPoint(-10, 0)), left) << "zoom " << zoom;
+        EXPECT_EQ(view_->bendHandleAt(at + QPoint(-16, 0)), -1) << "zoom " << zoom;
+    }
+}
+
+TEST_F(MapViewTest, BendingTheEndOntoTrackAtALargeAngleLinksIt) {
+    if (!parts_.metadata(QStringLiteral("flex.group")) || !parts_.metadata(QStringLiteral("2865.8")))
+        GTEST_SKIP() << "the BlueBrickParts library isn't checked out (run git submodule update --init)";
+    // A straight, six flex track sets, and a straight where the run ends
+    // when each set bends 8 degrees: 48 degrees in all.
+    const int sets = 6;
+    const float bend = 8.0f;
+    QPointF at(-1.95, 0.0);
+    float turn = 0.0f;
+    for (int k = 0; k < sets; ++k) {
+        core::Brick female, male;
+        female.partNumber = QStringLiteral("88492.8");
+        male.partNumber = QStringLiteral("88493.8");
+        female.orientation = turn;
+        parts::placement::placeByConnection(female, 0, at, parts_);
+        male.orientation = turn + bend;
+        parts::placement::placeByConnection(male, 1, parts::placement::connectionWorld(female, 1, parts_), parts_);
+        at = parts::placement::connectionWorld(male, 0, parts_);
+        turn += bend;
+    }
+    core::Brick target;
+    target.guid = core::newBbmId();
+    target.partNumber = QStringLiteral("2865.8");
+    target.orientation = turn;
+    parts::placement::placeByConnection(target, 0, at, parts_);
+    core::Brick start;
+    start.guid = core::newBbmId();
+    start.partNumber = QStringLiteral("2865.8");
+    parts::placement::placeByConnection(start, 1, QPointF(-1.95, 0.0), parts_);
+
+    auto map = std::make_unique<core::Map>();
+    auto layer = std::make_unique<core::LayerBrick>();
+    layer->guid = core::newBbmId();
+    layer->bricks.push_back(start);
+    for (int k = 0; k < sets; ++k) {
+        auto set = edit::expandSet(parts_, QStringLiteral("flex.group"), QPointF(4.0 * k, 0.0));
+        for (auto& b : set.bricks) layer->bricks.push_back(b);
+        for (auto& g : set.groups) layer->groups.push_back(g);
+    }
+    layer->bricks.push_back(target);
+    map->layers().push_back(std::move(layer));
+    edit::rebuildConnectivity(*map, parts_);
+    view_->loadMap(std::move(map));
+    view_->resize(800, 600);
+    const double px = 8.0;  // SceneBuilder::kPixelsPerStud
+    view_->centerOn(QPointF(12, -8) * px);
+    const auto& L = static_cast<const core::LayerBrick&>(*view_->currentMap()->layers().front());
+    const core::Brick& last = L.bricks[2 * sets];  // the last male half
+    ASSERT_TRUE(last.connections[0].linkedToId.isEmpty());
+    for (QGraphicsItem* it : brickItems(*view_->scene()))
+        if (it->data(ui::detail::kBrickDataGuid).toString() == L.bricks[1].guid) it->setSelected(true);
+    ASSERT_EQ(view_->bendHandlePositions().size(), 1u) << "one free end: the other is joined to the straight";
+    const QPointF handle = view_->bendHandlePositions().front();
+    EXPECT_NEAR(handle.x(), 4.0 * sets - 1.95, 0.01);
+
+    // Drag the handle over, with a wobbly hand, to just short of the target.
+    QWidget* vp = view_->viewport();
+    mouse(vp, QEvent::MouseButtonPress, view_->mapFromScene(handle * px), Qt::LeftButton);
+    const QPointF near = at + QPointF(-0.6, 0.4);
+    for (int i = 1; i <= 12; ++i) {
+        const double f = i / 12.0;
+        const QPointF wobble(0.25 * std::sin(i * 1.7), 0.25 * std::cos(i * 2.3));
+        mouse(vp, QEvent::MouseMove, view_->mapFromScene((handle + (near - handle) * f + wobble * f) * px), Qt::LeftButton);
+    }
+    mouse(vp, QEvent::MouseButtonRelease, view_->mapFromScene(near * px), Qt::NoButton);
+
+    EXPECT_EQ(view_->undoStack()->undoText(), QStringLiteral("Bend flex track"));
+    EXPECT_EQ(last.connections[0].linkedToId, L.bricks.back().connections[0].guid) << "the end joined the straight";
+    EXPECT_NEAR(last.orientation, turn, 2.0) << "facing the straight (the solver stops within about 2 degrees)";
+    EXPECT_EQ(L.bricks[1].connections[0].linkedToId, L.bricks[0].connections[1].guid) << "the run still holds on to the first straight";
 }
 
 TEST_F(MapViewTest, BudgetLimitationRefusesPartsOverTheirLimit) {

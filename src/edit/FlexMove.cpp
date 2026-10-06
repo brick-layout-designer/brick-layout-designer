@@ -143,6 +143,9 @@ struct FlexMove::Impl {
     core::Brick* grabbed = nullptr;
     int active = -1;    // the grabbed brick's connection that follows the mouse
     QPointF grabDelta;  // mouse - active connection, at the start
+    bool targetsFound = false;
+    std::vector<FlexMove::SnapTarget> targets;
+    std::vector<Conn> targetConns;
 
     Impl(core::LayerBrick& l, parts::PartsLibrary& p) : layer(l), lib(p) {}
 
@@ -317,8 +320,21 @@ struct FlexMove::Impl {
         if (useTwoTargets)
             secondaryTarget = target + rotateVector(lastBoneVector, targetConn.brick->orientation + angle(targetConn) + 180.0);
         status = Ccd::Processing;
-        constexpr double kPrecision = 0.1;  // studs
+        // BlueBrick's 0.1 stud; tighter when joining a connection, so the
+        // end also faces it (the second target sets its direction).
+        const double kPrecision = useTwoTargets ? 0.02 : 0.1;  // studs
         const int count = static_cast<int>(bones.size());
+        // Joining a connection: first the joint before the end goes where
+        // the end faces the connection (the second target), then the end
+        // swings onto it. BlueBrick took turns between the two, which often
+        // stopped at the position with the end a few degrees off.
+        if (useTwoTargets) {
+            Ccd second = Ccd::Processing;
+            for (int step = 0; step < 5000 && second == Ccd::Processing; ++step) {
+                second = solveCcd(bones, secondaryTarget.x(), -secondaryTarget.y(), kPrecision, count - 1);
+                place();
+            }
+        }
         for (int step = 0; step < 5000 && status == Ccd::Processing; ++step) {
             if (useTwoTargets) {
                 solveCcd(bones, secondaryTarget.x(), -secondaryTarget.y(), kPrecision, count - 1);
@@ -452,6 +468,48 @@ std::optional<QPointF> FlexMove::moveTo(QPointF mouseStuds, double reachStuds, b
     }
     d_->reach(mouseStuds, {});
     return std::nullopt;
+}
+
+const std::vector<FlexMove::SnapTarget>& FlexMove::snapTargets() {
+    if (d_->targetsFound) return d_->targets;
+    d_->targetsFound = true;
+    const Conn active = d_->conn(d_->grabbed, d_->active);
+    if (!d_->isFree(active)) return d_->targets;
+    const QString type = d_->type(active);
+    for (auto& b : d_->layer.bricks) {
+        if (std::find(d_->chainBricks.begin(), d_->chainBricks.end(), &b) != d_->chainBricks.end()) continue;
+        const auto* m = d_->metaOf(&b);
+        for (int i = 0; i < m->connections.size() && i < static_cast<int>(b.connections.size()); ++i) {
+            if (m->connections[i].type != type || !b.connections[i].linkedToId.isEmpty()) continue;
+            const Conn c = d_->conn(&b, i);
+            d_->targetConns.push_back(c);
+            d_->targets.push_back({ b.guid + QLatin1Char('#') + QString::number(i), type, d_->world(c),
+                                     b.orientation + m->connections[i].angleDegrees });
+        }
+    }
+    return d_->targets;
+}
+
+QPointF FlexMove::endFor(QPointF mouseStuds) const { return mouseStuds - d_->grabDelta; }
+QString FlexMove::endType() { return d_->type(d_->conn(d_->grabbed, d_->active)); }
+double FlexMove::endAngle() {
+    const Conn c = d_->conn(d_->grabbed, d_->active);
+    return d_->grabbed->orientation + d_->angle(c);
+}
+
+bool FlexMove::bendTo(QPointF mouseStuds, int target) {
+    const auto& targets = snapTargets();
+    if (target >= 0 && target < static_cast<int>(targets.size())) {
+        const Conn to = d_->targetConns[target];
+        const QPointF p = d_->world(to);
+        d_->reach(p, to);
+        // Joined only where the end really got: the links are made from
+        // positions (rebuildConnectivity, half a stud).
+        const QPointF miss = d_->world(d_->conn(d_->grabbed, d_->active)) - p;
+        if (std::hypot(miss.x(), miss.y()) <= 0.2) return true;
+    }
+    d_->reach(mouseStuds, {});
+    return false;
 }
 
 std::vector<FlexMove::State> FlexMove::currentState() const {
