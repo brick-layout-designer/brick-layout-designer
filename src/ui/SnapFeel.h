@@ -39,6 +39,8 @@
 namespace bld::ui::snapfeel {
 
 inline constexpr double kReachScreenPx = 14.0;
+// Reach for a finger (a coarse pointer), screen px.
+inline constexpr double kReachScreenPxCoarse = 28.0;
 inline constexpr double kMinReachStuds = 0.5;
 inline constexpr double kMaxReachStuds = 4.0;
 // Stay snapped until the connection is this many reaches away.
@@ -72,7 +74,8 @@ double strengthScale(Strength s);
 // Connection-snap reach in studs for a view showing `screenPxPerStud`
 // screen pixels per stud: the screen reach in studs, kept between the
 // limits, times the strength. 0 when snapping is off.
-double reachStuds(double screenPxPerStud, Strength strength = Strength::Gentle);
+// `coarse`: a finger is dragging (the bigger reach).
+double reachStuds(double screenPxPerStud, Strength strength = Strength::Gentle, bool coarse = false);
 
 // Candidates worth handing to pick(): those within this distance.
 inline double holdReach(double reach) { return reach * kHoldFactor; }

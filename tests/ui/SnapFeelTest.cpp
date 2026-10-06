@@ -27,6 +27,7 @@
 #include <QPointingDevice>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QUndoStack>
 
 #include <cmath>
 #include <memory>
@@ -75,6 +76,7 @@ TEST(SnapFeel, UsesTheSharedNumbers) {
     const QJsonObject c = vectors()[QLatin1String("constants")].toObject();
     using namespace snapfeel;
     EXPECT_EQ(kReachScreenPx, c[QLatin1String("reachScreenPx")].toDouble());
+    EXPECT_EQ(kReachScreenPxCoarse, c[QLatin1String("reachScreenPxCoarse")].toDouble());
     EXPECT_EQ(kMinReachStuds, c[QLatin1String("minReachStuds")].toDouble());
     EXPECT_EQ(kMaxReachStuds, c[QLatin1String("maxReachStuds")].toDouble());
     EXPECT_EQ(kHoldFactor, c[QLatin1String("holdFactor")].toDouble());
@@ -94,7 +96,8 @@ TEST(SnapFeel, UsesTheSharedNumbers) {
 TEST(SnapFeel, SharedReachCases) {
     for (const QJsonValue& v : vectors()[QLatin1String("reach")].toArray()) {
         const QJsonObject c = v.toObject();
-        EXPECT_NEAR(snapfeel::reachStuds(c[QLatin1String("pxPerStud")].toDouble(), strengthOf(c[QLatin1String("strength")])),
+        EXPECT_NEAR(snapfeel::reachStuds(c[QLatin1String("pxPerStud")].toDouble(), strengthOf(c[QLatin1String("strength")]),
+                                         c[QLatin1String("coarse")].toBool()),
                     c[QLatin1String("reach")].toDouble(), 1e-9)
             << c[QLatin1String("name")].toString().toStdString();
     }
@@ -722,4 +725,25 @@ TEST_F(SnapDragTest, LoosePartsPickedTogetherTurnAsOneByTouch) {
     const QPointF bEnd = parts::placement::connectionWorld(*b, 1, lib_.lib);
     EXPECT_NEAR(bEnd.x(), sc.p.x(), 1e-3);
     EXPECT_NEAR(bEnd.y(), sc.p.y(), 1e-3);
+}
+
+// A finger gets twice the reach (28 screen px): 1.5 studs off at 14 px a
+// stud snaps by touch, not by mouse.
+TEST_F(SnapDragTest, AFingerReachesFurtherThanTheMouse) {
+    static QPointingDevice* finger = QTest::createTouchDevice(QInputDevice::DeviceType::TouchScreen);
+    dragB({ 1.5 });
+    EXPECT_NEAR(bx(), 5.5, 0.1);  // the mouse: out of reach
+    view_->undoStack()->undo();
+    ASSERT_NEAR(bx(), 10.0, 1e-6);
+    QWidget* vp = view_->viewport();
+    const QPointF from(12, 1);
+    const QPointF to(12 - 4.5, 1);
+    QTest::touchEvent(vp, finger).press(0, screen(from));
+    for (int i = 1; i <= 20; ++i) {
+        QTest::touchEvent(vp, finger).move(0, screen(from + (to - from) * i / 20));
+        QTest::qWait(20);
+    }
+    EXPECT_TRUE(view_->connectionSnapShown());
+    QTest::touchEvent(vp, finger).release(0, screen(to));
+    EXPECT_NEAR(bx(), 4.0, 1e-6);
 }

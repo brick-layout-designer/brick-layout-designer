@@ -38,10 +38,10 @@ double wrap180(double deg) {
     return d;
 }
 
-double reachStuds(double screenPxPerStud, Strength strength) {
+double reachStuds(double screenPxPerStud, Strength strength, bool coarse) {
     const double scale = strengthScale(strength);
     if (scale <= 0.0) return 0.0;
-    const double raw = screenPxPerStud > 0.0 && std::isfinite(screenPxPerStud) ? kReachScreenPx / screenPxPerStud
+    const double raw = screenPxPerStud > 0.0 && std::isfinite(screenPxPerStud) ? (coarse ? kReachScreenPxCoarse : kReachScreenPx) / screenPxPerStud
                                                                                : kMaxReachStuds;
     return std::clamp(raw, kMinReachStuds, kMaxReachStuds) * scale;
 }

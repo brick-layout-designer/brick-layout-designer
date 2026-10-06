@@ -1,7 +1,8 @@
 {
-  "about": "Connection-snap feel cases both apps run (web editor/snapFeel.ts, desktop ui/SnapFeel.h). Same file in both repos: web apps/web/src/editor/test/fixtures/snap-vectors.json, desktop fixtures/snap-vectors.json. A candidate is {m: moving connection, t: target, d: studs apart, c: studs from the cursor, u: degrees it turns (absent = 0)}; an expected pick is \"m>t\" or null.",
+  "about": "Connection-snap feel cases both apps run (web editor/snapFeel.ts, desktop ui/SnapFeel.h). Same file in both repos: web apps/web/src/editor/test/fixtures/snap-vectors.json, desktop fixtures/snap-vectors.json. Reach cases may say coarse: true (a finger). A candidate is {m: moving connection, t: target, d: studs apart, c: studs from the cursor, u: degrees it turns (absent = 0)}; an expected pick is \"m>t\" or null.",
   "constants": {
     "reachScreenPx": 14,
+    "reachScreenPxCoarse": 28,
     "minReachStuds": 0.5,
     "maxReachStuds": 4,
     "holdFactor": 1.6,
@@ -23,7 +24,10 @@
     { "name": "strong is 1.6x", "pxPerStud": 14, "strength": "strong", "reach": 1.6 },
     { "name": "strong scales the clamped reach", "pxPerStud": 2, "strength": "strong", "reach": 6.4 },
     { "name": "off never snaps", "pxPerStud": 14, "strength": "off", "reach": 0 },
-    { "name": "no zoom known: the most", "pxPerStud": 0, "strength": "gentle", "reach": 4 }
+    { "name": "no zoom known: the most", "pxPerStud": 0, "strength": "gentle", "reach": 4 },
+    { "name": "a finger reaches twice as far", "pxPerStud": 14, "strength": "gentle", "coarse": true, "reach": 2 },
+    { "name": "a finger, zoomed out: still at most 4 studs", "pxPerStud": 4, "strength": "gentle", "coarse": true, "reach": 4 },
+    { "name": "a finger, strong", "pxPerStud": 28, "strength": "strong", "coarse": true, "reach": 1.6 }
   ],
   "pick": [
     { "name": "takes the nearest target within reach", "reach": 1, "lock": null,

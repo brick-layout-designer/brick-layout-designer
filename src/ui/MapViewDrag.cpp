@@ -252,7 +252,8 @@ double MapView::connectionSnapReachStuds() const {
     const double zoom = std::hypot(t.m11(), t.m12());
     const auto strength = snapfeel::strengthFromId(theme::PrefsStore::instance().prefs().connectionSnap)
                               .value_or(snapfeel::Strength::Gentle);
-    return snapfeel::reachStuds(zoom * studToPx(), strength);
+    // A finger (touch drags, touch part drops) gets the bigger reach.
+    return snapfeel::reachStuds(zoom * studToPx(), strength, coarsePointer_);
 }
 
 bool MapView::snapBypassed() const {

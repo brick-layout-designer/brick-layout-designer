@@ -122,6 +122,10 @@ public:
     // px at the current zoom, kept between 0.5 and 4 studs, scaled by the
     // Snap strength setting (SnapFeel.h).
     double connectionSnapReachStuds() const;
+    // The pointer dragging now is a finger (the bigger snap reach).
+    bool coarsePointer_ = false;
+    // Set while a touch is handed to the mouse handlers as mouse events.
+    bool touchAsMouse_ = false;
     // A connection snap is showing (the ring) during a drag.
     bool connectionSnapShown() const { return liveSnapActive_; }
     // Where it shows the ring (scene px).
