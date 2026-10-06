@@ -628,6 +628,32 @@ TEST_F(SnapDragTest, OnlyTheGrabbedEndSnaps) {
     EXPECT_NEAR(brick(QStringLiteral("A"))->orientation, 0, 1e-6);
 }
 
+// A joined run picked whole and grabbed by a part in its middle, whose ends
+// are both joined inside the run (the middle of a flex track run, its hinge
+// and rails all taken): the run's free end nearest the grab leads, so the
+// run still snaps. It used to lead with a joined end and never snap.
+TEST_F(SnapDragTest, ARunGrabbedInTheMiddleSnapsByItsFreeEnd) {
+    reload({ track(QStringLiteral("A"), 0), track(QStringLiteral("B"), 4), track(QStringLiteral("C"), 8),
+             track(QStringLiteral("D"), 20) },
+           QPointF(12, 1));
+    ASSERT_EQ(brick(QStringLiteral("B"))->connections.size(), 2u);
+    ASSERT_FALSE(brick(QStringLiteral("B"))->connections[0].linkedToId.isEmpty());
+    ASSERT_FALSE(brick(QStringLiteral("B"))->connections[1].linkedToId.isEmpty());
+    int picked = 0;
+    for (QGraphicsItem* it : view_->scene()->items()) {
+        if (!detail::isBrickItem(it)) continue;
+        const QString g = it->data(detail::kBrickDataGuid).toString();
+        const bool want = g != QLatin1String("D");
+        it->setSelected(want);
+        picked += want;
+    }
+    ASSERT_EQ(picked, 3);
+    // Grab B a little right of its middle: C's free right end (12, 1) comes to within 0.4 of D's (20, 1).
+    slowDrag(QPointF(6.5, 1), QPointF(6.5 + 8 - 0.4, 1));
+    EXPECT_NEAR(brick(QStringLiteral("C"))->displayArea.right(), 20, 1e-6);
+    EXPECT_NEAR(brick(QStringLiteral("A"))->displayArea.x(), 8, 1e-6);
+}
+
 // Far off the angle with a shaking hand: once joined the snap neither
 // flickers to another end nor lets go while inside the hold distance.
 class JitterTest : public SnapDragTest, public ::testing::WithParamInterface<std::tuple<double, bool>> {};

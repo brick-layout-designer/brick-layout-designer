@@ -200,8 +200,36 @@ void MapView::captureGrabAnchor(QPointF clickScenePos) {
     // The moving set: what captureDragStart took, else just this brick.
     QSet<QString> moving{ guid };
     for (const auto& s : dragStart_) moving.insert(s.guid);
-    const int idx = nearestConnectionIndex(*brick, parts_, clickStuds, linkKeys(*map_, moving));
+    const QSet<QString> keys = linkKeys(*map_, moving);
+    int idx = nearestConnectionIndex(*brick, parts_, clickStuds, keys);
     if (idx < 0) return;
+    // The grabbed part has no free end (a flex half in the middle of a
+    // picked run, its hinge and rail both joined to parts moving with it):
+    // the moving set's free end nearest the grab leads instead, as a
+    // BlueBrick group's own connection does. Without it the run never snapped.
+    if (idx < static_cast<int>(brick->connections.size()) && takenWhileMoving(brick->connections[idx].linkedToId, keys)) {
+        double best = std::numeric_limits<double>::max();
+        for (const auto& s : dragStart_) {
+            const core::Brick* other = findBrick(*map_, s.layerIndex, s.guid);
+            if (!other) continue;
+            auto meta = parts_.metadata(other->partNumber);
+            if (!meta) continue;
+            const QPointF centre = parts::placement::imageCentre(*other, parts_);
+            for (int i = 0; i < meta->connections.size(); ++i) {
+                if (meta->connections[i].type.isEmpty()) continue;
+                if (i < static_cast<int>(other->connections.size()) &&
+                    takenWhileMoving(other->connections[i].linkedToId, keys)) continue;
+                const QPointF d = centre + rotatePoint(meta->connections[i].position, other->orientation) - clickStuds;
+                const double sq = d.x() * d.x() + d.y() * d.y();
+                if (sq >= best) continue;
+                best = sq;
+                brick = other;
+                guid = s.guid;
+                li = s.layerIndex;
+                idx = i;
+            }
+        }
+    }
 
     grabBrickGuid_        = guid;
     grabBrickLayerIndex_  = li;

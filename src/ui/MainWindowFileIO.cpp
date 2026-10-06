@@ -232,21 +232,37 @@ void MainWindow::showLoadedMap(std::unique_ptr<core::Map> map, const QString& pa
 
 void MainWindow::makeSetsOfSetModules() {
     // Older builds wrapped a placed set (flex track, a train set...) in a
-    // module. A module that is still exactly that set becomes a real set
-    // again, BlueBrick's group, as one undo step.
+    // module, or left a flex track's two halves loose. A module that is
+    // still exactly that set, and halves still joined at their hinge,
+    // become a real set again, BlueBrick's group, as one undo step.
     auto* map = mapView_->currentMap();
     if (!map) return;
-    const auto sets = edit::findSetModules(*map, parts_);
+    auto sets = edit::findSetModules(*map, parts_);
+    const int fromModules = static_cast<int>(sets.size());
+    QSet<QString> taken;
+    for (const auto& s : sets)
+        for (auto it = s.parentOf.constBegin(); it != s.parentOf.constEnd(); ++it) taken.insert(it.key());
+    for (auto& s : edit::findLooseSets(*map, parts_, taken)) sets.push_back(std::move(s));
     if (sets.empty()) return;
+    const int loose = static_cast<int>(sets.size()) - fromModules;
     mapView_->undoStack()->push(edit::makeSetsCommand(*map, sets));
     modulesPanel_->setMap(map);
     QList<NoticeAction> actions;
-    actions << NoticeAction{ tr("Undo"), [this] { mapView_->undoStack()->undo(); } };
+    // On a live layout, undo goes through the shared document.
+    actions << NoticeAction{ tr("Undo"), [this] {
+                                if (live_ && live_->active()) live_->undo();
+                                else mapView_->undoStack()->undo();
+                            } };
     actions << NoticeAction{ tr("OK"), {} };
+    QStringList what;
+    if (fromModules > 0)
+        what << tr("%n set(s) such as flex track were kept as modules by an older version.", nullptr, fromModules);
+    if (loose > 0)
+        what << tr("%n flex track piece(s) had come apart into loose halves.", nullptr, loose);
     notices_->showNotice(QStringLiteral("sets-from-modules"), tr("Sets are sets again"),
-                         tr("%n set(s) such as flex track were kept as modules by an older version. They are now "
-                            "sets: each one selects, moves and counts as one part, as in BlueBrick. Undo puts the "
-                            "modules back.", nullptr, static_cast<int>(sets.size())),
+                         tr("%1 They are now sets: each one selects, moves and counts as one part, as in BlueBrick. "
+                            "Undo puts them back as they were.")
+                             .arg(what.join(QLatin1Char(' '))),
                          actions);
 }
 

@@ -252,11 +252,92 @@ std::vector<SetModule> findSetModules(const core::Map& map, parts::PartsLibrary&
     return out;
 }
 
+std::vector<SetModule> findLooseSets(const core::Map& map, parts::PartsLibrary& lib, const QSet<QString>& skip) {
+    std::vector<SetModule> out;
+    // The sets used whole, with their parts (upper case, sorted).
+    struct Kind {
+        QString key;
+        QStringList parts;
+    };
+    std::vector<Kind> kinds;
+    QSet<QString> setParts;
+    for (const QString& key : lib.keys()) {
+        const auto meta = lib.metadata(key);
+        if (!meta || meta->kind != parts::PartKind::Group || meta->canUngroup || meta->subparts.isEmpty()) continue;
+        const ExpandedSet set = expandSet(lib, key, QPointF(0, 0));
+        if (set.bricks.size() < 2) continue;
+        Kind k{ key, {} };
+        for (const auto& b : set.bricks) {
+            k.parts << b.partNumber.toUpper();
+            setParts.insert(b.partNumber.toUpper());
+        }
+        k.parts.sort();
+        kinds.push_back(std::move(k));
+    }
+    if (kinds.empty()) return out;
+    for (int li = 0; li < static_cast<int>(map.layers().size()); ++li) {
+        const auto* L = brickLayerAt(map, li);
+        if (!L) continue;
+        const auto loose = [&](const core::Brick& b) {
+            return b.myGroupId.isEmpty() && !skip.contains(b.guid) && setParts.contains(b.partNumber.toUpper());
+        };
+        // Loose set parts by their connections' ids.
+        QHash<QString, int> byConnection;
+        for (int i = 0; i < static_cast<int>(L->bricks.size()); ++i)
+            if (loose(L->bricks[i]))
+                for (const auto& c : L->bricks[i].connections)
+                    if (!c.guid.isEmpty()) byConnection.insert(c.guid, i);
+        std::vector<bool> seen(L->bricks.size(), false);
+        for (int i = 0; i < static_cast<int>(L->bricks.size()); ++i) {
+            if (seen[i] || !loose(L->bricks[i])) continue;
+            // The parts joined to it at hinges, and to those, and so on.
+            std::vector<int> joined{ i };
+            seen[i] = true;
+            for (size_t n = 0; n < joined.size() && joined.size() <= 16; ++n) {
+                const core::Brick& b = L->bricks[joined[n]];
+                const auto meta = lib.metadata(b.partNumber);
+                if (!meta) continue;
+                const int count = std::min(static_cast<int>(meta->connections.size()), static_cast<int>(b.connections.size()));
+                for (int c = 0; c < count; ++c) {
+                    if (connectionHingeAngle(meta->connections[c].type) <= 0.0f) continue;
+                    const int j = byConnection.value(b.connections[c].linkedToId, -1);
+                    if (j < 0 || seen[j]) continue;
+                    seen[j] = true;
+                    joined.push_back(j);
+                }
+            }
+            if (joined.size() < 2) continue;
+            std::vector<const core::Brick*> members;
+            QStringList have;
+            for (int j : joined) {
+                members.push_back(&L->bricks[j]);
+                have << L->bricks[j].partNumber.toUpper();
+            }
+            have.sort();
+            for (const Kind& k : kinds) {
+                if (k.parts != have) continue;
+                const ExpandedSet set = expandSet(lib, k.key, QPointF(0, 0));
+                const auto pick = matchByJoints(lib, set.bricks, members);
+                if (!pick) continue;
+                SetModule found;
+                found.setKey = k.key;
+                found.layerIndex = li;
+                found.groups = set.groups;
+                for (size_t l = 0; l < set.bricks.size(); ++l)
+                    found.parentOf.insert(members[(*pick)[l]]->guid, set.bricks[l].myGroupId);
+                out.push_back(std::move(found));
+                break;
+            }
+        }
+    }
+    return out;
+}
+
 QUndoCommand* makeSetsCommand(core::Map& map, const std::vector<SetModule>& sets) {
     auto* parent = new QUndoCommand(QObject::tr("Make %n set(s) of their modules", nullptr, static_cast<int>(sets.size())));
     QHash<int, std::pair<Grouping, Grouping>> byLayer;
     for (const SetModule& s : sets) {
-        new DeleteModuleCommand(map, s.moduleId, parent);
+        if (!s.moduleId.isEmpty()) new DeleteModuleCommand(map, s.moduleId, parent);
         auto it = byLayer.find(s.layerIndex);
         if (it == byLayer.end()) {
             const Grouping g = captureGrouping(map, s.layerIndex);
