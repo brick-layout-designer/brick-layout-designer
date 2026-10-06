@@ -7,15 +7,21 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QPushButton>
+#include <QVBoxLayout>
+
+#include <algorithm>
 
 namespace bld::ui {
 
 ModuleEditBar::ModuleEditBar(QWidget* parent) : QWidget(parent) {
     setObjectName(QStringLiteral("ModuleEditBar"));
     setAccessibleName(tr("Edit module"));
-    auto* row = new QHBoxLayout(this);
-    row->setContentsMargins(16, 6, 6, 6);
+    auto* col = new QVBoxLayout(this);
+    col->setContentsMargins(16, 6, 6, 6);
+    col->setSpacing(2);
+    auto* row = new QHBoxLayout();
     row->setSpacing(10);
+    col->addLayout(row);
     text_ = new QLabel(this);
     text_->setObjectName(QStringLiteral("moduleEditText"));
     text_->setTextFormat(Qt::RichText);
@@ -36,6 +42,26 @@ ModuleEditBar::ModuleEditBar(QWidget* parent) : QWidget(parent) {
     done_->setFocusPolicy(Qt::NoFocus);
     row->addWidget(done_);
     connect(done_, &QPushButton::clicked, this, &ModuleEditBar::done);
+
+    sheetsRow_ = new QWidget(this);
+    auto* sheetsRow = new QHBoxLayout(sheetsRow_);
+    sheetsRow->setContentsMargins(0, 0, 0, 0);
+    sheetsRow->setSpacing(6);
+    sheets_ = new QLabel(sheetsRow_);
+    sheets_->setObjectName(QStringLiteral("moduleEditSheets"));
+    sheets_->setTextFormat(Qt::RichText);
+    sheets_->setFont(small);
+    sheets_->setForegroundRole(QPalette::PlaceholderText);
+    sheetsRow->addWidget(sheets_);
+    showSheets_ = new QPushButton(sheetsRow_);
+    showSheets_->setObjectName(QStringLiteral("moduleEditShowSheets"));
+    showSheets_->setFlat(true);
+    showSheets_->setFocusPolicy(Qt::NoFocus);
+    sheetsRow->addWidget(showSheets_);
+    sheetsRow->addStretch(1);
+    connect(showSheets_, &QPushButton::clicked, this, &ModuleEditBar::showHiddenSheets);
+    sheetsRow_->hide();
+    col->addWidget(sheetsRow_);
     hide();
 }
 
@@ -49,6 +75,16 @@ void ModuleEditBar::setOthers(const QString& text) {
     others_->setVisible(!text.isEmpty());
     adjustSize();
 }
+
+void ModuleEditBar::setSheetsHint(const QString& text, const QString& showLabel) {
+    sheets_->setText(text);
+    showSheets_->setText(showLabel);
+    showSheets_->setVisible(!showLabel.isEmpty());
+    sheetsRow_->setVisible(!text.isEmpty());
+    adjustSize();
+}
+
+QString ModuleEditBar::sheetsHint() const { return sheetsRow_->isHidden() ? QString() : sheets_->text(); }
 
 QString ModuleEditBar::text() const { return text_->text(); }
 QString ModuleEditBar::others() const { return others_->isHidden() ? QString() : others_->text(); }
@@ -65,7 +101,9 @@ void ModuleEditBar::paintEvent(QPaintEvent*) {
     p.setRenderHint(QPainter::Antialiasing, true);
     QPainterPath path;
     const QRectF r = QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5);
-    path.addRoundedRect(r, r.height() / 2, r.height() / 2);
+    // A pill on one line; rounded corners when the sheets line shows too.
+    const double radius = std::min(r.height() / 2, 18.0);
+    path.addRoundedRect(r, radius, radius);
     QColor fill = palette().color(QPalette::Window);
     fill.setAlpha(242);
     p.fillPath(path, fill);

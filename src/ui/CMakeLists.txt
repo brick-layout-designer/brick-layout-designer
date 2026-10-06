@@ -58,6 +58,8 @@ add_library(bld_ui STATIC
     ModulesPanel.cpp
     ModulesPanel.h
     ModuleLookDialog.cpp
+    SheetChoiceDialog.cpp
+    SheetChoiceDialog.h
     ModuleLookDialog.h
     ModuleEditBar.cpp
     ModuleEditBar.h

@@ -3,6 +3,8 @@ add_library(bld_edit STATIC
     EditCommands.h
     ModuleCommands.cpp
     ModuleCommands.h
+    ModuleSheets.cpp
+    ModuleSheets.h
     LabelCommands.cpp
     LabelCommands.h
     TextCommands.cpp

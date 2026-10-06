@@ -2,8 +2,11 @@
 #include "ConfirmDialog.h"
 #include "ReturnWording.h"
 #include "ServerLibrary.h"
+#include "help/HelpButton.h"
 
 #include <QButtonGroup>
+#include <QCheckBox>
+#include <QHBoxLayout>
 #include <QComboBox>
 #include <QDialogButtonBox>
 #include <QFormLayout>
@@ -80,6 +83,26 @@ SaveModuleDialog::SaveModuleDialog(ServerLibrary& library, const QString& defaul
     noteForm->addRow(tr("What changed? (optional)"), note_);
     col->addLayout(noteForm);
 
+    // The module's sheets (setSheets): shown only with two or more.
+    sheetsBox_ = new QWidget(this);
+    sheetsBox_->setObjectName(QStringLiteral("saveModuleSheets"));
+    auto* sheetsCol = new QVBoxLayout(sheetsBox_);
+    sheetsCol->setContentsMargins(0, 0, 0, 0);
+    auto* sheetsRow = new QHBoxLayout();
+    sheetsLabel_ = new QLabel(sheetsBox_);
+    sheetsLabel_->setObjectName(QStringLiteral("saveModuleSheetsText"));
+    sheetsLabel_->setWordWrap(true);
+    sheetsLabel_->setTextFormat(Qt::RichText);
+    sheetsRow->addWidget(sheetsLabel_, 1);
+    sheetsRow->addWidget(new help::HelpButton(QStringLiteral("module.sheets"), sheetsBox_));
+    sheetsCol->addLayout(sheetsRow);
+    oneSheet_ = new QCheckBox(tr("Put everything on one sheet"), sheetsBox_);
+    oneSheet_->setObjectName(QStringLiteral("saveModuleOneSheet"));
+    sheetsCol->addWidget(oneSheet_);
+    sheetsBox_->setVisible(false);
+    col->addWidget(sheetsBox_);
+    connect(oneSheet_, &QCheckBox::toggled, this, &SaveModuleDialog::showSheets);
+
     error_ = new QLabel(this);
     error_->setObjectName(QStringLiteral("saveModuleError"));
     error_->setProperty("danger", true);
@@ -116,8 +139,25 @@ void SaveModuleDialog::showMode() {
     error_->setVisible(false);
 }
 
+void SaveModuleDialog::setSheets(const QStringList& names, const QString& oneSheetName) {
+    sheets_ = names;
+    oneSheetName_ = oneSheetName;
+    sheetsBox_->setVisible(names.size() > 1);
+    showSheets();
+    adjustSize();
+}
+
+void SaveModuleDialog::showSheets() {
+    QStringList shown;
+    for (const QString& n : sheets_) shown << (n.isEmpty() ? tr("untitled") : n).toHtmlEscaped();
+    sheetsLabel_->setText(oneSheet_->isChecked()
+                              ? tr("All its parts go on one sheet: <b>%1</b>.").arg(oneSheetName_.toHtmlEscaped())
+                              : tr("This module uses %1 sheets: <b>%2</b>.").arg(sheets_.size()).arg(shown.join(QStringLiteral(", "))));
+}
+
 SaveModuleDialog::Choice SaveModuleDialog::choice() const {
     Choice c;
+    c.oneSheet = sheets_.size() > 1 && oneSheet_->isChecked();
     if (update_->isChecked()) {
         if (QListWidgetItem* it = targets_->currentItem()) c.updateId = it->data(Qt::UserRole).toString();
     } else {

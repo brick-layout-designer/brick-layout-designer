@@ -1,4 +1,5 @@
 #include "ModulesPanel.h"
+#include "../edit/ModuleSheets.h"
 
 #include "../core/Map.h"
 #include "../core/Module.h"
@@ -193,12 +194,16 @@ void ModulesPanel::setMap(const core::Map* map) {
         if (!m.sourceFile.isEmpty()) {
             suffix = QStringLiteral(" — %1").arg(QFileInfo(m.sourceFile).fileName());
         }
+        // Some or all of its parts on hidden sheets: says so.
+        const QString hidden = edit::hiddenSheetsNote(edit::moduleSheetsUsed(*map, m.memberIds));
         auto* item = new QListWidgetItem(
-            QStringLiteral("%1 (%2 members%3)%4")
+            QStringLiteral("%1 (%2 members%3)%4%5")
                 .arg(m.name.isEmpty() ? tr("[unnamed]") : m.name)
                 .arg(m.memberIds.size())
                 .arg(suffix)
-                .arg(m.pinned ? QStringLiteral(" 📌") : QString()));
+                .arg(m.pinned ? QStringLiteral(" 📌") : QString())
+                .arg(hidden.isEmpty() ? QString() : QStringLiteral(" — %1").arg(hidden)));
+        item->setData(Qt::UserRole + 7, hidden);
         item->setToolTip(m.id);
         if (!m.outlineColor.isEmpty() || !m.nameColor.isEmpty()) {
             QPixmap dot(12, 12);

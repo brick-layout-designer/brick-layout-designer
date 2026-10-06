@@ -1,4 +1,5 @@
 #include "MainWindow.h"
+#include "SheetChoiceDialog.h"
 #include "LoadingCard.h"
 
 #include "LayerPanel.h"
@@ -822,6 +823,14 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
     connect(mapView_, &MapView::layersChanged, this, [this]{
         layerPanel_->setMap(mapView_->currentMap(), mapView_->builder());
     });
+    // A sheet shown or hidden: the Modules panel says which modules have
+    // hidden parts, and the Edit module bar what's hidden; a new picked
+    // sheet changes where the bar says new parts go.
+    connect(layerPanel_, &LayerPanel::layerVisibilityChanged, this, [this] {
+        modulesPanel_->setMap(mapView_->currentMap());
+        mapView_->refreshModuleEditBar();
+    });
+    connect(layerPanel_, &LayerPanel::activeLayerChanged, this, [this] { mapView_->refreshModuleEditBar(); });
 
     // Auto-save: 60s tick, writes to AppDataLocation/autosave.bld-layout whenever
     // the undo stack is dirty. Cheap enough to run unconditionally; the
@@ -969,6 +978,7 @@ void MainWindow::onSaveSelectionAsModule() {
         saveModuleToServer(module, static_cast<int>(picks.size()));
         return;
     }
+    if (!SheetChoiceDialog::askModuleSheets(this, module)) return;
     saveModuleLocally(module, static_cast<int>(picks.size()));
 }
 
@@ -1175,6 +1185,7 @@ void MainWindow::onImportModuleFromLibraryPath(const QString& bbmPath) {
     int total = 0;
     for (const auto& b : batches) total += static_cast<int>(b.bricks.size());
     const QString name = QFileInfo(bbmPath).baseName();
+    if (!SheetChoiceDialog::choose(this, *map, name, batches)) return;
     mapView_->undoStack()->push(new edit::ImportBbmAsModuleCommand(
         *map, bbmPath, name, std::move(batches)));
     modulesPanel_->setMap(map);
@@ -1205,6 +1216,7 @@ void MainWindow::onImportBbmAsModule() {
     int imported = 0;
     for (const auto& b : batches) imported += static_cast<int>(b.bricks.size());
     const QString name = QFileInfo(path).baseName();
+    if (!SheetChoiceDialog::choose(this, *map, name, batches)) return;
     mapView_->undoStack()->push(new edit::ImportBbmAsModuleCommand(
         *map, path, name, std::move(batches)));
     modulesPanel_->setMap(map);

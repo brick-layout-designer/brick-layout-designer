@@ -250,6 +250,7 @@ protected:
         setStrength(QStringLiteral("gentle"));
         auto map = std::make_unique<core::Map>();
         auto layer = std::make_unique<core::LayerBrick>();
+        layer->name = QStringLiteral("Track");  // a module\'s sheet goes on the sheet named the same
         layer->guid = QStringLiteral("L");
         layer->bricks.push_back(track(QStringLiteral("A"), 0));
         layer->bricks.push_back(track(QStringLiteral("B"), 10));
@@ -275,6 +276,7 @@ protected:
     void reload(std::vector<core::Brick> bricks, QPointF centre) {
         auto map = std::make_unique<core::Map>();
         auto layer = std::make_unique<core::LayerBrick>();
+        layer->name = QStringLiteral("Track");  // a module\'s sheet goes on the sheet named the same
         layer->guid = QStringLiteral("L");
         layer->bricks = std::move(bricks);
         map->layers().push_back(std::move(layer));
@@ -420,6 +422,7 @@ TEST_F(SnapDragTest, ANewPartSnapsWithinTheReach) {
 TEST_F(SnapDragTest, AModuleSnapsWithinTheReach) {
     core::Map module;
     auto layer = std::make_unique<core::LayerBrick>();
+    layer->name = QStringLiteral("Track");  // a module\'s sheet goes on the sheet named the same
     layer->bricks.push_back(track(QString(), 0));
     module.layers().push_back(std::move(layer));
     // Centre at x 6.7: its left end is 0.7 studs from A's right end.
@@ -472,6 +475,7 @@ TEST(ConnectionSnap, LinksToTheMovingSetDontHoldWhileDragging) {
     TrackLibrary lib;
     core::Map map;
     auto layer = std::make_unique<core::LayerBrick>();
+    layer->name = QStringLiteral("Track");  // a module\'s sheet goes on the sheet named the same
     core::Brick a = track(QStringLiteral("A"), 0);
     core::Brick b = track(QStringLiteral("B"), 4);
     a.connections.resize(2);
@@ -682,6 +686,7 @@ TEST_F(SnapDragTest, AModuleTurnsAsOneToJoin) {
     reload({ curveAt(QStringLiteral("C"), sc.c, sc.oc) }, sc.p);
     core::Map module;
     auto layer = std::make_unique<core::LayerBrick>();
+    layer->name = QStringLiteral("Track");  // a module\'s sheet goes on the sheet named the same
     layer->bricks.push_back(curveAt(QString(), sc.a, 0));
     layer->bricks.push_back(curveAt(QString(), sc.b, 22.5));
     module.layers().push_back(std::move(layer));

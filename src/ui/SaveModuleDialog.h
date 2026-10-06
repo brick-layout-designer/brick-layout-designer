@@ -12,10 +12,12 @@
 #include <QDialog>
 
 #include <QList>
+#include <QStringList>
 #include <QString>
 #include <functional>
 
 class QButtonGroup;
+class QCheckBox;
 class QComboBox;
 class QLabel;
 class QLineEdit;
@@ -35,12 +37,17 @@ public:
         QString orgSlug;   // a new module's club; empty: you
         QString updateId;  // the module a new version is saved over; empty: a new module
         QString note;      // "What changed?"
+        bool oneSheet = false;  // "Put everything on one sheet"
     };
 
     // `defaultOwner`: the club slug to offer first (the layout's), else you.
     SaveModuleDialog(ServerLibrary& library, const QString& defaultOwner, QWidget* parent = nullptr);
 
     Choice choice() const;
+    // The module's sheets: with two or more, the dialog says "This module
+    // uses 2 sheets: Track, Buildings" and offers "Put everything on one
+    // sheet" (named `oneSheetName`).
+    void setSheets(const QStringList& names, const QString& oneSheetName);
     // Fill in and press Save (tests).
     QLineEdit* nameEdit() const { return name_; }
     QComboBox* saveTo() const { return saveTo_; }
@@ -48,6 +55,9 @@ public:
     QListWidget* targets() const { return targets_; }
     QLineEdit* noteEdit() const { return note_; }
     QLabel* error() const { return error_; }
+    QWidget* sheetsBox() const { return sheetsBox_; }
+    QLabel* sheetsLabel() const { return sheetsLabel_; }
+    QCheckBox* oneSheetBox() const { return oneSheet_; }
 
     // The "Save to" entry that keeps the module on this computer.
     static constexpr const char* kThisComputer = "\x01local";
@@ -70,6 +80,12 @@ private:
     QListWidget* targets_ = nullptr;
     QLineEdit* note_ = nullptr;
     QLabel* error_ = nullptr;
+    QWidget* sheetsBox_ = nullptr;
+    QLabel* sheetsLabel_ = nullptr;
+    QCheckBox* oneSheet_ = nullptr;
+    QStringList sheets_;
+    QString oneSheetName_;
+    void showSheets();
 };
 
 }  // namespace bld::ui

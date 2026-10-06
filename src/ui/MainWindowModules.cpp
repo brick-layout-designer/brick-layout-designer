@@ -15,6 +15,7 @@
 #include "../edit/ModuleCommands.h"
 #include "NoticeArea.h"
 #include "SaveModuleDialog.h"
+#include "../edit/ModuleSheets.h"
 #include "ServerLibrary.h"
 #include "VenueLibraryPanel.h"
 #include "../import/LayoutSource.h"
@@ -372,6 +373,8 @@ void MainWindow::openServerModule(const QString& moduleId) {
             QMessageBox::warning(this, tr("Open module"), tr("“%1” couldn't be read (%2).").arg(title, error));
             return;
         }
+        // Sheets an older web build saved see-through come back solid.
+        edit::repairModuleSheets(*map);
         forgetFileSource();
         // The module replaces the live layout here: leave the server session.
         if (live_ && live_->active()) {
@@ -454,8 +457,11 @@ bool MainWindow::saveEditedModule() {
 
 void MainWindow::saveModuleToServer(core::Map& module, int partCount) {
     SaveModuleDialog dialog(*serverLibrary_, QString(), this);
+    // "This module uses 2 sheets: …", and the name "one sheet" would take.
+    dialog.setSheets(edit::moduleSheetNames(module), edit::oneSheetName(module));
     if (dialog.exec() != QDialog::Accepted) return;
     const SaveModuleDialog::Choice c = dialog.choice();
+    if (c.oneSheet) edit::putOnOneSheet(module);
     if (c.onThisComputer) {
         saveModuleLocally(module, partCount, c.title);
         return;

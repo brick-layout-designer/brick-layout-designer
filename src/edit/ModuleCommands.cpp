@@ -1,4 +1,5 @@
 #include "ModuleCommands.h"
+#include "ModuleSheets.h"
 
 #include "../core/Groups.h"
 
@@ -483,69 +484,68 @@ ImportBbmAsModuleCommand::ImportBbmAsModuleCommand(core::Map& map, int targetLay
 }
 
 namespace {
-int findBrickLayerByName(core::Map& map, const QString& name) {
+int findBrickLayerByGuid(core::Map& map, const QString& guid) {
+    if (guid.isEmpty()) return -1;
     for (int i = 0; i < static_cast<int>(map.layers().size()); ++i) {
         auto* L = map.layers()[i].get();
-        if (L && L->kind() == core::LayerKind::Brick && L->name == name) return i;
+        if (L && L->kind() == core::LayerKind::Brick && L->guid == guid) return i;
     }
     return -1;
 }
 }
 
 void ImportBbmAsModuleCommand::redo() {
-    // First redo: resolve each batch's target layer (matching by name,
-    // creating a new brick layer when no match exists), then insert
-    // bricks. Subsequent redos (after an undo) replay the same
-    // resolution captured in applied_ so the user gets the same layer
-    // set every time.
+    // First redo: resolve each batch's target layer (the brick layer with
+    // the same name; else the one the person chose; else a new brick
+    // layer with the batch's name), then insert bricks. Later redos
+    // (after an undo) replay the same resolution captured in applied_
+    // (one entry per batch, in order) so the layer set is the same every time.
     if (!captured_) {
         applied_.clear();
         for (auto& batch : batches_) {
             AppliedLayer a;
             a.layerName = batch.layerName;
-            int idx = findBrickLayerByName(map_, batch.layerName);
+            int idx = findPartsSheet(map_, a.layerName);
+            if (idx < 0) idx = findBrickLayerByGuid(map_, batch.targetLayerGuid);
             if (idx < 0) {
                 auto L = std::make_unique<core::LayerBrick>();
                 L->guid = core::newBbmId();
-                L->name = batch.layerName.isEmpty() ? QStringLiteral("Module") : batch.layerName;
+                L->name = a.layerName.isEmpty() ? QStringLiteral("Module") : a.layerName;
                 idx = static_cast<int>(map_.layers().size());
                 map_.layers().push_back(std::move(L));
                 a.wasCreated = true;
             }
             a.layerIndex = idx;
+            a.layerGuid = map_.layers()[idx]->guid;
             auto* BL = brickLayer(map_, idx);
-            if (!BL) continue;
             for (auto& b : batch.bricks) {
                 if (b.guid.isEmpty()) b.guid = core::newBbmId();
                 a.addedGuids.append(b.guid);
-                BL->bricks.push_back(b);
+                if (BL) BL->bricks.push_back(b);
             }
-            for (const auto& g : batch.groups) BL->groups.push_back(g);
+            if (BL)
+                for (const auto& g : batch.groups) BL->groups.push_back(g);
             applied_.push_back(std::move(a));
         }
         captured_ = true;
     } else {
         // Re-apply: recreate any layers we had created, re-insert bricks.
-        for (auto& a : applied_) {
+        for (std::size_t i = 0; i < applied_.size() && i < batches_.size(); ++i) {
+            auto& a = applied_[i];
             if (a.wasCreated) {
                 auto L = std::make_unique<core::LayerBrick>();
-                L->guid = core::newBbmId();
+                L->guid = a.layerGuid.isEmpty() ? core::newBbmId() : a.layerGuid;
                 L->name = a.layerName.isEmpty() ? QStringLiteral("Module") : a.layerName;
                 a.layerIndex = static_cast<int>(map_.layers().size());
                 map_.layers().push_back(std::move(L));
             } else {
-                a.layerIndex = findBrickLayerByName(map_, a.layerName);
+                a.layerIndex = findBrickLayerByGuid(map_, a.layerGuid);
+                if (a.layerIndex < 0) a.layerIndex = findPartsSheet(map_, a.layerName);
             }
             auto* BL = brickLayer(map_, a.layerIndex);
             if (!BL) continue;
-            // Find the matching batch and re-insert its bricks (with the
-            // guids we already assigned on first redo).
-            for (auto& batch : batches_) {
-                if (batch.layerName != a.layerName) continue;
-                for (const auto& b : batch.bricks) BL->bricks.push_back(b);
-                for (const auto& g : batch.groups) BL->groups.push_back(g);
-                break;
-            }
+            for (const auto& b : batches_[i].bricks) BL->bricks.push_back(b);
+            for (const auto& g : batches_[i].groups) BL->groups.push_back(g);
         }
     }
 
@@ -571,9 +571,9 @@ void ImportBbmAsModuleCommand::undo() {
                                [&](const core::Brick& b) { return toRemove.contains(b.guid); }),
                 BL->bricks.end());
             QSet<QString> groups;
-            for (const auto& batch : batches_)
-                if (batch.layerName == a.layerName)
-                    for (const auto& g : batch.groups) groups.insert(g.guid);
+            const std::size_t i = static_cast<std::size_t>(&a - applied_.data());
+            if (i < batches_.size())
+                for (const auto& g : batches_[i].groups) groups.insert(g.guid);
             BL->groups.erase(std::remove_if(BL->groups.begin(), BL->groups.end(),
                                             [&](const core::Group& g) { return groups.contains(g.guid); }),
                              BL->groups.end());

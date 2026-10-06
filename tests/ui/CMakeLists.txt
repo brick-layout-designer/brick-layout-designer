@@ -32,6 +32,7 @@ add_executable(bld_ui_tests
     SnapFeelTest.cpp
     ModuleLookTest.cpp
     ModuleEditTest.cpp
+    ModuleSheetsTest.cpp
     ConfirmDialogTest.cpp
 )
 

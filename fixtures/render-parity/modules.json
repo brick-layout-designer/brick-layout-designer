@@ -1,5 +1,5 @@
 {
-  "about": "Module frames and names as both apps draw them (web moduleLabels.ts, desktop rendering/ModuleLabels.cpp). Scene px at 8 px per stud; a name is charWidth x font px wide per character so fonts do not matter. A name is never longer than the side it sits on: it wraps to two lines, then shrinks (not under minFontPx), then is cut short with an ellipsis. Same file in both repos.",
+  "about": "Module frames and names as both apps draw them (web moduleLabels.ts, desktop rendering/ModuleLabels.cpp). Scene px at 8 px per stud; a name is charWidth x font px wide per character so fonts do not matter. A name is never longer than the side it sits on: it wraps to two lines, then shrinks (not under minFontPx), then is cut short with an ellipsis. A module with some parts on a hidden sheet frames only the parts that show, dashed with partlyHiddenFrameDash. Same file in both repos.",
   "charWidth": 0.6,
   "minFontPx": 16,
   "style": {
@@ -7,6 +7,10 @@
     "frameDash": [
       6,
       4
+    ],
+    "partlyHiddenFrameDash": [
+      2,
+      6
     ],
     "nameFill": "rgba(100,180,255,0.9)",
     "nameStroke": "rgba(0,0,0,0.6)",
