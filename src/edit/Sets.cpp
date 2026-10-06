@@ -20,8 +20,6 @@ namespace bld::edit {
 
 namespace {
 
-constexpr double kPi = 3.14159265358979323846;
-
 double normalised(double deg) {
     deg = std::fmod(deg, 360.0);
     if (deg > 180.0) deg -= 360.0;
