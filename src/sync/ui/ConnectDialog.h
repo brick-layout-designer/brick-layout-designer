@@ -87,6 +87,20 @@ public:
     void deleteSelected();
     void setConfirmDelete(std::function<bool(const QString& name, bool layout)> f) { confirmDelete_ = std::move(f); }
 
+    // The picked club layout or venue back to its author (the ⋯ button):
+    // "Take Back to Mine" (its author) or "Give Back to ‹author›" (`give`,
+    // the club's admins and managers), after asking. The club keeps a copy.
+    void returnSelected(bool give);
+    // How it asks (tests answer instead).
+    void setConfirmReturn(std::function<bool(const QString& name, const Credit& credit, bool give)> f) {
+        confirmReturn_ = std::move(f);
+    }
+    // Publish into a club asks first: the club will own it (tests answer instead).
+    void setConfirmSaveToClub(std::function<bool(const QString& club)> f) {
+        confirmSaveToClub_ = std::move(f);
+    }
+    QPushButton* moreButton() const { return moreBtn_; }
+
 private:
     void showMessage(const QString& text);
     // The server needs a newer app: say so, with a button to download it.
@@ -120,6 +134,9 @@ private:
     QString pendingLayout_;  // a recent layout to open once listed
     std::function<void()> manageServers_;
     std::function<bool(const QString&, bool)> confirmDelete_;
+    std::function<bool(const QString&, const Credit&, bool)> confirmReturn_;
+    std::function<bool(const QString&)> confirmSaveToClub_;
+    QString returning_; // the name being taken or given back
     void updateDeleteButton();
 
     QStackedWidget* pages_ = nullptr;
@@ -139,6 +156,7 @@ private:
     QTreeWidget* layouts_ = nullptr;
     QPushButton* openBtn_ = nullptr;
     QPushButton* deleteBtn_ = nullptr;
+    QPushButton* moreBtn_ = nullptr; // ⋯: Take back / Give back
     QString deleting_;  // the name being deleted
     QString afterList_; // said once the list comes back ("Deleted …")
     QByteArray publishBbm_, publishSidecar_;

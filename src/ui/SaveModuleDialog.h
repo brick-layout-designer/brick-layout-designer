@@ -10,8 +10,10 @@
 #include "../sync/LibraryApi.h"
 
 #include <QDialog>
+
 #include <QList>
 #include <QString>
+#include <functional>
 
 class QButtonGroup;
 class QComboBox;
@@ -50,8 +52,11 @@ public:
     // The "Save to" entry that keeps the module on this computer.
     static constexpr const char* kThisComputer = "\x01local";
 
-    // Save: checks the name (or the module picked) first.
+    // Save: checks the name (or the module picked) first, and asks before a
+    // new module goes straight into a club (the club will own it).
     void accept() override;
+    // How it asks about a club (tests answer instead).
+    std::function<bool(const QString& club)> confirmSaveToClub;
 
 private:
     void showMode();

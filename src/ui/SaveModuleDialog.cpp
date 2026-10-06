@@ -1,4 +1,6 @@
 #include "SaveModuleDialog.h"
+#include "ConfirmDialog.h"
+#include "ReturnWording.h"
 #include "ServerLibrary.h"
 
 #include <QButtonGroup>
@@ -97,6 +99,9 @@ SaveModuleDialog::SaveModuleDialog(ServerLibrary& library, const QString& defaul
     connect(saveTo_, &QComboBox::currentIndexChanged, this, &SaveModuleDialog::showMode);
     showMode();
     name_->setFocus();
+    confirmSaveToClub = [this](const QString& club) {
+        return ConfirmDialog::ask(this, saveToClubOptions(club));
+    };
 }
 
 void SaveModuleDialog::showMode() {
@@ -135,6 +140,9 @@ void SaveModuleDialog::accept() {
         error_->setVisible(true);
         return;
     }
+    if (c.updateId.isEmpty() && !c.onThisComputer && !c.orgSlug.isEmpty() && confirmSaveToClub
+        && !confirmSaveToClub(saveTo_->currentText()))
+        return;
     QDialog::accept();
 }
 

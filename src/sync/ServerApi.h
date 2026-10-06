@@ -6,6 +6,7 @@
 // each layout's live-sync socket address. The token it gets goes to
 // SyncClient; tokens only ever travel in the Authorization header.
 
+#include "Credit.h"
 #include <QDateTime>
 #include <QJsonObject>
 #include <QList>
@@ -77,6 +78,7 @@ struct LayoutEntry {
     QString   ownerOrgSlug;  // the club's slug; empty for personal layouts
     QString   role;          // owner / editor / viewer
     QDateTime updatedAt;
+    Credit credit; // who made it; Take back / Give back
 };
 
 struct VenueEntry {
@@ -85,6 +87,7 @@ struct VenueEntry {
     QString ownerOrgId;  // empty for personal venues
     QString ownerOrgName;  // the club's name (servers before owner tags: empty)
     QString ownerOrgSlug;  // the club's slug (servers before owner tags: empty)
+    Credit credit;         // who made it; Take back / Give back
 };
 
 struct OrgEntry {
@@ -133,6 +136,11 @@ public:
     // deleted(), or requestFailed("delete", …) with the server's reason.
     void deleteLayout(const QString& id);
     void deleteVenue(const QString& id);
+    // A club's layout or venue (`kindPath` "layouts" / "venues") back to its
+    // author: taken back by them, or given back (`give`) by the club's admins
+    // and managers. The club keeps its own copy. returned(id), or
+    // requestFailed("return", …) with the server's reason.
+    void returnToAuthor(const QString& kindPath, const QString& id, bool give);
 
     // The account's app settings (GET / PUT /api/me/preferences; token
     // scope layouts:read or account:prefs to read, account:prefs to save).
@@ -158,6 +166,7 @@ signals:
     void published(const QString& layoutId, const QString& title);
     void venueReady(const QString& id, const QString& name, const QByteArray& venueFile);
     void deleted(const QString& id);
+    void returned(const QString& id);
     void preferencesReady(const QJsonObject& prefs, const QDateTime& updatedAt);
     void preferencesSaved(const QJsonObject& prefs, const QDateTime& updatedAt);
     void signInCode(const bld::sync::DeviceCode& code);

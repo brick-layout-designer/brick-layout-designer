@@ -116,6 +116,17 @@ void ServerApi::deleteVenue(const QString& id) {
     deleteAt(QStringLiteral("/api/venues/") + QString::fromLatin1(QUrl::toPercentEncoding(id)), id);
 }
 
+void ServerApi::returnToAuthor(const QString& kindPath, const QString& id, bool give) {
+    QNetworkReply* r = post(QStringLiteral("/api/%1/%2/%3")
+                                .arg(kindPath, QString::fromLatin1(QUrl::toPercentEncoding(id)),
+                                     give ? QStringLiteral("give-back") : QStringLiteral("take-back")),
+                            QJsonObject());
+    connect(r, &QNetworkReply::finished, this, [this, r, id] {
+        r->deleteLater();
+        if (okJson(r, QStringLiteral("return"))) emit returned(id);
+    });
+}
+
 void ServerApi::fetchPreferences() {
     QNetworkReply* r = get(QStringLiteral("/api/me/preferences"));
     connect(r, &QNetworkReply::finished, this, [this, r] { onPreferencesReply(r, false); });
@@ -191,6 +202,7 @@ void ServerApi::fetchLayouts() {
                 e.ownerOrgSlug = owner.value(QLatin1String("slug")).toString(e.ownerOrgSlug);
             }
             e.role = l.value(QLatin1String("role")).toString();
+            e.credit = creditFromJson(l);
             const QJsonValue updated = l.value(QLatin1String("updatedAt"));
             e.updatedAt = updated.isDouble() ? QDateTime::fromMSecsSinceEpoch(static_cast<qint64>(updated.toDouble()))
                                              : QDateTime::fromString(updated.toString(), Qt::ISODateWithMs);
@@ -275,10 +287,12 @@ void ServerApi::fetchVenues() {
         QList<VenueEntry> out;
         for (const auto& v : o->value(QLatin1String("venues")).toArray()) {
             const QJsonObject e = v.toObject();
-            out << VenueEntry{ e.value(QLatin1String("id")).toString(), e.value(QLatin1String("name")).toString(),
+            out << VenueEntry{ e.value(QLatin1String("id")).toString(),
+                               e.value(QLatin1String("name")).toString(),
                                e.value(QLatin1String("ownerOrgId")).toString(),
                                e.value(QLatin1String("ownerOrgName")).toString(),
-                               e.value(QLatin1String("ownerOrgSlug")).toString() };
+                               e.value(QLatin1String("ownerOrgSlug")).toString(),
+                               creditFromJson(e) };
         }
         emit venuesReady(out);
     });

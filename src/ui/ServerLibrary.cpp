@@ -1,5 +1,6 @@
 #include "ServerLibrary.h"
 #include "ConfirmDialog.h"
+#include "ReturnWording.h"
 
 #include "../sync/ServerList.h"
 
@@ -342,6 +343,9 @@ ServerModulesTab::ServerModulesTab(ServerLibrary& library, QWidget* parent) : QW
     confirmDelete = [this](const sync::ServerModule& m) {
         return ConfirmDialog::confirmDelete(this, m.title, ConfirmDialog::moduleWording());
     };
+    confirmReturn = [this](const sync::ServerModule& m, bool give) {
+        return ConfirmDialog::ask(this, returnOptions(tr("module"), m.title, m.credit, give));
+    };
 
     connect(filter_, &QLineEdit::textChanged, this, &ServerModulesTab::rebuild);
     connect(&library_, &ServerLibrary::changed, this, &ServerModulesTab::rebuild);
@@ -432,6 +436,12 @@ QWidget* ServerModulesTab::makeRow(const sync::ServerModule& m) {
     auto* subtitle = mutedLabel(sub, frame);
     subtitle->setObjectName(QStringLiteral("rowSubtitle"));
     text->addWidget(subtitle);
+    // "by Sam · in ArkLUG · based on Yard by Sam".
+    if (const QString credit = sync::creditLine(m.credit); !credit.isEmpty()) {
+        auto* by = mutedLabel(credit, frame);
+        by->setObjectName(QStringLiteral("rowCredit"));
+        text->addWidget(by);
+    }
     h->addLayout(text, 1);
 
     if (m.id == library_.editingModule()) {
@@ -468,6 +478,18 @@ QWidget* ServerModulesTab::makeRow(const sync::ServerModule& m) {
     QAction* ren = menu->addAction(tr("Rename…"));
     ren->setObjectName(QStringLiteral("renameModule"));
     connect(ren, &QAction::triggered, this, [this, id] { rename(id); });
+    if (m.credit.canTakeBack) {
+        QAction* take = menu->addAction(tr("Take Back to Mine…"));
+        take->setObjectName(QStringLiteral("takeBackModule"));
+        take->setToolTip(tr("It becomes yours again; the club keeps its own copy, credited to you."));
+        connect(take, &QAction::triggered, this, [this, id] { giveOrTakeBack(id, false); });
+    }
+    if (m.credit.canGiveBack) {
+        QAction* give = menu->addAction(tr("Give Back to %1…").arg(m.credit.authorName));
+        give->setObjectName(QStringLiteral("giveBackModule"));
+        give->setToolTip(tr("It goes back to the person who made it; the club keeps its own copy."));
+        connect(give, &QAction::triggered, this, [this, id] { giveOrTakeBack(id, true); });
+    }
     QAction* del = menu->addAction(tr("Delete…"));
     del->setObjectName(QStringLiteral("deleteModule"));
     connect(del, &QAction::triggered, this, [this, id] { remove(id); });
@@ -488,6 +510,25 @@ void ServerModulesTab::rename(const QString& id) {
     }, [this](const sync::ServerRefusal& r) {
         QMessageBox::warning(this, tr("Rename module"), ServerLibrary::refusalText(r));
     });
+}
+
+void ServerModulesTab::giveOrTakeBack(const QString& id, bool give) {
+    const sync::ServerModule* m = library_.module(id);
+    if (!m || !(give ? m->credit.canGiveBack : m->credit.canTakeBack)) return;
+    if (!confirmReturn || !confirmReturn(*m, give)) return;
+    const QString title = m->title;
+    const QString author = m->credit.authorName;
+    library_.api().returnToAuthor(
+        QStringLiteral("modules"), id, give,
+        [this, title, author, give](const QString&) {
+            emit library_.message(give ? tr("Gave \"%1\" back to %2").arg(title, author)
+                                       : tr("\"%1\" is yours again").arg(title));
+            library_.refresh();
+        },
+        [this, give](const sync::ServerRefusal& r) {
+            QMessageBox::warning(this, give ? tr("Give back") : tr("Take back"),
+                                 ServerLibrary::refusalText(r));
+        });
 }
 
 void ServerModulesTab::remove(const QString& id) {

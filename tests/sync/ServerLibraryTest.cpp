@@ -15,6 +15,7 @@
 #include "core/Map.h"
 #include "edit/EditCommands.h"
 #include "parts/PartsLibrary.h"
+#include "sync/Credit.h"
 #include "ui/MainWindow.h"
 #include "ui/MapView.h"
 #include "ui/ModuleLibraryPanel.h"
@@ -424,6 +425,113 @@ TEST_F(LibraryTabs, RenameAndDeleteAskTheServerThenListAgain) {
     ASSERT_TRUE(waitFor([&] { return lastRequest(http_, "DELETE", "/api/modules/m1"); }));
 }
 
+// Author credit: "by Sam · in Train Club", and the club's module back to its author.
+TEST(Credit, ReadsTheServersCreditAndSaysItInTheWebsitesWords) {
+    const QJsonObject item{ { QStringLiteral("credit"),
+                              QJsonObject{ { QStringLiteral("by"), QStringLiteral("Sam") },
+                                           { QStringLiteral("authorName"), QStringLiteral("Sam") },
+                                           { QStringLiteral("club"), QStringLiteral("ArkLUG") },
+                                           { QStringLiteral("basedOn"),
+                                             QJsonObject{ { QStringLiteral("id"), QStringLiteral("x") },
+                                                          { QStringLiteral("title"), QStringLiteral("Yard") },
+                                                          { QStringLiteral("by"), QStringLiteral("Bo") } } },
+                                           { QStringLiteral("canTakeBack"), true },
+                                           { QStringLiteral("canGiveBack"), false } } } };
+    const sync::Credit c = sync::creditFromJson(item);
+    EXPECT_TRUE(c.canTakeBack);
+    EXPECT_FALSE(c.canGiveBack);
+    EXPECT_EQ(sync::creditLine(c), QStringLiteral("by Sam · in ArkLUG · based on Yard by Bo"));
+    sync::Credit mine;
+    mine.by = QStringLiteral("you");
+    EXPECT_EQ(sync::creditLine(mine), QStringLiteral("by you"));
+    // Older servers send none: nothing shown, nothing offered.
+    const sync::Credit none = sync::creditFromJson(QJsonObject{});
+    EXPECT_FALSE(none.any());
+    EXPECT_TRUE(sync::creditLine(none).isEmpty());
+    const auto w = sync::moveToClubWording(QStringLiteral("ArkLUG"));
+    EXPECT_EQ(w.removes,
+              QStringLiteral("ArkLUG will own this. Its admins and managers can change or delete it."));
+    EXPECT_EQ(
+        w.keeps,
+        QStringLiteral("You stay credited as the author, and you can take it back while you’re a member."));
+}
+
+namespace {
+QJsonObject withCredit(QJsonObject m, const QString& by, bool take, bool give) {
+    m.insert(QStringLiteral("credit"), QJsonObject{ { QStringLiteral("by"), by },
+                                                    { QStringLiteral("authorName"), QStringLiteral("Sam") },
+                                                    { QStringLiteral("club"), QStringLiteral("Train Club") },
+                                                    { QStringLiteral("canTakeBack"), take },
+                                                    { QStringLiteral("canGiveBack"), give } });
+    return m;
+}
+} // namespace
+
+TEST_F(LibraryTabs, TheClubsModuleShowsItsAuthorAndGoesBackAfterAsking) {
+    http_.reply("/api/modules", 200,
+                modules({ withCredit(moduleJson(QStringLiteral("c1"), QStringLiteral("Engine shed"),
+                                                QStringLiteral("editor"), QStringLiteral("o1")),
+                                     QStringLiteral("you"), true, false),
+                          withCredit(moduleJson(QStringLiteral("c2"), QStringLiteral("Turntable"),
+                                                QStringLiteral("owner"), QStringLiteral("o1")),
+                                     QStringLiteral("Sam"), false, true),
+                          moduleJson(QStringLiteral("m1"), QStringLiteral("Freight yard"),
+                                     QStringLiteral("owner")) }));
+    http_.reply("/api/modules/c1/take-back", 200,
+                { { QStringLiteral("ok"), true }, { QStringLiteral("keptCopyId"), QStringLiteral("c9") } });
+    http_.reply("/api/modules/c2/give-back", 200,
+                { { QStringLiteral("ok"), true }, { QStringLiteral("keptCopyId"), QStringLiteral("c8") } });
+    ui::ServerModulesTab tab(library_);
+    QList<std::pair<QString, bool>> asked;
+    bool answer = false;
+    tab.confirmReturn = [&](const sync::ServerModule& m, bool give) {
+        asked.append({ m.title, give });
+        return answer;
+    };
+    connectSignedIn();
+    EXPECT_EQ(tab.row(QStringLiteral("c1"))->findChild<QLabel*>(QStringLiteral("rowCredit"))->text(),
+              QStringLiteral("by you · in Train Club"));
+    EXPECT_EQ(tab.row(QStringLiteral("c2"))->findChild<QLabel*>(QStringLiteral("rowCredit"))->text(),
+              QStringLiteral("by Sam · in Train Club"));
+    EXPECT_EQ(tab.row(QStringLiteral("m1"))->findChild<QLabel*>(QStringLiteral("rowCredit")),
+              nullptr); // no credit sent
+    const auto menu = [&](const char* row) {
+        return tab.row(QString::fromLatin1(row))
+            ->findChild<QToolButton*>(QStringLiteral("moduleMore"))
+            ->menu();
+    };
+    // The author takes theirs back; a club's runner gives one back. Neither shows where it doesn't apply.
+    EXPECT_EQ(menu("c1")->findChild<QAction*>(QStringLiteral("giveBackModule")), nullptr);
+    EXPECT_EQ(menu("c2")->findChild<QAction*>(QStringLiteral("takeBackModule")), nullptr);
+    EXPECT_EQ(menu("m1")->findChild<QAction*>(QStringLiteral("takeBackModule")), nullptr);
+    EXPECT_EQ(menu("c2")->findChild<QAction*>(QStringLiteral("giveBackModule"))->text(),
+              QStringLiteral("Give Back to Sam…"));
+
+    // Cancel: nothing is sent.
+    menu("c1")->findChild<QAction*>(QStringLiteral("takeBackModule"))->trigger();
+    EXPECT_FALSE(
+        waitFor([&] { return lastRequest(http_, "POST", "/api/modules/c1/take-back") != nullptr; }, 300));
+    // Take back.
+    answer = true;
+    const int lists = count(http_, "GET", "/api/modules");
+    menu("c1")->findChild<QAction*>(QStringLiteral("takeBackModule"))->trigger();
+    ASSERT_TRUE(waitFor([&] {
+        return lastRequest(http_, "POST", "/api/modules/c1/take-back")
+               && count(http_, "GET", "/api/modules") > lists;
+    }));
+    EXPECT_EQ(lastRequest(http_, "POST", "/api/modules/c1/take-back")->authorization,
+              QByteArray("Bearer bld_pat_t"));
+    ASSERT_TRUE(waitFor([&] {
+        return library_.state() == ui::ServerLibrary::State::Ready && tab.row(QStringLiteral("c2"));
+    }));
+    menu("c2")->findChild<QAction*>(QStringLiteral("giveBackModule"))->trigger();
+    ASSERT_TRUE(waitFor([&] { return lastRequest(http_, "POST", "/api/modules/c2/give-back") != nullptr; }));
+    EXPECT_EQ(lastRequest(http_, "POST", "/api/modules/c2/take-back"), nullptr);
+    EXPECT_EQ(asked, (QList<std::pair<QString, bool>>{ { QStringLiteral("Engine shed"), false },
+                                                       { QStringLiteral("Engine shed"), false },
+                                                       { QStringLiteral("Turntable"), true } }));
+}
+
 TEST_F(LibraryTabs, SignedOutOfflineAndRefusedEachSayWhatToDo) {
     ui::ServerModulesTab tab(library_);
     tab.show();
@@ -708,6 +816,33 @@ TEST_F(ServerModulesWindow, SaveSelectionAsModuleMakesANewModuleOnTheServer) {
     ASSERT_TRUE(img.loadFromData(QByteArray::fromBase64(thumb.value(QLatin1String("data")).toString().toLatin1())));
     EXPECT_GT(std::max(img.width(), img.height()), 256);
     ASSERT_TRUE(waitFor([&] { return library_->module(QStringLiteral("new1")); }));
+}
+
+// A new module saved straight into a club asks first: the club will own it.
+TEST_F(ServerModulesWindow, SavingANewModuleIntoAClubAsksFirst) {
+    ui::SaveModuleDialog d(*library_, QString());
+    QStringList asked;
+    bool answer = false;
+    d.confirmSaveToClub = [&](const QString& club) {
+        asked << club;
+        return answer;
+    };
+    d.nameEdit()->setText(QStringLiteral("Yard"));
+    // Yours: nothing asked.
+    d.accept();
+    EXPECT_EQ(d.result(), QDialog::Accepted);
+    EXPECT_TRUE(asked.isEmpty());
+    d.setResult(QDialog::Rejected);
+    const int club = d.saveTo()->findData(QStringLiteral("train"));
+    ASSERT_GE(club, 0);
+    d.saveTo()->setCurrentIndex(club);
+    d.accept();
+    EXPECT_EQ(asked, QStringList{ QStringLiteral("Train Club") });
+    EXPECT_NE(d.result(), QDialog::Accepted);
+    answer = true;
+    d.accept();
+    EXPECT_EQ(d.result(), QDialog::Accepted);
+    EXPECT_EQ(d.choice().orgSlug, QStringLiteral("train"));
 }
 
 TEST_F(ServerModulesWindow, OpenToChangeItThenSaveMakesANewVersion) {
