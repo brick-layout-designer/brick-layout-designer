@@ -6,6 +6,9 @@
 #include <QString>
 #include <QTransform>
 
+#include <utility>
+#include <vector>
+
 namespace bld::core {
 
 // Fork-only cross-layer group: a named bundle of items that span multiple
@@ -44,4 +47,28 @@ struct Module {
     QJsonObject extras;
 };
 
+// A copy of `m` holding `members` (Duplicate or paste of one whole module,
+// the Modules panel's Duplicate): "X (copy)", the same look, not linked to
+// the Module library, not pinned (it is there to be moved), no source file.
+inline Module copyOfModule(const Module& m, QSet<QString> members, QString newId) {
+    Module c = m;
+    c.id = std::move(newId);
+    c.name = m.name.isEmpty() ? QStringLiteral("(copy)") : m.name + QStringLiteral(" (copy)");
+    c.memberIds = std::move(members);
+    c.transform = QTransform();
+    c.sourceFile.clear();
+    c.importedAt = QDateTime();
+    c.pinned = false;
+    c.libraryModuleId.clear();
+    c.libraryVersion = 0;
+    return c;
+}
+
+// The one module `picked` is exactly (all its parts, nothing else), or null.
+inline const Module* wholeModule(const std::vector<Module>& modules, const QSet<QString>& picked) {
+    if (picked.isEmpty()) return nullptr;
+    for (const auto& m : modules)
+        if (m.memberIds == picked) return &m;
+    return nullptr;
+}
 }

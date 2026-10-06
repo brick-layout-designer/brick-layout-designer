@@ -167,11 +167,32 @@ void LiveLayout::close() {
     emit statusTextChanged(statusText());
 }
 
+namespace {
+QSet<QString> partGuidsOf(const core::Map* map) {
+    QSet<QString> out;
+    if (!map) return out;
+    for (const auto& L : map->layers())
+        if (L && L->kind() == core::LayerKind::Brick)
+            for (const auto& b : static_cast<const core::LayerBrick&>(*L).bricks) out.insert(b.guid);
+    return out;
+}
+} // namespace
+
+// Undo and redo pick the parts they bring back (BlueBrick), once the
+// shared document's change has reloaded the map.
 bool LiveLayout::undo() {
-    return active_ && session_.undo();
+    if (!active_) return false;
+    partsBeforeStep_ = partGuidsOf(view_.currentMap());
+    const bool done = session_.undo();
+    if (!done) partsBeforeStep_.reset();
+    return done;
 }
 bool LiveLayout::redo() {
-    return active_ && session_.redo();
+    if (!active_) return false;
+    partsBeforeStep_ = partGuidsOf(view_.currentMap());
+    const bool done = session_.redo();
+    if (!done) partsBeforeStep_.reset();
+    return done;
 }
 
 QString LiveLayout::statusText() const {
@@ -220,11 +241,14 @@ void LiveLayout::reload() {
         view_.horizontalScrollBar()->setValue(h);
         view_.verticalScrollBar()->setValue(v);
     }
-    if (!selected.isEmpty()) {
-        for (QGraphicsItem* it : view_.scene()->items())
-            if (detail::isBrickItem(it) && selected.contains(it->data(detail::kBrickDataGuid).toString()))
-                it->setSelected(true);
+    // After an undo or redo, the parts it brought back are picked instead.
+    if (partsBeforeStep_) {
+        QSet<QString> back = partGuidsOf(view_.currentMap());
+        back.subtract(*partsBeforeStep_);
+        partsBeforeStep_.reset();
+        if (!back.isEmpty()) selected = back;
     }
+    if (!selected.isEmpty()) view_.selectParts(selected);
     drawPeers();
     emit mapReloaded();
     emit undoStateChanged();

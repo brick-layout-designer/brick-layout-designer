@@ -1,5 +1,9 @@
 #pragma once
 
+#include <QSet>
+
+#include <optional>
+
 // A layout open live from a collaborative server, shown in the MapView
 // (sync phase P4). While it is open:
 //
@@ -90,6 +94,8 @@ private:
     bool reloading_ = false;
     bool clearing_ = false;
     bool reloadedOnce_ = false;
+    // The parts on the map before an undo or redo, until its reload picks what came back.
+    std::optional<QSet<QString>> partsBeforeStep_;
     sync::presence::User user_{ {}, QStringLiteral("Desktop"), QStringLiteral("#888888") };
     std::optional<QPointF> cursorStuds_;
     QTimer* presenceTimer_ = nullptr;

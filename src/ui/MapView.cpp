@@ -230,6 +230,7 @@ MapView::MapView(parts::PartsLibrary& parts, QWidget* parent)
         // undo / redo fired mid-drag also drops the drag snapshots that
         // point at the items the rebuild is about to delete.
         rebuildScene();
+        pickPartsBroughtBack();
     });
 
     // Touch: fingers reach the viewport as touches (pinch, pan, long
@@ -337,6 +338,39 @@ void MapView::loadMap(std::unique_ptr<core::Map> map) {
     finishLoading();
     emit selectionChanged();
     emit mapLoaded();
+}
+
+namespace {
+QSet<QString> partGuids(const core::Map& map) {
+    QSet<QString> out;
+    for (const auto& L : map.layers())
+        if (L && L->kind() == core::LayerKind::Brick)
+            for (const auto& b : static_cast<const core::LayerBrick&>(*L).bricks) out.insert(b.guid);
+    return out;
+}
+} // namespace
+
+void MapView::selectParts(const QSet<QString>& guids) {
+    scene()->clearSelection();
+    for (QGraphicsItem* it : scene()->items())
+        if (isBrickItem(it) && guids.contains(it->data(kBrickDataGuid).toString())) it->setSelected(true);
+}
+
+void MapView::pickPartsBroughtBack() {
+    const int index = undoStack_->index();
+    const int count = undoStack_->count();
+    // An undo goes back; a redo goes forward on a stack of the same size (a new step grows it).
+    const bool undoOrRedo = index < lastStackIndex_ || (index > lastStackIndex_ && count == lastStackCount_);
+    QSet<QString> now = partGuids(*map_);
+    if (undoOrRedo && partsAtLastStepMap_ == map_.get()) {
+        QSet<QString> back = now;
+        back.subtract(partsAtLastStep_);
+        if (!back.isEmpty()) selectParts(back);
+    }
+    partsAtLastStep_ = std::move(now);
+    partsAtLastStepMap_ = map_.get();
+    lastStackIndex_ = index;
+    lastStackCount_ = count;
 }
 
 void MapView::rebuildScene() {

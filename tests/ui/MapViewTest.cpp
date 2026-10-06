@@ -3,18 +3,20 @@
 // selection (by layer + guid) instead of dropping it with the old items.
 
 #include "ui/MapView.h"
-#include "ui/BudgetSession.h"
-#include "ui/MapViewInternal.h"
-#include "edit/EditCommands.h"
-#include "parts/PartsLibrary.h"
-#include "saveload/BbmReader.h"
+#include "core/Ids.h"
 #include "core/LayerBrick.h"
 #include "core/LayerGrid.h"
-#include "core/Ids.h"
 #include "core/Map.h"
 #include "edit/Connectivity.h"
+#include "edit/EditCommands.h"
+#include "edit/ModuleCommands.h"
 #include "edit/Sets.h"
 #include "parts/BrickPlacement.h"
+#include "parts/PartsLibrary.h"
+#include "rendering/ModuleLabels.h"
+#include "saveload/BbmReader.h"
+#include "ui/BudgetSession.h"
+#include "ui/MapViewInternal.h"
 
 #include <gtest/gtest.h>
 
@@ -651,4 +653,121 @@ int main(int argc, char** argv) {
     QCoreApplication::setApplicationName(QStringLiteral("bld_ui_tests"));
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
+}
+
+// Aaron's approved proposals (2026-10-06): a picked module duplicates and
+// pastes as a module copy; the Modules panel's Delete deletes its parts;
+// Undo picks what it brings back; the "(partly hidden)" hover name.
+namespace {
+// Three parts on one sheet; the first two a module with its own look, pinned and linked.
+const core::Module& threePartsAndAModule(ui::MapView& view) {
+    auto map = std::make_unique<core::Map>();
+    auto layer = std::make_unique<core::LayerBrick>();
+    layer->name = QStringLiteral("Track");
+    layer->guid = core::newBbmId();
+    for (int i = 0; i < 3; ++i) {
+        core::Brick b;
+        b.guid = core::newBbmId();
+        b.partNumber = QStringLiteral("3001.1");
+        b.displayArea = QRectF(i * 10.0, 0, 4, 2);
+        layer->bricks.push_back(b);
+    }
+    core::Module m;
+    m.id = QStringLiteral("harbour");
+    m.name = QStringLiteral("Harbour");
+    m.memberIds = { layer->bricks[0].guid, layer->bricks[1].guid };
+    m.outlineColor = QStringLiteral("#ff0000");
+    m.pinned = true;
+    m.libraryModuleId = QStringLiteral("lib-1");
+    m.libraryVersion = 3;
+    map->sidecar.modules.push_back(m);
+    map->layers().push_back(std::move(layer));
+    view.loadMap(std::move(map));
+    return view.currentMap()->sidecar.modules.front();
+}
+void pick(ui::MapView& view, const QSet<QString>& guids) {
+    view.selectParts(guids);
+}
+const core::LayerBrick& sheet(ui::MapView& view) {
+    return static_cast<const core::LayerBrick&>(*view.currentMap()->layers().front());
+}
+} // namespace
+
+TEST_F(MapViewTest, DuplicatingAPickedModuleMakesAModuleCopy) {
+    const QSet<QString> members = threePartsAndAModule(*view_).memberIds;
+    pick(*view_, members);
+    view_->duplicateSelection();
+    const auto& mods = view_->currentMap()->sidecar.modules;
+    ASSERT_EQ(mods.size(), 2u);
+    const core::Module& copy = mods[1];
+    EXPECT_EQ(copy.name, QStringLiteral("Harbour (copy)"));
+    EXPECT_EQ(copy.outlineColor, QStringLiteral("#ff0000"));
+    EXPECT_FALSE(copy.pinned);
+    EXPECT_TRUE(copy.libraryModuleId.isEmpty());
+    EXPECT_EQ(copy.libraryVersion, 0);
+    EXPECT_EQ(copy.memberIds.size(), 2);
+    EXPECT_TRUE((copy.memberIds & members).isEmpty());
+    EXPECT_EQ(sheet(*view_).bricks.size(), 5u);
+    // One undo step takes the parts and the copy away.
+    view_->undoStack()->undo();
+    EXPECT_EQ(view_->currentMap()->sidecar.modules.size(), 1u);
+    EXPECT_EQ(sheet(*view_).bricks.size(), 3u);
+}
+
+TEST_F(MapViewTest, CopyAndPasteOfAPickedModuleMakesAModuleCopyButOtherPartsStayLoose) {
+    const auto& mod = threePartsAndAModule(*view_);
+    const QString loose = sheet(*view_).bricks[2].guid;
+    pick(*view_, mod.memberIds);
+    view_->copySelection();
+    view_->pasteClipboard();
+    ASSERT_EQ(view_->currentMap()->sidecar.modules.size(), 2u);
+    EXPECT_EQ(view_->currentMap()->sidecar.modules[1].name, QStringLiteral("Harbour (copy)"));
+    // A module and a part more: no module copy.
+    QSet<QString> more = view_->currentMap()->sidecar.modules[0].memberIds;
+    more.insert(loose);
+    pick(*view_, more);
+    view_->copySelection();
+    view_->pasteClipboard();
+    EXPECT_EQ(view_->currentMap()->sidecar.modules.size(), 2u);
+}
+
+TEST_F(MapViewTest, DeletingAModuleDeletesItsPartsAndUndoPicksThemAgain) {
+    const auto& mod = threePartsAndAModule(*view_);
+    const QSet<QString> members = mod.memberIds;
+    auto* cmd = edit::deleteModuleWithPartsCommand(*view_->currentMap(), QStringLiteral("harbour"));
+    ASSERT_NE(cmd, nullptr);
+    view_->undoStack()->push(cmd);
+    EXPECT_EQ(sheet(*view_).bricks.size(), 1u);
+    EXPECT_TRUE(view_->currentMap()->sidecar.modules.empty());
+    view_->scene()->clearSelection();
+    view_->undoStack()->undo();
+    EXPECT_EQ(sheet(*view_).bricks.size(), 3u);
+    ASSERT_EQ(view_->currentMap()->sidecar.modules.size(), 1u);
+    QStringList want(members.begin(), members.end());
+    want.sort();
+    EXPECT_EQ(selectedBrickGuids(*view_->scene()), want) << "Undo picks the parts it brought back";
+    // Redo takes them again; Undo once more picks them again.
+    view_->undoStack()->redo();
+    view_->undoStack()->undo();
+    EXPECT_EQ(selectedBrickGuids(*view_->scene()), want);
+}
+
+TEST_F(MapViewTest, AnUndoThatBringsNothingBackKeepsThePick) {
+    threePartsAndAModule(*view_);
+    const QString loose = sheet(*view_).bricks[2].guid;
+    std::vector<edit::MoveBricksCommand::Entry> entries{ { { 0, loose }, QPointF(20, 0), QPointF(28, 0) } };
+    view_->undoStack()->push(new edit::MoveBricksCommand(*view_->currentMap(), std::move(entries)));
+    pick(*view_, { loose });
+    view_->undoStack()->undo();
+    EXPECT_EQ(selectedBrickGuids(*view_->scene()), QStringList{ loose });
+}
+
+TEST(ModuleLabels, TheHoverNameSaysPartlyHidden) {
+    EXPECT_EQ(rendering::moduleHoverName(QStringLiteral("Harbour"), true, false),
+              QStringLiteral("Harbour (partly hidden)"));
+    EXPECT_EQ(rendering::moduleHoverName(QStringLiteral("Harbour"), false, true), QStringLiteral("Harbour"));
+    EXPECT_TRUE(rendering::moduleHoverName(QStringLiteral("Harbour"), false, false).isEmpty());
+    // Long, thin: never taller than half its depth.
+    EXPECT_EQ(rendering::moduleLabelFontPx(384, 48, 35), 24);
+    EXPECT_EQ(rendering::moduleLabelFontPx(400, 300, 35), 140);
 }

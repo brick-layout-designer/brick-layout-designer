@@ -37,6 +37,22 @@ private:
     std::vector<Member> members_;
 };
 
+// Add a whole module entry (a copy made by Duplicate or paste). Undo removes it.
+class AddModuleCommand : public QUndoCommand {
+public:
+    AddModuleCommand(core::Map& map, core::Module module, QUndoCommand* parent = nullptr);
+    void undo() override;
+    void redo() override;
+
+private:
+    core::Map& map_;
+    core::Module module_;
+};
+
+// Delete a module and its parts on every sheet, in one undo step (the
+// Modules panel's Delete; Ungroup keeps the parts). Null for an unknown module.
+QUndoCommand* deleteModuleWithPartsCommand(core::Map& map, const QString& moduleId);
+
 // Remove a module from sidecar.modules. Keeps the member bricks untouched.
 class DeleteModuleCommand : public QUndoCommand {
 public:

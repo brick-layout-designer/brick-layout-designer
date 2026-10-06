@@ -1,4 +1,5 @@
 #include "ModuleCommands.h"
+#include "EditCommands.h"
 #include "ModuleSheets.h"
 
 #include "../core/Groups.h"
@@ -60,6 +61,48 @@ void CreateModuleCommand::redo() {
 void CreateModuleCommand::undo() {
     const int i = findModuleIndex(map_, moduleId_);
     if (i >= 0) map_.sidecar.modules.erase(map_.sidecar.modules.begin() + i);
+}
+
+// ----- AddModuleCommand -----
+
+AddModuleCommand::AddModuleCommand(core::Map& map, core::Module module, QUndoCommand* parent)
+    : QUndoCommand(parent), map_(map), module_(std::move(module)) {
+    setText(QObject::tr("Add module %1").arg(module_.name));
+}
+
+void AddModuleCommand::redo() {
+    map_.sidecar.modules.push_back(module_);
+}
+
+void AddModuleCommand::undo() {
+    const int i = findModuleIndex(map_, module_.id);
+    if (i >= 0) map_.sidecar.modules.erase(map_.sidecar.modules.begin() + i);
+}
+
+QUndoCommand* deleteModuleWithPartsCommand(core::Map& map, const QString& moduleId) {
+    const int mi = findModuleIndex(map, moduleId);
+    if (mi < 0) return nullptr;
+    const QSet<QString> members = map.sidecar.modules[mi].memberIds;
+    // Every part, in sheet and then sheet order, so Undo puts each back where it was.
+    // Deleting all of a module's parts removes the module too (DeleteBricksCommand).
+    std::vector<DeleteBricksCommand::Entry> entries;
+    for (int li = 0; li < static_cast<int>(map.layers().size()); ++li) {
+        const auto* L = brickLayer(map, li);
+        if (!L) continue;
+        for (int i = 0; i < static_cast<int>(L->bricks.size()); ++i) {
+            if (!members.contains(L->bricks[i].guid)) continue;
+            DeleteBricksCommand::Entry e;
+            e.layerIndex = li;
+            e.indexInLayer = i;
+            e.brick = L->bricks[i];
+            entries.push_back(std::move(e));
+        }
+    }
+    auto* parent = new QUndoCommand(QObject::tr("Delete module %1").arg(map.sidecar.modules[mi].name));
+    if (!entries.empty()) new DeleteBricksCommand(map, std::move(entries), parent);
+    // A module with no parts left on the map (or none at all) still goes.
+    new DeleteModuleCommand(map, moduleId, parent);
+    return parent;
 }
 
 // ----- DeleteModuleCommand -----
@@ -330,10 +373,11 @@ void CloneModuleCommand::redo() {
         for (const auto& g : clone.groups) L->groups.push_back(g);
     }
 
-    core::Module m;
-    m.id = newModuleId_;
-    m.name = newName_.isEmpty() ? (srcMod.name + QObject::tr(" (copy)")) : newName_;
-    for (const auto& a : appliedBricks_) m.memberIds.insert(a.guid);
+    // Its look comes along; not its library link or pin.
+    QSet<QString> members;
+    for (const auto& a : appliedBricks_) members.insert(a.guid);
+    core::Module m = core::copyOfModule(srcMod, std::move(members), newModuleId_);
+    if (!newName_.isEmpty()) m.name = newName_;
     map_.sidecar.modules.push_back(std::move(m));
 }
 

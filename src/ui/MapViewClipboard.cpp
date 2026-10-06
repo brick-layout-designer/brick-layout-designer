@@ -13,6 +13,7 @@
 #include "../core/LayerBrick.h"
 #include "../core/Map.h"
 #include "../edit/EditCommands.h"
+#include "../edit/ModuleCommands.h"
 #include "../rendering/SceneBuilder.h"
 #include "MapViewInternal.h"
 
@@ -34,6 +35,7 @@ using detail::isBrickItem;
 void MapView::copySelection() {
     clipboard_.clear();
     clipboardGroups_.clear();
+    clipboardModule_.reset();
     if (!map_) return;
     // selectedItems() returns items in no particular order. Copying in
     // that order would scramble back-to-front z-ordering within the
@@ -45,6 +47,10 @@ void MapView::copySelection() {
         if (isBrickItem(it)) selectedGuids.insert(it->data(kBrickDataGuid).toString());
     }
     if (selectedGuids.isEmpty()) return;
+    // Exactly one whole module (outside Edit module): a paste copies the module too.
+    if (editingModuleId_.isEmpty())
+        if (const core::Module* m = core::wholeModule(map_->sidecar.modules, selectedGuids))
+            clipboardModule_ = *m;
     for (const auto& L : map_->layers()) {
         if (!L || L->kind() != core::LayerKind::Brick) continue;
         for (const auto& b : static_cast<const core::LayerBrick&>(*L).bricks) {
@@ -146,8 +152,12 @@ void MapView::pasteClipboard() {
         auto groups = core::cloneGroups(source, bricks, [] { return core::newBbmId(); });
         undoStack_->push(new edit::AddBricksCommand(*map_, li, std::move(bricks), std::move(groups)));
     }
-    // Editing a module, pasted parts join it.
+    // Editing a module, pasted parts join it. Otherwise a whole module copied
+    // pastes as a module of its own: "X (copy)", its look, unlinked, unpinned.
     absorbIntoEditedModule(newGuids);
+    if (clipboardModule_ && refused == 0 && editingModuleId_.isEmpty() && !newGuids.isEmpty())
+        undoStack_->push(new edit::AddModuleCommand(
+            *map_, core::copyOfModule(*clipboardModule_, newGuids, core::newBbmId())));
     undoStack_->endMacro();
 
     // endMacro fires indexChanged → scene rebuild → selection restore by

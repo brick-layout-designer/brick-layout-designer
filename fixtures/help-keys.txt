@@ -63,3 +63,9 @@ club.listed
 club.requests
 club.roles
 club.find
+catalog.collections
+catalog.yourCollections
+catalog.clubCollections
+club.trusted
+collection.audience
+account.publicName
