@@ -65,6 +65,10 @@ public:
     // The chain's bricks (those the move changes) before the move and now.
     const std::vector<State>& initialState() const { return initial_; }
     std::vector<State> currentState() const;
+    // The joints bent as far as their hinge allows (studs, where the
+    // joint is): shown while bending, so it's clear why the end stops.
+    std::vector<QPointF> hingesAtLimit() const;
+
     // Put the chain back as it was.
     void restore();
 

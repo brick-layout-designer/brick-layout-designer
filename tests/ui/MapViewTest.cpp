@@ -23,6 +23,7 @@
 #include <QFile>
 #include <QGraphicsItem>
 #include <QGraphicsScene>
+#include <QHash>
 #include <QMouseEvent>
 #include <QSettings>
 #include <QUndoStack>
@@ -246,6 +247,68 @@ TEST_F(MapViewTest, ADuplicatedSetStaysASet) {
     EXPECT_EQ(L.bricks[3].myGroupId, L.groups[1].guid);
     view_->undoStack()->undo();
     EXPECT_EQ(L.groups.size(), 1u);
+}
+
+TEST_F(MapViewTest, APartAddedBesideASelectedSetJoinsItsPreferredEnd) {
+    // BlueBrick's GroupConnectionPreferenceList: flex.group's next part goes
+    // on rail end 0, then 2 (the female's, then the male's).
+    if (!parts_.metadata(QStringLiteral("flex.group")))
+        GTEST_SKIP() << "the BlueBrickParts library isn't checked out (run git submodule update --init)";
+    EXPECT_EQ(parts_.metadata(QStringLiteral("flex.group"))->groupNextPreferred,
+              (QHash<int, int>{ { 0, 2 }, { 2, 0 } }));
+    auto map = std::make_unique<core::Map>();
+    auto layer = std::make_unique<core::LayerBrick>();
+    layer->guid = core::newBbmId();
+    map->layers().push_back(std::move(layer));
+    view_->loadMap(std::move(map));
+    const double px = 8.0; // SceneBuilder::kPixelsPerStud
+    const auto& L = static_cast<const core::LayerBrick&>(*view_->currentMap()->layers().front());
+    const auto selectSet = [&] {
+        view_->scene()->clearSelection();
+        for (QGraphicsItem* it : brickItems(*view_->scene())) {
+            const QString g = it->data(ui::detail::kBrickDataGuid).toString();
+            if (g == L.bricks[0].guid || g == L.bricks[1].guid) it->setSelected(true);
+        }
+    };
+    view_->addPartAtScenePos(QStringLiteral("flex.group"), QPointF(0, 0));
+    ASSERT_EQ(L.bricks.size(), 2u);
+    // Far from the set: it goes on the set's end, not where it was put.
+    selectSet();
+    view_->addPartAtScenePos(QStringLiteral("88493.8"), QPointF(100, 100) * px);
+    ASSERT_EQ(L.bricks.size(), 3u);
+    EXPECT_FALSE(L.bricks[0].connections[0].linkedToId.isEmpty()) << "on the female's rail end";
+    EXPECT_TRUE(L.bricks[1].connections[0].linkedToId.isEmpty());
+    selectSet();
+    view_->addPartAtScenePos(QStringLiteral("88492.8"), QPointF(100, 100) * px);
+    ASSERT_EQ(L.bricks.size(), 4u);
+    EXPECT_FALSE(L.bricks[1].connections[0].linkedToId.isEmpty()) << "then on the male's";
+}
+
+TEST_F(MapViewTest, DraggingASetFromThePartsListShowsWhereItWillSnap) {
+    if (!parts_.metadata(QStringLiteral("flex.group")))
+        GTEST_SKIP() << "the BlueBrickParts library isn't checked out (run git submodule update --init)";
+    auto map = std::make_unique<core::Map>();
+    auto layer = std::make_unique<core::LayerBrick>();
+    layer->guid = core::newBbmId();
+    map->layers().push_back(std::move(layer));
+    view_->loadMap(std::move(map));
+    view_->resize(800, 600);
+    const double px = 8.0; // SceneBuilder::kPixelsPerStud
+    view_->centerOn(QPointF(2, 0) * px);
+    view_->addPartAtScenePos(QStringLiteral("flex.group"), QPointF(0, 0));
+    view_->scene()->clearSelection();
+    // A second flex track held just past the first's free end (2.05, 0):
+    // its own free end (-1.95 from its origin) is a little way off.
+    const QPoint at = view_->viewport()->mapToGlobal(view_->mapFromScene(QPointF(4.3, 0.2) * px));
+    view_->touchPartDragTo(QStringLiteral("flex.group"), at);
+    ASSERT_TRUE(view_->connectionSnapShown()) << "the ghost shows the snap";
+    EXPECT_NEAR(view_->connectionSnapPoint().x(), 2.05 * px, 0.05 * px);
+    EXPECT_NEAR(view_->connectionSnapPoint().y(), 0.0, 0.05 * px);
+    // And the drop lands where the ghost showed.
+    ASSERT_TRUE(view_->touchPartDropAt(QStringLiteral("flex.group"), at));
+    const auto& L = static_cast<const core::LayerBrick&>(*view_->currentMap()->layers().front());
+    ASSERT_EQ(L.bricks.size(), 4u);
+    EXPECT_FALSE(L.bricks[1].connections[0].linkedToId.isEmpty()) << "joined to the first set";
 }
 
 TEST_F(MapViewTest, ABendHandleOnTheFreeEndBendsTheWholeRun) {

@@ -1390,61 +1390,87 @@ void MapView::resolvePartPlacement(const QString& partKey, QPointF cursorScenePx
     const double widthStuds  = pm.isNull() ? 2.0 : pm.width()  / partPxPerStud;
     const double heightStuds = pm.isNull() ? 2.0 : pm.height() / partPxPerStud;
 
-    // Selected-brick anchor: if exactly one brick is selected with a free
-    // compatible connection, lock the new piece to that connection.
+    // Selection anchor: one selected brick, or one placed set (a library
+    // group, such as flex track), with a free compatible connection locks
+    // the new piece to it. A brick's connections are tried in order; a
+    // set's in its <GroupConnectionPreferenceList> order (BlueBrick's
+    // getConnectionNextPreferedIndex), so the next flex track goes on the
+    // far rail end.
     bool anchoredToSelection = false;
     if (newMeta && newMeta->kind != parts::PartKind::Group) {
-        const core::Brick* anchor = nullptr;
-        int selectedBricks = 0;
+        std::vector<const core::Brick*> selected;
+        const core::LayerBrick* selectedLayer = nullptr;
+        bool oneLayer = true;
         for (QGraphicsItem* it : scene()->selectedItems()) {
             if (!isBrickItem(it)) continue;
-            ++selectedBricks;
-            if (selectedBricks > 1) { anchor = nullptr; break; }
             const int li = it->data(kBrickDataLayerIndex).toInt();
             const QString g = it->data(kBrickDataGuid).toString();
             if (li < 0 || li >= static_cast<int>(map_->layers().size())) continue;
             auto* L = map_->layers()[li].get();
             if (!L || L->kind() != core::LayerKind::Brick) continue;
             const auto& BL = static_cast<const core::LayerBrick&>(*L);
+            if (selectedLayer && selectedLayer != &BL) oneLayer = false;
+            selectedLayer = &BL;
             for (const auto& bb : BL.bricks) {
-                if (bb.guid == g) { anchor = &bb; break; }
-            }
-        }
-        if (anchor) {
-            auto anchorMeta = parts_.metadata(anchor->partNumber);
-            if (anchorMeta) {
-                const QPointF anchorCenter = parts::placement::imageCentre(*anchor, parts_);
-                const double rA = anchor->orientation * M_PI / 180.0;
-                const double caA = std::cos(rA), saA = std::sin(rA);
-                for (int i = 0; i < anchorMeta->connections.size(); ++i) {
-                    const auto& ac = anchorMeta->connections[i];
-                    if (ac.type.isEmpty()) continue;
-                    if (i < static_cast<int>(anchor->connections.size()) &&
-                        !anchor->connections[i].linkedToId.isEmpty()) continue;
-                    int newCi = -1;
-                    for (int j = 0; j < newMeta->connections.size(); ++j) {
-                        if (newMeta->connections[j].type == ac.type) { newCi = j; break; }
-                    }
-                    if (newCi < 0) continue;
-                    const auto& nc = newMeta->connections[newCi];
-                    const QPointF acWorld(
-                        anchorCenter.x() + ac.position.x() * caA - ac.position.y() * saA,
-                        anchorCenter.y() + ac.position.x() * saA + ac.position.y() * caA);
-                    const double targetAngle = ac.angleDegrees + anchor->orientation;
-                    double newOrient = targetAngle + 180.0 - nc.angleDegrees;
-                    newOrient = std::remainder(newOrient, 360.0);  // (-180, 180], no loop on absurd angles
-                    if (newOrient <= -180.0) newOrient += 360.0;
-                    const double rN = newOrient * M_PI / 180.0;
-                    const double caN = std::cos(rN), saN = std::sin(rN);
-                    centreStuds.setX(acWorld.x() - (nc.position.x() * caN - nc.position.y() * saN));
-                    centreStuds.setY(acWorld.y() - (nc.position.x() * saN + nc.position.y() * caN));
-                    orientation = static_cast<float>(newOrient);
-                    anchoredToSelection = true;
-                    snapped = true;
-                    snapPoint = QPointF(acWorld.x() * pxPerStud, acWorld.y() * pxPerStud);
+                if (bb.guid == g) {
+                    selected.push_back(&bb);
                     break;
                 }
             }
+        }
+        std::vector<edit::SetEnd> ends;
+        if (selected.size() == 1) {
+            const auto meta = parts_.metadata(selected.front()->partNumber);
+            for (int i = 0; meta && i < meta->connections.size(); ++i)
+                ends.push_back({ selected.front(), i });
+        } else if (selected.size() > 1 && oneLayer && selectedLayer) {
+            // Exactly the parts of one set.
+            const QString top = core::topGroup(*selectedLayer, selected.front()->myGroupId);
+            const core::Group* set = core::findGroup(*selectedLayer, top);
+            bool same = set && !set->partNumber.isEmpty();
+            for (const core::Brick* b : selected)
+                if (same && core::topGroup(*selectedLayer, b->myGroupId) != top) same = false;
+            if (same
+                && core::bricksUnder(*selectedLayer, top).size() == static_cast<qsizetype>(selected.size()))
+                ends = edit::setAnchorOrder(parts_, set->partNumber, selected);
+        }
+        for (const edit::SetEnd& end : ends) {
+            const core::Brick* anchor = end.brick;
+            const int i = end.connection;
+            auto anchorMeta = parts_.metadata(anchor->partNumber);
+            if (!anchorMeta || i >= anchorMeta->connections.size()) continue;
+            const auto& ac = anchorMeta->connections[i];
+            if (ac.type.isEmpty()) continue;
+            if (i < static_cast<int>(anchor->connections.size())
+                && !anchor->connections[i].linkedToId.isEmpty())
+                continue;
+            int newCi = -1;
+            for (int j = 0; j < newMeta->connections.size(); ++j) {
+                if (newMeta->connections[j].type == ac.type) {
+                    newCi = j;
+                    break;
+                }
+            }
+            if (newCi < 0) continue;
+            const auto& nc = newMeta->connections[newCi];
+            const QPointF anchorCenter = parts::placement::imageCentre(*anchor, parts_);
+            const double rA = anchor->orientation * M_PI / 180.0;
+            const double caA = std::cos(rA), saA = std::sin(rA);
+            const QPointF acWorld(anchorCenter.x() + ac.position.x() * caA - ac.position.y() * saA,
+                                  anchorCenter.y() + ac.position.x() * saA + ac.position.y() * caA);
+            const double targetAngle = ac.angleDegrees + anchor->orientation;
+            double newOrient = targetAngle + 180.0 - nc.angleDegrees;
+            newOrient = std::remainder(newOrient, 360.0); // (-180, 180], no loop on absurd angles
+            if (newOrient <= -180.0) newOrient += 360.0;
+            const double rN = newOrient * M_PI / 180.0;
+            const double caN = std::cos(rN), saN = std::sin(rN);
+            centreStuds.setX(acWorld.x() - (nc.position.x() * caN - nc.position.y() * saN));
+            centreStuds.setY(acWorld.y() - (nc.position.x() * saN + nc.position.y() * caN));
+            orientation = static_cast<float>(newOrient);
+            anchoredToSelection = true;
+            snapped = true;
+            snapPoint = QPointF(acWorld.x() * pxPerStud, acWorld.y() * pxPerStud);
+            break;
         }
     }
 
@@ -2105,7 +2131,25 @@ bool MapView::startBendFromHandle(int index) {
 }
 
 void MapView::paintBendHandles(QPainter* painter) const {
-    if (bendHandles_.empty() || flex_) return;
+    if (flex_) {
+        // While bending: each joint at its hinge limit (10 degrees for flex
+        // track) gets an amber ring, so it's clear why the end stops.
+        const auto limits = flex_->hingesAtLimit();
+        if (limits.empty()) return;
+        const double px = rendering::SceneBuilder::kPixelsPerStud;
+        const double r = bendHandleRadiusScenePx() * 0.6;
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing, true);
+        QPen pen(QColor(245, 158, 11));
+        pen.setCosmetic(true);
+        pen.setWidthF(2.5);
+        painter->setPen(pen);
+        painter->setBrush(QColor(245, 158, 11, 90));
+        for (const QPointF& p : limits) painter->drawEllipse(p * px, r, r);
+        painter->restore();
+        return;
+    }
+    if (bendHandles_.empty()) return;
     const double px = rendering::SceneBuilder::kPixelsPerStud;
     const double r = bendHandleRadiusScenePx();
     painter->save();
@@ -2278,6 +2322,11 @@ void MapView::clearDragPreview() {
 
 void MapView::updateDragPreview(const QString& partKey, QPointF cursorScenePx) {
     if (!map_ || partKey.isEmpty()) { clearDragPreview(); return; }
+    if (const auto meta = parts_.metadata(partKey);
+        meta && meta->kind == parts::PartKind::Group && !meta->subparts.isEmpty()) {
+        updateSetDragPreview(partKey, cursorScenePx);
+        return;
+    }
 
     // Lazy-build the ghost pixmap item the first time we see this key.
     // Re-use the same item when the user drags continuously over the
@@ -2445,6 +2494,66 @@ void MapView::updateModuleDragPreview(const QString& bbmPath, QPointF cursorScen
     if (snap) placedScene = turnPoint(placedStuds, snap->turn, snap->pivot, snap->to) * pxPerStud;
     dragPreviewItem_->setRotation(snap ? snap->turn : 0.0);
     dragPreviewItem_->setPos(placedScene);
+    const QPointF ring = snap ? snap->to * pxPerStud : QPointF();
+    setSnapMarks(snap.has_value(), ring, snap ? std::optional<QPointF>(ring) : std::nullopt);
+}
+
+// A set from the parts list: its parts as one ghost, snapped as the drop
+// will snap them (addPartAtScenePos): any free end, turning as one to face
+// the end it joins.
+void MapView::updateSetDragPreview(const QString& setKey, QPointF cursorScenePx) {
+    const double pxPerStud = rendering::SceneBuilder::kPixelsPerStud;
+    const QString cacheKey = QStringLiteral("set:") + setKey;
+    if (!dragPreviewItem_ || dragPreviewKey_ != cacheKey) {
+        clearDragPreview();
+        // The set about its own origin, drawn once for this drag.
+        edit::ExpandedSet set = edit::expandSet(parts_, setKey, QPointF(0, 0));
+        if (set.bricks.empty()) return;
+        QRectF bboxPx;
+        for (const auto& b : set.bricks) {
+            const QRectF r(b.displayArea.topLeft() * pxPerStud, b.displayArea.size() * pxPerStud);
+            bboxPx = bboxPx.isNull() ? r : bboxPx.united(r);
+        }
+        if (bboxPx.isEmpty()) return;
+        core::Map ghost;
+        auto layer = std::make_unique<core::LayerBrick>();
+        layer->bricks = set.bricks;
+        ghost.layers().push_back(std::move(layer));
+        QGraphicsScene tmpScene;
+        rendering::SceneBuilder builder(tmpScene, parts_);
+        builder.build(ghost);
+        const QRectF source = tmpScene.itemsBoundingRect().united(bboxPx).adjusted(-2, -2, 2, 2);
+        QImage img(static_cast<int>(std::ceil(source.width())), static_cast<int>(std::ceil(source.height())),
+                   QImage::Format_ARGB32);
+        img.fill(Qt::transparent);
+        {
+            QPainter p(&img);
+            p.setRenderHint(QPainter::Antialiasing);
+            p.setRenderHint(QPainter::SmoothPixmapTransform);
+            tmpScene.render(&p, QRectF(0, 0, img.width(), img.height()), source, Qt::KeepAspectRatio);
+        }
+        dragPreviewItem_ = new QGraphicsPixmapItem(QPixmap::fromImage(std::move(img)));
+        // The item's origin is the set's origin: it turns about it.
+        dragPreviewItem_->setOffset(source.topLeft());
+        dragPreviewItem_->setOpacity(0.55);
+        dragPreviewItem_->setZValue(1e8);
+        dragPreviewItem_->setTransformationMode(Qt::SmoothTransformation);
+        scene()->addItem(dragPreviewItem_);
+        dragPreviewKey_ = cacheKey;
+        dragPreviewModuleBricks_ = std::move(set.bricks);
+    }
+    const QPointF cursorStuds(cursorScenePx.x() / pxPerStud, cursorScenePx.y() / pxPerStud);
+    std::vector<core::Brick> placed = dragPreviewModuleBricks_;
+    std::vector<const core::Brick*> refs;
+    for (auto& b : placed) {
+        b.displayArea.translate(cursorStuds);
+        refs.push_back(&b);
+    }
+    sampleSnapSpeed(placeSnap_, mapFromScene(cursorScenePx));
+    const auto snap = moduleSnapShift(refs, cursorStuds, &placeSnap_, false);
+    const QPointF origin = snap ? turnPoint(cursorStuds, snap->turn, snap->pivot, snap->to) : cursorStuds;
+    dragPreviewItem_->setRotation(snap ? snap->turn : 0.0);
+    dragPreviewItem_->setPos(origin * pxPerStud);
     const QPointF ring = snap ? snap->to * pxPerStud : QPointF();
     setSnapMarks(snap.has_value(), ring, snap ? std::optional<QPointF>(ring) : std::nullopt);
 }

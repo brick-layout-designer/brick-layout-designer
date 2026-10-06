@@ -80,6 +80,20 @@ void readSubPartList(QXmlStreamReader& r, QList<PartSubPart>& out) {
     }
 }
 
+// BlueBrick's readGroupConnectionPreferenceListTag: <nextIndex from="i">j</nextIndex>.
+void readGroupConnectionPreferences(QXmlStreamReader& r, QHash<int, int>& out) {
+    while (r.readNextStartElement()) {
+        if (r.name() != QStringLiteral("nextIndex")) {
+            r.skipCurrentElement();
+            continue;
+        }
+        bool okFrom = false, okTo = false;
+        const int from = r.attributes().value(QStringLiteral("from")).toInt(&okFrom);
+        const int to = r.readElementText().trimmed().toInt(&okTo);
+        if (okFrom && okTo && from >= 0 && to >= 0) out.insert(from, to);
+    }
+}
+
 void readLDrawRemap(QXmlStreamReader& r, PartMetadata& out) {
     while (r.readNextStartElement()) {
         const auto n = r.name();
@@ -205,6 +219,8 @@ bool parsePartXml(const QString& xmlPath, PartMetadata& out) {
             else if (n == QStringLiteral("Description")) readDescriptions(r, out.descriptions);
             else if (n == QStringLiteral("ConnexionList")) readConnexionList(r, out.connections);
             else if (n == QStringLiteral("SubPartList"))   readSubPartList(r, out.subparts);
+            else if (n == QStringLiteral("GroupConnectionPreferenceList"))
+                readGroupConnectionPreferences(r, out.groupNextPreferred);
             else if (n == QStringLiteral("CanUngroup"))
                 out.canUngroup = r.readElementText().trimmed().compare(QLatin1String("false"), Qt::CaseInsensitive) != 0;
             else if (n == QStringLiteral("LDraw"))         readLDrawRemap(r, out);

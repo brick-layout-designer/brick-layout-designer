@@ -155,6 +155,45 @@ ExpandedSet expandSet(parts::PartsLibrary& lib, const QString& key, QPointF cent
     return out;
 }
 
+std::vector<SetEnd> setAnchorOrder(parts::PartsLibrary& lib, const QString& setKey,
+                                   const std::vector<const core::Brick*>& parts) {
+    // The parts in sub-part order: each takes the first free slot with its
+    // part number; any left over (not the set's) come last.
+    const ExpandedSet set = expandSet(lib, setKey, QPointF(0, 0));
+    std::vector<const core::Brick*> ordered(set.bricks.size(), nullptr);
+    std::vector<const core::Brick*> extra;
+    for (const core::Brick* b : parts) {
+        bool placed = false;
+        for (size_t i = 0; i < set.bricks.size() && !placed; ++i) {
+            if (ordered[i] || set.bricks[i].partNumber.compare(b->partNumber, Qt::CaseInsensitive) != 0)
+                continue;
+            ordered[i] = b;
+            placed = true;
+        }
+        if (!placed) extra.push_back(b);
+    }
+    std::vector<SetEnd> all;
+    for (const auto* list : { &ordered, &extra }) {
+        for (const core::Brick* b : *list) {
+            if (!b) continue;
+            const auto meta = lib.metadata(b->partNumber);
+            const int n = meta ? static_cast<int>(meta->connections.size()) : 0;
+            for (int c = 0; c < n; ++c) all.push_back({ b, c });
+        }
+    }
+    const auto meta = lib.metadata(setKey);
+    const QHash<int, int> next = meta ? meta->groupNextPreferred : QHash<int, int>();
+    std::vector<SetEnd> out;
+    std::vector<bool> taken(all.size(), false);
+    for (int i = 0; i >= 0 && i < static_cast<int>(all.size()) && !taken[i]; i = next.value(i, -1)) {
+        taken[i] = true;
+        out.push_back(all[i]);
+    }
+    for (size_t i = 0; i < all.size(); ++i)
+        if (!taken[i]) out.push_back(all[i]);
+    return out;
+}
+
 std::vector<SetModule> findSetModules(const core::Map& map, parts::PartsLibrary& lib) {
     std::vector<SetModule> out;
     if (map.sidecar.modules.empty()) return out;
