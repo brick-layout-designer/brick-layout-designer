@@ -25,6 +25,7 @@
 #include <QFont>
 #include <QGraphicsItem>
 #include <QGraphicsScene>
+#include <QHash>
 #include <QPainter>
 #include <QPen>
 #include <QPolygonF>
@@ -268,8 +269,32 @@ void MapView::refreshSelectionOverlay() {
     // changes), and everything else gets the outline 1 px outside it.
     QList<SelectionOverlay::RulerBand> bands;
     QSet<QString> rulerGuidsSeen;
+    // A module picked whole (not the one being edited) is outlined as one
+    // piece round its parts, where they are now (so it follows a drag), as
+    // the web does; its parts get no outline each.
+    QSet<QString> inPickedModule;
+    if (map_) {
+        QSet<QString> picked;
+        QHash<QString, QGraphicsItem*> itemOf;
+        for (QGraphicsItem* it : scene()->selectedItems())
+            if (detail::isBrickItem(it)) {
+                picked.insert(it->data(detail::kBrickDataGuid).toString());
+                itemOf.insert(it->data(detail::kBrickDataGuid).toString(), it);
+            }
+        for (const auto& m : map_->sidecar.modules) {
+            if (m.id == editingModuleId_ || m.memberIds.isEmpty() || !picked.contains(m.memberIds)) continue;
+            QRectF box;
+            for (const QString& id : m.memberIds)
+                if (auto* it = itemOf.value(id)) box = box.united(it->sceneBoundingRect());
+            if (box.isEmpty()) continue;
+            inPickedModule.unite(m.memberIds);
+            polys.append(QPolygonF(box.adjusted(-4, -4, 4, 4)));
+        }
+    }
     for (QGraphicsItem* it : scene()->selectedItems()) {
         if (!it || it == selectionOverlay_) continue;
+        if (detail::isBrickItem(it) && inPickedModule.contains(it->data(detail::kBrickDataGuid).toString()))
+            continue;
         const QString kind = it->data(detail::kBrickDataKind).toString();
         if (kind == QLatin1String("text") || kind == QLatin1String("label")) continue;
         if (isRulerItem(it)) {

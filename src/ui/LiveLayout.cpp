@@ -47,6 +47,8 @@ LiveLayout::LiveLayout(MapView& view, QObject* parent) : QObject(parent), view_(
     connect(&view_, &MapView::selectionChanged, this, &LiveLayout::schedulePresence);
     connect(&view_, &MapView::editingModuleChanged, this, &LiveLayout::schedulePresence);
     connect(&session_, &sync::SyncSession::peersChanged, this, &LiveLayout::drawPeers);
+    // Others' selections of parts being dragged here follow the drag.
+    connect(&view_, &MapView::liveDragMoved, this, &LiveLayout::drawPeers);
 }
 
 void LiveLayout::setUser(const QString& userId, const QString& displayName, const QString& layoutId) {
@@ -84,12 +86,14 @@ void LiveLayout::drawPeers() {
         }
     view_.setPeersEditing(editing);
     if (!active_ || !view_.currentMap()) return;
-    // Bricks by id, for selection outlines.
+    // Bricks by id, for selection outlines: where a drag here has them now.
     QHash<QString, QRectF> bricks;
-    for (const auto& layer : view_.currentMap()->layers())
-        if (layer->kind() == core::LayerKind::Brick)
-            for (const auto& b : static_cast<const core::LayerBrick&>(*layer).bricks)
-                bricks.insert(b.guid, b.displayArea);
+    view_.withLivePose([&bricks](const core::Map& map) {
+        for (const auto& layer : map.layers())
+            if (layer->kind() == core::LayerKind::Brick)
+                for (const auto& b : static_cast<const core::LayerBrick&>(*layer).bricks)
+                    bricks.insert(b.guid, b.displayArea);
+    });
     const double px = detail::studToPx();
     const auto add = [this](QGraphicsItem* it) {
         it->setZValue(1e9);

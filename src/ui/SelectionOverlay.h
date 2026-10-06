@@ -65,6 +65,8 @@ public:
         QColor fill;
     };
     void setFullNames(QList<FullName> names);
+    // The outlines drawn now (tests).
+    const QList<QPolygonF>& outlines() const { return polys_; }
 
 private:
     QList<QPolygonF> polys_;

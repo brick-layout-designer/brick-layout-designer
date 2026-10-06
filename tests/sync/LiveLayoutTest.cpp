@@ -8,11 +8,12 @@
 #include "ui/ModuleEditBar.h"
 #include "FakeSyncServer.h"
 
+#include "core/ModuleEdit.h"
 #include "edit/EditCommands.h"
 #include "edit/ModuleCommands.h"
-#include "core/ModuleEdit.h"
 #include "parts/PartsLibrary.h"
 #include "ui/MapView.h"
+#include "ui/MapViewInternal.h"
 
 #include <gtest/gtest.h>
 
@@ -166,6 +167,55 @@ TEST(LiveLayout, SharesWhoIsEditingWhichModule) {
             if (!sync::presence::peerFrom(s).editingModule.isEmpty()) return false;
         return true;
     }));
+}
+
+// Someone else has a part picked; we drag it: their outline of it moves
+// with our drag (MapView's live pose), before we let go.
+TEST(LiveLayout, OthersOutlinesFollowOurDrag) {
+    Harness h;
+    h.open();
+    h.view.resize(800, 600);
+    // A part that is on top where we'll press it.
+    QGraphicsItem* part = nullptr;
+    QPoint at;
+    for (QGraphicsItem* it : h.view.scene()->items()) {
+        if (!ui::detail::isBrickItem(it)) continue;
+        h.view.centerOn(it);
+        QCoreApplication::processEvents();
+        at = h.view.mapFromScene(it->sceneBoundingRect().center());
+        for (QGraphicsItem* top : h.view.items(at))
+            if (ui::detail::isBrickItem(top)) {
+                if (top == it) part = it;
+                break;
+            }
+        if (part) break;
+    }
+    ASSERT_NE(part, nullptr);
+    const QString brick = part->data(ui::detail::kBrickDataGuid).toString();
+    sync::SyncSession other;
+    other.open(h.server.url(), {}, false);
+    ASSERT_TRUE(waitFor([&] { return other.status() == Status::Synced; }));
+    other.setPresence(
+        sync::presence::state({ QStringLiteral("u-bob"), QStringLiteral("Bob"), QStringLiteral("#60a5fa") },
+                              std::nullopt, { brick }, 0));
+    const auto outline = [&]() -> QRectF {
+        for (QGraphicsItem* it : h.view.scene()->items())
+            if (auto* r = dynamic_cast<QGraphicsRectItem*>(it);
+                r && r->pen().style() == Qt::DashLine && r->zValue() >= 1e9)
+                return r->sceneBoundingRect();
+        return {};
+    };
+    ASSERT_TRUE(waitFor([&] { return !outline().isNull(); }));
+    const QRectF before = outline();
+    const auto send = [&](QEvent::Type t, QPoint p, Qt::MouseButtons b) {
+        QMouseEvent ev(t, QPointF(p), h.view.viewport()->mapToGlobal(QPointF(p)),
+                       t == QEvent::MouseMove ? Qt::NoButton : Qt::LeftButton, b, Qt::NoModifier);
+        QCoreApplication::sendEvent(h.view.viewport(), &ev);
+    };
+    send(QEvent::MouseButtonPress, at, Qt::LeftButton);
+    for (int i = 1; i <= 4; ++i) send(QEvent::MouseMove, at + QPoint(20 * i, 10 * i), Qt::LeftButton);
+    EXPECT_GT(outline().center().x() - before.center().x(), 1.0);
+    send(QEvent::MouseButtonRelease, at + QPoint(80, 40), Qt::NoButton);
 }
 
 TEST(LiveLayout, ShowsOtherPeoplesCursorsAndSendsOurs) {

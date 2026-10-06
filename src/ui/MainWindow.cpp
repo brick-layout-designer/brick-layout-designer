@@ -755,7 +755,9 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
             venueLabel->setToolTip({});
             return;
         }
-        const auto violations = edit::validateVenue(*map);
+        // Against the parts where a drag has them now (MapView's live pose).
+        QList<edit::VenueViolation> violations;
+        mapView_->withLivePose([&violations](const core::Map& m) { violations = edit::validateVenue(m); });
         if (violations.isEmpty()) {
             venueLabel->setText(tr("Venue: fits"));
             venueLabel->setStyleSheet(QString());
@@ -777,6 +779,9 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
             this, [refreshVenueStatus](int){ refreshVenueStatus(); });
     connect(mapView_, &MapView::layersChanged, this,
             [refreshVenueStatus]{ refreshVenueStatus(); });
+    connect(mapView_, &MapView::liveDragMoved, this, [refreshVenueStatus] { refreshVenueStatus(); });
+    // A layout opened (or loaded from the server) gets its check at once.
+    connect(mapView_, &MapView::mapLoaded, this, [refreshVenueStatus] { refreshVenueStatus(); });
     QTimer::singleShot(0, this, refreshVenueStatus);
 
     // Budget status readout — mirrors the venue one. Silent without a budget.

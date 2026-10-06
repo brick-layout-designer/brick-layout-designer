@@ -10,6 +10,7 @@
 #include <QPair>
 #include <QPointF>
 #include <QRectF>
+#include <QSet>
 #include <QString>
 #include <QVector>
 
@@ -67,6 +68,14 @@ public:
     // while applying a group connection-snap shift so its shifted positions
     // survive the itemChange callback.
     static void setSuppressItemSnap(bool suppress);
+
+    // While parts are dragged: draw again what is drawn from the layout but
+    // follows parts (module frames and names, electric circuits, and the
+    // rulers fixed to `moving` parts), from `posed`, the layout with the
+    // dragged parts where the drag has them now (MapView's live pose).
+    // Ruler layers in `keepRulerLayers` (being dragged themselves) stay.
+    void rebuildFollowers(const core::Map& posed, const QSet<QString>& moving,
+                          const QSet<int>& keepRulerLayers);
 
     // Toggle the visibility of a layer (by index). Returns false if out of range.
     bool setLayerVisible(int layerIndex, bool visible);

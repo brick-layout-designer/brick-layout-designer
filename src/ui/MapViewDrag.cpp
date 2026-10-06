@@ -140,6 +140,7 @@ std::vector<MapView::BrickOriginSnapshot> MapView::selectedBrickSnapshots() cons
 }
 
 void MapView::captureDragStart() {
+    liveMoved_ = false;
     dragStart_ = selectedBrickSnapshots();
     dragSnap_.reset();
     dragRawDeltaPx_.reset();
@@ -370,6 +371,7 @@ void MapView::applyLiveConnectionSnap(bool fromMove) {
             if (dragSnap_.meter.hasSamples())
                 dragSnap_.sample(dragSnap_.meter.lastX(), dragSnap_.meter.lastY(), snapClockMs());
             applyLiveConnectionSnap(false);
+            refreshLiveFollowers();
         });
     }
     snapSettle_->stop();
@@ -633,6 +635,65 @@ void MapView::commitDragIfMoved() {
         if (auto* sb = mw->findChild<QStatusBar*>())
             sb->showMessage(connectionSnapped ? tr("Connection snap")
                                               : tr("Moved"), 1500);
+}
+
+void MapView::withLivePose(const std::function<void(const core::Map&)>& fn) {
+    if (!map_) return;
+    const BrickOriginSnapshot* lead = nullptr;
+    for (const auto& s : dragStart_)
+        if (s.item) {
+            lead = &s;
+            break;
+        }
+    if (!liveMoved_ || !lead) {
+        fn(*map_);
+        return;
+    }
+    // The drag moved every part rigidly: a point p (scene px, at the press)
+    // is now R(turn) (p - leadAtPress) + lead.
+    const double turn = lead->item->rotation() - lead->rotationAtPress;
+    QTransform pose;
+    pose.translate(lead->item->scenePos().x(), lead->item->scenePos().y());
+    pose.rotate(turn);
+    pose.translate(-lead->scenePosAtPress.x(), -lead->scenePosAtPress.y());
+    const double px = studToPx();
+    struct Was {
+        core::Brick* b;
+        QRectF area;
+        float orientation;
+    };
+    std::vector<Was> was;
+    for (const auto& s : dragStart_) {
+        auto* b = const_cast<core::Brick*>(findBrick(*map_, s.layerIndex, s.guid));
+        if (!b) continue;
+        was.push_back({ b, b->displayArea, b->orientation });
+        const QPointF c = pose.map(b->displayArea.center() * px) / px;
+        const double r = turn * M_PI / 180.0;
+        const double w =
+            std::abs(b->displayArea.width() * std::cos(r)) + std::abs(b->displayArea.height() * std::sin(r));
+        const double h =
+            std::abs(b->displayArea.width() * std::sin(r)) + std::abs(b->displayArea.height() * std::cos(r));
+        b->displayArea = QRectF(c.x() - w / 2, c.y() - h / 2, w, h);
+        b->orientation = static_cast<float>(b->orientation + turn);
+    }
+    fn(*map_);
+    for (const auto& w : was) {
+        w.b->displayArea = w.area;
+        w.b->orientation = w.orientation;
+    }
+}
+
+void MapView::refreshLiveFollowers() {
+    if (!map_ || dragStart_.empty()) return;
+    liveMoved_ = true;
+    QSet<QString> moving;
+    for (const auto& s : dragStart_) moving.insert(s.guid);
+    // Ruler layers being dragged themselves keep their items (the drag holds them).
+    QSet<int> keep;
+    for (const auto& r : rulerDragStart_) keep.insert(r.layerIndex);
+    withLivePose([&](const core::Map& posed) { builder_->rebuildFollowers(posed, moving, keep); });
+    applyViewFilter();
+    emit liveDragMoved();
 }
 
 }  // namespace bld::ui
