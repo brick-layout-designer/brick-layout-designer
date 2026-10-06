@@ -19,8 +19,10 @@
 #include <QPixmap>
 #include <QPushButton>
 #include <QScrollArea>
+#include <QScrollBar>
 #include <QScroller>
 #include <QStandardPaths>
+#include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
 
@@ -615,6 +617,7 @@ CatalogTab::CatalogTab(ServerLibrary& library, QWidget* parent) : QWidget(parent
     col->addWidget(note_);
 
     auto* scroll = new QScrollArea(this);
+    scroll_ = scroll;
     scroll->setWidgetResizable(true);
     scroll->setFrameShape(QFrame::NoFrame);
     auto* host = new QWidget(scroll);
@@ -663,6 +666,7 @@ void CatalogTab::setKind(Kind kind) {
     kind_ = kind;
     openCollection_.clear();
     added_.clear();
+    addedItems_.clear();
     for (QPushButton* b : std::as_const(kindButtons_)) b->setChecked(b->property("catalogKind").toInt() == static_cast<int>(kind));
     reload();
 }
@@ -693,9 +697,19 @@ void CatalogTab::clearRows() {
 
 void CatalogTab::reload() {
     status_->showState();
-    clearRows();
-    const int gen = ++generation_;
     const bool ready = library_.state() == ServerLibrary::State::Ready;
+    // The same list again (a live change, back in the window, after an
+    // Add): keep the rows and the place until the new one is in, rather
+    // than blanking it and jumping back to the top.
+    const QString view = QString::number(static_cast<int>(kind_)) + QLatin1Char('|') + openCollection_ + QLatin1Char('|') +
+                         (kind_ == Kind::Collections ? QString() : search_->text());
+    const bool same = ready && view == shown_ && !rows_.isEmpty();
+    keepScroll_ = same ? scroll_->verticalScrollBar()->value() : -1;
+    if (!same) {
+        clearRows();
+        shown_.clear();
+    }
+    const int gen = ++generation_;
     for (QPushButton* b : std::as_const(kindButtons_)) b->setVisible(kindOn(static_cast<Kind>(b->property("catalogKind").toInt())));
     kinds_->setVisible(ready);
     search_->setVisible(ready && kind_ != Kind::Collections);
@@ -715,7 +729,8 @@ void CatalogTab::reload() {
         }
         return;
     }
-    if (added_.isEmpty()) note_->setText(tr("Loading…"));
+    if (added_.isEmpty() && !same) note_->setText(tr("Loading…"));
+    shown_ = view;
     auto failed = [this, gen](const sync::ServerRefusal& r) {
         if (gen != generation_) return;
         note_->setText(ServerLibrary::refusalText(r));
@@ -757,6 +772,15 @@ void CatalogTab::showItems(const QList<sync::CatalogItem>& items) {
         rows_.insert(it.id, r);
         list_->insertWidget(at++, r);
     }
+    restoreScroll();
+}
+
+void CatalogTab::restoreScroll() {
+    if (keepScroll_ < 0) return;
+    const int to = keepScroll_;
+    keepScroll_ = -1;
+    // Once the new rows are laid out.
+    QTimer::singleShot(0, this, [this, to] { scroll_->verticalScrollBar()->setValue(to); });
 }
 
 void CatalogTab::showCollections(const QList<sync::CatalogCollection>& list) {
@@ -769,6 +793,7 @@ void CatalogTab::showCollections(const QList<sync::CatalogCollection>& list) {
         rows_.insert(c.id, r);
         list_->insertWidget(at++, r);
     }
+    restoreScroll();
 }
 
 QWidget* CatalogTab::itemRow(const sync::CatalogItem& it) {
@@ -812,6 +837,11 @@ QWidget* CatalogTab::itemRow(const sync::CatalogItem& it) {
     if (isLayout || isVenue) {
         add->setProperty("accent", true);
         add->setAccessibleName(isLayout ? tr("Open a copy of %1").arg(it.title) : tr("Use the venue %1").arg(it.title));
+    }
+    if (const auto done = addedItems_.constFind(it.id); done != addedItems_.cend()) {
+        add->setText(*done);
+        // A layout or venue can be copied again (each copy is a new one).
+        add->setEnabled(isLayout || isVenue);
     }
     connect(add, &QPushButton::clicked, this, [this, item = it, add] { addItem(item, add); });
     if (isLayout || isVenue) {
@@ -899,8 +929,9 @@ void CatalogTab::addItem(const sync::CatalogItem& it, QPushButton* button) {
     connect(button, &QObject::destroyed, this, [alive] { *alive = false; });
     QPushButton* b = button;
     const QString kind = it.kind;
-    library_.api().addCatalogItem(it.id, *dest, [this, b, alive, kind, title = it.title](const QString&, const QString& id) {
+    library_.api().addCatalogItem(it.id, *dest, [this, b, alive, kind, itemId = it.id, title = it.title](const QString&, const QString& id) {
         const bool copy = kind == QLatin1String("layout") || kind == QLatin1String("venue");
+        addedItems_.insert(itemId, copy ? tr("Copied") : tr("Added"));
         if (*alive) {
             // A layout or venue can be copied again (each copy is a new one).
             b->setText(copy ? tr("Copied") : tr("Added"));

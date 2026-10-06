@@ -202,6 +202,7 @@ private:
     QWidget* itemRow(const sync::CatalogItem& it);
     QWidget* collectionRow(const sync::CatalogCollection& c);
     void clearRows();
+    void restoreScroll();
     void addItem(const sync::CatalogItem& it, QPushButton* button);
     bool kindOn(Kind k) const;
     void addAll(const sync::CatalogCollection& c);
@@ -216,9 +217,17 @@ private:
     QPushButton* back_ = nullptr;
     QLabel* note_ = nullptr;
     QVBoxLayout* list_ = nullptr;
+    QScrollArea* scroll_ = nullptr;
     QHash<QString, QWidget*> rows_;
     QString openCollection_;
     QString added_;  // what the last Add all did
+    // What each Add button already did ("Added", "Copied"), so a refresh
+    // (a live change, coming back to the window) doesn't undo it.
+    QHash<QString, QString> addedItems_;
+    // What the rows show (kind, collection, search). A refresh of the
+    // same keeps the rows and the scroll place until the new list is in.
+    QString shown_;
+    int keepScroll_ = -1;
     int generation_ = 0;
 };
 
