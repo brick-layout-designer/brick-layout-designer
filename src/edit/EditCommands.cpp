@@ -357,8 +357,10 @@ void SetGroupingCommand::undo() { applyGrouping(map_, before_); }
 GroupBricksCommand::GroupBricksCommand(core::Map& map, std::vector<BrickRef> targets, QUndoCommand* parent)
     : SetGroupingCommand(map, parent) {
     const auto tops = topItems(map, targets);
+    qsizetype items = 0;
+    for (const auto& t : tops) items += t.groups.size() + t.bricks.size();
+    if (items < 2) return;  // nothing to group
     for (auto it = tops.constBegin(); it != tops.constEnd(); ++it) {
-        if (it->groups.size() + it->bricks.size() < 2) continue;
         Grouping before = captureGrouping(map, it.key());
         Grouping after = before;
         core::Group g;

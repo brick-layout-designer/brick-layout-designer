@@ -197,8 +197,8 @@ protected:
 };
 
 // BlueBrick's GroupItems: the targets' outermost items (a set stays whole
-// inside) go into one new group per layer. A layer with fewer than two
-// such items is left as it is.
+// inside) go into one new group per layer, when there are at least two
+// items in all.
 class GroupBricksCommand : public SetGroupingCommand {
 public:
     GroupBricksCommand(core::Map& map, std::vector<BrickRef> targets, QUndoCommand* parent = nullptr);
