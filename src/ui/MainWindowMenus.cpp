@@ -171,6 +171,11 @@ void MainWindow::setupMenus() {
         auto* antialiasChk = new QCheckBox(tr("Antialias"), &dlg);
         antialiasChk->setChecked(s.value(QStringLiteral("export/antialias"), true).toBool());
         form->addRow(antialiasChk);
+        // ExportImageForm's "Electric circuits": remembered in the map
+        // (<ExportElectricCircuit>), whatever the view shows now.
+        auto* electricChk = new QCheckBox(tr("Electric circuits"), &dlg);
+        electricChk->setChecked(mapView_->currentMap()->exportInfo.electricCircuit);
+        form->addRow(electricChk);
 
         auto* bb = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
         form->addRow(bb);
@@ -193,7 +198,19 @@ void MainWindow::setupMenus() {
             const auto* m = mapView_->currentMap();
             opts.watermark = tr("%1 / %2 / %3").arg(m->author, m->lug, m->event);
         }
+        mapView_->currentMap()->exportInfo.electricCircuit = electricChk->isChecked();
+        const QString electricKey = QStringLiteral("view/electricCircuits");
+        const bool shownElectric = s.value(electricKey, false).toBool();
+        const bool swapElectric = shownElectric != electricChk->isChecked();
+        if (swapElectric) {
+            s.setValue(electricKey, electricChk->isChecked());
+            mapView_->rebuildScene();
+        }
         const QImage img = views::renderSceneImage(*scene, bounds, QSize(width, height), opts);
+        if (swapElectric) {
+            s.setValue(electricKey, shownElectric);
+            mapView_->rebuildScene();
+        }
         if (!img.save(path)) {
             QMessageBox::warning(this, tr("Export failed"), tr("Could not write %1").arg(path));
             return;
