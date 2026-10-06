@@ -4,6 +4,8 @@
 // declaration in MapView.h.
 
 #include "MapView.h"
+
+#include "../core/Groups.h"
 #include "BudgetSession.h"
 
 #include "../core/Brick.h"
@@ -15,6 +17,8 @@
 #include "MapViewInternal.h"
 
 #include <QCursor>
+
+#include <algorithm>
 #include <QGraphicsItem>
 #include <QGraphicsScene>
 #include <QHash>
@@ -29,6 +33,7 @@ using detail::isBrickItem;
 
 void MapView::copySelection() {
     clipboard_.clear();
+    clipboardGroups_.clear();
     if (!map_) return;
     // selectedItems() returns items in no particular order. Copying in
     // that order would scramble back-to-front z-ordering within the
@@ -47,6 +52,12 @@ void MapView::copySelection() {
                 clipboard_.push_back({ L->name, b });
             }
         }
+        // Keep the sets (and groups) the copied parts are in.
+        const auto& BL = static_cast<const core::LayerBrick&>(*L);
+        auto& groups = clipboardGroups_[L->name];
+        for (const auto& g : BL.groups)
+            if (std::none_of(groups.cbegin(), groups.cend(), [&](const core::Group& k) { return k.guid == g.guid; }))
+                groups.push_back(g);
     }
 }
 
@@ -95,7 +106,6 @@ void MapView::pasteClipboard() {
         b.guid = core::newBbmId();
         newGuids.insert(b.guid);
         b.displayArea.translate(translation);
-        b.myGroupId.clear();
         const QString key = src.sourceLayerName.isEmpty()
             ? QStringLiteral("Bricks") : src.sourceLayerName;
         if (!byLayer.contains(key)) layerOrder << key;
@@ -124,7 +134,12 @@ void MapView::pasteClipboard() {
         const int li = findOrCreateLayer(name);
         if (li < 0) continue;
         auto& bricks = byLayer[name];
-        undoStack_->push(new edit::AddBricksCommand(*map_, li, std::move(bricks)));
+        // Pasted sets stay sets: their groups come along under new ids.
+        core::LayerBrick source;
+        source.groups = clipboardGroups_.value(name == QStringLiteral("Bricks") && !clipboardGroups_.contains(name)
+                                                   ? QString() : name);
+        auto groups = core::cloneGroups(source, bricks, [] { return core::newBbmId(); });
+        undoStack_->push(new edit::AddBricksCommand(*map_, li, std::move(bricks), std::move(groups)));
     }
     // Editing a module, pasted parts join it.
     absorbIntoEditedModule(newGuids);

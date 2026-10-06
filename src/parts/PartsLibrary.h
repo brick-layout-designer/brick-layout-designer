@@ -84,6 +84,8 @@ struct PartMetadata {
     // Populated only when kind == Group — the parts that make up the
     // set (from <SubPartList> in the XML).
     QList<PartSubPart>         subparts;
+    // <CanUngroup> of a set: false when it may never be split (flex.group).
+    bool                       canUngroup = true;
 
     // Pixels per stud the GIF was authored at. Vanilla BlueBrick parts
     // implicitly use 8; our LDD/LDraw imports may use a higher value

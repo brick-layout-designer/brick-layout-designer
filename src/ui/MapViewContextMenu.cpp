@@ -164,8 +164,14 @@ void MapView::contextMenuEvent(QContextMenuEvent* e) {
                 auto* grp = menu.addAction(tr("Group"));
                 connect(grp, &QAction::triggered, [this]{ groupSelection(); });
             }
-            auto* ungrp = menu.addAction(tr("Ungroup"));
-            connect(ungrp, &QAction::triggered, [this]{ ungroupSelection(); });
+            if (const auto state = ungroupState(); state != UngroupState::Nothing) {
+                auto* ungrp = menu.addAction(tr("Ungroup"));
+                connect(ungrp, &QAction::triggered, [this]{ ungroupSelection(); });
+                if (state == UngroupState::AlwaysWhole) {
+                    ungrp->setEnabled(false);
+                    ungrp->setText(tr("Ungroup (this set is always used whole)"));
+                }
+            }
             auto* selPath = menu.addAction(tr("Select Connected"));
             selPath->setToolTip(tr("Extend selection to every brick connected to current selection"));
             connect(selPath, &QAction::triggered, [this]{ selectPath(); });

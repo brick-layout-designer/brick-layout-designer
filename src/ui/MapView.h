@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../core/Brick.h"
+#include "../core/Group.h"
 #include "SnapFeel.h"
 
 #include <QColor>
@@ -140,6 +141,10 @@ public:
     // Grouping (same-layer vanilla groups — modules span layers).
     void groupSelection();
     void ungroupSelection();
+    // What Ungroup would do to the selection: nothing grouped, split it, or
+    // only sets that are always used whole.
+    enum class UngroupState { Nothing, Splits, AlwaysWhole };
+    UngroupState ungroupState() const;
     // Extend selection to every brick reachable via connection links from the
     // current selection (transitive closure over Connexion.linkedToId).
     void selectPath();
@@ -403,6 +408,8 @@ private:
         core::Brick brick;
     };
     std::vector<ClipEntry> clipboard_;
+    // The groups (sets) above the copied parts, by source layer name.
+    QHash<QString, std::vector<core::Group>> clipboardGroups_;
 
     // Snap + rotation step config, updated by MainWindow from toolbar + QSettings.
     double snapStepStuds_       = 0.0;     // 0 disables snap

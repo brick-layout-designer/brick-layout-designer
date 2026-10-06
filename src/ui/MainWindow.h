@@ -156,6 +156,8 @@ private:
     // changes prompt) with that venue in place.
     void startLayoutFromVenue(const core::Venue& venue);
     // Puts a just-read map in the window as the document at `path`.
+    // Modules that older builds made of placed sets become sets again (with a notice).
+    void makeSetsOfSetModules();
     void showLoadedMap(std::unique_ptr<core::Map> map, const QString& path, const QStringList& warnings);
     // Parts a .bld-layout carries that the library lacks: written to the
     // layout-parts folder, which joins the library paths. Returns what to

@@ -175,8 +175,8 @@ TEST_F(MapViewTest, DoubleClickDragBendsFlexTrackInOneUndoStep) {
 
 TEST_F(MapViewTest, DoubleClickDragBendsAPlacedFlexTrackSet) {
     // A flex track from the library is a set (flex.group: a female and a
-    // male half joined by a hinge). Placing it wraps the halves in a
-    // module; its double-click must still bend it, not open Edit module.
+    // male half joined by a hinge), placed as one BlueBrick group, never a
+    // module. A click picks it whole; a double-click-drag bends it.
     if (!parts_.metadata(QStringLiteral("flex.group")))
         GTEST_SKIP() << "the BlueBrickParts library isn't checked out (run git submodule update --init)";
     auto map = std::make_unique<core::Map>();
@@ -188,13 +188,19 @@ TEST_F(MapViewTest, DoubleClickDragBendsAPlacedFlexTrackSet) {
     const double px = 8.0;  // SceneBuilder::kPixelsPerStud
     view_->centerOn(QPointF(0, 0));
     view_->addPartAtScenePos(QStringLiteral("flex.group"), QPointF(0, 0));
-    ASSERT_EQ(view_->currentMap()->sidecar.modules.size(), 1u);
-    const auto bricks = [&]() -> const std::vector<core::Brick>& {
+    EXPECT_TRUE(view_->currentMap()->sidecar.modules.empty()) << "a set is not a module";
+    const auto layerOf = [&]() -> const core::LayerBrick& {
         for (const auto& l : view_->currentMap()->layers())
-            if (l->kind() == core::LayerKind::Brick) return static_cast<const core::LayerBrick&>(*l).bricks;
+            if (l->kind() == core::LayerKind::Brick) return static_cast<const core::LayerBrick&>(*l);
         throw std::runtime_error("no brick layer");
     };
+    const auto bricks = [&]() -> const std::vector<core::Brick>& { return layerOf().bricks; };
     ASSERT_EQ(bricks().size(), 2u);
+    ASSERT_EQ(layerOf().groups.size(), 1u);
+    EXPECT_EQ(layerOf().groups.front().partNumber, QStringLiteral("FLEX.GROUP"));
+    for (const auto& b : bricks()) EXPECT_EQ(b.myGroupId, layerOf().groups.front().guid);
+    // Its own joint is linked.
+    EXPECT_EQ(bricks()[0].connections[1].linkedToId, bricks()[1].connections[1].guid);
     const std::vector<core::Brick> before = bricks();
     const int undoBefore = view_->undoStack()->count();
 
@@ -203,12 +209,12 @@ TEST_F(MapViewTest, DoubleClickDragBendsAPlacedFlexTrackSet) {
     const QPoint grab = view_->mapFromScene(QPointF(1.8, 0) * px);
     mouse(vp, QEvent::MouseButtonPress, grab, Qt::LeftButton);
     mouse(vp, QEvent::MouseButtonRelease, grab, Qt::NoButton);
+    EXPECT_EQ(selectedBrickGuids(*view_->scene()).size(), 2) << "a click picks the whole set";
     mouse(vp, QEvent::MouseButtonDblClick, grab, Qt::LeftButton);
     for (QPointF p : { QPointF(1.8, -0.2), QPointF(1.7, -0.6) })
         mouse(vp, QEvent::MouseMove, view_->mapFromScene(p * px), Qt::LeftButton);
     mouse(vp, QEvent::MouseButtonRelease, view_->mapFromScene(QPointF(1.7, -0.6) * px), Qt::NoButton);
 
-    EXPECT_TRUE(view_->editingModule().isEmpty()) << "a set bends; it doesn't open Edit module";
     EXPECT_EQ(view_->undoStack()->count(), undoBefore + 1);
     EXPECT_EQ(view_->undoStack()->undoText(), QStringLiteral("Flex move"));
     float turned = 0.0f;
@@ -217,13 +223,29 @@ TEST_F(MapViewTest, DoubleClickDragBendsAPlacedFlexTrackSet) {
     EXPECT_GT(turned, 1.0f);
     EXPECT_LE(turned, 10.01f) << "the flex pivot bends 10 degrees at most";
 
-    // A double-click without a drag still opens Edit module.
-    mouse(vp, QEvent::MouseButtonPress, grab, Qt::LeftButton);
-    mouse(vp, QEvent::MouseButtonRelease, grab, Qt::NoButton);
-    mouse(vp, QEvent::MouseButtonDblClick, grab, Qt::LeftButton);
-    mouse(vp, QEvent::MouseButtonRelease, grab, Qt::NoButton);
-    EXPECT_EQ(view_->editingModule(), view_->currentMap()->sidecar.modules.front().id);
-    EXPECT_EQ(view_->undoStack()->count(), undoBefore + 1);
+}
+
+TEST_F(MapViewTest, ADuplicatedSetStaysASet) {
+    if (!parts_.metadata(QStringLiteral("flex.group")))
+        GTEST_SKIP() << "the BlueBrickParts library isn't checked out (run git submodule update --init)";
+    auto map = std::make_unique<core::Map>();
+    auto layer = std::make_unique<core::LayerBrick>();
+    layer->name = QStringLiteral("Tracks");
+    layer->guid = core::newBbmId();
+    map->layers().push_back(std::move(layer));
+    view_->loadMap(std::move(map));
+    view_->addPartAtScenePos(QStringLiteral("flex.group"), QPointF(0, 0));
+    ASSERT_EQ(selectedBrickGuids(*view_->scene()).size(), 2) << "the placed set is selected";
+    view_->duplicateSelection();
+    const auto& L = static_cast<const core::LayerBrick&>(*view_->currentMap()->layers().front());
+    ASSERT_EQ(L.bricks.size(), 4u);
+    ASSERT_EQ(L.groups.size(), 2u);
+    EXPECT_NE(L.groups[0].guid, L.groups[1].guid);
+    for (const auto& g : L.groups) EXPECT_EQ(g.partNumber, QStringLiteral("FLEX.GROUP"));
+    EXPECT_EQ(L.bricks[2].myGroupId, L.groups[1].guid);
+    EXPECT_EQ(L.bricks[3].myGroupId, L.groups[1].guid);
+    view_->undoStack()->undo();
+    EXPECT_EQ(L.groups.size(), 1u);
 }
 
 TEST_F(MapViewTest, BudgetLimitationRefusesPartsOverTheirLimit) {

@@ -19,6 +19,8 @@
 #include "../edit/LayerCommands.h"
 #include "BudgetSession.h"
 #include "../edit/FlexMove.h"
+#include "../edit/Sets.h"
+#include "../core/Groups.h"
 #include "../edit/RulerCommands.h"
 #include "../edit/LabelCommands.h"
 #include "../edit/TextCommands.h"
@@ -147,7 +149,6 @@ MapView::MapView(parts::PartsLibrary& parts, QWidget* parent)
         if (!reentrant) {
             reentrant = true;
             QSet<QString> rulerGuids;
-            QSet<QString> brickGroupIds;
             QSet<QString> selectedBrickGuids;
             for (QGraphicsItem* it : this->scene()->selectedItems()) {
                 if (!it) continue;
@@ -168,30 +169,26 @@ MapView::MapView(parts::PartsLibrary& parts, QWidget* parent)
                 }
             }
             if (map_ && !selectedBrickGuids.isEmpty()) {
-                // Look up the group id of each selected brick.
+                // A grouped part picks its outermost group whole (a set,
+                // or the user's group around sets), as in BlueBrick.
+                QSet<QString> siblingGuids;
                 for (const auto& L : map_->layers()) {
                     if (!L || L->kind() != core::LayerKind::Brick) continue;
-                    for (const auto& b : static_cast<const core::LayerBrick&>(*L).bricks) {
-                        if (b.myGroupId.isEmpty()) continue;
-                        if (selectedBrickGuids.contains(b.guid))
-                            brickGroupIds.insert(b.myGroupId);
-                    }
+                    const auto& BL = static_cast<const core::LayerBrick&>(*L);
+                    QSet<QString> tops;
+                    for (const auto& b : BL.bricks)
+                        if (!b.myGroupId.isEmpty() && selectedBrickGuids.contains(b.guid))
+                            tops.insert(core::topGroup(BL, b.myGroupId));
+                    tops.remove(QString());
+                    if (tops.isEmpty()) continue;
+                    for (const auto& b : BL.bricks)
+                        if (!b.myGroupId.isEmpty() && tops.contains(core::topGroup(BL, b.myGroupId)))
+                            siblingGuids.insert(b.guid);
                 }
-                if (!brickGroupIds.isEmpty()) {
-                    // Find every brick whose myGroupId matches any of those.
-                    QSet<QString> siblingGuids;
-                    for (const auto& L : map_->layers()) {
-                        if (!L || L->kind() != core::LayerKind::Brick) continue;
-                        for (const auto& b : static_cast<const core::LayerBrick&>(*L).bricks) {
-                            if (b.myGroupId.isEmpty()) continue;
-                            if (brickGroupIds.contains(b.myGroupId))
-                                siblingGuids.insert(b.guid);
-                        }
-                    }
+                if (!siblingGuids.isEmpty()) {
                     for (QGraphicsItem* any : this->scene()->items()) {
                         if (!isBrickItem(any) || any->isSelected()) continue;
-                        const QString g = any->data(kBrickDataGuid).toString();
-                        if (siblingGuids.contains(g)) any->setSelected(true);
+                        if (siblingGuids.contains(any->data(kBrickDataGuid).toString())) any->setSelected(true);
                     }
                 }
             }
@@ -1506,63 +1503,43 @@ void MapView::addPartAtScenePos(const QString& partKey, QPointF sceneCenterPx, s
     }
     if (targetLayer < 0) return;
 
-    // Sets (PartKind::Group): the XML enumerates SubPartList children.
-    // Expand the set into one brick per subpart placed at
-    //   setCentre + rotatePoint(subpart.localPos, 0) in stud coords
-    // and automatically wrap the new bricks in a sidecar Module so the
-    // user can move the whole thing as a unit. All under a single undo
-    // macro.
+    // Sets (PartKind::Group): placed as one BlueBrick group (a nested set
+    // is a child group), never a module. The set's free ends snap like a
+    // module drop's; its own joints are linked straight away.
     {
         const auto meta = parts_.metadata(partKey);
         if (meta && meta->kind == parts::PartKind::Group && !meta->subparts.isEmpty()) {
             const double pxPerStud = rendering::SceneBuilder::kPixelsPerStud;
-            const QPointF centreStuds(sceneCenterPx.x() / pxPerStud,
-                                        sceneCenterPx.y() / pxPerStud);
-            undoStack_->beginMacro(tr("Place set %1").arg(partKey));
-            std::vector<edit::CreateModuleCommand::Member> members;
-            for (const auto& sp : meta->subparts) {
-                // As BlueBrick's Group constructor: sp.position is the
-                // subpart's displayArea centre (Brick.Center) in set-local
-                // studs; parts with an XML hull draw their sprite off it.
-                double orientDeg = sp.angleDegrees;
-                orientDeg = std::fmod(orientDeg, 360.0);
-                if (orientDeg >  180.0) orientDeg -= 360.0;
-                if (orientDeg <= -180.0) orientDeg += 360.0;
-                core::Brick b;
-                b.guid = core::newBbmId();
-                b.partNumber = sp.subKey;
-                b.orientation = static_cast<float>(orientDeg);
-                parts::placement::placeByAreaCentre(b, centreStuds + sp.position, parts_);
-                members.push_back({ targetLayer, b.guid });
-                undoStack_->push(new edit::AddBrickCommand(*map_, targetLayer, std::move(b)));
-            }
-            // Name the module after the set's description, falling back
-            // to the set key. Creates the module as a single undoable
-            // step so Ctrl+Z unwinds the whole placement.
+            const QPointF centreStuds(sceneCenterPx.x() / pxPerStud, sceneCenterPx.y() / pxPerStud);
+            edit::ExpandedSet set = edit::expandSet(parts_, partKey, centreStuds);
+            if (set.bricks.empty()) return;
+            std::vector<const core::Brick*> placed;
+            for (const auto& b : set.bricks) placed.push_back(&b);
+            if (const auto shift = moduleSnapShift(placed, centreStuds, dragSnap, true, nullptr))
+                for (auto& b : set.bricks) b.displayArea.translate(*shift);
+            if (dragSnap) dragSnap->reset();
             QString setName = partKey;
             for (const auto& d : meta->descriptions) {
                 if (d.language == QStringLiteral("en")) { setName = d.text; break; }
             }
             QSet<QString> placedGuids;
-            for (const auto& m : members) placedGuids.insert(m.guid);
-            if (!members.empty()) {
-                undoStack_->push(new edit::CreateModuleCommand(
-                    *map_, setName, std::move(members)));
-            }
+            for (const auto& b : set.bricks) placedGuids.insert(b.guid);
+            const int count = static_cast<int>(set.bricks.size());
+            // Editing a module, the set joins it in the same undo step.
+            undoStack_->beginMacro(tr("Place set %1").arg(setName));
+            undoStack_->push(new edit::AddBricksCommand(*map_, targetLayer, std::move(set.bricks), std::move(set.groups)));
             absorbIntoEditedModule(placedGuids);
             undoStack_->endMacro();
-            // Set files declare positions + angles but NOT connectivity.
-            // Without this, every subpart has empty linkedToId, so the
-            // tracks look "not connected" even though they're positioned
-            // to abut one another. Rebuild from world positions so the
-            // connection dots light up and snapping recognises the
-            // already-joined track network.
+            // Set files carry positions, not links: link the joints (and
+            // any snapped end) from where the parts sit.
             edit::rebuildConnectivity(*map_, parts_);
             rebuildScene();
+            scene()->clearSelection();
+            for (QGraphicsItem* it : scene()->items())
+                if (isBrickItem(it) && placedGuids.contains(it->data(kBrickDataGuid).toString())) it->setSelected(true);
             if (auto* mw = window())
                 if (auto* sb = mw->findChild<QStatusBar*>())
-                    sb->showMessage(tr("Placed set: %1 (%2 parts)")
-                        .arg(setName).arg(meta->subparts.size()), 3000);
+                    sb->showMessage(tr("Placed set: %1 (%2 parts)").arg(setName).arg(count), 3000);
             return;
         }
     }
@@ -1665,7 +1642,34 @@ void MapView::groupSelection() {
                             it->data(kBrickDataGuid).toString() });
     }
     if (targets.size() < 2) return;   // nothing to group
-    undoStack_->push(new edit::GroupBricksCommand(*map_, std::move(targets)));
+    auto* cmd = new edit::GroupBricksCommand(*map_, std::move(targets));
+    if (!cmd->changes()) { delete cmd; return; }
+    undoStack_->push(cmd);
+}
+
+MapView::UngroupState MapView::ungroupState() const {
+    if (!map_) return UngroupState::Nothing;
+    bool grouped = false;
+    for (QGraphicsItem* it : scene()->selectedItems()) {
+        if (!isBrickItem(it)) continue;
+        const int li = it->data(kBrickDataLayerIndex).toInt();
+        if (li < 0 || li >= static_cast<int>(map_->layers().size())) continue;
+        const auto* L = map_->layers()[li].get();
+        if (!L || L->kind() != core::LayerKind::Brick) continue;
+        const auto& BL = static_cast<const core::LayerBrick&>(*L);
+        const QString guid = it->data(kBrickDataGuid).toString();
+        for (const auto& b : BL.bricks) {
+            if (b.guid != guid) continue;
+            const core::Group* top = core::findGroup(BL, core::topGroup(BL, b.myGroupId));
+            if (!top) break;
+            grouped = true;
+            if (top->partNumber.isEmpty()) return UngroupState::Splits;
+            const auto meta = parts_.metadata(top->partNumber);
+            if (!meta || meta->canUngroup) return UngroupState::Splits;
+            break;
+        }
+    }
+    return grouped ? UngroupState::AlwaysWhole : UngroupState::Nothing;
 }
 
 void MapView::ungroupSelection() {
@@ -1677,7 +1681,14 @@ void MapView::ungroupSelection() {
                             it->data(kBrickDataGuid).toString() });
     }
     if (targets.empty()) return;
-    undoStack_->push(new edit::UngroupBricksCommand(*map_, std::move(targets)));
+    auto* cmd = new edit::UngroupBricksCommand(*map_, std::move(targets), [this](const core::Group& g) {
+        if (g.partNumber.isEmpty()) return true;
+        const auto meta = parts_.metadata(g.partNumber);
+        return !meta || meta->canUngroup;
+    });
+    if (cmd->refused() > 0) showStatus(tr("This set is always used whole, so it can't be ungrouped"), 4000);
+    if (!cmd->changes()) { delete cmd; return; }
+    undoStack_->push(cmd);
 }
 
 void MapView::selectPath() {
@@ -2367,6 +2378,9 @@ bool MapView::placeModule(core::Map& loaded, const QString& name, const QString&
             copy.guid.clear();
             batch.bricks.push_back(std::move(copy));
         }
+        // Its sets stay sets, under new ids.
+        batch.groups = core::cloneGroups(static_cast<const core::LayerBrick&>(*L), batch.bricks,
+                                         [] { return core::newBbmId(); });
         if (!batch.bricks.empty()) batches.push_back(std::move(batch));
     }
     if (batches.empty() || count == 0) return false;
