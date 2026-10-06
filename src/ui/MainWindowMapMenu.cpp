@@ -249,7 +249,10 @@ void MainWindow::setupMapMenu() {
     auto* clearVenueAct = venueMenu->addAction(tr("&Clear Venue"));
     connect(clearVenueAct, &QAction::triggered, this, [this]{
         auto* m = mapView_->currentMap();
-        if (!m || !m->sidecar.venue) return;
+        if (!m || !m->sidecar.venue) {
+            statusBar()->showMessage(tr("This layout has no venue to remove."), 4000);
+            return;
+        }
         ConfirmOptions clearVenue;
         clearVenue.title = tr("Remove the venue from this layout?");
         clearVenue.removes = tr("The venue’s outline, walls, doors and obstacles leave this layout.");

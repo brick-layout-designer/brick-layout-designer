@@ -25,6 +25,7 @@ add_executable(bld_ui_tests
     LoadingCardTest.cpp
     LayerPanelTest.cpp
     ToursTest.cpp
+    RecentFilesTest.cpp
     TouchTest.cpp
     PartsIconSizeTest.cpp
     UiWordingTest.cpp
