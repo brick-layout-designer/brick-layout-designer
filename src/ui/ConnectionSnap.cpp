@@ -63,7 +63,9 @@ std::vector<FreeTarget> freeTargets(const core::Map& map, parts::PartsLibrary& l
     return out;
 }
 
-QPointF turnPoint(QPointF p, double degrees, QPointF pivot, QPointF to) { return to + rotatePoint(p - pivot, degrees); }
+QPointF turnPoint(QPointF p, double degrees, QPointF pivot, QPointF to) {
+    return to + rotatePoint(p - pivot, degrees);
+}
 
 SnapPick pickConnectionSnap(const std::vector<MovingConn>& moving, const std::vector<FreeTarget>& targets,
                             double reach, snapfeel::Session* session, bool bypass, bool final) {

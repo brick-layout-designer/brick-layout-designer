@@ -276,7 +276,7 @@ private:
         QString guid;
         QPointF scenePosAtPress;      // item->pos() at mousePress
         QPointF studTopLeftAtPress;   // brick.displayArea.topLeft() at mousePress
-        double  rotationAtPress = 0;  // item->rotation() at mousePress
+        double rotationAtPress = 0;   // item->rotation() at mousePress
     };
 
     // Ruler / label drag snapshots. One per logical item (rulers may
@@ -604,8 +604,9 @@ private:
         QPointF to;
         double turn = 0;
     };
-    std::optional<ModuleSnap> moduleSnapShift(const std::vector<const core::Brick*>& bricks, QPointF cursorStuds,
-                                              snapfeel::Session* session, bool final) const;
+    std::optional<ModuleSnap> moduleSnapShift(const std::vector<const core::Brick*>& bricks,
+                                              QPointF cursorStuds, snapfeel::Session* session,
+                                              bool final) const;
     void clearDragPreview();
     void updateDragPreview(const QString& partKey, QPointF cursorScenePx);
     void updateModuleDragPreview(const QString& bbmPath, QPointF cursorScenePx);

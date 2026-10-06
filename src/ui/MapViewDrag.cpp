@@ -299,7 +299,9 @@ void MapView::applyLiveConnectionSnap(bool fromMove) {
             break;
         }
     }
-    const auto rawPos = [this](const BrickOriginSnapshot& s) { return s.scenePosAtPress + dragRawDeltaPx_.value_or(QPointF()); };
+    const auto rawPos = [this](const BrickOriginSnapshot& s) {
+        return s.scenePosAtPress + dragRawDeltaPx_.value_or(QPointF());
+    };
 
     const double px = studToPx();
     const QPointF mouseStuds(lastMouseScenePos_.x() / px,
@@ -335,7 +337,8 @@ void MapView::applyLiveConnectionSnap(bool fromMove) {
             const QPointF world = centerStuds + rotatePoint(c.position, b->orientation);
             const QPointF d = world - mouseStuds;
             if (s.guid == grabBrickGuid_ && i == grabActiveConnIdx_) grabbed = static_cast<int>(moving.size());
-            moving.push_back({ connKey(s.guid, i), c.type, world, std::hypot(d.x(), d.y()), c.angleDegrees + b->orientation });
+            moving.push_back({ connKey(s.guid, i), c.type, world, std::hypot(d.x(), d.y()),
+                               c.angleDegrees + b->orientation });
         }
     }
 

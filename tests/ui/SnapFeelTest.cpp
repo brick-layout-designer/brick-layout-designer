@@ -2,16 +2,16 @@
 // the web runs too (fixtures/snap-vectors.json), then the real drags,
 // placements and module drops in a MapView.
 
-#include "ui/ConnectionSnap.h"
-#include "ui/MapView.h"
 #include "ui/SnapFeel.h"
-#include "ui/theme/AppPrefs.h"
 #include "core/LayerBrick.h"
 #include "core/Map.h"
+#include "parts/BrickPlacement.h"
 #include "parts/PartsLibrary.h"
 #include "rendering/SceneBuilder.h"
-#include "parts/BrickPlacement.h"
+#include "ui/ConnectionSnap.h"
+#include "ui/MapView.h"
 #include "ui/MapViewInternal.h"
+#include "ui/theme/AppPrefs.h"
 
 #include <gtest/gtest.h>
 
@@ -19,12 +19,12 @@
 #include <QFile>
 #include <QGraphicsItem>
 #include <QGraphicsScene>
-#include <QMouseEvent>
-#include <QPointingDevice>
 #include <QImage>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QMouseEvent>
+#include <QPointingDevice>
 #include <QTemporaryDir>
 #include <QTest>
 
@@ -117,8 +117,10 @@ TEST(SnapFeel, SharedTurnCases) {
     EXPECT_GE(cases.size(), 7);
     for (const QJsonValue& v : cases) {
         const QJsonObject c = v.toObject();
-        const double turn = snapfeel::facingTurn(c[QLatin1String("target")].toDouble(), c[QLatin1String("moving")].toDouble());
-        EXPECT_NEAR(turn, c[QLatin1String("turn")].toDouble(), 1e-9) << c[QLatin1String("name")].toString().toStdString();
+        const double turn = snapfeel::facingTurn(c[QLatin1String("target")].toDouble(),
+                                                 c[QLatin1String("moving")].toDouble());
+        EXPECT_NEAR(turn, c[QLatin1String("turn")].toDouble(), 1e-9)
+            << c[QLatin1String("name")].toString().toStdString();
     }
 }
 
@@ -213,8 +215,10 @@ struct TrackLibrary {
         QFile c(dir.filePath(QStringLiteral("CC.7.xml")));
         EXPECT_TRUE(c.open(QIODevice::WriteOnly));
         c.write("<part><ConnexionList>"
-                "<connexion><type>1</type><position><x>-8.1875</x><y>-1.375</y></position><angle>180</angle></connexion>"
-                "<connexion><type>1</type><position><x>7.1198</x><y>1.6698</y></position><angle>22.5</angle></connexion>"
+                "<connexion><type>1</type><position><x>-8.1875</x><y>-1.375</y></position><angle>180</"
+                "angle></connexion>"
+                "<connexion><type>1</type><position><x>7.1198</x><y>1.6698</y></position><angle>22.5</"
+                "angle></connexion>"
                 "</ConnexionList></part>");
         c.close();
         QImage curve(128, 64, QImage::Format_ARGB32);
@@ -536,12 +540,12 @@ CurveScene curveScene(double gapAB, double gap, double turn) {
     const QPointF aEnd = s.a + turned(kC1, 0) + QPointF(gapAB, 0);
     s.b = aEnd - turned(kC0, 22.5);
     s.p = s.b + turned(kC1, 22.5) + QPointF(gap, 0);
-    s.oc = (turn - 135) - 180;  // C's first end faces turn - 135
+    s.oc = (turn - 135) - 180; // C's first end faces turn - 135
     s.c = s.p - turned(kC0, s.oc);
     return s;
 }
 
-}  // namespace
+} // namespace
 
 // The primary case: several loose parts picked together (two curves, as
 // on Aaron's phone), dragged by the pointer near a free end that faces a
@@ -565,9 +569,7 @@ TEST_P(GroupTurnTest, LoosePartsPickedTogetherTurnAsOneToJoin) {
     for (QGraphicsItem* it : view_->scene()->items()) {
         if (!detail::isBrickItem(it)) continue;
         const QString g = it->data(detail::kBrickDataGuid).toString();
-        if (g == QLatin1String("A")) {
-            EXPECT_NEAR(snapfeel::wrap180(it->rotation() - turn), 0, 1e-3);
-        }
+        if (g == QLatin1String("A")) { EXPECT_NEAR(snapfeel::wrap180(it->rotation() - turn), 0, 1e-3); }
         if (g == QLatin1String("B")) {
             EXPECT_NEAR(snapfeel::wrap180(it->rotation() - 22.5 - turn), 0, 1e-3);
         }
@@ -630,11 +632,10 @@ TEST_P(JitterTest, StaysJoinedWhileThePointerShakes) {
     const QPointF q = sc.p + QPointF(0, 2.2);
     const double od = sc.oc + 30;
     reload({ curveAt(QStringLiteral("A"), sc.a, 0), curveAt(QStringLiteral("B"), sc.b, 22.5),
-             curveAt(QStringLiteral("C"), sc.c, sc.oc), curveAt(QStringLiteral("D"), q - turned(kC0, od), od) },
+             curveAt(QStringLiteral("C"), sc.c, sc.oc),
+             curveAt(QStringLiteral("D"), q - turned(kC0, od), od) },
            sc.p);
-    if (both) {
-        ASSERT_EQ(pickAB(), 2);
-    }
+    if (both) { ASSERT_EQ(pickAB(), 2); }
     QWidget* vp = view_->viewport();
     const QPointF grab = sc.b;
     // The grabbed end where the pointer has it is grab + (end - b): aim it.
@@ -652,8 +653,8 @@ TEST_P(JitterTest, StaysJoinedWhileThePointerShakes) {
     const QPointF ring = view_->connectionSnapPoint();
     EXPECT_NEAR(ring.x(), sc.p.x() * kPx, 1e-3);
     EXPECT_NEAR(ring.y(), sc.p.y() * kPx, 1e-3);
-    const QPointF shake[] = { { 0.6, 0.3 }, { -0.4, 0.9 }, { 0.3, -0.5 }, { 0.9, 0.6 }, { -0.2, 0.2 },
-                              { 1.1, -0.4 }, { -0.9, -0.7 }, { 0.1, 0.05 } };
+    const QPointF shake[] = { { 0.6, 0.3 },  { -0.4, 0.9 }, { 0.3, -0.5 },  { 0.9, 0.6 },
+                              { -0.2, 0.2 }, { 1.1, -0.4 }, { -0.9, -0.7 }, { 0.1, 0.05 } };
     int frame = 0;
     for (const QPointF& o : shake) {
         moveTo(pointerFor(sc.p + o));
@@ -689,7 +690,8 @@ TEST_F(SnapDragTest, AModuleTurnsAsOneToJoin) {
         for (const auto& b : static_cast<const core::LayerBrick&>(*l).bricks)
             if (b.guid != QLatin1String("C")) placed.push_back(&b);
     ASSERT_EQ(placed.size(), 2u);
-    const core::Brick* b = std::abs(snapfeel::wrap180(placed[0]->orientation - 67.5)) < 1e-3 ? placed[0] : placed[1];
+    const core::Brick* b =
+        std::abs(snapfeel::wrap180(placed[0]->orientation - 67.5)) < 1e-3 ? placed[0] : placed[1];
     EXPECT_NEAR(snapfeel::wrap180(b->orientation - 67.5), 0, 1e-3);
     const QPointF bEnd = parts::placement::connectionWorld(*b, 1, lib_.lib);
     EXPECT_NEAR(bEnd.x(), sc.p.x(), 1e-3);

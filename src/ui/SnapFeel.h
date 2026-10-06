@@ -102,7 +102,9 @@ int pick(const std::vector<Candidate>& candidates, const std::optional<Lock>& lo
 double wrap180(double deg);
 // The turn (degrees, (-180, 180]) that makes a connection facing
 // `movingAngle` (world) face one facing `targetAngle`: mouth to mouth.
-inline double facingTurn(double targetAngle, double movingAngle) { return wrap180(targetAngle + 180.0 - movingAngle); }
+inline double facingTurn(double targetAngle, double movingAngle) {
+    return wrap180(targetAngle + 180.0 - movingAngle);
+}
 
 // Pointer speed in screen px/s over the last few moves.
 class SpeedMeter {

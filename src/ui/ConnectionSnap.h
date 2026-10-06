@@ -68,7 +68,7 @@ struct MovingConn {
 struct SnapPick {
     int moving = -1;  // index into the moving connections
     int target = -1;  // index into the targets
-    double turn = 0.0;  // degrees the moving set turns about the joined connection to face
+    double turn = 0.0; // degrees the moving set turns about the joined connection to face
     bool applied() const { return moving >= 0 && target >= 0; }
 };
 

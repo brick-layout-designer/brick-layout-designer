@@ -1462,7 +1462,8 @@ void MapView::resolvePartPlacement(const QString& partKey, QPointF cursorScenePx
                 // to the cursor is its distance from the centre.
                 moving.push_back({ QStringLiteral("new#%1").arg(i), c.type,
                                    centreStuds + rotatePoint(c.position, orientation),
-                                   std::hypot(c.position.x(), c.position.y()), c.angleDegrees + orientation });
+                                   std::hypot(c.position.x(), c.position.y()),
+                                   c.angleDegrees + orientation });
                 movingIdx.push_back(i);
             }
         }
@@ -1537,13 +1538,14 @@ void MapView::addPartAtScenePos(const QString& partKey, QPointF sceneCenterPx, s
             placed.reserve(set.bricks.size());
             for (const auto& b : set.bricks) placed.push_back(&b);
             // Turned as a whole about the joining end when the ends don't face.
-            if (const auto snap = moduleSnapShift(placed, centreStuds, dragSnap, true)) {
+            if (const auto found = moduleSnapShift(placed, centreStuds, dragSnap, true)) {
+                const ModuleSnap& snap = *found;
                 for (auto& b : set.bricks) {
                     const QPointF centre = parts::placement::imageCentre(b, parts_);
-                    b.displayArea.translate(turnPoint(centre, snap->turn, snap->pivot, snap->to) - centre);
-                    if (std::abs(snap->turn) > 1e-6)
+                    b.displayArea.translate(turnPoint(centre, snap.turn, snap.pivot, snap.to) - centre);
+                    if (std::abs(snap.turn) > 1e-6)
                         parts::placement::rotateAroundImageCentre(
-                            b, static_cast<float>(snapfeel::wrap180(b.orientation + snap->turn)), parts_);
+                            b, static_cast<float>(snapfeel::wrap180(b.orientation + snap.turn)), parts_);
                 }
             }
             if (dragSnap) dragSnap->reset();
@@ -2437,8 +2439,8 @@ void MapView::updateModuleDragPreview(const QString& bbmPath, QPointF cursorScen
         refs.push_back(&b);
     }
     sampleSnapSpeed(moduleSnap_, mapFromScene(cursorScenePx));
-    const auto snap = moduleSnapShift(refs, QPointF(cursorScenePx.x() / pxPerStud, cursorScenePx.y() / pxPerStud),
-                                      &moduleSnap_, false);
+    const auto snap = moduleSnapShift(
+        refs, QPointF(cursorScenePx.x() / pxPerStud, cursorScenePx.y() / pxPerStud), &moduleSnap_, false);
     // The ghost turns about its centroid (its origin) as the module does.
     if (snap) placedScene = turnPoint(placedStuds, snap->turn, snap->pivot, snap->to) * pxPerStud;
     dragPreviewItem_->setRotation(snap ? snap->turn : 0.0);
@@ -2477,8 +2479,8 @@ std::optional<MapView::ModuleSnap> MapView::moduleSnapShift(const std::vector<co
             if (c.type.isEmpty()) continue;
             const QPointF world = cen + rotatePoint(c.position, b->orientation);
             const QPointF d = world - cursorStuds;
-            moving.push_back({ QStringLiteral("module#%1#%2").arg(bi).arg(i), c.type, world, std::hypot(d.x(), d.y()),
-                               c.angleDegrees + b->orientation });
+            moving.push_back({ QStringLiteral("module#%1#%2").arg(bi).arg(i), c.type, world,
+                               std::hypot(d.x(), d.y()), c.angleDegrees + b->orientation });
         }
     }
     const double reach = connectionSnapReachStuds();
@@ -2551,7 +2553,8 @@ bool MapView::placeModule(core::Map& loaded, const QString& name, const QString&
         std::vector<const core::Brick*> placed;
         for (const auto& batch : batches)
             for (const auto& b : batch.bricks) placed.push_back(&b);
-        const auto snap = moduleSnapShift(placed, QPointF(scenePos.x() / px, scenePos.y() / px), dragSnap, true);
+        const auto snap =
+            moduleSnapShift(placed, QPointF(scenePos.x() / px, scenePos.y() / px), dragSnap, true);
         if (snap) {
             for (auto& batch : batches) {
                 for (auto& b : batch.bricks) {
