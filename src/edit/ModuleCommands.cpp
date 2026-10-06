@@ -1,5 +1,7 @@
 #include "ModuleCommands.h"
 
+#include "../core/Groups.h"
+
 #include "../core/Brick.h"
 #include "../core/Layer.h"
 #include "../core/LayerBrick.h"
@@ -286,22 +288,20 @@ void CloneModuleCommand::redo() {
     if (srcIdx < 0) return;
     const core::Module srcMod = map_.sidecar.modules[srcIdx];  // copy
 
-    // First redo: walk every brick layer, duplicate members of the source
-    // module onto THEIR ORIGINAL layer with fresh guids and the configured
-    // offset applied. Remember each (layer, guid) for undo.
+    // First redo: duplicate the source module's members on THEIR ORIGINAL
+    // layers with fresh guids and the offset, with the sets (groups) they
+    // are in. Later redos put back exactly those copies.
     if (!captured_) {
-        appliedBricks_.clear();
+        clones_.clear();
         for (int li = 0; li < static_cast<int>(map_.layers().size()); ++li) {
             auto* L = brickLayer(map_, li);
             if (!L) continue;
-            // Snapshot the existing brick list so we don't iterate bricks
-            // we're about to append in the same loop.
-            const auto srcBricks = L->bricks;
-            for (const auto& b : srcBricks) {
+            LayerClone clone;
+            clone.layerIndex = li;
+            for (const auto& b : L->bricks) {
                 if (!srcMod.memberIds.contains(b.guid)) continue;
                 core::Brick copy = b;
                 copy.guid = core::newBbmId();
-                copy.myGroupId.clear();
                 copy.displayArea.translate(offsetStuds_);
                 // Clones shouldn't inherit the source's connection links —
                 // new bricks are un-linked and snap fresh.
@@ -309,37 +309,23 @@ void CloneModuleCommand::redo() {
                     c.guid = core::newBbmId();
                     c.linkedToId.clear();
                 }
-                appliedBricks_.push_back({ li, copy.guid });
-                L->bricks.push_back(std::move(copy));
+                clone.bricks.push_back(std::move(copy));
             }
+            if (clone.bricks.empty()) continue;
+            clone.groups = core::cloneGroups(*L, clone.bricks, [] { return core::newBbmId(); });
+            clones_.push_back(std::move(clone));
         }
         captured_ = true;
-    } else {
-        // Re-apply from captured guids — the specific bricks we stamped
-        // the first time are already gone (undo removed them), so stamp
-        // them again by iterating the source module's member bricks.
-        for (int li = 0; li < static_cast<int>(map_.layers().size()); ++li) {
-            auto* L = brickLayer(map_, li);
-            if (!L) continue;
-            const auto srcBricks = L->bricks;
-            int nextApplied = 0;
-            for (const auto& b : srcBricks) {
-                if (!srcMod.memberIds.contains(b.guid)) continue;
-                core::Brick copy = b;
-                while (nextApplied < static_cast<int>(appliedBricks_.size()) &&
-                       appliedBricks_[nextApplied].layerIndex != li) ++nextApplied;
-                if (nextApplied >= static_cast<int>(appliedBricks_.size())) break;
-                copy.guid = appliedBricks_[nextApplied].guid;
-                ++nextApplied;
-                copy.myGroupId.clear();
-                copy.displayArea.translate(offsetStuds_);
-                for (auto& c : copy.connections) {
-                    c.guid = core::newBbmId();
-                    c.linkedToId.clear();
-                }
-                L->bricks.push_back(std::move(copy));
-            }
+    }
+    appliedBricks_.clear();
+    for (const auto& clone : clones_) {
+        auto* L = brickLayer(map_, clone.layerIndex);
+        if (!L) continue;
+        for (const auto& b : clone.bricks) {
+            appliedBricks_.push_back({ clone.layerIndex, b.guid });
+            L->bricks.push_back(b);
         }
+        for (const auto& g : clone.groups) L->groups.push_back(g);
     }
 
     core::Module m;
@@ -350,14 +336,19 @@ void CloneModuleCommand::redo() {
 }
 
 void CloneModuleCommand::undo() {
-    // Remove cloned bricks.
-    for (const auto& a : appliedBricks_) {
-        if (auto* L = brickLayer(map_, a.layerIndex)) {
-            L->bricks.erase(
-                std::remove_if(L->bricks.begin(), L->bricks.end(),
-                               [&](const core::Brick& b) { return b.guid == a.guid; }),
-                L->bricks.end());
-        }
+    // Remove cloned bricks and their groups.
+    for (const auto& clone : clones_) {
+        auto* L = brickLayer(map_, clone.layerIndex);
+        if (!L) continue;
+        QSet<QString> bricks, groups;
+        for (const auto& b : clone.bricks) bricks.insert(b.guid);
+        for (const auto& g : clone.groups) groups.insert(g.guid);
+        L->bricks.erase(std::remove_if(L->bricks.begin(), L->bricks.end(),
+                                       [&](const core::Brick& b) { return bricks.contains(b.guid); }),
+                        L->bricks.end());
+        L->groups.erase(std::remove_if(L->groups.begin(), L->groups.end(),
+                                       [&](const core::Group& g) { return groups.contains(g.guid); }),
+                        L->groups.end());
     }
     // Remove cloned module entry.
     const int i = findModuleIndex(map_, newModuleId_);
@@ -529,6 +520,7 @@ void ImportBbmAsModuleCommand::redo() {
                 a.addedGuids.append(b.guid);
                 BL->bricks.push_back(b);
             }
+            for (const auto& g : batch.groups) BL->groups.push_back(g);
             applied_.push_back(std::move(a));
         }
         captured_ = true;
@@ -551,6 +543,7 @@ void ImportBbmAsModuleCommand::redo() {
             for (auto& batch : batches_) {
                 if (batch.layerName != a.layerName) continue;
                 for (const auto& b : batch.bricks) BL->bricks.push_back(b);
+                for (const auto& g : batch.groups) BL->groups.push_back(g);
                 break;
             }
         }
@@ -577,6 +570,13 @@ void ImportBbmAsModuleCommand::undo() {
                 std::remove_if(BL->bricks.begin(), BL->bricks.end(),
                                [&](const core::Brick& b) { return toRemove.contains(b.guid); }),
                 BL->bricks.end());
+            QSet<QString> groups;
+            for (const auto& batch : batches_)
+                if (batch.layerName == a.layerName)
+                    for (const auto& g : batch.groups) groups.insert(g.guid);
+            BL->groups.erase(std::remove_if(BL->groups.begin(), BL->groups.end(),
+                                            [&](const core::Group& g) { return groups.contains(g.guid); }),
+                             BL->groups.end());
         }
     }
     // Walk applied_ in reverse; for layers we created, drop them so the

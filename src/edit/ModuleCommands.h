@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../core/Brick.h"
+#include "../core/Group.h"
 #include "../core/Module.h"
 
 #include <QPointF>
@@ -153,6 +154,8 @@ private:
     // Populated on first redo so undo can reverse exactly.
     struct AppliedBrick { int layerIndex = -1; QString guid; };
     std::vector<AppliedBrick> appliedBricks_;
+    struct LayerClone { int layerIndex = -1; std::vector<core::Brick> bricks; std::vector<core::Group> groups; };
+    std::vector<LayerClone> clones_;
     bool captured_ = false;
 };
 
@@ -207,6 +210,7 @@ public:
     struct LayerBatch {
         QString layerName;
         std::vector<core::Brick> bricks;
+        std::vector<core::Group> groups;  // the sets (groups) the bricks are in
     };
 
     ImportBbmAsModuleCommand(core::Map& map,

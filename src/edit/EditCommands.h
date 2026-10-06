@@ -10,6 +10,7 @@
 #include <QRectF>
 #include <QUndoCommand>
 
+#include <functional>
 #include <vector>
 
 namespace bld::core { class Layer; class LayerBrick; class Map; }
@@ -172,58 +173,49 @@ private:
     State      after_;
 };
 
-// Create a same-layer vanilla Group per affected layer covering every target
-// brick's layer. Sets each target's myGroupId to the new group's guid so the
-// serialized <Groups> list re-creates on save. Undo restores each brick's
-// previous group assignment and removes the synthetic groups.
-class GroupBricksCommand : public QUndoCommand {
+// A brick layer's groups and its bricks' <MyGroup>, as a whole.
+struct Grouping {
+    int layerIndex = -1;
+    std::vector<core::Group> groups;
+    QHash<QString, QString> parentOf;  // brick guid -> myGroupId
+};
+Grouping captureGrouping(const core::Map& map, int layerIndex);
+
+// Puts layers' groupings from `before` to `after` (and back on undo).
+class SetGroupingCommand : public QUndoCommand {
 public:
-    GroupBricksCommand(core::Map& map, std::vector<BrickRef> targets,
+    SetGroupingCommand(core::Map& map, std::vector<Grouping> before, std::vector<Grouping> after,
                        QUndoCommand* parent = nullptr);
     void undo() override;
     void redo() override;
+    bool changes() const { return !after_.empty(); }
 
-private:
-    struct GroupMemo {
-        int     layerIndex = -1;
-        QString newGroupGuid;
-    };
-    struct MemberMemo {
-        BrickRef ref;
-        QString  previousGroupId;
-    };
+protected:
+    explicit SetGroupingCommand(core::Map& map, QUndoCommand* parent = nullptr);
     core::Map& map_;
-    std::vector<BrickRef>  targets_;
-    std::vector<GroupMemo>  groupsAdded_;
-    std::vector<MemberMemo> before_;
-    bool prepared_ = false;
+    std::vector<Grouping> before_, after_;
 };
 
-// Clear the myGroupId of every target brick. If a group is left with no
-// remaining members in its layer, the group is also removed. Undo restores
-// each brick's prior groupId and reinstates any removed Group.
-class UngroupBricksCommand : public QUndoCommand {
+// BlueBrick's GroupItems: the targets' outermost items (a set stays whole
+// inside) go into one new group per layer, when there are at least two
+// items in all.
+class GroupBricksCommand : public SetGroupingCommand {
 public:
-    UngroupBricksCommand(core::Map& map, std::vector<BrickRef> targets,
+    GroupBricksCommand(core::Map& map, const std::vector<BrickRef>& targets, QUndoCommand* parent = nullptr);
+};
+
+// BlueBrick's UngroupItems: the targets' outermost groups that may be split
+// are removed, their items going up a level. A set whose <CanUngroup> is
+// false (`canUngroup` says no) stays; refused() counts those.
+class UngroupBricksCommand : public SetGroupingCommand {
+public:
+    UngroupBricksCommand(core::Map& map, const std::vector<BrickRef>& targets,
+                         const std::function<bool(const core::Group&)>& canUngroup = {},
                          QUndoCommand* parent = nullptr);
-    void undo() override;
-    void redo() override;
+    int refused() const { return refused_; }
 
 private:
-    struct MemberMemo {
-        BrickRef ref;
-        QString  previousGroupId;
-    };
-    struct GroupMemo {
-        int layerIndex = -1;
-        int index      = -1;
-        core::Group group;
-    };
-    core::Map& map_;
-    std::vector<BrickRef> targets_;
-    std::vector<MemberMemo> before_;
-    std::vector<GroupMemo> removedGroups_;
-    bool prepared_ = false;
+    int refused_ = 0;
 };
 
 // Append a batch of bricks to the given layer as a single undoable step. Used
@@ -233,6 +225,9 @@ class AddBricksCommand : public QUndoCommand {
 public:
     AddBricksCommand(core::Map& map, int layerIndex, std::vector<core::Brick> bricks,
                      QUndoCommand* parent = nullptr);
+    // With the groups the bricks belong to (a placed or pasted set).
+    AddBricksCommand(core::Map& map, int layerIndex, std::vector<core::Brick> bricks,
+                     std::vector<core::Group> groups, QUndoCommand* parent = nullptr);
 
     void undo() override;
     void redo() override;
@@ -243,6 +238,7 @@ private:
     core::Map& map_;
     int layerIndex_;
     std::vector<core::Brick> bricks_;
+    std::vector<core::Group> groups_;
 };
 
 }

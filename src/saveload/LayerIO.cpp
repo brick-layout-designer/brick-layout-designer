@@ -1,5 +1,7 @@
 #include "LayerIO.h"
 
+#include "../core/Groups.h"
+
 #include "XmlPrimitives.h"
 
 #include "../core/Layer.h"
@@ -228,7 +230,13 @@ void writeLayerBrick(QXmlStreamWriter& w, const core::LayerBrick& b) {
     w.writeStartElement(QStringLiteral("Bricks"));
     for (const auto& brick : b.bricks) writeBrick(w, brick);
     w.writeEndElement();
-    writeGroupsTail(w, b.groups);
+    // A group with nothing under it any more (its parts were deleted) is
+    // left out: BlueBrick only writes the groups of the items it has.
+    const QSet<QString> empty = core::emptyGroups(b);
+    std::vector<core::Group> kept;
+    for (const auto& g : b.groups)
+        if (!empty.contains(g.guid)) kept.push_back(g);
+    writeGroupsTail(w, kept);
     w.writeEndElement();
 }
 

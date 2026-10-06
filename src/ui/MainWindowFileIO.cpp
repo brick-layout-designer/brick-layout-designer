@@ -5,6 +5,7 @@
 // bodies across translation units.
 
 #include "MainWindow.h"
+#include "../edit/Sets.h"
 #include "help/HelpButton.h"
 #include "help/SourceLinks.h"
 #include "BudgetSession.h"
@@ -226,6 +227,27 @@ void MainWindow::showLoadedMap(std::unique_ptr<core::Map> map, const QString& pa
                                  : QStringLiteral("%1 (%2)").arg(opened, warnings.join(QStringLiteral("; "))));
     QSettings().setValue(QString::fromLatin1(kLastFileKey), path);
     pushRecentFile(path);
+    makeSetsOfSetModules();
+}
+
+void MainWindow::makeSetsOfSetModules() {
+    // Older builds wrapped a placed set (flex track, a train set...) in a
+    // module. A module that is still exactly that set becomes a real set
+    // again, BlueBrick's group, as one undo step.
+    auto* map = mapView_->currentMap();
+    if (!map) return;
+    const auto sets = edit::findSetModules(*map, parts_);
+    if (sets.empty()) return;
+    mapView_->undoStack()->push(edit::makeSetsCommand(*map, sets));
+    modulesPanel_->setMap(map);
+    QList<NoticeAction> actions;
+    actions << NoticeAction{ tr("Undo"), [this] { mapView_->undoStack()->undo(); } };
+    actions << NoticeAction{ tr("OK"), {} };
+    notices_->showNotice(QStringLiteral("sets-from-modules"), tr("Sets are sets again"),
+                         tr("%n set(s) such as flex track were kept as modules by an older version. They are now "
+                            "sets: each one selects, moves and counts as one part, as in BlueBrick. Undo puts the "
+                            "modules back.", nullptr, static_cast<int>(sets.size())),
+                         actions);
 }
 
 void MainWindow::onOpen() {

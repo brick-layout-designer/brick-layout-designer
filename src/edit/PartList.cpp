@@ -1,5 +1,7 @@
 #include "PartList.h"
 
+#include "../core/Groups.h"
+
 #include "Budget.h"
 
 #include "../core/Layer.h"
@@ -94,8 +96,9 @@ std::vector<PartListGroup> buildPartList(const core::Map& map, const parts::Part
         if (!options.includeHiddenLayers && !L->visible) continue;
         if (options.splitPerLayer) counts.push_back({ L->name, {}, {} });
         Counts& c = counts.back();
-        for (const auto& b : static_cast<const core::LayerBrick&>(*L).bricks) {
-            const QString id = b.partNumber.toUpper();
+        // BlueBrick's LibraryBrickList: a set counts once, not its parts.
+        for (const QString& part : core::libraryItems(static_cast<const core::LayerBrick&>(*L))) {
+            const QString id = part.toUpper();
             if (!c.byPart.contains(id)) c.order << id;
             ++c.byPart[id];
         }

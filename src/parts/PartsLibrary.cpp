@@ -205,6 +205,8 @@ bool parsePartXml(const QString& xmlPath, PartMetadata& out) {
             else if (n == QStringLiteral("Description")) readDescriptions(r, out.descriptions);
             else if (n == QStringLiteral("ConnexionList")) readConnexionList(r, out.connections);
             else if (n == QStringLiteral("SubPartList"))   readSubPartList(r, out.subparts);
+            else if (n == QStringLiteral("CanUngroup"))
+                out.canUngroup = r.readElementText().trimmed().compare(QLatin1String("false"), Qt::CaseInsensitive) != 0;
             else if (n == QStringLiteral("LDraw"))         readLDrawRemap(r, out);
             else if (n == QStringLiteral("OldNameList"))   readOldNames(r, out.oldNames);
             else if (n == QStringLiteral("hull"))          readHull(r, out.xmlHullPx);

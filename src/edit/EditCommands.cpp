@@ -1,6 +1,7 @@
 #include "EditCommands.h"
 
 #include "../core/Brick.h"
+#include "../core/Groups.h"
 #include "../core/Ids.h"
 #include "../core/Layer.h"
 #include "../core/LayerBrick.h"
@@ -8,6 +9,8 @@
 
 #include <QHash>
 #include <QSet>
+
+#include <algorithm>
 
 namespace bld::edit {
 
@@ -293,146 +296,112 @@ void EditBrickCommand::undo() {
     if (auto* b = findBrick(map_, ref_)) applyBrickState(*b, before_);
 }
 
-// ----- GroupBricksCommand -----
+// ----- Grouping -----
 
-GroupBricksCommand::GroupBricksCommand(core::Map& map, std::vector<BrickRef> targets,
+Grouping captureGrouping(const core::Map& map, int layerIndex) {
+    Grouping g;
+    g.layerIndex = layerIndex;
+    if (layerIndex < 0 || layerIndex >= static_cast<int>(map.layers().size())) return g;
+    const auto* L = map.layers()[layerIndex].get();
+    if (!L || L->kind() != core::LayerKind::Brick) return g;
+    const auto& BL = static_cast<const core::LayerBrick&>(*L);
+    g.groups = BL.groups;
+    for (const auto& b : BL.bricks) g.parentOf.insert(b.guid, b.myGroupId);
+    return g;
+}
+
+namespace {
+void applyGrouping(core::Map& map, const std::vector<Grouping>& state) {
+    for (const auto& g : state) {
+        auto* L = brickLayer(map, g.layerIndex);
+        if (!L) continue;
+        L->groups = g.groups;
+        for (auto& b : L->bricks) {
+            const auto it = g.parentOf.constFind(b.guid);
+            if (it != g.parentOf.constEnd()) b.myGroupId = it.value();
+        }
+    }
+}
+
+// Targets by layer, each layer's outermost items: top group guids and loose brick guids.
+struct TopItems { QStringList groups; QStringList bricks; };
+QHash<int, TopItems> topItems(const core::Map& map, const std::vector<BrickRef>& targets) {
+    QHash<int, TopItems> out;
+    for (const auto& r : targets) {
+        if (r.layerIndex < 0 || r.layerIndex >= static_cast<int>(map.layers().size())) continue;
+        const auto* L = map.layers()[r.layerIndex].get();
+        if (!L || L->kind() != core::LayerKind::Brick) continue;
+        const auto& BL = static_cast<const core::LayerBrick&>(*L);
+        for (const auto& b : BL.bricks) {
+            if (b.guid != r.guid) continue;
+            TopItems& t = out[r.layerIndex];
+            const QString top = core::topGroup(BL, b.myGroupId);
+            if (top.isEmpty()) { if (!t.bricks.contains(b.guid)) t.bricks << b.guid; }
+            else if (!t.groups.contains(top)) t.groups << top;
+            break;
+        }
+    }
+    return out;
+}
+}  // namespace
+
+SetGroupingCommand::SetGroupingCommand(core::Map& map, QUndoCommand* parent) : QUndoCommand(parent), map_(map) {}
+
+SetGroupingCommand::SetGroupingCommand(core::Map& map, std::vector<Grouping> before, std::vector<Grouping> after,
                                        QUndoCommand* parent)
-    : QUndoCommand(parent), map_(map), targets_(std::move(targets)) {
-    setText(QObject::tr("Group %1 brick(s)").arg(targets_.size()));
+    : QUndoCommand(parent), map_(map), before_(std::move(before)), after_(std::move(after)) {}
+
+void SetGroupingCommand::redo() { applyGrouping(map_, after_); }
+void SetGroupingCommand::undo() { applyGrouping(map_, before_); }
+
+GroupBricksCommand::GroupBricksCommand(core::Map& map, const std::vector<BrickRef>& targets, QUndoCommand* parent)
+    : SetGroupingCommand(map, parent) {
+    const auto tops = topItems(map, targets);
+    qsizetype items = 0;
+    for (const auto& t : tops) items += t.groups.size() + t.bricks.size();
+    if (items < 2) return;  // nothing to group
+    for (auto it = tops.constBegin(); it != tops.constEnd(); ++it) {
+        Grouping before = captureGrouping(map, it.key());
+        Grouping after = before;
+        core::Group g;
+        g.guid = core::newBbmId();
+        for (auto& group : after.groups)
+            if (it->groups.contains(group.guid)) group.myGroupId = g.guid;
+        for (const QString& b : it->bricks) after.parentOf[b] = g.guid;
+        after.groups.push_back(g);
+        before_.push_back(std::move(before));
+        after_.push_back(std::move(after));
+    }
+    setText(QObject::tr("Group %1 brick(s)").arg(targets.size()));
 }
 
-void GroupBricksCommand::redo() {
-    // Partition targets by layer to create one Group per layer.
-    QHash<int, std::vector<QString>> perLayer;
-    for (const auto& r : targets_) perLayer[r.layerIndex].push_back(r.guid);
-
-    if (!prepared_) {
-        groupsAdded_.clear();
-        before_.clear();
-        for (auto it = perLayer.constBegin(); it != perLayer.constEnd(); ++it) {
-            auto* L = brickLayer(map_, it.key());
-            if (!L) continue;
-            core::Group g;
-            g.guid = core::newBbmId();
-            L->groups.push_back(g);
-            groupsAdded_.push_back({ it.key(), g.guid });
-            for (const QString& guid : it.value()) {
-                for (auto& b : L->bricks) {
-                    if (b.guid == guid) {
-                        before_.push_back({ BrickRef{ it.key(), guid }, b.myGroupId });
-                        b.myGroupId = g.guid;
-                        break;
-                    }
-                }
-            }
-        }
-        prepared_ = true;
-    } else {
-        // Re-apply: recreate the same groups and re-assign myGroupId.
-        for (const auto& gm : groupsAdded_) {
-            if (auto* L = brickLayer(map_, gm.layerIndex)) {
-                core::Group g; g.guid = gm.newGroupGuid;
-                L->groups.push_back(g);
-            }
-        }
-        for (const auto& m : before_) {
-            if (auto* b = findBrick(map_, m.ref)) {
-                for (const auto& gm : groupsAdded_) {
-                    if (gm.layerIndex == m.ref.layerIndex) { b->myGroupId = gm.newGroupGuid; break; }
-                }
-            }
-        }
-    }
-}
-
-void GroupBricksCommand::undo() {
-    // Restore each brick's previous group id.
-    for (const auto& m : before_) {
-        if (auto* b = findBrick(map_, m.ref)) b->myGroupId = m.previousGroupId;
-    }
-    // Remove the synthesized groups.
-    for (const auto& gm : groupsAdded_) {
-        if (auto* L = brickLayer(map_, gm.layerIndex)) {
-            for (auto it = L->groups.begin(); it != L->groups.end(); ++it) {
-                if (it->guid == gm.newGroupGuid) { L->groups.erase(it); break; }
-            }
-        }
-    }
-}
-
-// ----- UngroupBricksCommand -----
-
-UngroupBricksCommand::UngroupBricksCommand(core::Map& map, std::vector<BrickRef> targets,
+UngroupBricksCommand::UngroupBricksCommand(core::Map& map, const std::vector<BrickRef>& targets,
+                                           const std::function<bool(const core::Group&)>& canUngroup,
                                            QUndoCommand* parent)
-    : QUndoCommand(parent), map_(map), targets_(std::move(targets)) {
-    setText(QObject::tr("Ungroup %1 brick(s)").arg(targets_.size()));
-}
-
-void UngroupBricksCommand::redo() {
-    if (!prepared_) {
-        before_.clear();
-        removedGroups_.clear();
-        // Use "layerIndex|groupGuid" as a hashable key so QSet works.
-        QSet<QString> affectedGroups;
-        auto keyOf = [](int li, const QString& g) {
-            return QString::number(li) + QStringLiteral("|") + g;
-        };
-        // Clear myGroupId on every target, remembering prior value.
-        for (const auto& ref : targets_) {
-            if (auto* b = findBrick(map_, ref)) {
-                before_.push_back({ ref, b->myGroupId });
-                if (!b->myGroupId.isEmpty())
-                    affectedGroups.insert(keyOf(ref.layerIndex, b->myGroupId));
-                b->myGroupId.clear();
-            }
+    : SetGroupingCommand(map, parent) {
+    const auto tops = topItems(map, targets);
+    for (auto it = tops.constBegin(); it != tops.constEnd(); ++it) {
+        Grouping before = captureGrouping(map, it.key());
+        Grouping after = before;
+        bool changed = false;
+        for (const QString& id : it->groups) {
+            const auto found = std::find_if(after.groups.begin(), after.groups.end(),
+                                            [&](const core::Group& g) { return g.guid == id; });
+            if (found == after.groups.end()) continue;
+            if (canUngroup && !canUngroup(*found)) { ++refused_; continue; }
+            const QString up = found->myGroupId;
+            after.groups.erase(found);
+            for (auto& g : after.groups)
+                if (g.myGroupId == id) g.myGroupId = up;
+            for (auto p = after.parentOf.begin(); p != after.parentOf.end(); ++p)
+                if (p.value() == id) p.value() = up;
+            changed = true;
         }
-        // Remove now-empty groups.
-        for (const QString& key : affectedGroups) {
-            const int sep = key.indexOf('|');
-            if (sep < 0) continue;
-            const int layerIdx = key.left(sep).toInt();
-            const QString groupGuid = key.mid(sep + 1);
-            auto* L = brickLayer(map_, layerIdx);
-            if (!L) continue;
-            bool stillMember = false;
-            for (const auto& b : L->bricks) if (b.myGroupId == groupGuid) { stillMember = true; break; }
-            if (stillMember) continue;
-            for (int i = 0; i < static_cast<int>(L->groups.size()); ++i) {
-                if (L->groups[i].guid == groupGuid) {
-                    removedGroups_.push_back({ layerIdx, i, L->groups[i] });
-                    L->groups.erase(L->groups.begin() + i);
-                    break;
-                }
-            }
-        }
-        prepared_ = true;
-    } else {
-        // Re-apply: clear myGroupIds again and remove the same groups.
-        for (const auto& m : before_) {
-            if (auto* b = findBrick(map_, m.ref)) b->myGroupId.clear();
-        }
-        for (const auto& rm : removedGroups_) {
-            if (auto* L = brickLayer(map_, rm.layerIndex)) {
-                for (auto it = L->groups.begin(); it != L->groups.end(); ++it) {
-                    if (it->guid == rm.group.guid) { L->groups.erase(it); break; }
-                }
-            }
-        }
+        if (!changed) continue;
+        before_.push_back(std::move(before));
+        after_.push_back(std::move(after));
     }
-}
-
-void UngroupBricksCommand::undo() {
-    // Reinstate removed groups at their original indices.
-    for (auto it = removedGroups_.rbegin(); it != removedGroups_.rend(); ++it) {
-        if (auto* L = brickLayer(map_, it->layerIndex)) {
-            const int idx = std::min<int>(it->index, static_cast<int>(L->groups.size()));
-            L->groups.insert(L->groups.begin() + idx, it->group);
-        }
-    }
-    // Restore each brick's prior groupId.
-    for (const auto& m : before_) {
-        if (auto* b = findBrick(map_, m.ref)) b->myGroupId = m.previousGroupId;
-    }
+    setText(QObject::tr("Ungroup %1 brick(s)").arg(targets.size()));
 }
 
 // ----- AddBricksCommand -----
@@ -443,9 +412,16 @@ AddBricksCommand::AddBricksCommand(core::Map& map, int layerIndex, std::vector<c
     setText(QObject::tr("Add %1 brick(s)").arg(bricks_.size()));
 }
 
+AddBricksCommand::AddBricksCommand(core::Map& map, int layerIndex, std::vector<core::Brick> bricks,
+                                   std::vector<core::Group> groups, QUndoCommand* parent)
+    : AddBricksCommand(map, layerIndex, std::move(bricks), parent) {
+    groups_ = std::move(groups);
+}
+
 void AddBricksCommand::redo() {
     if (auto* L = brickLayer(map_, layerIndex_)) {
         for (const auto& b : bricks_) L->bricks.push_back(b);
+        for (const auto& g : groups_) L->groups.push_back(g);
     }
 }
 
@@ -459,6 +435,11 @@ void AddBricksCommand::undo() {
         std::remove_if(L->bricks.begin(), L->bricks.end(),
                        [&](const core::Brick& b) { return toRemove.contains(b.guid); }),
         L->bricks.end());
+    QSet<QString> groups;
+    for (const auto& g : groups_) groups.insert(g.guid);
+    L->groups.erase(std::remove_if(L->groups.begin(), L->groups.end(),
+                                   [&](const core::Group& g) { return groups.contains(g.guid); }),
+                    L->groups.end());
 }
 
 }

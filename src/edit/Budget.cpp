@@ -1,5 +1,7 @@
 #include "Budget.h"
 
+#include "../core/Groups.h"
+
 #include "../core/Layer.h"
 #include "../core/LayerBrick.h"
 #include "../core/Map.h"
@@ -127,7 +129,8 @@ QHash<QString, int> countPartUsage(const core::Map& map, bool includeHiddenLayer
     for (const auto& L : map.layers()) {
         if (!L || L->kind() != core::LayerKind::Brick) continue;
         if (!includeHiddenLayers && !L->visible) continue;
-        for (const auto& b : static_cast<const core::LayerBrick&>(*L).bricks) ++usage[b.partNumber.toUpper()];
+        // As BlueBrick's budget: a set counts once (LibraryBrickList).
+        for (const QString& part : core::libraryItems(static_cast<const core::LayerBrick&>(*L))) ++usage[part.toUpper()];
     }
     return usage;
 }
