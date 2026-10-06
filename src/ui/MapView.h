@@ -123,6 +123,8 @@ public:
     double connectionSnapReachStuds() const;
     // A connection snap is showing (the ring) during a drag.
     bool connectionSnapShown() const { return liveSnapActive_; }
+    // Where it shows the ring (scene px).
+    QPointF connectionSnapPoint() const { return liveSnapPointScene_; }
     // Alt (Option on a Mac) is held: place without connection snap.
     bool snapBypassed() const;
 
@@ -338,6 +340,9 @@ private:
     // `fromMove`: Qt has just moved the items (a pointer move); false for
     // a settle re-run, which keeps the last raw delta.
     void applyLiveConnectionSnap(bool fromMove = true);
+    // The snap key of the active (grabbed) end, if the grabbed part is
+    // being dragged; empty without a grab anchor.
+    QString activeKey() const;
     // The drag's delta where the pointer has the parts (scene px), before
     // any snap moved or turned them; none until the first live snap.
     std::optional<QPointF> dragRawDeltaPx_;

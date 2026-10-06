@@ -1536,8 +1536,16 @@ void MapView::addPartAtScenePos(const QString& partKey, QPointF sceneCenterPx, s
             std::vector<const core::Brick*> placed;
             placed.reserve(set.bricks.size());
             for (const auto& b : set.bricks) placed.push_back(&b);
-            const QPointF shift = moduleSnapShift(placed, centreStuds, dragSnap, true, nullptr).value_or(QPointF());
-            for (auto& b : set.bricks) b.displayArea.translate(shift);
+            // Turned as a whole about the joining end when the ends don't face.
+            if (const auto snap = moduleSnapShift(placed, centreStuds, dragSnap, true)) {
+                for (auto& b : set.bricks) {
+                    const QPointF centre = parts::placement::imageCentre(b, parts_);
+                    b.displayArea.translate(turnPoint(centre, snap->turn, snap->pivot, snap->to) - centre);
+                    if (std::abs(snap->turn) > 1e-6)
+                        parts::placement::rotateAroundImageCentre(
+                            b, static_cast<float>(snapfeel::wrap180(b.orientation + snap->turn)), parts_);
+                }
+            }
             if (dragSnap) dragSnap->reset();
             QString setName = partKey;
             for (const auto& d : meta->descriptions) {
@@ -2477,8 +2485,8 @@ std::optional<MapView::ModuleSnap> MapView::moduleSnapShift(const std::vector<co
     const bool bypass = session && snapBypassed();  // Alt only counts in a drag
     const auto targets = reach > 0.0 && !bypass && !moving.empty() ? freeTargets(*map_, parts_)
                                                                     : std::vector<FreeTarget>{};
-    // A module turns as a whole to face the end, at most a quarter.
-    const SnapPick pick = pickConnectionSnap(moving, targets, reach, session, bypass, final, /*group=*/true);
+    // A module turns as a whole to face the end, at any angle.
+    const SnapPick pick = pickConnectionSnap(moving, targets, reach, session, bypass, final);
     if (!pick.applied()) return std::nullopt;
     return ModuleSnap{ moving[pick.moving].world, targets[pick.target].world, pick.turn };
 }
@@ -2537,9 +2545,8 @@ bool MapView::placeModule(core::Map& loaded, const QString& name, const QString&
     // Connection-snap pass: if a free connection of the placed module
     // lands within reach of a free compatible end on the map, shift the
     // whole module so they meet, turned as a whole about that connection
-    // when the ends don't face yet (SnapFeel: reach, hold, Alt, at most a
-    // quarter turn; from a drag, the drop's final snap keeps the join the
-    // drag held).
+    // when the ends don't face yet (SnapFeel: reach, hold, Alt, any angle;
+    // from a drag, the drop's final snap keeps the join the drag held).
     {
         std::vector<const core::Brick*> placed;
         for (const auto& batch : batches)

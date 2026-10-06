@@ -74,12 +74,10 @@ struct SnapPick {
 
 // Choose the join for this frame. With a session the hold and the speed
 // gate apply and the choice is remembered; without one it's a one-off
-// snap at `reach`. `final` is the drop. `group`: the moving connections
-// belong to more than one part (a group or module), which turns at most
-// snapfeel::kMaxGroupTurnDeg to join; a single part turns freely.
+// snap at `reach`. `final` is the drop. Any angle joins: the moving part
+// or selection turns `turn` degrees about its joining end.
 SnapPick pickConnectionSnap(const std::vector<MovingConn>& moving, const std::vector<FreeTarget>& targets,
-                            double reach, snapfeel::Session* session, bool bypass = false, bool final = false,
-                            bool group = false);
+                            double reach, snapfeel::Session* session, bool bypass = false, bool final = false);
 
 // Where a point of the moving set lands: turned `degrees` about `pivot`
 // (the moving connection), then moved so the pivot is on `to`.

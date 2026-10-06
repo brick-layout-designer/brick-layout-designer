@@ -101,7 +101,24 @@ int nearestConnectionIndex(const core::Brick& brick, parts::PartsLibrary& lib,
     return bestIdx;
 }
 
+// The moving ends that may snap: just the active one when there is a grab
+// anchor (`key`; none when it is taken), else all (a programmatic drag).
+std::vector<MovingConn> activeOnly(const std::vector<MovingConn>& moving, const QString& key) {
+    if (key.isEmpty()) return moving;
+    std::vector<MovingConn> out;
+    for (const MovingConn& m : moving)
+        if (m.key == key) out.push_back(m);
+    return out;
+}
+
 }  // namespace
+
+QString MapView::activeKey() const {
+    if (grabBrickGuid_.isEmpty() || grabActiveConnIdx_ < 0) return {};
+    for (const auto& s : dragStart_)
+        if (s.guid == grabBrickGuid_) return connKey(grabBrickGuid_, grabActiveConnIdx_);
+    return {};
+}
 
 std::vector<MapView::BrickOriginSnapshot> MapView::selectedBrickSnapshots() const {
     std::vector<BrickOriginSnapshot> out;
@@ -325,7 +342,10 @@ void MapView::applyLiveConnectionSnap(bool fromMove) {
     const auto targets = reach > 0.0 && !bypass && !moving.empty()
                              ? freeTargets(*map_, parts_, movingGuids)
                              : std::vector<FreeTarget>{};
-    const SnapPick best = pickConnectionSnap(moving, targets, reach, &dragSnap_, bypass, false, dragStart_.size() > 1);
+    // As in BlueBrick, only the active end snaps: the grabbed part's end
+    // nearest the grab, picked on the press and kept for the drag.
+    const std::vector<MovingConn> active = activeOnly(moving, activeKey());
+    const SnapPick best = pickConnectionSnap(active, targets, reach, &dragSnap_, bypass, false);
 
     // Put every item where the pointer has it, unturned; a snap below
     // moves (and turns) them from there.
@@ -418,7 +438,7 @@ void MapView::applyLiveConnectionSnap(bool fromMove) {
     // live preview of what the drop commits. Suppress the per-item grid
     // snap so the alignment survives the setPos round-trip.
     const QPointF target = targets[best.target].world;
-    const QPointF pivot = moving[best.moving].world;
+    const QPointF pivot = active[best.moving].world;
     rendering::SceneBuilder::setSuppressItemSnap(true);
     for (const auto& s : dragStart_) {
         if (!s.item) continue;
@@ -547,13 +567,14 @@ void MapView::commitDragIfMoved() {
         const auto targets = reach > 0.0 && !bypass && !moving.empty()
                                  ? freeTargets(*map_, parts_, movingGuids)
                                  : std::vector<FreeTarget>{};
-        const SnapPick pick = pickConnectionSnap(moving, targets, reach, &dragSnap_, bypass, true, entries.size() > 1);
+        const std::vector<MovingConn> active = activeOnly(moving, activeKey());
+        const SnapPick pick = pickConnectionSnap(active, targets, reach, &dragSnap_, bypass, true);
         dragSnap_.reset();
 
         if (pick.applied()) {
             // Every brick turns about the joined connection so the ends
             // face (a single part and a group alike), then lands with it.
-            const QPointF pivot = moving[pick.moving].world;
+            const QPointF pivot = active[pick.moving].world;
             const QPointF to = targets[pick.target].world;
             const bool turns = std::abs(pick.turn) > 1e-6;
             for (auto& e : entries) {

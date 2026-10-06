@@ -84,7 +84,6 @@ TEST(SnapFeel, UsesTheSharedNumbers) {
     EXPECT_EQ(kFastPxPerSecond, c[QLatin1String("fastPxPerSecond")].toDouble());
     EXPECT_EQ(kSpeedSamples, c[QLatin1String("speedSamples")].toInt());
     EXPECT_EQ(kSpeedWindowMs, c[QLatin1String("speedWindowMs")].toDouble());
-    EXPECT_EQ(kMaxGroupTurnDeg, c[QLatin1String("maxGroupTurnDeg")].toDouble());
     EXPECT_EQ(kTurnTieDeg, c[QLatin1String("turnTieDeg")].toDouble());
     const QJsonObject s = c[QLatin1String("strength")].toObject();
     EXPECT_EQ(strengthScale(Strength::Off), s[QLatin1String("off")].toDouble());
@@ -120,8 +119,6 @@ TEST(SnapFeel, SharedTurnCases) {
         const QJsonObject c = v.toObject();
         const double turn = snapfeel::facingTurn(c[QLatin1String("target")].toDouble(), c[QLatin1String("moving")].toDouble());
         EXPECT_NEAR(turn, c[QLatin1String("turn")].toDouble(), 1e-9) << c[QLatin1String("name")].toString().toStdString();
-        EXPECT_EQ(snapfeel::groupTurnAllowed(turn), c[QLatin1String("groupMay")].toBool())
-            << c[QLatin1String("name")].toString().toStdString();
     }
 }
 
@@ -560,7 +557,9 @@ TEST_P(GroupTurnTest, LoosePartsPickedTogetherTurnAsOneToJoin) {
              curveAt(QStringLiteral("C"), sc.c, sc.oc) },
            sc.p);
     ASSERT_EQ(pickAB(), 2);
-    slowDrag(sc.a, sc.a + QPointF(6 - 0.4, 0), /*release=*/false);
+    // Grabbed by B: its free end is the one nearest the grab (BlueBrick's
+    // active connection).
+    slowDrag(sc.b, sc.b + QPointF(6 - 0.4, 0), /*release=*/false);
     EXPECT_TRUE(view_->connectionSnapShown());
     // The live preview already shows the pair turned.
     for (QGraphicsItem* it : view_->scene()->items()) {
@@ -573,7 +572,7 @@ TEST_P(GroupTurnTest, LoosePartsPickedTogetherTurnAsOneToJoin) {
             EXPECT_NEAR(snapfeel::wrap180(it->rotation() - 22.5 - turn), 0, 1e-3);
         }
     }
-    slowDrag(sc.a + QPointF(6 - 0.4, 0), sc.a + QPointF(6 - 0.4, 0));
+    slowDrag(sc.b + QPointF(6 - 0.4, 0), sc.b + QPointF(6 - 0.4, 0));
     const core::Brick* a = brick(QStringLiteral("A"));
     const core::Brick* b = brick(QStringLiteral("B"));
     EXPECT_NEAR(snapfeel::wrap180(a->orientation - turn), 0, 1e-3);
@@ -592,8 +591,24 @@ INSTANTIATE_TEST_SUITE_P(Angles, GroupTurnTest,
                                            std::make_tuple(0.0, -45.0), std::make_tuple(0.0, 45.0),
                                            std::make_tuple(3.0, 45.0), std::make_tuple(3.0, -22.5)));
 
-TEST_F(SnapDragTest, PartsPickedTogetherDontJoinPastAQuarterTurn) {
-    const CurveScene sc = curveScene(0, 6, 112.5);
+TEST_F(SnapDragTest, PartsPickedTogetherJoinAtAnyAngle) {
+    // 112.5 degrees off (C lies back along its end, so 20 studs away).
+    const CurveScene sc = curveScene(0, 20, 112.5);
+    reload({ curveAt(QStringLiteral("A"), sc.a, 0), curveAt(QStringLiteral("B"), sc.b, 22.5),
+             curveAt(QStringLiteral("C"), sc.c, sc.oc) },
+           sc.p);
+    ASSERT_EQ(pickAB(), 2);
+    slowDrag(sc.b, sc.b + QPointF(20 - 0.4, 0));
+    EXPECT_NEAR(snapfeel::wrap180(brick(QStringLiteral("A"))->orientation - 112.5), 0, 1e-3);
+    const QPointF bEnd = parts::placement::connectionWorld(*brick(QStringLiteral("B")), 1, lib_.lib);
+    EXPECT_NEAR(bEnd.x(), sc.p.x(), 1e-3);
+    EXPECT_NEAR(bEnd.y(), sc.p.y(), 1e-3);
+}
+
+// Only the grabbed end snaps (BlueBrick's active connection): grabbed by
+// A, whose free end is far from C, the pair doesn't snap to C by B's end.
+TEST_F(SnapDragTest, OnlyTheGrabbedEndSnaps) {
+    const CurveScene sc = curveScene(0, 6, 45);
     reload({ curveAt(QStringLiteral("A"), sc.a, 0), curveAt(QStringLiteral("B"), sc.b, 22.5),
              curveAt(QStringLiteral("C"), sc.c, sc.oc) },
            sc.p);
@@ -601,9 +616,62 @@ TEST_F(SnapDragTest, PartsPickedTogetherDontJoinPastAQuarterTurn) {
     slowDrag(sc.a, sc.a + QPointF(6 - 0.4, 0), /*release=*/false);
     EXPECT_FALSE(view_->connectionSnapShown());
     slowDrag(sc.a + QPointF(6 - 0.4, 0), sc.a + QPointF(6 - 0.4, 0));
-    EXPECT_NEAR(brick(QStringLiteral("A"))->orientation, 0, 1e-6);  // no crooked half-snap either
-    EXPECT_NEAR(brick(QStringLiteral("A"))->displayArea.center().x(), sc.a.x() + 5.6, 0.1);
+    EXPECT_NEAR(brick(QStringLiteral("A"))->orientation, 0, 1e-6);
 }
+
+// Far off the angle with a shaking hand: once joined the snap neither
+// flickers to another end nor lets go while inside the hold distance.
+class JitterTest : public SnapDragTest, public ::testing::WithParamInterface<std::tuple<double, bool>> {};
+
+TEST_P(JitterTest, StaysJoinedWhileThePointerShakes) {
+    const auto [turn, both] = GetParam();
+    const CurveScene sc = curveScene(0, 20, turn);
+    // A second free end D close by, facing another way.
+    const QPointF q = sc.p + QPointF(0, 2.2);
+    const double od = sc.oc + 30;
+    reload({ curveAt(QStringLiteral("A"), sc.a, 0), curveAt(QStringLiteral("B"), sc.b, 22.5),
+             curveAt(QStringLiteral("C"), sc.c, sc.oc), curveAt(QStringLiteral("D"), q - turned(kC0, od), od) },
+           sc.p);
+    if (both) {
+        ASSERT_EQ(pickAB(), 2);
+    }
+    QWidget* vp = view_->viewport();
+    const QPointF grab = sc.b;
+    // The grabbed end where the pointer has it is grab + (end - b): aim it.
+    const QPointF endFromGrab = (sc.p - QPointF(20, 0)) - sc.b;
+    const auto pointerFor = [&](QPointF endAt) { return endAt - endFromGrab; };
+    QTest::mousePress(vp, Qt::LeftButton, {}, screen(grab));
+    const auto moveTo = [&](QPointF studs) {
+        const QPoint p = screen(studs);
+        QMouseEvent m(QEvent::MouseMove, p, vp->mapToGlobal(p), Qt::NoButton, Qt::LeftButton, {});
+        QApplication::sendEvent(vp, &m);
+        QTest::qWait(20);
+    };
+    for (double x = -20; x <= -0.5; x += 0.25) moveTo(pointerFor(sc.p + QPointF(x, 0.2)));
+    ASSERT_TRUE(view_->connectionSnapShown());
+    const QPointF ring = view_->connectionSnapPoint();
+    EXPECT_NEAR(ring.x(), sc.p.x() * kPx, 1e-3);
+    EXPECT_NEAR(ring.y(), sc.p.y() * kPx, 1e-3);
+    const QPointF shake[] = { { 0.6, 0.3 }, { -0.4, 0.9 }, { 0.3, -0.5 }, { 0.9, 0.6 }, { -0.2, 0.2 },
+                              { 1.1, -0.4 }, { -0.9, -0.7 }, { 0.1, 0.05 } };
+    int frame = 0;
+    for (const QPointF& o : shake) {
+        moveTo(pointerFor(sc.p + o));
+        EXPECT_TRUE(view_->connectionSnapShown()) << "frame " << frame;
+        EXPECT_NEAR(view_->connectionSnapPoint().x(), ring.x(), 1e-6) << "frame " << frame;
+        EXPECT_NEAR(view_->connectionSnapPoint().y(), ring.y(), 1e-6) << "frame " << frame;
+        ++frame;
+    }
+    QTest::mouseRelease(vp, Qt::LeftButton, {}, screen(pointerFor(sc.p + shake[7])));
+    const core::Brick* b = brick(QStringLiteral("B"));
+    EXPECT_NEAR(snapfeel::wrap180(b->orientation - 22.5 - turn), 0, 1e-3);
+    const QPointF bEnd = parts::placement::connectionWorld(*b, 1, lib_.lib);
+    EXPECT_NEAR(bEnd.x(), sc.p.x(), 1e-3);
+    EXPECT_NEAR(bEnd.y(), sc.p.y(), 1e-3);
+}
+
+INSTANTIATE_TEST_SUITE_P(BigAngles, JitterTest,
+                         ::testing::Combine(::testing::Values(45.0, 90.0, 135.0, 180.0), ::testing::Bool()));
 
 TEST_F(SnapDragTest, AModuleTurnsAsOneToJoin) {
     const CurveScene sc = curveScene(0, 6, 45);
@@ -637,11 +705,12 @@ TEST_F(SnapDragTest, LoosePartsPickedTogetherTurnAsOneByTouch) {
            sc.p);
     ASSERT_EQ(pickAB(), 2);
     QWidget* vp = view_->viewport();
-    const QPointF to = sc.a + QPointF(6 - 0.4, 0);
-    QTest::touchEvent(vp, finger).press(0, screen(sc.a));
+    // By B: its free end is nearest the finger, so it leads.
+    const QPointF to = sc.b + QPointF(6 - 0.4, 0);
+    QTest::touchEvent(vp, finger).press(0, screen(sc.b));
     const int steps = 20;
     for (int i = 1; i <= steps; ++i) {
-        QTest::touchEvent(vp, finger).move(0, screen(sc.a + (to - sc.a) * i / steps));
+        QTest::touchEvent(vp, finger).move(0, screen(sc.b + (to - sc.b) * i / steps));
         QTest::qWait(20);
     }
     EXPECT_TRUE(view_->connectionSnapShown());

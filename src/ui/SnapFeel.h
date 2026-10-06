@@ -22,10 +22,12 @@
 //     few moves) no new snap starts; one already made holds. The drop
 //     always runs one last snap at the normal reach.
 //   - Alt (Option on a Mac) while dragging places without connection snap.
-//   - A group or module turns as a whole about the joined connection so the
-//     two ends face each other, as a single part does; it turns at most
-//     90 degrees, and a join that needs more isn't offered at all.
-//     Level targets prefer the smaller turn.
+//   - As in BlueBrick, the active connection is the grabbed part's end
+//     nearest the grab, kept for the whole drag; it snaps to the nearest
+//     free end in reach at ANY angle, the part or the whole selection
+//     (group, module) turning about it so the two ends face each other.
+//     Distances are measured from where the pointer has the parts, never
+//     the snapped pose. Level targets prefer the smaller turn.
 
 #include <QString>
 
@@ -53,8 +55,6 @@ inline constexpr double kFastPxPerSecond = 1200.0;
 inline constexpr int kSpeedSamples = 4;
 // Older moves than this (ms) don't count towards the speed.
 inline constexpr double kSpeedWindowMs = 200.0;
-// The most a group or module turns to join (degrees).
-inline constexpr double kMaxGroupTurnDeg = 90.0;
 // Turns closer than this (degrees) count as the same.
 inline constexpr double kTurnTieDeg = 1.0;
 // A fast drag that stops dead snaps after this long (ms).
@@ -103,8 +103,6 @@ double wrap180(double deg);
 // The turn (degrees, (-180, 180]) that makes a connection facing
 // `movingAngle` (world) face one facing `targetAngle`: mouth to mouth.
 inline double facingTurn(double targetAngle, double movingAngle) { return wrap180(targetAngle + 180.0 - movingAngle); }
-// A group or module may join with this turn.
-inline bool groupTurnAllowed(double turn) { return std::abs(turn) <= kMaxGroupTurnDeg + 1e-9; }
 
 // Pointer speed in screen px/s over the last few moves.
 class SpeedMeter {

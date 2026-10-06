@@ -11,7 +11,6 @@
     "fastPxPerSecond": 1200,
     "speedSamples": 4,
     "speedWindowMs": 200,
-    "maxGroupTurnDeg": 90,
     "turnTieDeg": 1,
     "strength": { "off": 0, "gentle": 1, "strong": 1.6 }
   },
@@ -96,13 +95,13 @@
       "candidates": [ { "m": "a#0", "t": "b#0", "d": 1.5, "c": 1 } ], "expect": "a#0>b#0" }
   ],
   "turns": [
-    { "name": "already facing: no turn", "target": 0, "moving": 180, "turn": 0, "groupMay": true },
-    { "name": "a curve's 22.5 degrees", "target": 22.5, "moving": 180, "turn": 22.5, "groupMay": true },
-    { "name": "two curves' 45 degrees the other way", "target": 0, "moving": 225, "turn": -45, "groupMay": true },
-    { "name": "a quarter turn", "target": 90, "moving": 180, "turn": 90, "groupMay": true },
-    { "name": "more than a quarter: a group doesn't", "target": 112.5, "moving": 180, "turn": 112.5, "groupMay": false },
-    { "name": "facing the same way: a half turn", "target": 180, "moving": 180, "turn": 180, "groupMay": false },
-    { "name": "angles past 360 fold", "target": 382.5, "moving": -180, "turn": 22.5, "groupMay": true }
+    { "name": "already facing: no turn", "target": 0, "moving": 180, "turn": 0 },
+    { "name": "a curve's 22.5 degrees", "target": 22.5, "moving": 180, "turn": 22.5 },
+    { "name": "two curves' 45 degrees the other way", "target": 0, "moving": 225, "turn": -45 },
+    { "name": "a quarter turn", "target": 90, "moving": 180, "turn": 90 },
+    { "name": "more than a quarter turn", "target": 112.5, "moving": 180, "turn": 112.5 },
+    { "name": "facing the same way: a half turn, still offered", "target": 180, "moving": 180, "turn": 180 },
+    { "name": "angles past 360 fold", "target": 382.5, "moving": -180, "turn": 22.5 }
   ],
   "speed": [
     { "name": "1000 px/s is slow", "samples": [[0, 0, 0], [10, 0, 10], [20, 0, 20], [30, 0, 30], [40, 0, 40]], "speed": 1000, "fast": false },
@@ -141,6 +140,15 @@
       { "candidates": [ { "m": "g#0", "t": "x#1", "d": 0.6, "c": 1, "u": 45 }, { "m": "g#1", "t": "y#0", "d": 0.5, "c": 3, "u": 22.5 } ], "expect": "g#0>x#1" },
       { "candidates": [ { "m": "g#0", "t": "x#1", "d": 0.3, "c": 1, "u": 45 }, { "m": "g#1", "t": "y#0", "d": 0.7, "c": 3, "u": 22.5 } ], "expect": "g#0>x#1" },
       { "final": true, "candidates": [ { "m": "g#0", "t": "x#1", "d": 0.1, "c": 1, "u": 45 }, { "m": "g#1", "t": "y#0", "d": 0.9, "c": 3, "u": 22.5 } ], "expect": "g#0>x#1" }
+    ] },
+    { "name": "one active end, two targets at big angles, a jittering pointer: no flicker, no unsnap", "reach": 1, "frames": [
+      { "candidates": [ { "m": "a#1", "t": "x#0", "d": 0.9, "c": 0.5, "u": 135 }, { "m": "a#1", "t": "y#1", "d": 1.2, "c": 0.5, "u": 90 } ], "expect": "a#1>x#0" },
+      { "candidates": [ { "m": "a#1", "t": "x#0", "d": 1.1, "c": 0.6, "u": 135 }, { "m": "a#1", "t": "y#1", "d": 0.95, "c": 0.6, "u": 90 } ], "expect": "a#1>x#0" },
+      { "candidates": [ { "m": "a#1", "t": "x#0", "d": 1.5, "c": 0.4, "u": 135 }, { "m": "a#1", "t": "y#1", "d": 1.1, "c": 0.4, "u": 90 } ], "expect": "a#1>x#0" },
+      { "candidates": [ { "m": "a#1", "t": "x#0", "d": 1.2, "c": 0.5, "u": 135 }, { "m": "a#1", "t": "y#1", "d": 1.0, "c": 0.5, "u": 90 } ], "expect": "a#1>x#0" },
+      { "candidates": [ { "m": "a#1", "t": "x#0", "d": 0.4, "c": 0.5, "u": 135 }, { "m": "a#1", "t": "y#1", "d": 1.4, "c": 0.5, "u": 90 } ], "expect": "a#1>x#0" },
+      { "candidates": [ { "m": "a#1", "t": "x#0", "d": 1.58, "c": 0.5, "u": 135 } ], "expect": "a#1>x#0" },
+      { "candidates": [ { "m": "a#1", "t": "y#1", "d": 0.3, "c": 0.5, "u": 90 } ], "expect": "a#1>y#1" }
     ] },
     { "name": "Alt drops the snap; letting go of Alt can snap again", "reach": 1, "frames": [
       { "candidates": [ { "m": "a#0", "t": "b#0", "d": 0.2, "c": 1 } ], "expect": "a#0>b#0" },
