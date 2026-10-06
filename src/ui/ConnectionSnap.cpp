@@ -63,6 +63,10 @@ std::vector<FreeTarget> freeTargets(const core::Map& map, parts::PartsLibrary& l
     return out;
 }
 
+QPointF turnPoint(QPointF p, double degrees, QPointF pivot, QPointF to) {
+    return to + rotatePoint(p - pivot, degrees);
+}
+
 SnapPick pickConnectionSnap(const std::vector<MovingConn>& moving, const std::vector<FreeTarget>& targets,
                             double reach, snapfeel::Session* session, bool bypass, bool final) {
     std::vector<snapfeel::Candidate> cands;
@@ -78,8 +82,10 @@ SnapPick pickConnectionSnap(const std::vector<MovingConn>& moving, const std::ve
                 const QPointF d = tc.world - mc.world;
                 const double sq = d.x() * d.x() + d.y() * d.y();
                 if (sq > limitSq) continue;
-                cands.push_back({ mc.key, tc.key, std::sqrt(sq), mc.mouseDist });
-                pairs.push_back({ m, t });
+                // Any angle: the moving part(s) turn to make the ends face.
+                const double turn = snapfeel::facingTurn(tc.angle, mc.angle);
+                cands.push_back({ mc.key, tc.key, std::sqrt(sq), mc.mouseDist, std::abs(turn) });
+                pairs.push_back({ m, t, turn });
             }
         }
     }

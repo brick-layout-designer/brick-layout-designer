@@ -2,28 +2,35 @@
 // the web runs too (fixtures/snap-vectors.json), then the real drags,
 // placements and module drops in a MapView.
 
-#include "ui/ConnectionSnap.h"
-#include "ui/MapView.h"
 #include "ui/SnapFeel.h"
-#include "ui/theme/AppPrefs.h"
 #include "core/LayerBrick.h"
 #include "core/Map.h"
+#include "parts/BrickPlacement.h"
 #include "parts/PartsLibrary.h"
 #include "rendering/SceneBuilder.h"
+#include "ui/ConnectionSnap.h"
+#include "ui/MapView.h"
+#include "ui/MapViewInternal.h"
+#include "ui/theme/AppPrefs.h"
 
 #include <gtest/gtest.h>
 
 #include <QApplication>
 #include <QFile>
-#include <QMouseEvent>
+#include <QGraphicsItem>
+#include <QGraphicsScene>
 #include <QImage>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QMouseEvent>
+#include <QPointingDevice>
 #include <QTemporaryDir>
 #include <QTest>
 
+#include <cmath>
 #include <memory>
+#include <tuple>
 
 using namespace bld;
 using namespace bld::ui;
@@ -41,7 +48,8 @@ std::vector<snapfeel::Candidate> candidates(const QJsonArray& list) {
     for (const QJsonValue& v : list) {
         const QJsonObject c = v.toObject();
         out.push_back({ c[QLatin1String("m")].toString(), c[QLatin1String("t")].toString(),
-                        c[QLatin1String("d")].toDouble(), c[QLatin1String("c")].toDouble() });
+                        c[QLatin1String("d")].toDouble(), c[QLatin1String("c")].toDouble(),
+                        c[QLatin1String("u")].toDouble() });
     }
     return out;
 }
@@ -76,6 +84,7 @@ TEST(SnapFeel, UsesTheSharedNumbers) {
     EXPECT_EQ(kFastPxPerSecond, c[QLatin1String("fastPxPerSecond")].toDouble());
     EXPECT_EQ(kSpeedSamples, c[QLatin1String("speedSamples")].toInt());
     EXPECT_EQ(kSpeedWindowMs, c[QLatin1String("speedWindowMs")].toDouble());
+    EXPECT_EQ(kTurnTieDeg, c[QLatin1String("turnTieDeg")].toDouble());
     const QJsonObject s = c[QLatin1String("strength")].toObject();
     EXPECT_EQ(strengthScale(Strength::Off), s[QLatin1String("off")].toDouble());
     EXPECT_EQ(strengthScale(Strength::Gentle), s[QLatin1String("gentle")].toDouble());
@@ -100,6 +109,18 @@ TEST(SnapFeel, SharedPickCases) {
         const int i = snapfeel::pick(cands, lockOf(c[QLatin1String("lock")]), c[QLatin1String("reach")].toDouble(),
                                      c[QLatin1String("fast")].toBool(), c[QLatin1String("bypass")].toBool());
         EXPECT_EQ(named(cands, i), c[QLatin1String("expect")]) << c[QLatin1String("name")].toString().toStdString();
+    }
+}
+
+TEST(SnapFeel, SharedTurnCases) {
+    const QJsonArray cases = vectors()[QLatin1String("turns")].toArray();
+    EXPECT_GE(cases.size(), 7);
+    for (const QJsonValue& v : cases) {
+        const QJsonObject c = v.toObject();
+        const double turn = snapfeel::facingTurn(c[QLatin1String("target")].toDouble(),
+                                                 c[QLatin1String("moving")].toDouble());
+        EXPECT_NEAR(turn, c[QLatin1String("turn")].toDouble(), 1e-9)
+            << c[QLatin1String("name")].toString().toStdString();
     }
 }
 
@@ -190,6 +211,19 @@ struct TrackLibrary {
         QImage sprite(32, 16, QImage::Format_ARGB32);
         sprite.fill(Qt::darkGray);
         sprite.save(dir.filePath(QStringLiteral("TT.7.png")));
+        // "CC.7": BlueBrick's 9V curve (2867), 22.5 degrees of an R40 circle.
+        QFile c(dir.filePath(QStringLiteral("CC.7.xml")));
+        EXPECT_TRUE(c.open(QIODevice::WriteOnly));
+        c.write("<part><ConnexionList>"
+                "<connexion><type>1</type><position><x>-8.1875</x><y>-1.375</y></position><angle>180</"
+                "angle></connexion>"
+                "<connexion><type>1</type><position><x>7.1198</x><y>1.6698</y></position><angle>22.5</"
+                "angle></connexion>"
+                "</ConnexionList></part>");
+        c.close();
+        QImage curve(128, 64, QImage::Format_ARGB32);
+        curve.fill(Qt::darkGray);
+        curve.save(dir.filePath(QStringLiteral("CC.7.png")));
         lib.addSearchPath(dir.path());
         lib.scan();
     }
@@ -266,6 +300,18 @@ protected:
         if (release) QTest::mouseRelease(vp, Qt::LeftButton, {}, screen(to));
     }
     bool dragging_ = false;
+    // Pick A and B together (several loose parts, as a multi-selection).
+    int pickAB() {
+        int picked = 0;
+        for (QGraphicsItem* it : view_->scene()->items()) {
+            if (!detail::isBrickItem(it)) continue;
+            const QString g = it->data(detail::kBrickDataGuid).toString();
+            const bool want = g == QLatin1String("A") || g == QLatin1String("B");
+            it->setSelected(want);
+            picked += want;
+        }
+        return picked;
+    }
     QPoint screen(QPointF studs) const { return view_->mapFromScene(studs * kPx); }
     double bx() const {
         for (const auto& l : view_->currentMap()->layers())
@@ -459,4 +505,221 @@ TEST(ConnectionSnap, LinksToTheMovingSetDontHoldWhileDragging) {
     const QSet<QString> both = linkKeys(map, { QStringLiteral("A"), QStringLiteral("B") });
     EXPECT_TRUE(takenWhileMoving(QStringLiteral("b0"), both));
     EXPECT_TRUE(takenWhileMoving(QStringLiteral("A"), both));
+}
+
+namespace {
+
+QPointF turned(QPointF p, double deg) {
+    const double r = deg * M_PI / 180.0;
+    return { p.x() * std::cos(r) - p.y() * std::sin(r), p.x() * std::sin(r) + p.y() * std::cos(r) };
+}
+const QPointF kC0(-8.1875, -1.375);
+const QPointF kC1(7.1198, 1.6698);
+
+core::Brick curveAt(const QString& guid, QPointF centre, double o) {
+    core::Brick b;
+    b.guid = guid;
+    b.partNumber = QStringLiteral("CC.7");
+    b.orientation = static_cast<float>(o);
+    // Any box around the centre: the load fits it to the turned sprite.
+    b.displayArea = QRectF(centre.x() - 8, centre.y() - 4, 16, 8);
+    return b;
+}
+
+// A (turned 0) and B (turned 22.5) side by side, joined or `gapAB` studs
+// apart; B's free end faces 45 degrees. C's free first end is `gap` studs
+// right of it and faces -90 + (turn - 45), so the pair must turn `turn`
+// degrees to join it.
+struct CurveScene {
+    QPointF a, b, c, p;
+    double oc = 0;
+};
+CurveScene curveScene(double gapAB, double gap, double turn) {
+    CurveScene s;
+    s.a = { 100, 60 };
+    const QPointF aEnd = s.a + turned(kC1, 0) + QPointF(gapAB, 0);
+    s.b = aEnd - turned(kC0, 22.5);
+    s.p = s.b + turned(kC1, 22.5) + QPointF(gap, 0);
+    s.oc = (turn - 135) - 180; // C's first end faces turn - 135
+    s.c = s.p - turned(kC0, s.oc);
+    return s;
+}
+
+} // namespace
+
+// The primary case: several loose parts picked together (two curves, as
+// on Aaron's phone), dragged by the pointer near a free end that faces a
+// different way. They turn as one about the joined end, in the live
+// preview and on the drop, and stay together.
+class GroupTurnTest : public SnapDragTest,
+                      public ::testing::WithParamInterface<std::tuple<double, double>> {};
+
+TEST_P(GroupTurnTest, LoosePartsPickedTogetherTurnAsOneToJoin) {
+    const auto [gapAB, turn] = GetParam();
+    const CurveScene sc = curveScene(gapAB, 6, turn);
+    reload({ curveAt(QStringLiteral("A"), sc.a, 0), curveAt(QStringLiteral("B"), sc.b, 22.5),
+             curveAt(QStringLiteral("C"), sc.c, sc.oc) },
+           sc.p);
+    ASSERT_EQ(pickAB(), 2);
+    // Grabbed by B: its free end is the one nearest the grab (BlueBrick's
+    // active connection).
+    slowDrag(sc.b, sc.b + QPointF(6 - 0.4, 0), /*release=*/false);
+    EXPECT_TRUE(view_->connectionSnapShown());
+    // The live preview already shows the pair turned.
+    for (QGraphicsItem* it : view_->scene()->items()) {
+        if (!detail::isBrickItem(it)) continue;
+        const QString g = it->data(detail::kBrickDataGuid).toString();
+        if (g == QLatin1String("A")) { EXPECT_NEAR(snapfeel::wrap180(it->rotation() - turn), 0, 1e-3); }
+        if (g == QLatin1String("B")) {
+            EXPECT_NEAR(snapfeel::wrap180(it->rotation() - 22.5 - turn), 0, 1e-3);
+        }
+    }
+    slowDrag(sc.b + QPointF(6 - 0.4, 0), sc.b + QPointF(6 - 0.4, 0));
+    const core::Brick* a = brick(QStringLiteral("A"));
+    const core::Brick* b = brick(QStringLiteral("B"));
+    EXPECT_NEAR(snapfeel::wrap180(a->orientation - turn), 0, 1e-3);
+    EXPECT_NEAR(snapfeel::wrap180(b->orientation - 22.5 - turn), 0, 1e-3);
+    // B's free end is on C's, facing it; A and B kept their places.
+    const QPointF bEnd = parts::placement::connectionWorld(*b, 1, lib_.lib);
+    EXPECT_NEAR(bEnd.x(), sc.p.x(), 1e-3);
+    EXPECT_NEAR(bEnd.y(), sc.p.y(), 1e-3);
+    const QPointF aEnd = parts::placement::connectionWorld(*a, 1, lib_.lib);
+    const QPointF bStart = parts::placement::connectionWorld(*b, 0, lib_.lib);
+    EXPECT_NEAR(std::hypot(bStart.x() - aEnd.x(), bStart.y() - aEnd.y()), gapAB, 1e-3);
+}
+
+INSTANTIATE_TEST_SUITE_P(Angles, GroupTurnTest,
+                         ::testing::Values(std::make_tuple(0.0, 0.0), std::make_tuple(0.0, 22.5),
+                                           std::make_tuple(0.0, -45.0), std::make_tuple(0.0, 45.0),
+                                           std::make_tuple(3.0, 45.0), std::make_tuple(3.0, -22.5)));
+
+TEST_F(SnapDragTest, PartsPickedTogetherJoinAtAnyAngle) {
+    // 112.5 degrees off (C lies back along its end, so 20 studs away).
+    const CurveScene sc = curveScene(0, 20, 112.5);
+    reload({ curveAt(QStringLiteral("A"), sc.a, 0), curveAt(QStringLiteral("B"), sc.b, 22.5),
+             curveAt(QStringLiteral("C"), sc.c, sc.oc) },
+           sc.p);
+    ASSERT_EQ(pickAB(), 2);
+    slowDrag(sc.b, sc.b + QPointF(20 - 0.4, 0));
+    EXPECT_NEAR(snapfeel::wrap180(brick(QStringLiteral("A"))->orientation - 112.5), 0, 1e-3);
+    const QPointF bEnd = parts::placement::connectionWorld(*brick(QStringLiteral("B")), 1, lib_.lib);
+    EXPECT_NEAR(bEnd.x(), sc.p.x(), 1e-3);
+    EXPECT_NEAR(bEnd.y(), sc.p.y(), 1e-3);
+}
+
+// Only the grabbed end snaps (BlueBrick's active connection): grabbed by
+// A, whose free end is far from C, the pair doesn't snap to C by B's end.
+TEST_F(SnapDragTest, OnlyTheGrabbedEndSnaps) {
+    const CurveScene sc = curveScene(0, 6, 45);
+    reload({ curveAt(QStringLiteral("A"), sc.a, 0), curveAt(QStringLiteral("B"), sc.b, 22.5),
+             curveAt(QStringLiteral("C"), sc.c, sc.oc) },
+           sc.p);
+    ASSERT_EQ(pickAB(), 2);
+    slowDrag(sc.a, sc.a + QPointF(6 - 0.4, 0), /*release=*/false);
+    EXPECT_FALSE(view_->connectionSnapShown());
+    slowDrag(sc.a + QPointF(6 - 0.4, 0), sc.a + QPointF(6 - 0.4, 0));
+    EXPECT_NEAR(brick(QStringLiteral("A"))->orientation, 0, 1e-6);
+}
+
+// Far off the angle with a shaking hand: once joined the snap neither
+// flickers to another end nor lets go while inside the hold distance.
+class JitterTest : public SnapDragTest, public ::testing::WithParamInterface<std::tuple<double, bool>> {};
+
+TEST_P(JitterTest, StaysJoinedWhileThePointerShakes) {
+    const auto [turn, both] = GetParam();
+    const CurveScene sc = curveScene(0, 20, turn);
+    // A second free end D close by, facing another way.
+    const QPointF q = sc.p + QPointF(0, 2.2);
+    const double od = sc.oc + 30;
+    reload({ curveAt(QStringLiteral("A"), sc.a, 0), curveAt(QStringLiteral("B"), sc.b, 22.5),
+             curveAt(QStringLiteral("C"), sc.c, sc.oc),
+             curveAt(QStringLiteral("D"), q - turned(kC0, od), od) },
+           sc.p);
+    if (both) { ASSERT_EQ(pickAB(), 2); }
+    QWidget* vp = view_->viewport();
+    const QPointF grab = sc.b;
+    // The grabbed end where the pointer has it is grab + (end - b): aim it.
+    const QPointF endFromGrab = (sc.p - QPointF(20, 0)) - sc.b;
+    const auto pointerFor = [&](QPointF endAt) { return endAt - endFromGrab; };
+    QTest::mousePress(vp, Qt::LeftButton, {}, screen(grab));
+    const auto moveTo = [&](QPointF studs) {
+        const QPoint p = screen(studs);
+        QMouseEvent m(QEvent::MouseMove, p, vp->mapToGlobal(p), Qt::NoButton, Qt::LeftButton, {});
+        QApplication::sendEvent(vp, &m);
+        QTest::qWait(20);
+    };
+    for (double x = -20; x <= -0.5; x += 0.25) moveTo(pointerFor(sc.p + QPointF(x, 0.2)));
+    ASSERT_TRUE(view_->connectionSnapShown());
+    const QPointF ring = view_->connectionSnapPoint();
+    EXPECT_NEAR(ring.x(), sc.p.x() * kPx, 1e-3);
+    EXPECT_NEAR(ring.y(), sc.p.y() * kPx, 1e-3);
+    const QPointF shake[] = { { 0.6, 0.3 },  { -0.4, 0.9 }, { 0.3, -0.5 },  { 0.9, 0.6 },
+                              { -0.2, 0.2 }, { 1.1, -0.4 }, { -0.9, -0.7 }, { 0.1, 0.05 } };
+    int frame = 0;
+    for (const QPointF& o : shake) {
+        moveTo(pointerFor(sc.p + o));
+        EXPECT_TRUE(view_->connectionSnapShown()) << "frame " << frame;
+        EXPECT_NEAR(view_->connectionSnapPoint().x(), ring.x(), 1e-6) << "frame " << frame;
+        EXPECT_NEAR(view_->connectionSnapPoint().y(), ring.y(), 1e-6) << "frame " << frame;
+        ++frame;
+    }
+    QTest::mouseRelease(vp, Qt::LeftButton, {}, screen(pointerFor(sc.p + shake[7])));
+    const core::Brick* b = brick(QStringLiteral("B"));
+    EXPECT_NEAR(snapfeel::wrap180(b->orientation - 22.5 - turn), 0, 1e-3);
+    const QPointF bEnd = parts::placement::connectionWorld(*b, 1, lib_.lib);
+    EXPECT_NEAR(bEnd.x(), sc.p.x(), 1e-3);
+    EXPECT_NEAR(bEnd.y(), sc.p.y(), 1e-3);
+}
+
+INSTANTIATE_TEST_SUITE_P(BigAngles, JitterTest,
+                         ::testing::Combine(::testing::Values(45.0, 90.0, 135.0, 180.0), ::testing::Bool()));
+
+TEST_F(SnapDragTest, AModuleTurnsAsOneToJoin) {
+    const CurveScene sc = curveScene(0, 6, 45);
+    reload({ curveAt(QStringLiteral("C"), sc.c, sc.oc) }, sc.p);
+    core::Map module;
+    auto layer = std::make_unique<core::LayerBrick>();
+    layer->bricks.push_back(curveAt(QString(), sc.a, 0));
+    layer->bricks.push_back(curveAt(QString(), sc.b, 22.5));
+    module.layers().push_back(std::move(layer));
+    // Dropped with its centroid 5.6 studs right of where it was built.
+    const QPointF centroid = (sc.a + sc.b) / 2 + QPointF(5.6, 0);
+    ASSERT_TRUE(view_->placeModule(module, QStringLiteral("M"), QString(), centroid * kPx));
+    std::vector<const core::Brick*> placed;
+    for (const auto& l : view_->currentMap()->layers())
+        for (const auto& b : static_cast<const core::LayerBrick&>(*l).bricks)
+            if (b.guid != QLatin1String("C")) placed.push_back(&b);
+    ASSERT_EQ(placed.size(), 2u);
+    const core::Brick* b =
+        std::abs(snapfeel::wrap180(placed[0]->orientation - 67.5)) < 1e-3 ? placed[0] : placed[1];
+    EXPECT_NEAR(snapfeel::wrap180(b->orientation - 67.5), 0, 1e-3);
+    const QPointF bEnd = parts::placement::connectionWorld(*b, 1, lib_.lib);
+    EXPECT_NEAR(bEnd.x(), sc.p.x(), 1e-3);
+    EXPECT_NEAR(bEnd.y(), sc.p.y(), 1e-3);
+}
+
+// The same by a finger: touches reach the map as the mouse's own drag.
+TEST_F(SnapDragTest, LoosePartsPickedTogetherTurnAsOneByTouch) {
+    static QPointingDevice* finger = QTest::createTouchDevice(QInputDevice::DeviceType::TouchScreen);
+    const CurveScene sc = curveScene(0, 6, 45);
+    reload({ curveAt(QStringLiteral("A"), sc.a, 0), curveAt(QStringLiteral("B"), sc.b, 22.5),
+             curveAt(QStringLiteral("C"), sc.c, sc.oc) },
+           sc.p);
+    ASSERT_EQ(pickAB(), 2);
+    QWidget* vp = view_->viewport();
+    // By B: its free end is nearest the finger, so it leads.
+    const QPointF to = sc.b + QPointF(6 - 0.4, 0);
+    QTest::touchEvent(vp, finger).press(0, screen(sc.b));
+    const int steps = 20;
+    for (int i = 1; i <= steps; ++i) {
+        QTest::touchEvent(vp, finger).move(0, screen(sc.b + (to - sc.b) * i / steps));
+        QTest::qWait(20);
+    }
+    EXPECT_TRUE(view_->connectionSnapShown());
+    QTest::touchEvent(vp, finger).release(0, screen(to));
+    const core::Brick* b = brick(QStringLiteral("B"));
+    EXPECT_NEAR(snapfeel::wrap180(brick(QStringLiteral("A"))->orientation - 45), 0, 1e-3);
+    const QPointF bEnd = parts::placement::connectionWorld(*b, 1, lib_.lib);
+    EXPECT_NEAR(bEnd.x(), sc.p.x(), 1e-3);
+    EXPECT_NEAR(bEnd.y(), sc.p.y(), 1e-3);
 }
