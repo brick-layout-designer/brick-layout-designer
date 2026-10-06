@@ -34,16 +34,10 @@ TEST(RealFixture, TightCornerLoads) {
     EXPECT_FALSE(result.map->layers().empty()) << "real project should have layers";
 
     // Count kinds to make sure dispatch actually populated subclasses.
-    int nGrid = 0, nBrick = 0, nText = 0, nArea = 0, nRuler = 0;
+    int nGrid = 0, nBrick = 0;
     for (const auto& L : result.map->layers()) {
-        switch (L->kind()) {
-            case core::LayerKind::Grid:  ++nGrid;  break;
-            case core::LayerKind::Brick: ++nBrick; break;
-            case core::LayerKind::Text:  ++nText;  break;
-            case core::LayerKind::Area:  ++nArea;  break;
-            case core::LayerKind::Ruler: ++nRuler; break;
-            case core::LayerKind::AnchoredText: break;
-        }
+        if (L->kind() == core::LayerKind::Grid) ++nGrid;
+        else if (L->kind() == core::LayerKind::Brick) ++nBrick;
     }
     // A typical train-club layout has at least a grid + a brick layer.
     EXPECT_GE(nGrid,  1);

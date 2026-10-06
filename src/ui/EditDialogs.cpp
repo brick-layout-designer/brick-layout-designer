@@ -231,9 +231,7 @@ bool editRulerDialog(QWidget* parent, core::Map& map, int layerIndex,
     // provide a Detach button per endpoint so the user can release them.
     // (Attaching via dialog requires picking a brick — we don't have a mini-
     // picker yet, so attach is done via the Map context menu.)
-    QString att1 = rulerLayer(map, layerIndex)
-        ? QString() : QString();
-    if (auto* L = rulerLayer(map, layerIndex)) {
+    {
         for (auto& any : L->rulers) {
             const QString& g = (any.kind == core::RulerKind::Linear) ? any.linear.guid : any.circular.guid;
             if (g != rulerGuid) continue;
@@ -267,7 +265,6 @@ bool editRulerDialog(QWidget* parent, core::Map& map, int layerIndex,
             break;
         }
     }
-    (void)att1;
 
     auto* bb = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
     form->addRow(bb);

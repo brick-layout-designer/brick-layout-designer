@@ -39,7 +39,8 @@ TEST(LDDMaterials, AlphaDefaultsTo255WhenAbsent) {
 }
 
 TEST(LDDMaterials, RealLDDFileSmoke) {
-    const char* env = std::getenv("BLD_LDD_MATERIALS_XML");
+    const QByteArray envValue = qgetenv("BLD_LDD_MATERIALS_XML");
+    const char* env = envValue.constData();
     if (!env || !*env) GTEST_SKIP() << "BLD_LDD_MATERIALS_XML not set";
     if (!QFileInfo::exists(QString::fromLocal8Bit(env)))
         GTEST_SKIP() << "no file at " << env;

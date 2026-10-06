@@ -5,10 +5,18 @@ FetchContent_Declare(
     URL      https://github.com/google/googletest/archive/refs/tags/v1.14.0.tar.gz
     URL_HASH SHA256=8ad598c73ad796e0d8280b082cebd82a630d73e73cd3c70057938a6501bba5d7
     DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    # Third-party: its headers are system headers to our tests (no warnings
+    # from them), and its own sources build without warnings below.
+    SYSTEM
 )
 set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
+if(NOT MSVC)
+    foreach(_t gtest gtest_main gmock gmock_main)
+        target_compile_options(${_t} PRIVATE -w)
+    endforeach()
+endif()
 
 include(GoogleTest)
 # Enumerate tests when ctest runs rather than as a post-build step, so the

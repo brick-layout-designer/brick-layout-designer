@@ -458,13 +458,13 @@ void VenueDesignerDialog::rebuildInspector() {
     const auto sel = state_.selection;
     if (!sel) {
         head->setText(QStringLiteral("<b>%1</b>").arg(tr("Venue")));
-        form->addRow(tr("Name"), textEdit(w, v.name, [=](const QString& t) {
+        form->addRow(tr("Name"), textEdit(w, v.name, [=, this](const QString& t) {
                          if (t.trimmed().isEmpty()) return;
                          core::Venue n = venue();
                          n.name = t.trimmed();
                          set(n);
                      }));
-        form->addRow(tr("Minimum walkway"), help::withHelp(lengthEdit(w, v.minWalkwayStuds, unit, [=](double s) {
+        form->addRow(tr("Minimum walkway"), help::withHelp(lengthEdit(w, v.minWalkwayStuds, unit, [=, this](double s) {
                                                   core::Venue n = venue();
                                                   n.minWalkwayStuds = s;
                                                   set(n);
@@ -483,7 +483,7 @@ void VenueDesignerDialog::rebuildInspector() {
         head->setText(QStringLiteral("<b>%1</b>").arg(tr("Wall")));
         const auto e = v.edges[sel->index];
         const int i = sel->index;
-        form->addRow(tr("Label"), textEdit(w, e.label, [=](const QString& t) {
+        form->addRow(tr("Label"), textEdit(w, e.label, [=, this](const QString& t) {
                          core::Venue n = venue();
                          n.edges[i].label = t;
                          set(n);
@@ -491,14 +491,14 @@ void VenueDesignerDialog::rebuildInspector() {
         auto* kind = new QComboBox(w);
         kind->addItems({ tr("Wall"), tr("Door"), tr("Opening") });
         kind->setCurrentIndex(static_cast<int>(e.kind));
-        connect(kind, &QComboBox::currentIndexChanged, this, [=](int k) {
+        connect(kind, &QComboBox::currentIndexChanged, this, [=, this](int k) {
             core::Venue n = venue();
             n.edges[i].kind = static_cast<core::EdgeKind>(k);
             n.edges[i].doorWidthStuds = k == 1 ? ev::polylineLength(n.edges[i].polyline) : 0;
             set(n);
         });
         form->addRow(tr("Kind"), kind);
-        form->addRow(tr("Length"), lengthEdit(w, ev::polylineLength(e.polyline), unit, [=](double want) {
+        form->addRow(tr("Length"), lengthEdit(w, ev::polylineLength(e.polyline), unit, [=, this](double want) {
                          core::Venue n = venue();
                          auto& poly = n.edges[i].polyline;
                          const QPointF a = poly[poly.size() - 2], b = poly.last();
@@ -508,7 +508,7 @@ void VenueDesignerDialog::rebuildInspector() {
                          if (n.edges[i].kind == core::EdgeKind::Door) n.edges[i].doorWidthStuds = want;
                          set(n);
                      }));
-        estimated(e.estimated, [=](bool on) {
+        estimated(e.estimated, [=, this](bool on) {
             core::Venue n = venue();
             n.edges[i].estimated = on;
             set(n);
@@ -518,7 +518,7 @@ void VenueDesignerDialog::rebuildInspector() {
         const auto o = v.obstacles[sel->index];
         const int i = sel->index;
         const QRectF b = ev::bounds(o.polygon);
-        form->addRow(tr("Label"), textEdit(w, o.label, [=](const QString& t) {
+        form->addRow(tr("Label"), textEdit(w, o.label, [=, this](const QString& t) {
                          core::Venue n = venue();
                          n.obstacles[i].label = t;
                          set(n);
@@ -533,7 +533,7 @@ void VenueDesignerDialog::rebuildInspector() {
             kind->addItem(name, static_cast<int>(k));
             if (k == o.kind) kind->setCurrentIndex(kind->count() - 1);
         }
-        connect(kind, &QComboBox::currentIndexChanged, this, [=](int) {
+        connect(kind, &QComboBox::currentIndexChanged, this, [=, this](int) {
             core::Venue n = venue();
             n.obstacles[i].kind = static_cast<core::ObstacleKind>(kind->currentData().toInt());
             if (n.obstacles[i].kind == core::ObstacleKind::Stairs && !n.obstacles[i].upDegrees)
@@ -542,18 +542,18 @@ void VenueDesignerDialog::rebuildInspector() {
             set(n);
         });
         form->addRow(tr("Kind"), kind);
-        form->addRow(tr("Width"), lengthEdit(w, b.width(), unit, [=](double x) {
+        form->addRow(tr("Width"), lengthEdit(w, b.width(), unit, [=, this](double x) {
                          set(ev::resizeObstacle(venue(), i, x, b.height()));
                      }));
-        form->addRow(tr("Depth"), lengthEdit(w, b.height(), unit, [=](double y) {
+        form->addRow(tr("Depth"), lengthEdit(w, b.height(), unit, [=, this](double y) {
                          set(ev::resizeObstacle(venue(), i, b.width(), y));
                      }));
         form->addRow(
-            tr("From the left (x)"), lengthEdit(w, b.left(), unit, [=](double x) {
+            tr("From the left (x)"), lengthEdit(w, b.left(), unit, [=, this](double x) {
                 set(ev::movePart(venue(), ev::Selection{ ev::PartKind::Obstacle, i }, { x - b.left(), 0 }));
             }));
         form->addRow(
-            tr("From the top (y)"), lengthEdit(w, b.top(), unit, [=](double y) {
+            tr("From the top (y)"), lengthEdit(w, b.top(), unit, [=, this](double y) {
                 set(ev::movePart(venue(), ev::Selection{ ev::PartKind::Obstacle, i }, { 0, y - b.top() }));
             }));
         if (o.kind == core::ObstacleKind::Stairs) {
@@ -566,7 +566,7 @@ void VenueDesignerDialog::rebuildInspector() {
                 btn->setCheckable(true);
                 btn->setAutoDefault(false);
                 btn->setChecked(std::abs(o.upDegrees.value_or(-1000.0) - deg) < 0.5);
-                connect(btn, &QPushButton::clicked, this, [=, deg = deg] {
+                connect(btn, &QPushButton::clicked, this, [=, this, deg = deg] {
                     core::Venue n = venue();
                     n.obstacles[i].upDegrees = deg;
                     set(n);
@@ -579,7 +579,7 @@ void VenueDesignerDialog::rebuildInspector() {
         head->setText(QStringLiteral("<b>%1</b>").arg(tr("Power point")));
         const auto p = v.power[sel->index];
         const int i = sel->index;
-        form->addRow(tr("Label"), textEdit(w, p.label, [=](const QString& t) {
+        form->addRow(tr("Label"), textEdit(w, p.label, [=, this](const QString& t) {
                          core::Venue n = venue();
                          n.power[i].label = t;
                          set(n);
@@ -587,14 +587,14 @@ void VenueDesignerDialog::rebuildInspector() {
         auto* where = new QComboBox(w);
         where->addItems({ tr("Wall outlet"), tr("Floor outlet") });
         where->setCurrentIndex(p.floor ? 1 : 0);
-        connect(where, &QComboBox::currentIndexChanged, this, [=](int k) {
+        connect(where, &QComboBox::currentIndexChanged, this, [=, this](int k) {
             core::Venue n = venue();
             n.power[i].floor = k == 1;
             set(n);
         });
         form->addRow(tr("Where"), where);
         const auto number = [&](double value, const std::function<void(core::VenuePower&, double)>& put) {
-            return textEdit(w, value > 0 ? QString::number(value) : QString(), [=](const QString& t) {
+            return textEdit(w, value > 0 ? QString::number(value) : QString(), [=, this](const QString& t) {
                 core::Venue n = venue();
                 put(n.power[i], std::max(0.0, t.toDouble()));
                 set(n);
@@ -606,7 +606,7 @@ void VenueDesignerDialog::rebuildInspector() {
         head->setText(QStringLiteral("<b>%1</b>").arg(tr("Note")));
         const auto nt = v.notes[sel->index];
         const int i = sel->index;
-        auto* text = textEdit(w, nt.text, [=](const QString& t) {
+        auto* text = textEdit(w, nt.text, [=, this](const QString& t) {
             if (t.trimmed().isEmpty()) return;
             core::Venue n = venue();
             n.notes[i].text = t.trimmed();
@@ -617,7 +617,7 @@ void VenueDesignerDialog::rebuildInspector() {
             text->setFocus();
             text->selectAll();
         }
-        estimated(nt.estimated, [=](bool on) {
+        estimated(nt.estimated, [=, this](bool on) {
             core::Venue n = venue();
             n.notes[i].estimated = on;
             set(n);
@@ -626,7 +626,7 @@ void VenueDesignerDialog::rebuildInspector() {
         head->setText(QStringLiteral("<b>%1</b>").arg(tr("Measurement")));
         const auto d = v.dimensions[sel->index];
         const int i = sel->index;
-        form->addRow(tr("Label"), textEdit(w, d.label, [=](const QString& t) {
+        form->addRow(tr("Label"), textEdit(w, d.label, [=, this](const QString& t) {
                          core::Venue n = venue();
                          n.dimensions[i].label = t;
                          set(n);
@@ -635,13 +635,13 @@ void VenueDesignerDialog::rebuildInspector() {
         auto* use = new QPushButton(tr("Use %1 as the label").arg(measured), w);
         use->setAutoDefault(false);
         use->setEnabled(d.label != measured);
-        connect(use, &QPushButton::clicked, this, [=] {
+        connect(use, &QPushButton::clicked, this, [=, this] {
             core::Venue n = venue();
             n.dimensions[i].label = measured;
             set(n);
         });
         form->addRow(tr("Measures"), use);
-        estimated(d.estimated, [=](bool on) {
+        estimated(d.estimated, [=, this](bool on) {
             core::Venue n = venue();
             n.dimensions[i].estimated = on;
             set(n);
@@ -655,7 +655,7 @@ void VenueDesignerDialog::rebuildInspector() {
         auto* opacity = new QSlider(Qt::Horizontal, w);
         opacity->setRange(10, 100);
         opacity->setValue(static_cast<int>(plan->opacity * 100));
-        connect(opacity, &QSlider::sliderReleased, this, [=] {
+        connect(opacity, &QSlider::sliderReleased, this, [=, this] {
             auto p = floorPlanOf(venue());
             if (!p) return;
             p->opacity = opacity->value() / 100.0;
@@ -669,7 +669,7 @@ void VenueDesignerDialog::rebuildInspector() {
             box->addWidget(real);
             auto* apply = new QPushButton(tr("Scale the floor plan"), w);
             apply->setAutoDefault(false);
-            const auto calibrate = [=] {
+            const auto calibrate = [=, this] {
                 const auto v2 = ev::parseLength(real->text(), state_.unit);
                 if (!v2 || *v2 <= 0) {
                     real->setStyleSheet(QStringLiteral("border: 1px solid #d33;"));
@@ -712,7 +712,7 @@ void VenueDesignerDialog::rebuildInspector() {
             view_->setPlanMoving(on);
             if (on) dispatch(ev::act::SetTool{ ev::Tool::Select });
         });
-        connect(remove, &QPushButton::clicked, this, [=] { set(withFloorPlan(venue(), std::nullopt)); });
+        connect(remove, &QPushButton::clicked, this, [=, this] { set(withFloorPlan(venue(), std::nullopt)); });
         box->addLayout(row);
         col->addLayout(box);
     }

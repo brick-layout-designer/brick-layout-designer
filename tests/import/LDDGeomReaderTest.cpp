@@ -87,7 +87,8 @@ TEST(LDDGeomReader, RejectsIndexOutOfRange) {
 // var so CI without those installs skips. Run locally via:
 //   BLD_LDD_GEOM_FILE=/path/to/3001.g ctest -R LDDGeomReader.RealFile
 TEST(LDDGeomReader, RealFile) {
-    const char* env = std::getenv("BLD_LDD_GEOM_FILE");
+    const QByteArray envValue = qgetenv("BLD_LDD_GEOM_FILE");
+    const char* env = envValue.constData();
     if (!env || !*env) GTEST_SKIP() << "BLD_LDD_GEOM_FILE not set";
     if (!QFileInfo::exists(QString::fromLocal8Bit(env)))
         GTEST_SKIP() << "no file at " << env;

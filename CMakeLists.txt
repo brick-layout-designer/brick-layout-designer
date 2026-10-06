@@ -1,5 +1,15 @@
 cmake_minimum_required(VERSION 3.25)
 
+# Newer CMake behaviour where it is available, so the build prints no
+# warnings: CMP0156 lets Apple's linker see each static library once
+# (otherwise ld warns "ignoring duplicate libraries"), CMP0177 normalizes
+# install() destinations like ".".
+foreach(_bld_policy CMP0156 CMP0177)
+    if(POLICY ${_bld_policy})
+        cmake_policy(SET ${_bld_policy} NEW)
+    endif()
+endforeach()
+
 # Single source of truth for the version stamped into the binaries and every
 # package. Release CI overrides it from the git tag (-DBLD_VERSION=1.2.3).
 set(BLD_VERSION "1.3.0" CACHE STRING "Version stamped into binaries and packages")
@@ -18,7 +28,9 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Widgets Network PrintSupport)
+# WebSockets (src/sync) is found here, not in src/sync, so the app's Qt
+# finalizer in src/app can see the target bld_sync links.
+find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Widgets Network PrintSupport WebSockets)
 find_package(Qt6 6.8 QUIET COMPONENTS LinguistTools)
 # Tests and fuzz seeds write ZIPs with Qt's private QZipWriter (the app reads
 # them with src/import/zip/SafeZip and needs no private Qt). CorePrivate is a
@@ -35,10 +47,38 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 endif()
 
 if(MSVC)
-    add_compile_options(/W4 /permissive-)
-else()
-    add_compile_options(-Wall -Wextra -Wpedantic)
+    add_compile_options(/permissive-)
 endif()
+
+# Warnings: our own targets (src/, tests/, fuzz/) build warning-free at
+# -Wall -Wextra -Wpedantic (/W4 on MSVC). CI turns warnings into errors;
+# it's off by default so a newer compiler's new warnings never stop
+# someone's local build. Fetched dependencies (googletest, QtKeychain, yrs)
+# and vendored code marked BLD_THIRD_PARTY (puff.c) keep their own flags.
+option(BLD_WARNINGS_AS_ERRORS "Treat compiler warnings in our own targets as errors" OFF)
+function(bld_apply_warnings dir)
+    get_property(_targets DIRECTORY "${dir}" PROPERTY BUILDSYSTEM_TARGETS)
+    foreach(_t IN LISTS _targets)
+        get_target_property(_type ${_t} TYPE)
+        get_target_property(_third_party ${_t} BLD_THIRD_PARTY)
+        if(_third_party OR NOT _type MATCHES "^(STATIC_LIBRARY|SHARED_LIBRARY|MODULE_LIBRARY|OBJECT_LIBRARY|EXECUTABLE)$")
+            continue()
+        endif()
+        if(MSVC)
+            target_compile_options(${_t} PRIVATE /W4 $<$<BOOL:${BLD_WARNINGS_AS_ERRORS}>:/WX>)
+        else()
+            target_compile_options(${_t} PRIVATE -Wall -Wextra -Wpedantic $<$<BOOL:${BLD_WARNINGS_AS_ERRORS}>:-Werror>)
+        endif()
+    endforeach()
+    # Only our own directories: FetchContent's live under the build tree.
+    get_property(_subdirs DIRECTORY "${dir}" PROPERTY SUBDIRECTORIES)
+    foreach(_sub IN LISTS _subdirs)
+        cmake_path(IS_PREFIX CMAKE_SOURCE_DIR "${_sub}" NORMALIZE _ours)
+        if(_ours)
+            bld_apply_warnings("${_sub}")
+        endif()
+    endforeach()
+endfunction()
 
 include(CTest)
 if(WIN32)
@@ -108,6 +148,7 @@ endif()
 if(BUILD_TESTING)
     add_subdirectory(tests)
 endif()
+bld_apply_warnings("${CMAKE_SOURCE_DIR}")
 
 # ----- Localization -----------------------------------------------------------
 # Base English is implicit (Qt returns the tr() argument when no catalogue is

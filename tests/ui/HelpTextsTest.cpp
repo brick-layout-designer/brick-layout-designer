@@ -67,7 +67,9 @@ TEST(HelpTexts, EveryEntryIsShortAndComplete) {
         EXPECT_FALSE(e->more.isEmpty()) << key.toStdString();
         EXPECT_LE(e->shortText.size(), 140) << key.toStdString();
         // Learn more points at an in-app help page, never a server.
-        if (!e->learnMoreUrl.isEmpty()) EXPECT_TRUE(e->learnMoreUrl.startsWith(QLatin1String("/help#")));
+        if (!e->learnMoreUrl.isEmpty()) {
+            EXPECT_TRUE(e->learnMoreUrl.startsWith(QLatin1String("/help#")));
+        }
     }
     EXPECT_FALSE(helpEntry(QStringLiteral("no.such.key")));
 }

@@ -218,9 +218,9 @@ SettingsDialog::SettingsDialog(PrefsStore& store, const QString& syncedHost,
     // Editing: how strongly parts snap together (SnapFeel.h).
     {
         auto* v = card(tr("Editing"));
-        auto* title = new QLabel(tr("Snap strength"), this);
-        title->setStyleSheet(QStringLiteral("font-weight: 600;"));
-        v->addWidget(help::withHelp(title, QStringLiteral("settings.connectionSnap"), this));
+        auto* snapTitle = new QLabel(tr("Snap strength"), this);
+        snapTitle->setStyleSheet(QStringLiteral("font-weight: 600;"));
+        v->addWidget(help::withHelp(snapTitle, QStringLiteral("settings.connectionSnap"), this));
         auto* lead = new QLabel(tr("How strongly a part you drag pulls onto a matching connection nearby."), this);
         lead->setObjectName(QStringLiteral("Muted"));
         lead->setWordWrap(true);

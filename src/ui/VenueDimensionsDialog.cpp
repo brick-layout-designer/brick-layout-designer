@@ -78,8 +78,8 @@ VenueDimensionsDialog::VenueDimensionsDialog(QWidget* parent) : QDialog(parent) 
     // Real-world venues are quoted in either feet OR inches depending on
     // the drawing. Data model stays in studs; conversion happens in the
     // OK handler based on the selected unit.
-    constexpr double kStudsPerFoot = 38.09814081;
-    constexpr double kStudsPerInch = kStudsPerFoot / 12.0;
+    static constexpr double kStudsPerFoot = 38.09814081;
+    static constexpr double kStudsPerInch = kStudsPerFoot / 12.0;
 
     auto* vbox = new QVBoxLayout(this);
 
@@ -97,7 +97,7 @@ VenueDimensionsDialog::VenueDimensionsDialog(QWidget* parent) : QDialog(parent) 
     form->addRow(tr("Start Y:"), originY);
     vbox->addLayout(form);
 
-    auto applyUnitSuffix = [unitCombo, originX, originY](const QString& unit){
+    auto applyUnitSuffix = [originX, originY](const QString& unit){
         const QString s = QStringLiteral(" %1").arg(unit);
         originX->setSuffix(s);
         originY->setSuffix(s);
@@ -213,7 +213,7 @@ VenueDimensionsDialog::VenueDimensionsDialog(QWidget* parent) : QDialog(parent) 
 
     connect(bb, &QDialogButtonBox::rejected, this, &QDialog::reject);
     connect(bb, &QDialogButtonBox::accepted, this,
-            [this, table, originX, originY, unitCombo, kStudsPerFoot, kStudsPerInch]{
+            [this, table, originX, originY, unitCombo]{
         const QString unit = unitCombo->currentData().toString();
         const double studsPerUnit = (unit == QStringLiteral("in")) ? kStudsPerInch
                                                                     : kStudsPerFoot;

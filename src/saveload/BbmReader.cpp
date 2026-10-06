@@ -80,7 +80,7 @@ LoadResult readMapElement(QXmlStreamReader& r) {
             if (map->dataVersion > core::Map::kCurrentDataVersion) {
                 return { nullptr, QStringLiteral(
                     "File data version %1 is newer than supported (%2).")
-                        .arg(map->dataVersion).arg(core::Map::kCurrentDataVersion) };
+                        .arg(map->dataVersion).arg(core::Map::kCurrentDataVersion), {} };
             }
         } else if (n == QStringLiteral("nbItems")) {
             map->nbItems = xml::readIntElement(r);
@@ -221,13 +221,13 @@ LoadResult readBbm(QIODevice& input) {
         }
         r.skipCurrentElement();
     }
-    return { nullptr, QStringLiteral("No <Map> root element found.") };
+    return { nullptr, QStringLiteral("No <Map> root element found."), {} };
 }
 
 LoadResult readBbm(const QString& path) {
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly)) {
-        return { nullptr, QStringLiteral("Cannot open file: %1").arg(file.errorString()) };
+        return { nullptr, QStringLiteral("Cannot open file: %1").arg(file.errorString()), {} };
     }
     return readBbm(file);
 }

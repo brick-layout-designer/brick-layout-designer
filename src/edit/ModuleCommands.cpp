@@ -465,7 +465,7 @@ ImportBbmAsModuleCommand::ImportBbmAsModuleCommand(core::Map& map,
       sourcePath_(std::move(sourcePath)),
       moduleId_(core::newBbmId()),
       name_(std::move(moduleName)), batches_(std::move(batches)) {
-    int total = 0; for (const auto& b : batches_) total += b.bricks.size();
+    int total = 0; for (const auto& b : batches_) total += static_cast<int>(b.bricks.size());
     setText(QObject::tr("Import module (%1 parts)").arg(total));
 }
 

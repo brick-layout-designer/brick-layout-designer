@@ -74,8 +74,14 @@ TEST(ServerApi, ChecksTheServerSpeaksOurProtocolAndSchema) {
     EXPECT_EQ(info->version, QStringLiteral("1.4.0"));
     EXPECT_TRUE(info->compatible());
     // A newer document schema, or no shared protocol: not compatible.
-    EXPECT_FALSE((ServerInfo{ {}, 2, { QStringLiteral("y-websocket/1") } }).compatible());
-    EXPECT_FALSE((ServerInfo{ {}, 1, { QStringLiteral("y-websocket/2") } }).compatible());
+    const auto server = [](int schemaVersion, const QString& protocol) {
+        ServerInfo s;
+        s.schemaVersion = schemaVersion;
+        s.protocols = { protocol };
+        return s;
+    };
+    EXPECT_FALSE(server(2, QStringLiteral("y-websocket/1")).compatible());
+    EXPECT_FALSE(server(1, QStringLiteral("y-websocket/2")).compatible());
 }
 
 TEST(ServerApi, ReadsTheDesktopVersionsAndFeaturesAServerWorksWith) {
@@ -117,7 +123,9 @@ TEST(ServerApi, ReadsTheDesktopVersionsAndFeaturesAServerWorksWith) {
     strict.docMinReadable = kDocSchemaVersion + 1;
     EXPECT_FALSE(strict.compatible());
     // A server from before these checks: nothing asked, everything assumed there.
-    ServerInfo old{ {}, 1, { QStringLiteral("y-websocket/1") } };
+    ServerInfo old;
+    old.schemaVersion = 1;
+    old.protocols = { QStringLiteral("y-websocket/1") };
     EXPECT_EQ(old.standing(QStringLiteral("0.1.0")), Standing::Ok);
     EXPECT_TRUE(old.has(QStringLiteral("venues")));
     EXPECT_TRUE(old.compatible());
@@ -388,7 +396,7 @@ TEST(ServerRefusal, ReadsLimitsReadOnlyAndRateLimits) {
     EXPECT_TRUE(needsSignIn(readRefusal(401, R"({"error":"invalid_token"})")));
     // A 403 the app never saw (empty or non-JSON body) is the site's firewall:
     // say so, and don't ask to sign in again.
-    for (const QByteArray body : { QByteArray(), QByteArray("<html>Request blocked</html>") }) {
+    for (const QByteArray& body : { QByteArray(), QByteArray("<html>Request blocked</html>") }) {
         const auto waf = readRefusal(403, body);
         EXPECT_TRUE(isFirewallBlock(waf));
         EXPECT_FALSE(needsSignIn(waf));

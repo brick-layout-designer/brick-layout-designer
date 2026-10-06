@@ -197,7 +197,10 @@ TEST(Sidecar, RoundTripVenue) {
 
 TEST(Sidecar, HashMismatchDetected) {
     core::Sidecar sc;
-    sc.anchoredLabels.push_back({ .id = QStringLiteral("x"), .text = QStringLiteral("hi") });
+    core::AnchoredLabel label;
+    label.id = QStringLiteral("x");
+    label.text = QStringLiteral("hi");
+    sc.anchoredLabels.push_back(label);
 
     QTemporaryDir dir;
     const QString path = dir.filePath("h.bbm.bld");

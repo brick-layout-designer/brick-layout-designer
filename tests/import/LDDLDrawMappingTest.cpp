@@ -69,7 +69,8 @@ TEST(LDDLDrawMapping, IgnoresMalformedEntries) {
 // End-to-end smoke test against the ldraw.xml that ships with LDD,
 // gated behind BLD_LDD_LDRAW_XML so CI without an LDD install skips.
 TEST(LDDLDrawMapping, RealLDDFileSmoke) {
-    const char* env = std::getenv("BLD_LDD_LDRAW_XML");
+    const QByteArray envValue = qgetenv("BLD_LDD_LDRAW_XML");
+    const char* env = envValue.constData();
     if (!env || !*env) GTEST_SKIP() << "BLD_LDD_LDRAW_XML not set";
     if (!QFileInfo::exists(QString::fromLocal8Bit(env)))
         GTEST_SKIP() << "no file at " << env;

@@ -95,8 +95,11 @@ void PrefsSync::onPulled(const QJsonObject& prefs, const QDateTime& updatedAt) {
     if (!local.updatedAt.isValid() || updatedAt > local.updatedAt) {
         AppPrefs theirs = AppPrefs::fromJson(prefs, local);
         theirs.updatedAt = updatedAt;
-        if (theirs.sameSettings(local)) store_.confirm(updatedAt);
-        else store_.adopt(theirs);
+        if (theirs.sameSettings(local)) {
+            store_.confirm(updatedAt);
+        } else {
+            store_.adopt(theirs);
+        }
         emit synced();
         return;
     }

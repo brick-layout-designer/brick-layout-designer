@@ -62,11 +62,14 @@ TEST(Tokens, MatchTheWebValues) {
 }
 
 TEST(Tokens, SunnyKeepsItsYellowWithDarkText) {
-    const Accent& sunny = accent(QStringLiteral("sunny"));
+    const Accent sunny = accent(QStringLiteral("sunny"));
     EXPECT_EQ(hex(sunny.main), QStringLiteral("#B8860B"));
     EXPECT_EQ(hex(sunny.onMain), QStringLiteral("#1E2124"));
-    for (const Accent& a : accents())
-        if (a.id != QLatin1String("sunny")) EXPECT_EQ(hex(a.onMain), QStringLiteral("#FFFFFF")) << a.id.toStdString();
+    for (const Accent& a : accents()) {
+        if (a.id != QLatin1String("sunny")) {
+            EXPECT_EQ(hex(a.onMain), QStringLiteral("#FFFFFF")) << a.id.toStdString();
+        }
+    }
 }
 
 TEST(Tokens, EmbeddedFontsLoad) {

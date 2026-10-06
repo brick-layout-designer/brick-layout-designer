@@ -234,13 +234,13 @@ void MoveRulerEndpointCommand::redo() {
                 any.circular.center = after_;
             } else {
                 if (!captured_) {
-                    const QPointF d = QPointF(any.circular.radius, 0.0)
+                    const QPointF rim = QPointF(any.circular.radius, 0.0)
                                         + any.circular.center;
-                    before_ = d;  // any "on-circle" reference
+                    before_ = rim;  // any "on-circle" reference
                     captured_ = true;
                 }
-                const QPointF d = after_ - any.circular.center;
-                any.circular.radius = static_cast<float>(std::hypot(d.x(), d.y()));
+                const QPointF delta = after_ - any.circular.center;
+                any.circular.radius = static_cast<float>(std::hypot(delta.x(), delta.y()));
             }
             const float r = any.circular.radius;
             any.circular.displayArea = QRectF(
@@ -269,8 +269,8 @@ void MoveRulerEndpointCommand::undo() {
             if (endpointIndex_ == 0) {
                 any.circular.center = before_;
             } else {
-                const QPointF d = before_ - any.circular.center;
-                any.circular.radius = static_cast<float>(std::hypot(d.x(), d.y()));
+                const QPointF delta = before_ - any.circular.center;
+                any.circular.radius = static_cast<float>(std::hypot(delta.x(), delta.y()));
             }
             const float r = any.circular.radius;
             any.circular.displayArea = QRectF(

@@ -90,9 +90,9 @@ TEST(CompareDialog, ListsClashesThenMineThenTheServers) {
 TEST(CompareDialog, ClashesDefaultToTheServerAndMineToApply) {
     CompareDialog dlg(fixtureChanges());
     const auto choices = dlg.choices();
-    for (const QString key : { QStringLiteral("brick:211:224"), QStringLiteral("label:L-both"), QStringLiteral("map") })
+    for (const QString& key : { QStringLiteral("brick:211:224"), QStringLiteral("label:L-both"), QStringLiteral("map") })
         EXPECT_EQ(choices.value(key, Choice::Mine), Choice::Server) << key.toStdString();
-    for (const QString key : { QStringLiteral("brick:211:222"), QStringLiteral("brick:211:223"),
+    for (const QString& key : { QStringLiteral("brick:211:222"), QStringLiteral("brick:211:223"),
                                QStringLiteral("brick:211:mine-new-brick"), QStringLiteral("label:L-mine"),
                                QStringLiteral("text:3144:T0") })
         EXPECT_EQ(choices.value(key, Choice::Server), Choice::Mine) << key.toStdString();

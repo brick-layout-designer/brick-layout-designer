@@ -53,7 +53,7 @@ Items itemsOf(const Snapshot& s) {
     const QJsonObject meta = s.doc.value(QLatin1String("meta")).toObject();
     QJsonObject header;
     for (const auto& k : kHeader) header.insert(k, meta.value(k));
-    out.insert(QStringLiteral("map"), { QStringLiteral("map"), {}, header });
+    out.insert(QStringLiteral("map"), { QStringLiteral("map"), {}, header, {} });
     const QJsonObject data = s.doc.value(QLatin1String("layerData")).toObject();
     for (const auto& lv : s.doc.value(QLatin1String("layers")).toArray()) {
         const QString lid = lv.toString();
@@ -90,18 +90,18 @@ Items itemsOf(const Snapshot& s) {
     }
     for (const auto& l : s.sidecar.value(QLatin1String("anchoredLabels")).toArray())
         out.insert(QStringLiteral("label:") + l.toObject().value(QLatin1String("id")).toString(),
-                   { QStringLiteral("label"), {}, l });
+                   { QStringLiteral("label"), {}, l, {} });
     for (const auto& m : s.sidecar.value(QLatin1String("modules")).toArray())
         out.insert(QStringLiteral("module:") + m.toObject().value(QLatin1String("id")).toString(),
-                   { QStringLiteral("module"), {}, m });
+                   { QStringLiteral("module"), {}, m, {} });
     for (const auto& v : s.sidecar.value(QLatin1String("views")).toArray())
         out.insert(QStringLiteral("view:") + v.toObject().value(QLatin1String("id")).toString(),
-                   { QStringLiteral("view"), {}, v });
+                   { QStringLiteral("view"), {}, v, {} });
     if (s.sidecar.contains(QLatin1String("venue")))
-        out.insert(QStringLiteral("venue"), { QStringLiteral("venue"), {}, s.sidecar.value(QLatin1String("venue")) });
+        out.insert(QStringLiteral("venue"), { QStringLiteral("venue"), {}, s.sidecar.value(QLatin1String("venue")), {} });
     if (s.sidecar.contains(QLatin1String("backgroundImage")))
         out.insert(QStringLiteral("background"),
-                   { QStringLiteral("background"), {}, s.sidecar.value(QLatin1String("backgroundImage")) });
+                   { QStringLiteral("background"), {}, s.sidecar.value(QLatin1String("backgroundImage")), {} });
     return out;
 }
 
@@ -263,7 +263,8 @@ private:
             item.insert(QStringLiteral("myGroup"), QString());
             if (item.contains(QLatin1String("connexions"))) {
                 QJsonArray links;
-                for (const auto& l : item.value(QLatin1String("connexions")).toArray())
+                const qsizetype count = item.value(QLatin1String("connexions")).toArray().size();
+                for (qsizetype link = 0; link < count; ++link)
                     links.append(QJsonObject{ { QStringLiteral("id"), newId() }, { QStringLiteral("linkedTo"), QString() } });
                 item.insert(QStringLiteral("connexions"), links);
             }

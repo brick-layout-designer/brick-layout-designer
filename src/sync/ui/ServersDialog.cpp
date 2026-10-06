@@ -150,9 +150,9 @@ void ServersDialog::rebuild() {
         auto* missing = new QLabel(row);
         missing->setObjectName(QStringLiteral("serverMissing"));
         missing->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-        QSizePolicy keep = missing->sizePolicy();
-        keep.setRetainSizeWhenHidden(true);
-        missing->setSizePolicy(keep);
+        QSizePolicy retain = missing->sizePolicy();
+        retain.setRetainSizeWhenHidden(true);
+        missing->setSizePolicy(retain);
         // A fixed line: the "⚠" can come from a taller fallback font
         // (Windows), which would otherwise grow just this row.
         missing->setFixedHeight(missing->fontMetrics().height() + 2);

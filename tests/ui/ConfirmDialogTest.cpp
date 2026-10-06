@@ -33,7 +33,8 @@ TEST(ConfirmDialog, SaysWhatGoesWhatStaysAndWhetherItComesBack) {
     EXPECT_FALSE(d.confirmButton()->isDefault());
     EXPECT_FALSE(d.confirmButton()->autoDefault());
     d.show();
-    QApplication::setActiveWindow(&d);
+    d.activateWindow();
+    EXPECT_TRUE(QTest::qWaitForWindowActive(&d));
     EXPECT_EQ(QApplication::focusWidget(), d.cancelButton());
 }
 
