@@ -620,6 +620,18 @@ TEST_F(LibraryTabs, CatalogAddsModulesAndPartsAndWholeCollections) {
     ASSERT_TRUE(waitFor([&] { return lastRequest(http_, "POST", "/api/catalog/items/i1/add"); }));
     EXPECT_TRUE(lastRequest(http_, "POST", "/api/catalog/items/i1/add")->body.contains("\"orgSlug\":\"train\""));
     EXPECT_EQ(asked.value(0), QStringLiteral("Add to my modules"));
+    // A refresh (a live change, back in the window) rebuilds the rows but
+    // keeps what Add did, instead of offering it again.
+    const auto addText = [&] {
+        QWidget* r = tab.row(QStringLiteral("i1"));
+        return r ? r->findChild<QPushButton*>(QStringLiteral("catalogAdd"))->text() : QString();
+    };
+    ASSERT_TRUE(waitFor([&] { return addText() == QStringLiteral("Added"); }));
+    QWidget* before = tab.row(QStringLiteral("i1"));
+    library_.refresh();
+    ASSERT_TRUE(waitFor([&] { return tab.row(QStringLiteral("i1")) && tab.row(QStringLiteral("i1")) != before; }));
+    EXPECT_EQ(addText(), QStringLiteral("Added"));
+    EXPECT_FALSE(tab.row(QStringLiteral("i1"))->findChild<QPushButton*>(QStringLiteral("catalogAdd"))->isEnabled());
 
     // Parts: added, then the server's parts are fetched.
     int partsAdded = 0;
