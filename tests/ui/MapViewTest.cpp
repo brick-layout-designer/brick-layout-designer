@@ -10,9 +10,13 @@
 #include "saveload/BbmReader.h"
 #include "core/LayerBrick.h"
 #include "core/LayerGrid.h"
+#include "core/Ids.h"
 #include "core/Map.h"
 
 #include <gtest/gtest.h>
+
+#include <algorithm>
+#include <cmath>
 
 #include <QApplication>
 #include <QDir>
@@ -167,6 +171,59 @@ TEST_F(MapViewTest, DoubleClickDragBendsFlexTrackInOneUndoStep) {
         EXPECT_EQ(bricks()[i].displayArea, before[i].displayArea);
         EXPECT_EQ(bricks()[i].orientation, before[i].orientation);
     }
+}
+
+TEST_F(MapViewTest, DoubleClickDragBendsAPlacedFlexTrackSet) {
+    // A flex track from the library is a set (flex.group: a female and a
+    // male half joined by a hinge). Placing it wraps the halves in a
+    // module; its double-click must still bend it, not open Edit module.
+    if (!parts_.metadata(QStringLiteral("flex.group")))
+        GTEST_SKIP() << "the BlueBrickParts library isn't checked out (run git submodule update --init)";
+    auto map = std::make_unique<core::Map>();
+    auto layer = std::make_unique<core::LayerBrick>();
+    layer->guid = core::newBbmId();
+    map->layers().push_back(std::move(layer));
+    view_->loadMap(std::move(map));
+    view_->resize(800, 600);
+    const double px = 8.0;  // SceneBuilder::kPixelsPerStud
+    view_->centerOn(QPointF(0, 0));
+    view_->addPartAtScenePos(QStringLiteral("flex.group"), QPointF(0, 0));
+    ASSERT_EQ(view_->currentMap()->sidecar.modules.size(), 1u);
+    const auto bricks = [&]() -> const std::vector<core::Brick>& {
+        for (const auto& l : view_->currentMap()->layers())
+            if (l->kind() == core::LayerKind::Brick) return static_cast<const core::LayerBrick&>(*l).bricks;
+        throw std::runtime_error("no brick layer");
+    };
+    ASSERT_EQ(bricks().size(), 2u);
+    const std::vector<core::Brick> before = bricks();
+    const int undoBefore = view_->undoStack()->count();
+
+    // Grab the male half near its free end (x = 0.8 + 1.25 studs).
+    QWidget* vp = view_->viewport();
+    const QPoint grab = view_->mapFromScene(QPointF(1.8, 0) * px);
+    mouse(vp, QEvent::MouseButtonPress, grab, Qt::LeftButton);
+    mouse(vp, QEvent::MouseButtonRelease, grab, Qt::NoButton);
+    mouse(vp, QEvent::MouseButtonDblClick, grab, Qt::LeftButton);
+    for (QPointF p : { QPointF(1.8, -0.2), QPointF(1.7, -0.6) })
+        mouse(vp, QEvent::MouseMove, view_->mapFromScene(p * px), Qt::LeftButton);
+    mouse(vp, QEvent::MouseButtonRelease, view_->mapFromScene(QPointF(1.7, -0.6) * px), Qt::NoButton);
+
+    EXPECT_TRUE(view_->editingModule().isEmpty()) << "a set bends; it doesn't open Edit module";
+    EXPECT_EQ(view_->undoStack()->count(), undoBefore + 1);
+    EXPECT_EQ(view_->undoStack()->undoText(), QStringLiteral("Flex move"));
+    float turned = 0.0f;
+    for (size_t i = 0; i < bricks().size(); ++i)
+        turned = std::max(turned, std::abs(bricks()[i].orientation - before[i].orientation));
+    EXPECT_GT(turned, 1.0f);
+    EXPECT_LE(turned, 10.01f) << "the flex pivot bends 10 degrees at most";
+
+    // A double-click without a drag still opens Edit module.
+    mouse(vp, QEvent::MouseButtonPress, grab, Qt::LeftButton);
+    mouse(vp, QEvent::MouseButtonRelease, grab, Qt::NoButton);
+    mouse(vp, QEvent::MouseButtonDblClick, grab, Qt::LeftButton);
+    mouse(vp, QEvent::MouseButtonRelease, grab, Qt::NoButton);
+    EXPECT_EQ(view_->editingModule(), view_->currentMap()->sidecar.modules.front().id);
+    EXPECT_EQ(view_->undoStack()->count(), undoBefore + 1);
 }
 
 TEST_F(MapViewTest, BudgetLimitationRefusesPartsOverTheirLimit) {

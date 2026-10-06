@@ -1777,6 +1777,13 @@ void MapView::mouseDoubleClickEvent(QMouseEvent* e) {
         return;
     }
     if (under && map_ && !editingModuleId_.isEmpty() && !isBrickItem(under)) under = nullptr;
+    // A hinged chain in the selection bends (a flex track set is placed as
+    // a module, so this comes before Edit module); a double-click without
+    // a drag still opens Edit module or the properties on release.
+    if (under && e->button() == Qt::LeftButton && isBrickItem(under) && startFlexMove(under, mapToScene(e->pos()))) {
+        e->accept();
+        return;
+    }
     // A module's part (not the one being edited) opens Edit module, with
     // that part picked.
     if (under && map_ && e->button() == Qt::LeftButton && isBrickItem(under)) {
@@ -1791,11 +1798,6 @@ void MapView::mouseDoubleClickEvent(QMouseEvent* e) {
         }
     }
     if (under) {
-        if (e->button() == Qt::LeftButton && isBrickItem(under)
-            && startFlexMove(under, mapToScene(e->pos()))) {
-            e->accept();  // properties open on release if the mouse didn't move
-            return;
-        }
         scene()->clearSelection();
         under->setSelected(true);
         const int li = under->data(kBrickDataLayerIndex).toInt();
@@ -1903,14 +1905,16 @@ bool MapView::startFlexMove(QGraphicsItem* under, QPointF scenePos) {
     auto flex = edit::FlexMove::start(static_cast<core::LayerBrick&>(*L), selection, grabbed,
                                       scenePos / px, parts_);
     if (!flex) return false;
+    // A pinned module never bends.
+    QSet<QString> chain;
+    for (const auto& s : flex->initialState()) chain.insert(s.guid);
+    if (core::pinnedAmong(chain, map_->sidecar.modules, editingModuleId_)) return false;
 
     flex_ = std::move(flex);
     flexLayer_ = li;
     flexGrabbed_ = grabbed;
     flexMoved_ = false;
     flexItems_.clear();
-    QSet<QString> chain;
-    for (const auto& s : flex_->initialState()) chain.insert(s.guid);
     for (QGraphicsItem* it : scene()->items()) {
         if (!isBrickItem(it) || it->data(kBrickDataLayerIndex).toInt() != li) continue;
         const QString guid = it->data(kBrickDataGuid).toString();
@@ -1946,8 +1950,16 @@ void MapView::finishFlexMove() {
     flexItems_.clear();
     setSnapMarks(false, {}, std::nullopt);
     if (!flexMoved_) {
-        // A plain double-click: edit the brick, as BlueBrick does.
+        // A plain double-click: edit the brick, as BlueBrick does, or a
+        // module's part opens Edit module with that part picked.
         flex->restore();
+        const core::Module* mod = core::moduleByPart(map_->sidecar.modules).value(flexGrabbed_);
+        if (mod && mod->id != editingModuleId_) {
+            setEditingModule(mod->id);
+            for (QGraphicsItem* it : scene()->items())
+                if (isBrickItem(it) && it->data(kBrickDataGuid).toString() == flexGrabbed_) it->setSelected(true);
+            return;
+        }
         editBrickDialog(this, *map_, flexLayer_, flexGrabbed_, parts_, *undoStack_);
         return;
     }
