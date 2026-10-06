@@ -17,6 +17,7 @@
 #include <QMessageBox>
 #include <QSettings>
 #include <QStandardPaths>
+#include <QStatusBar>
 
 namespace bld::ui {
 
@@ -59,8 +60,11 @@ void MainWindow::setupBudgetMenu() {
     auto* menu = menuBar()->addMenu(tr("&Budget"));
 
     auto* newAct = menu->addAction(tr("&New Budget"));
-    connect(newAct, &QAction::triggered, this, [this]{
-        if (maybeSaveBudget()) budget_->create();
+    connect(newAct, &QAction::triggered, this, [this] {
+        if (!maybeSaveBudget()) return;
+        budget_->create();
+        statusBar()->showMessage(
+            tr("New budget started. Budget › Edit Budget sets how many of each part you have."), 6000);
     });
     auto* openAct = menu->addAction(tr("&Open Budget..."));
     connect(openAct, &QAction::triggered, this, [this]{

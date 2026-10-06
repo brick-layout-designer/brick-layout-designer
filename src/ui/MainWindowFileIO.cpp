@@ -715,7 +715,23 @@ void MainWindow::rebuildRecentMenu() {
     for (const QString& p : list) {
         QAction* act = recentMenu_->addAction(QFileInfo(p).fileName());
         act->setToolTip(p);
-        connect(act, &QAction::triggered, this, [this, p]{ openFile(p); });
+        connect(act, &QAction::triggered, this, [this, p] {
+            if (QFileInfo::exists(p)) {
+                openFile(p);
+                return;
+            }
+            // Moved, renamed or deleted since: say so, and take it off the list.
+            QSettings s;
+            QStringList recent = s.value(kRecentListKey).toStringList();
+            recent.removeAll(p);
+            s.setValue(kRecentListKey, recent);
+            QMessageBox::information(
+                this, tr("File not found"),
+                tr("%1 isn't there any more. It may have been moved, renamed or deleted, so it's "
+                   "been taken off the recent files.\n\n%2")
+                    .arg(QFileInfo(p).fileName(), p));
+            rebuildRecentMenu();
+        });
     }
     if (list.isEmpty()) {
         auto* empty = recentMenu_->addAction(tr("(no recent files)"));
