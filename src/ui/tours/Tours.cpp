@@ -118,6 +118,10 @@ Catalogue parseCatalogue(const QByteArray& json) {
                    t.value(QLatin1String("devices")).toString(), {} };
         for (const auto& sv : t.value(QLatin1String("steps")).toArray()) {
             const QJsonObject s = sv.toObject();
+            // "apps": a step only for the listed apps, like one for the web alone, is left out.
+            if (const QJsonValue apps = s.value(QLatin1String("apps"));
+                apps.isArray() && !apps.toArray().contains(QJsonValue(QStringLiteral("desktop"))))
+                continue;
             tour.steps.append({ s.value(QLatin1String("target")).toString(), s.value(QLatin1String("title")).toString(),
                                 s.value(QLatin1String("text")).toString() });
         }
