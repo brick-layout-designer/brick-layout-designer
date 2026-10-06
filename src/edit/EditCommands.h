@@ -201,7 +201,7 @@ protected:
 // items in all.
 class GroupBricksCommand : public SetGroupingCommand {
 public:
-    GroupBricksCommand(core::Map& map, std::vector<BrickRef> targets, QUndoCommand* parent = nullptr);
+    GroupBricksCommand(core::Map& map, const std::vector<BrickRef>& targets, QUndoCommand* parent = nullptr);
 };
 
 // BlueBrick's UngroupItems: the targets' outermost groups that may be split
@@ -209,7 +209,7 @@ public:
 // false (`canUngroup` says no) stays; refused() counts those.
 class UngroupBricksCommand : public SetGroupingCommand {
 public:
-    UngroupBricksCommand(core::Map& map, std::vector<BrickRef> targets,
+    UngroupBricksCommand(core::Map& map, const std::vector<BrickRef>& targets,
                          const std::function<bool(const core::Group&)>& canUngroup = {},
                          QUndoCommand* parent = nullptr);
     int refused() const { return refused_; }

@@ -1514,6 +1514,7 @@ void MapView::addPartAtScenePos(const QString& partKey, QPointF sceneCenterPx, s
             edit::ExpandedSet set = edit::expandSet(parts_, partKey, centreStuds);
             if (set.bricks.empty()) return;
             std::vector<const core::Brick*> placed;
+            placed.reserve(set.bricks.size());
             for (const auto& b : set.bricks) placed.push_back(&b);
             if (const auto shift = moduleSnapShift(placed, centreStuds, dragSnap, true, nullptr))
                 for (auto& b : set.bricks) b.displayArea.translate(*shift);
@@ -1642,7 +1643,7 @@ void MapView::groupSelection() {
                             it->data(kBrickDataGuid).toString() });
     }
     if (targets.size() < 2) return;   // nothing to group
-    auto* cmd = new edit::GroupBricksCommand(*map_, std::move(targets));
+    auto* cmd = new edit::GroupBricksCommand(*map_, targets);
     if (!cmd->changes()) { delete cmd; return; }
     undoStack_->push(cmd);
 }
@@ -1681,7 +1682,7 @@ void MapView::ungroupSelection() {
                             it->data(kBrickDataGuid).toString() });
     }
     if (targets.empty()) return;
-    auto* cmd = new edit::UngroupBricksCommand(*map_, std::move(targets), [this](const core::Group& g) {
+    auto* cmd = new edit::UngroupBricksCommand(*map_, targets, [this](const core::Group& g) {
         if (g.partNumber.isEmpty()) return true;
         const auto meta = parts_.metadata(g.partNumber);
         return !meta || meta->canUngroup;

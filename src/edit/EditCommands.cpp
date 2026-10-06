@@ -354,7 +354,7 @@ SetGroupingCommand::SetGroupingCommand(core::Map& map, std::vector<Grouping> bef
 void SetGroupingCommand::redo() { applyGrouping(map_, after_); }
 void SetGroupingCommand::undo() { applyGrouping(map_, before_); }
 
-GroupBricksCommand::GroupBricksCommand(core::Map& map, std::vector<BrickRef> targets, QUndoCommand* parent)
+GroupBricksCommand::GroupBricksCommand(core::Map& map, const std::vector<BrickRef>& targets, QUndoCommand* parent)
     : SetGroupingCommand(map, parent) {
     const auto tops = topItems(map, targets);
     qsizetype items = 0;
@@ -375,7 +375,7 @@ GroupBricksCommand::GroupBricksCommand(core::Map& map, std::vector<BrickRef> tar
     setText(QObject::tr("Group %1 brick(s)").arg(targets.size()));
 }
 
-UngroupBricksCommand::UngroupBricksCommand(core::Map& map, std::vector<BrickRef> targets,
+UngroupBricksCommand::UngroupBricksCommand(core::Map& map, const std::vector<BrickRef>& targets,
                                            const std::function<bool(const core::Group&)>& canUngroup,
                                            QUndoCommand* parent)
     : SetGroupingCommand(map, parent) {
