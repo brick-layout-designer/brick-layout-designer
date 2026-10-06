@@ -179,13 +179,17 @@ TEST_F(Tours, ParsingKeepsEveryField) {
     const auto c = tours::parseCatalogue(R"({"welcome":{"id":"w","title":"T","text":"X","dismiss":"No",
         "actions":{"layout":{"label":"L","text":"LT"},"club":{"label":"C","text":"CT"},"tour":{"label":"G","text":"GT"}}},
         "buttons":{"next":"N","back":"B","skip":"S","done":"D","of":"{n}/{total}"},
-        "tours":[{"id":"a","title":"A","devices":"all","steps":[{"target":"t","title":"st","text":"sx"}]}]})");
+        "tours":[{"id":"a","title":"A","devices":"all","steps":[{"target":"t","title":"st","text":"sx"},
+            {"target":"w","apps":["web"],"title":"wt","text":"wx"},{"target":"d","apps":["desktop"],"title":"dt","text":"dx"}]}]})");
     EXPECT_EQ(c.welcome.clubText, QStringLiteral("CT"));
     EXPECT_EQ(c.welcome.tourLabel, QStringLiteral("G"));
     EXPECT_EQ(c.welcome.dismiss, QStringLiteral("No"));
     EXPECT_EQ(c.buttons.done, QStringLiteral("D"));
     ASSERT_EQ(c.tours.size(), 1);
     EXPECT_EQ(c.tours[0].steps[0].target, QStringLiteral("t"));
+    // A step for the web only is left out.
+    ASSERT_EQ(c.tours[0].steps.size(), 2);
+    EXPECT_EQ(c.tours[0].steps[1].target, QStringLiteral("d"));
     EXPECT_TRUE(tours::parseCatalogue("not json").tours.isEmpty());
 }
 
@@ -200,6 +204,10 @@ TEST_F(Tours, EveryEditorStepFindsItsControl) {
         QApplication::processEvents();
         for (const auto& s : tours::findTour(QStringLiteral("editor"))->steps)
             EXPECT_NE(tours::findTarget(&w, s.target), nullptr) << s.target.toStdString();
+        // The clubs tour starts at the server status, a step for the desktop only.
+        EXPECT_EQ(tours::findTour(QStringLiteral("clubs"))->steps.first().target,
+                  QStringLiteral("servers.status"));
+        EXPECT_NE(tours::findTarget(&w, QStringLiteral("servers.status")), nullptr);
         // A narrow window folds the toolbar's "?" away: the menu bar's Help stands in.
         w.resize(640, 700);
         QApplication::processEvents();
