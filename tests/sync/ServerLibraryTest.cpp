@@ -42,6 +42,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QLocale>
 #include <QMenu>
 #include <QPushButton>
 #include <QRadioButton>
@@ -680,7 +681,12 @@ TEST_F(LibraryTabs, CatalogLayoutsAndVenuesShowWhenOnAndCopyThenOpen) {
     ASSERT_TRUE(waitFor([&] { return tab.row(QStringLiteral("l1")); }));
     QStringList rowTexts;
     for (QLabel* l : tab.row(QStringLiteral("l1"))->findChildren<QLabel*>()) rowTexts << l->text();
-    EXPECT_TRUE(rowTexts.join(QLatin1Char('|')).contains(QStringLiteral("960 × 480 studs (7.7 × 3.8 m) · 1,204 parts")));
+    // In the machine's own number format (1,204 / 1.204 / 1204).
+    const QLocale here;
+    EXPECT_TRUE(rowTexts.join(QLatin1Char('|'))
+                    .contains(QStringLiteral("960 × 480 studs (%1 × %2 m) · %3 parts")
+                                  .arg(here.toString(7.68, 'f', 1), here.toString(3.84, 'f', 1), here.toString(1204))))
+        << rowTexts.join(QLatin1Char('|')).toStdString();
     ASSERT_TRUE(waitFor([&] { return lastRequest(http_, "GET", "/api/catalog/items/l1/cover"); }));
     EXPECT_EQ(tab.row(QStringLiteral("l1"))->findChild<QPushButton*>(QStringLiteral("catalogInsert")), nullptr);
     QString opened;
