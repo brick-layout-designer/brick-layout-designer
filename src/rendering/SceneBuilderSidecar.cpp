@@ -365,12 +365,12 @@ void SceneBuilder::addModuleLabels(const core::Map& map, bool posed) {
         settledNameSlots_.clear();
         for (std::size_t i = 0; i < placed.size(); ++i) settledNameSlots_.insert(inputs[i].id, placed[i].slot);
     }
-    for (std::size_t i = 0; i < shown.size(); ++i) {
-        const core::Module& mod = *shown[i].mod;
-        const bool partlyHidden = shown[i].partlyHidden;
-        const QString name = inputs[i].name;
+    for (std::size_t mi = 0; mi < shown.size(); ++mi) {
+        const core::Module& mod = *shown[mi].mod;
+        const bool partlyHidden = shown[mi].partlyHidden;
+        const QString name = inputs[mi].name;
         const ModuleLook look = moduleLook(mod, colours.value(mod.id));
-        const ModuleLabelLayout& at = placed[i];
+        const ModuleLabelLayout& at = placed[mi];
 
         auto* frame = new QGraphicsRectItem(at.frame);
         QPen framePen(look.frame);
