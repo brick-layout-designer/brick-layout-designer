@@ -208,7 +208,10 @@ TEST_F(ServersDialogTest, AddsAServerByItsAddressAndSignsInToIt) {
     dialog->signIn(third.base());
     ASSERT_TRUE(waitFor([&] { return dialog->isSignedIn(third.base()); }));
     EXPECT_EQ(asked, QList<QUrl>{ third.base() });
-    EXPECT_EQ(dialog->statusText(third.base()), QStringLiteral("Signed in as Cy · version 2.4.0"));
+    // The name and the version arrive in separate replies.
+    EXPECT_TRUE(waitFor([&] {
+        return dialog->statusText(third.base()) == QStringLiteral("Signed in as Cy · version 2.4.0");
+    })) << dialog->statusText(third.base()).toStdString();
     expectOnlyOwnToken(third, "bld_pat_third");
     expectOnlyOwnToken(club, "bld_pat_club");
     expectOnlyOwnToken(pal, "bld_pat_pal");

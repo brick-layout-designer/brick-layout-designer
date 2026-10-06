@@ -95,6 +95,10 @@ void MapView::contextMenuEvent(QContextMenuEvent* e) {
     // selection, clear the selection and select that one item so the menu's
     // actions act on what the user clicked.
     if (auto* under = itemAt(e->pos())) {
+        // A part's drawing may have pieces of its own (the red cross of a
+        // part missing from the library): act on the part.
+        while (under->parentItem() && !(under->flags() & QGraphicsItem::ItemIsSelectable))
+            under = under->parentItem();
         if (!under->isSelected()) {
             scene()->clearSelection();
             under->setSelected(true);
