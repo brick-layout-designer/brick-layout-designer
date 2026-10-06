@@ -38,7 +38,9 @@ On save, we *also* forward-project the fork-only metadata into the
   "bbmHashSha256": "<lowercase-hex>",
   "anchoredLabels": [ ... ],
   "modules": [ ... ],
-  "venue": { ... }
+  "venue": { ... },
+  "views": [ ... ],
+  "backgroundImage": { ... }
 }
 ```
 
@@ -191,6 +193,18 @@ groups as independent (no Module entry) and surfaces a
 }
 ```
 
+Optional venue fields (each left out when empty or default):
+
+- On an edge: `estimated` (bool): the length was guessed, not measured.
+- On an obstacle: `kind` (`"column"`, `"stairs"`, `"elevator"`,
+  `"counter"` or `"railing"`; left out for a plain obstacle) and
+  `upDegrees` (the way the stairs go up).
+- `power`: `[{ "x", "y", "kind": "wall" | "floor", "label", "amps", "volts" }]`,
+  the power points.
+- `notes`: `[{ "x", "y", "text", "estimated" }]`, notes on the plan.
+- `dimensions`: `[{ "from": {x, y}, "to": {x, y}, "label", "estimated" }]`,
+  measurements drawn on the plan.
+
 ### `kind` — `EdgeKind` enum
 
 | Value | Name | Meaning |
@@ -215,6 +229,42 @@ the user can ignore warnings and place bricks anywhere.
 None. Vanilla has no venue concept, so the venue lives in the sidecar
 exclusively. A `.bbm` from a project with a venue, opened in vanilla,
 shows the bricks and a blank background where the venue would be.
+
+## Saved views
+
+```json
+"views": [
+  {
+    "id": "uuid-string",
+    "name": "Station",
+    "fit": false,
+    "rect": { "x": 10, "y": 20, "w": 200, "h": 120 },
+    "sheets": ["layer-guid-1", "layer-guid-2"],
+    "grid": true,
+    "labels": true
+  }
+]
+```
+
+- `fit` (bool): `true` frames the whole layout each time a picture is made,
+  and `rect` is `null`. `false` uses `rect` (studs, top-left plus size).
+- `sheets`: the sheet (layer) ids shown, or `null` to follow each sheet's own
+  visibility. The grid layer isn't a sheet here; `grid` says whether its lines
+  are drawn.
+- `labels` (bool): show the anchored labels.
+- A view without an `id` is dropped on reading. Unknown fields are kept.
+
+## Background image
+
+```json
+"backgroundImage": { "path": "/home/me/hall.png", "opacity": 0.5, "rect": [0, 0, 800, 600] }
+```
+
+- `path`: the image on this computer. In a `.bld-layout`'s `sidecar.json`,
+  `file` (the entry in the archive) replaces it
+  ([layout-file.md](layout-file.md)).
+- `opacity`: 0 to 1.
+- `rect` (optional): where the picture sits, in studs, `[x, y, width, height]`.
 
 ## Standalone `.bld-venue`
 
