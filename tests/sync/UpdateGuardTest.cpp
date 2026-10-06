@@ -188,6 +188,18 @@ TEST(UpdateGuard, RefusesWhatLayoutsNeverHold) {
     EXPECT_NE(sync::guard::checkUpdate(doc.left(doc.size() / 2)), QString());
 }
 
+// An empty GC block after another one: yrs 0.28 divides by zero looking
+// up a clock in that client's blocks, and the panic aborts the app.
+TEST(UpdateGuard, RefusesAnEmptyGcBlock) {
+    // One client (5) with two GC blocks of length 1 and 0; no deletions.
+    const QByteArray empty("\x01\x02\x05\x00\x00\x01\x00\x00\x00", 9);
+    EXPECT_TRUE(sync::guard::checkUpdate(empty).contains(QLatin1String("empty block")));
+    sync::SyncDoc d;
+    EXPECT_FALSE(d.applyUpdate(empty));
+    // The same with lengths 1 and 2 is fine.
+    EXPECT_EQ(sync::guard::checkUpdate(QByteArray("\x01\x02\x05\x00\x00\x01\x00\x02\x00", 9)), QString());
+}
+
 TEST(UpdateGuard, RefusesAnUpdateOverTheSizeLimit) {
     const QByteArray big(sync::guard::kMaxUpdateBytes + 1, '\0');
     EXPECT_TRUE(sync::guard::checkUpdate(big).contains(QLatin1String("limit")));

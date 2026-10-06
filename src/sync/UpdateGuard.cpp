@@ -122,7 +122,13 @@ private:
     bool block() {
         quint8 info = 0;
         if (!u8(info)) return false;
-        if (info == kGc || info == kSkip) return skipVarUint();  // length
+        if (info == kGc || info == kSkip) {
+            // Yjs never writes an empty one, and yrs 0.28 divides by zero
+            // looking up a clock after an empty GC block (block_store.rs).
+            quint64 length = 0;
+            if (!varUint(length)) return false;
+            return length > 0 || fail(QStringLiteral("it holds an empty block"));
+        }
         const bool cantCopyParentInfo = (info & (kHasOrigin | kHasRightOrigin)) == 0;
         if ((info & kHasOrigin) && !(skipVarUint() && skipVarUint())) return false;       // origin id
         if ((info & kHasRightOrigin) && !(skipVarUint() && skipVarUint())) return false;  // right origin id
