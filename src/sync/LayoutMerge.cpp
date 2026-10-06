@@ -264,7 +264,7 @@ private:
             if (item.contains(QLatin1String("connexions"))) {
                 QJsonArray links;
                 const qsizetype count = item.value(QLatin1String("connexions")).toArray().size();
-                for (qsizetype i = 0; i < count; ++i)
+                for (qsizetype link = 0; link < count; ++link)
                     links.append(QJsonObject{ { QStringLiteral("id"), newId() }, { QStringLiteral("linkedTo"), QString() } });
                 item.insert(QStringLiteral("connexions"), links);
             }
