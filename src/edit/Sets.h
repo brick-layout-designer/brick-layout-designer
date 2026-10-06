@@ -31,6 +31,20 @@ struct ExpandedSet {
 // `angleDegrees`. Empty when `key` isn't a set.
 ExpandedSet expandSet(parts::PartsLibrary& lib, const QString& key, QPointF centreStuds, double angleDegrees = 0.0);
 
+// A connection of a placed set's part.
+struct SetEnd {
+    const core::Brick* brick = nullptr;
+    int connection = -1;
+};
+
+// Where to add the next part beside a placed set `setKey` made of `parts`:
+// every connection of its parts, in the order to try them. The set's
+// connections are numbered in sub-part order, as BlueBrick counts them,
+// and its <GroupConnectionPreferenceList> is followed from connection 0
+// (flex.group: 0, then 2, its two rail ends); the rest follow in order.
+std::vector<SetEnd> setAnchorOrder(parts::PartsLibrary& lib, const QString& setKey,
+                                   const std::vector<const core::Brick*>& parts);
+
 // A module that is exactly one placed set.
 struct SetModule {
     QString moduleId;

@@ -101,6 +101,27 @@ TEST_F(FlexMoveTest, RigidTrackIsNotFlexible) {
     EXPECT_FALSE(edit::FlexMove::start(layer, { straight }, straight, { 40, 40 }, lib_));
 }
 
+TEST_F(FlexMoveTest, JointsAtTheirHingeLimitAreReported) {
+    auto map = saveload::readBbm(oracle(QStringLiteral("flex-in.bbm"))).map;
+    ASSERT_TRUE(map);
+    edit::rebuildConnectivity(*map, lib_);
+    auto& layer = brickLayer(*map);
+    QSet<QString> all;
+    for (const auto& b : layer.bricks) all.insert(b.guid);
+    auto flex = edit::FlexMove::start(layer, all, QStringLiteral("6887642994309303552"), { 68, 40 }, lib_);
+    ASSERT_TRUE(flex);
+    EXPECT_TRUE(flex->hingesAtLimit().empty()) << "straight, nothing bent yet";
+    // Far round to the side: more than the hinges allow, so some stop.
+    flex->moveTo({ 40, 10 }, 0.0, false);
+    const auto limits = flex->hingesAtLimit();
+    ASSERT_FALSE(limits.empty());
+    QRectF bounds;
+    for (const auto& b : layer.bricks)
+        bounds = bounds.isNull() ? b.displayArea : bounds.united(b.displayArea);
+    for (const QPointF& p : limits)
+        EXPECT_TRUE(bounds.adjusted(-1, -1, 1, 1).contains(p)) << p.x() << "," << p.y();
+}
+
 TEST_F(FlexMoveTest, RestorePutsTheChainBack) {
     auto map = saveload::readBbm(oracle(QStringLiteral("flex-in.bbm"))).map;
     ASSERT_TRUE(map);

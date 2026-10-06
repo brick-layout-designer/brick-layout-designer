@@ -460,6 +460,17 @@ std::vector<FlexMove::State> FlexMove::currentState() const {
     return out;
 }
 
+std::vector<QPointF> FlexMove::hingesAtLimit() const {
+    std::vector<QPointF> out;
+    // The last bone is the chain's end: the solver never turns it.
+    for (size_t i = 0; i + 1 < d_->bones.size(); ++i) {
+        const Bone& b = d_->bones[i];
+        if (b.conn.isNull() || b.maxAngle <= 0.0) continue;
+        if (std::abs(b.localAngle) >= b.maxAngle - 1e-6) out.emplace_back(b.worldX, -b.worldY);
+    }
+    return out;
+}
+
 void FlexMove::restore() {
     for (const State& s : initial_) {
         for (core::Brick* b : d_->chainBricks) {
