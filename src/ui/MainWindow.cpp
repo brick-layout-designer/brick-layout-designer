@@ -1,6 +1,7 @@
 #include "MainWindow.h"
-#include "SheetChoiceDialog.h"
+#include "ConfirmDialog.h"
 #include "LoadingCard.h"
+#include "SheetChoiceDialog.h"
 
 #include "LayerPanel.h"
 #include "BudgetSession.h"
@@ -378,10 +379,19 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
         auto* m = mapView_->currentMap();
         venueLibraryPanel_->saveVenue(m ? m->sidecar.venue : std::nullopt);
     });
-    connect(modulesPanel_, &ModulesPanel::moduleDeleteRequested, this, [this](const QString& id){
-        if (!mapView_->currentMap()) return;
-        mapView_->undoStack()->push(
-            new edit::DeleteModuleCommand(*mapView_->currentMap(), id));
+    // Delete deletes the module's parts too, after the question; Ungroup keeps them.
+    connect(modulesPanel_, &ModulesPanel::moduleDeleteRequested, this, [this](const QString& id) {
+        auto* map = mapView_->currentMap();
+        if (!map) return;
+        const core::Module* mod = core::findModule(map->sidecar.modules, id);
+        if (!mod) return;
+        const int n = static_cast<int>(mod->memberIds.size());
+        DeleteWording w;
+        w.removes = tr("The module and its %n part(s) leave the map.", nullptr, n);
+        w.keeps = tr("The Module library doesn’t change. To keep the parts, choose Ungroup instead.");
+        w.undo = ConfirmDialog::undoWithCtrlZ();
+        if (!ConfirmDialog::confirmDelete(this, mod->name, w)) return;
+        if (auto* cmd = edit::deleteModuleWithPartsCommand(*map, id)) mapView_->undoStack()->push(cmd);
         modulesPanel_->setMap(mapView_->currentMap());
     });
     connect(modulesPanel_, &ModulesPanel::createModuleRequested,

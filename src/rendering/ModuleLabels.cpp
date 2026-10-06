@@ -1,5 +1,7 @@
 #include "ModuleLabels.h"
 
+#include <QObject>
+
 #include "SceneBuilder.h"
 
 #include "../core/Module.h"
@@ -56,11 +58,18 @@ QColor hexColor(const QString& hex, double alpha) {
 }
 }  // namespace
 
+QString moduleHoverName(const QString& name, bool partlyHidden, bool truncated) {
+    if (partlyHidden) return QObject::tr("%1 (partly hidden)").arg(name);
+    return truncated ? name : QString();
+}
+
 double moduleNameStrokePx(double fontPx) { return std::max(2.0, fontPx / 12.0); }
 
 double moduleLabelFontPx(double frameW, double frameH, double percent) {
     const double pct = std::clamp(percent, 5.0, 100.0);
-    return std::round(std::clamp(std::max(frameW, frameH) * (pct / 100.0), 16.0, 400.0));
+    const double wanted =
+        std::min(std::max(frameW, frameH) * (pct / 100.0), std::min(frameW, frameH) * kModuleNameShortShare);
+    return std::round(std::clamp(wanted, 16.0, 400.0));
 }
 
 ModuleNameFit fitModuleName(const QString& text, const NameWidthAt& widthAt, double fontPx, double side) {

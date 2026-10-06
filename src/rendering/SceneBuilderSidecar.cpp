@@ -420,12 +420,14 @@ void SceneBuilder::addModuleLabels(const core::Map& map, bool posed) {
         label->setAcceptedMouseButtons(Qt::NoButton);
         label->setData(kModuleIdRole, mod.id);
         sink.add(label);
-        if (at.truncated) {
-            // The whole name on hover; MapView shows it while selected.
-            label->setToolTip(name);
-            frame->setToolTip(name);
-            shortenedModuleNames_.append({ mod.id, name, at, look.nameFill });
+        // On hover: the whole name, and "(partly hidden)" when some parts are
+        // on a hidden sheet. MapView shows a shortened name whole while selected.
+        const QString hover = moduleHoverName(name, partlyHidden, at.truncated);
+        if (!hover.isEmpty()) {
+            label->setToolTip(hover);
+            frame->setToolTip(hover);
         }
+        if (at.truncated) shortenedModuleNames_.append({ mod.id, name, at, look.nameFill });
     }
 }
 

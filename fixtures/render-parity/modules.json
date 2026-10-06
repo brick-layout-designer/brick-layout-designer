@@ -249,21 +249,21 @@
           "height": 968
         },
         "text": {
-          "x": -276,
+          "x": -60,
           "y": 1124,
           "rotation": -90,
           "width": 968,
-          "height": 336,
-          "fontPx": 336,
+          "height": 120,
+          "fontPx": 120,
           "lines": [
             "Town"
           ],
           "truncated": false
         },
         "bounds": {
-          "x": -276,
+          "x": -60,
           "y": 156,
-          "width": 600,
+          "width": 384,
           "height": 968
         }
       }
@@ -323,11 +323,11 @@
         },
         "text": {
           "x": -324,
-          "y": -356,
+          "y": -148,
           "rotation": 0,
           "width": 1608,
-          "height": 400,
-          "fontPx": 400,
+          "height": 192,
+          "fontPx": 192,
           "lines": [
             "Yard"
           ],
@@ -335,9 +335,9 @@
         },
         "bounds": {
           "x": -324,
-          "y": -356,
+          "y": -148,
           "width": 1608,
-          "height": 808
+          "height": 600
         }
       }
     },
@@ -402,6 +402,43 @@
           "y": -4,
           "width": 520,
           "height": 264
+        }
+      }
+    },
+    {
+      "name": "Long thin siding",
+      "note": "a long, thin module: its name is no taller than half its depth",
+      "studs": {
+        "x": 0,
+        "y": 0,
+        "width": 48,
+        "height": 6
+      },
+      "labelPercent": 35,
+      "expect": {
+        "frame": {
+          "x": -4,
+          "y": -4,
+          "width": 392,
+          "height": 56
+        },
+        "text": {
+          "x": -4,
+          "y": -44,
+          "rotation": 0,
+          "width": 392,
+          "height": 24,
+          "fontPx": 24,
+          "lines": [
+            "Long thin siding"
+          ],
+          "truncated": false
+        },
+        "bounds": {
+          "x": -4,
+          "y": -44,
+          "width": 392,
+          "height": 96
         }
       }
     }
@@ -607,12 +644,12 @@
           "id": "bridge",
           "side": "right",
           "text": {
-            "x": 9956,
+            "x": 9692,
             "y": 3108,
             "rotation": 90,
             "width": 1504,
-            "height": 800,
-            "fontPx": 400,
+            "height": 536,
+            "fontPx": 268,
             "lines": [
               "Brad's",
               "Bridge"

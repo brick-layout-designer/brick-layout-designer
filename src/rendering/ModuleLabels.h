@@ -66,7 +66,15 @@ using NameWidthAt = std::function<double(const QString& text, double fontPx)>;
 
 // The name's outline width: fontPx / 12, at least 2 px.
 double moduleNameStrokePx(double fontPx);
-// `percent`% of the frame's long axis, clamped to 16..400 px.
+// What a module's name says on hover: the whole name, and "(partly hidden)"
+// when some of its parts are on a hidden sheet (the web's moduleHoverName).
+// Empty when hover adds nothing.
+QString moduleHoverName(const QString& name, bool partlyHidden, bool truncated);
+
+// A name is never taller than this share of its module's short side.
+inline constexpr double kModuleNameShortShare = 0.5;
+// `percent`% of the frame's long axis, at most kModuleNameShortShare of its
+// short axis, clamped to 16..400 px.
 double moduleLabelFontPx(double frameW, double frameH, double percent);
 
 // A name fitted to its side: one or two lines, never wider than the side.

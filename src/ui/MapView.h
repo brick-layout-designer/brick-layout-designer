@@ -2,6 +2,7 @@
 
 #include "../core/Brick.h"
 #include "../core/Group.h"
+#include "../core/Module.h"
 #include "ModuleLibraryMenu.h"
 #include "SnapFeel.h"
 
@@ -140,6 +141,8 @@ public:
     void pasteClipboard();           // insert clipboard bricks with fresh guids + offset
     void duplicateSelection();       // copy + paste in one command
     void selectAll();
+    // Pick exactly these parts (by guid); the selection's group and module rules apply.
+    void selectParts(const QSet<QString>& guids);
     void deselectAll();
     bool clipboardEmpty() const { return clipboard_.empty(); }
 
@@ -420,6 +423,13 @@ private:
     std::optional<ViewFilter> viewFilter_;
     void applyViewFilter();
     std::unique_ptr<QUndoStack> undoStack_;
+    // Undo / redo pick the parts they bring back (BlueBrick): the parts on
+    // the map after the last stack step, of which map, and where the stack was.
+    QSet<QString> partsAtLastStep_;
+    const core::Map* partsAtLastStepMap_ = nullptr;
+    int lastStackIndex_ = 0;
+    int lastStackCount_ = 0;
+    void pickPartsBroughtBack();
 
     std::vector<BrickOriginSnapshot> dragStart_;
     std::vector<RulerDragSnapshot>   rulerDragStart_;
@@ -461,6 +471,8 @@ private:
     std::vector<ClipEntry> clipboard_;
     // The groups (sets) above the copied parts, by source layer name.
     QHash<QString, std::vector<core::Group>> clipboardGroups_;
+    // The copied parts were exactly this module: a paste makes a copy of it.
+    std::optional<core::Module> clipboardModule_;
 
     // Snap + rotation step config, updated by MainWindow from toolbar + QSettings.
     double snapStepStuds_       = 0.0;     // 0 disables snap
