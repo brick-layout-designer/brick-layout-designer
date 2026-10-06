@@ -147,6 +147,15 @@ void LibraryApi::moduleSnapshot(const QString& id, std::function<void(const QByt
          std::move(failed));
 }
 
+void LibraryApi::moduleVersionSnapshot(const QString& id, int version, std::function<void(const QByteArray&)> done,
+                                       Fail failed) {
+    send("GET", QStringLiteral("/api/modules/%1/versions/%2/snapshot").arg(idPath(id)).arg(version), {}, {},
+         [done = std::move(done)](QNetworkReply* r) {
+             if (done) done(r->readAll());
+         },
+         std::move(failed));
+}
+
 void LibraryApi::createModule(const QString& title, const QString& orgSlug,
                               std::function<void(const QString&, const QString&)> done, Fail failed) {
     QJsonObject body{ { QStringLiteral("title"), title } };

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "ModuleLibraryMenu.h"
+
 #include <QDockWidget>
 
 class QListWidget;
@@ -24,10 +26,10 @@ signals:
     void importBbmRequested();
     void selectMembersRequested(const QString& moduleId);
     void flattenRequested(const QString& moduleId);
-    void rescanRequested(const QString& moduleId);
     void moveRequested(const QString& moduleId, double dxStuds, double dyStuds);
     void rotateRequested(const QString& moduleId, double degrees);
-    void saveToLibraryRequested(const QString& moduleId);
+    // A library entry (ModuleLibraryEntry::action: save, publish or pull).
+    void libraryActionRequested(const QString& moduleId, const QString& action);
     void cloneRequested(const QString& moduleId);
     void renameRequested(const QString& moduleId);
     // The module's look: its colours (the Module look dialog), and its name on or off.
@@ -42,6 +44,10 @@ public:
     void setEditingModule(const QString& moduleId) { editingId_ = moduleId; }
     // The ⋯ button: the current module's menu.
     QToolButton* moreButton() const { return more_; }
+    // What each module's library entries and note are (MainWindow knows the library).
+    void setLibraryInfo(ModuleLibraryInfoFn fn) { libraryInfo_ = std::move(fn); }
+    // The module's menu, for tests.
+    void fillMenu(class QMenu& menu, const QString& id);
 
 private:
     void showMenu(const QString& id, const QPoint& globalPos);
@@ -49,6 +55,7 @@ private:
     QToolButton* more_ = nullptr;
     const core::Map* map_ = nullptr;
     QString editingId_;
+    ModuleLibraryInfoFn libraryInfo_;
 };
 
 }

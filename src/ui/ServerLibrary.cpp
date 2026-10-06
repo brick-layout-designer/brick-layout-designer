@@ -379,7 +379,7 @@ void ServerModulesTab::rebuild() {
         if (f.isEmpty() || m.title.contains(f, Qt::CaseInsensitive)) shown << m;
     int at = 0;
     if (shown.isEmpty()) {
-        auto* empty = mutedLabel(f.isEmpty() ? tr("No saved modules yet. Pick some parts, then Modules › Save Selection as Module…")
+        auto* empty = mutedLabel(f.isEmpty() ? tr("No saved modules yet. Make a module in a layout, then choose Save to Module library… from its menu.")
                                              : tr("No modules match."),
                                  listHost_);
         empty->setObjectName(QStringLiteral("serverModulesEmpty"));

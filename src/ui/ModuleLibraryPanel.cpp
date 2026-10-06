@@ -293,7 +293,7 @@ void ModuleLibraryPanel::refresh() {
     }
     scheduleThumbnails();
     if (files.isEmpty()) {
-        auto* e = new QListWidgetItem(tr("No modules here yet. Use Modules › Save Selection as Module… to add one."));
+        auto* e = new QListWidgetItem(tr("No modules here yet. Make a module in a layout (Modules › Make a Module…), then choose Save to Module library… from its menu."));
         e->setFlags(Qt::NoItemFlags);
         list_->addItem(e);
     }

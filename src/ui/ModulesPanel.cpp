@@ -33,12 +33,14 @@ ModulesPanel::ModulesPanel(QWidget* parent)
 
     auto* row = new QHBoxLayout();
     row->setSpacing(2);
-    auto* createBtn = new QPushButton(tr("Group Selection"), host);
-    createBtn->setToolTip(tr("Keep the selected parts together as a module in this layout"));
+    auto* createBtn = new QPushButton(tr("Make a module"), host);
+    createBtn->setObjectName(QStringLiteral("modulesMake"));
+    createBtn->setToolTip(tr("Make the picked parts one module in this layout"));
     auto* importBtn = new QPushButton(tr("Import…"), host);
     importBtn->setToolTip(tr("Import a .bbm file as a module"));
-    auto* saveLibBtn = new QPushButton(tr("Save to Module library"), host);
-    saveLibBtn->setToolTip(tr("Save the selected module to your Module library, to insert it in other layouts"));
+    auto* saveLibBtn = new QPushButton(tr("Save to Module library..."), host);
+    saveLibBtn->setObjectName(QStringLiteral("modulesSaveToLibrary"));
+    saveLibBtn->setToolTip(tr("Save a copy of the selected module to your Module library or a club's, to use in other layouts"));
     saveLibBtn->setEnabled(false);
     auto* deleteBtn = new QPushButton(tr("Delete"), host);
     deleteBtn->setToolTip(tr("Delete the selected module"));
@@ -74,7 +76,7 @@ ModulesPanel::ModulesPanel(QWidget* parent)
         auto* sel = list_->currentItem();
         if (!sel) return;
         const QString id = sel->toolTip();
-        if (!id.isEmpty()) emit saveToLibraryRequested(id);
+        if (!id.isEmpty()) emit libraryActionRequested(id, QStringLiteral("save"));
     });
     // Delete + Save-to-library buttons enable only when a valid module row
     // is selected.
@@ -112,6 +114,11 @@ ModulesPanel::ModulesPanel(QWidget* parent)
 
 void ModulesPanel::showMenu(const QString& id, const QPoint& globalPos) {
     QMenu menu(this);
+    fillMenu(menu, id);
+    menu.exec(globalPos);
+}
+
+void ModulesPanel::fillMenu(QMenu& menu, const QString& id) {
 
     const core::Module* mod = nullptr;
     if (map_)
@@ -170,19 +177,24 @@ void ModulesPanel::showMenu(const QString& id, const QPoint& globalPos) {
     connect(cloneAct, &QAction::triggered, [this, id]{ emit cloneRequested(id); });
 
     menu.addSeparator();
-    auto* saveLib = menu.addAction(tr("Save to Module library"));
-    connect(saveLib, &QAction::triggered, [this, id]{ emit saveToLibraryRequested(id); });
+    if (mod && libraryInfo_) {
+        for (const auto& e : libraryInfo_(*mod).entries) {
+            auto* a = menu.addAction(e.label);
+            a->setObjectName(QStringLiteral("moduleLibrary_") + e.action);
+            a->setEnabled(e.enabled);
+            a->setToolTip(e.tip);
+            const QString action = e.action;
+            connect(a, &QAction::triggered, [this, id, action] { emit libraryActionRequested(id, action); });
+        }
+    }
 
     menu.addSeparator();
     auto* flatAct = menu.addAction(tr("Ungroup (keep the parts)"));
     connect(flatAct, &QAction::triggered, [this, id]{ emit flattenRequested(id); });
-    auto* rescan = menu.addAction(tr("Update from the Module library"));
-    connect(rescan, &QAction::triggered, [this, id]{ emit rescanRequested(id); });
 
     menu.addSeparator();
     auto* del = menu.addAction(tr("Delete module"));
     connect(del, &QAction::triggered, [this, id]{ emit moduleDeleteRequested(id); });
-    menu.exec(globalPos);
 }
 
 void ModulesPanel::setMap(const core::Map* map) {
@@ -191,9 +203,10 @@ void ModulesPanel::setMap(const core::Map* map) {
     if (!map) return;
     for (const auto& m : map->sidecar.modules) {
         QString suffix;
-        if (!m.sourceFile.isEmpty()) {
-            suffix = QStringLiteral(" — %1").arg(QFileInfo(m.sourceFile).fileName());
-        }
+        // Its Module library copy ("in the Module library v3 · v5 is newer"), else the file it came from.
+        const QString note = libraryInfo_ ? libraryInfo_(m).note : QString();
+        if (!note.isEmpty()) suffix = QStringLiteral(" — %1").arg(note);
+        else if (!m.sourceFile.isEmpty()) suffix = QStringLiteral(" — %1").arg(QFileInfo(m.sourceFile).fileName());
         // Some or all of its parts on hidden sheets: says so.
         const QString hidden = edit::hiddenSheetsNote(edit::moduleSheetsUsed(*map, m.memberIds));
         auto* item = new QListWidgetItem(

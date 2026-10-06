@@ -1,6 +1,7 @@
 add_executable(bld_edit_tests
     EditCommandsTest.cpp
     ModuleCommandsTest.cpp
+    ModuleLibraryLinkTest.cpp
     LabelCommandsTest.cpp
     LayerCommandsTest.cpp
     AreaCommandsTest.cpp

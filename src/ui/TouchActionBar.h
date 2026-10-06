@@ -2,7 +2,7 @@
 
 // The bar that floats over the bottom of the map in touch mode, with the
 // web's words. Something selected: Rotate left, Rotate right, Duplicate,
-// Delete and Done. Nothing selected: Add part, Undo and Redo. Placing a
+// Module, Delete and Done. Nothing selected: Add part, Undo and Redo. Placing a
 // part picked in the parts panel: what to do, and Cancel.
 
 #include <QWidget>
@@ -30,6 +30,8 @@ signals:
     void rotateLeft();
     void rotateRight();
     void duplicate();
+    // The picked parts' module: its menu, or Make a module.
+    void module();
     void remove();
     void done();
     void addPart();

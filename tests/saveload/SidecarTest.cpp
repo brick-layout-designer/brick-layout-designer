@@ -149,6 +149,32 @@ TEST(Sidecar, RoundTripModuleLook) {
     EXPECT_TRUE(back.modules[1].extras.isEmpty());
 }
 
+// The link to the library (libraryModuleId, libraryVersion): written only
+// when set, read back, and never kept among the unknown fields.
+TEST(Sidecar, RoundTripModuleLibraryLink) {
+    core::Sidecar sc;
+    core::Module m;
+    m.id = QStringLiteral("m1");
+    m.libraryModuleId = QStringLiteral("11111111-1111-4111-8111-111111111111");
+    m.libraryVersion = 3;
+    sc.modules.push_back(m);
+    core::Module plain;
+    plain.id = QStringLiteral("m2");
+    sc.modules.push_back(plain);
+    const QJsonObject json = saveload::sidecarToJson(sc);
+    const QJsonArray mods = json.value(QStringLiteral("modules")).toArray();
+    EXPECT_EQ(mods[0].toObject().value(QStringLiteral("libraryModuleId")).toString(), m.libraryModuleId);
+    EXPECT_EQ(mods[0].toObject().value(QStringLiteral("libraryVersion")).toInt(), 3);
+    EXPECT_FALSE(mods[1].toObject().contains(QStringLiteral("libraryModuleId")));
+    EXPECT_FALSE(mods[1].toObject().contains(QStringLiteral("libraryVersion")));
+    core::Sidecar back;
+    saveload::sidecarFromJson(json, back);
+    EXPECT_EQ(back.modules[0].libraryModuleId, m.libraryModuleId);
+    EXPECT_EQ(back.modules[0].libraryVersion, 3);
+    EXPECT_TRUE(back.modules[0].extras.isEmpty());
+    EXPECT_EQ(back.modules[1].libraryVersion, 0);
+}
+
 TEST(Sidecar, RoundTripVenue) {
     core::Sidecar sc;
     core::Venue v;

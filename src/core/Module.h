@@ -32,6 +32,12 @@ struct Module {
     bool    sameColor = true;  // "Same colour": outline and name change together
     // Pinned in place: it can't be moved as a whole (Edit module still works).
     bool    pinned = false;
+    // The library module this placed module is linked to (its id on the
+    // server) and the version it matches (0: not known), set when it is
+    // saved to the library or added from it (the web's libraryModuleId /
+    // libraryVersion). Sidecar only: BlueBrick never sees them.
+    QString libraryModuleId;
+    int     libraryVersion = 0;
 
     // Fields a newer build (or the web) wrote that this one doesn't know,
     // kept so reading and writing the module again doesn't lose them.

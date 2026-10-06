@@ -91,6 +91,12 @@ void MainWindow::setupServerLibrary() {
         tabs->setTabToolTip(2, tr("Modules, parts and collections people shared for everyone"));
     };
     connect(serverLibrary_, &ServerLibrary::stateChanged, this, retitle);
+    // What the Modules panel says about each module's library copy follows the library.
+    auto relist = [this] {
+        if (modulesPanel_) modulesPanel_->setMap(mapView_->currentMap());
+    };
+    connect(serverLibrary_, &ServerLibrary::stateChanged, this, relist);
+    connect(serverLibrary_, &ServerLibrary::changed, this, relist);
     connect(serverLibrary_, &ServerLibrary::changed, this, retitle);
 
     // The status bar says how the server is doing; a click opens Servers.
@@ -311,7 +317,7 @@ void MainWindow::insertServerModule(const QString& moduleId) {
         serverLibrary_->setInserting({});
         if (LoadingCard* card = mapView_->loadingCard(); card && !card->failureShown()) card->finish();
     };
-    serverLibrary_->api().moduleSnapshot(moduleId, [this, title, server, token, source, finish](const QByteArray& bytes) {
+    serverLibrary_->api().moduleSnapshot(moduleId, [this, moduleId, title, server, token, source, finish](const QByteArray& bytes) {
         QString error;
         std::shared_ptr<core::Map> module(sync::mapFromModuleSnapshot(bytes, &error).release());
         if (!module || sync::partCount(*module) == 0) {
@@ -321,10 +327,14 @@ void MainWindow::insertServerModule(const QString& moduleId) {
                                         : tr("“%1” couldn't be read (%2).").arg(title, error));
             return;
         }
-        auto place = [this, module, title, source, finish] {
+        // Linked to the library module: Update from library follows it.
+        const sync::ServerModule* sm = serverLibrary_->module(moduleId);
+        const int version = sm ? sm->latestVersion : 0;
+        auto place = [this, module, title, source, finish, moduleId, version] {
             finish();
             if (!mapView_->currentMap()) return;
-            if (!mapView_->placeModule(*module, title, source.toString(), mapView_->viewCentre())) return;
+            if (!mapView_->placeModule(*module, title, source.toString(), mapView_->viewCentre(), nullptr, moduleId, version))
+                return;
             modulesPanel_->setMap(mapView_->currentMap());
             layerPanel_->setMap(mapView_->currentMap(), mapView_->builder());
             statusBar()->showMessage(tr("Added “%1” to the layout").arg(title), 5000);
@@ -444,7 +454,7 @@ bool MainWindow::saveEditedModule() {
     api->setBase(target.server);
     api->setToken(target.token);
     uploadModule(*api, std::make_shared<core::Map>(std::move(module)), target.id, target.title, QString(), note,
-                 [this, api, target, undoIndex](bool saved) {
+                 [this, api, target, undoIndex](bool saved, const QString&, int) {
                      api->deleteLater();
                      if (!saved) return;
                      if (editingModule_.id == target.id && mapView_->undoStack()->index() == undoIndex) {
@@ -455,34 +465,9 @@ bool MainWindow::saveEditedModule() {
     return true;
 }
 
-void MainWindow::saveModuleToServer(core::Map& module, int partCount) {
-    SaveModuleDialog dialog(*serverLibrary_, QString(), this);
-    // "This module uses 2 sheets: …", and the name "one sheet" would take.
-    dialog.setSheets(edit::moduleSheetNames(module), edit::oneSheetName(module));
-    if (dialog.exec() != QDialog::Accepted) return;
-    const SaveModuleDialog::Choice c = dialog.choice();
-    if (c.oneSheet) edit::putOnOneSheet(module);
-    if (c.onThisComputer) {
-        saveModuleLocally(module, partCount, c.title);
-        return;
-    }
-    // Centred on the origin, as the web saves modules, so both apps place it alike.
-    QRectF box;
-    for (const auto& layer : module.layers())
-        if (layer && layer->kind() == core::LayerKind::Brick)
-            for (const auto& b : static_cast<const core::LayerBrick&>(*layer).bricks)
-                box = box.isNull() ? b.displayArea : box.united(b.displayArea);
-    const QPointF shift = -box.center();
-    for (auto& layer : module.layers())
-        if (layer && layer->kind() == core::LayerKind::Brick)
-            for (auto& b : static_cast<core::LayerBrick&>(*layer).bricks) b.displayArea.translate(shift);
-    uploadModule(serverLibrary_->api(), std::make_shared<core::Map>(std::move(module)), c.updateId, c.title, c.orgSlug,
-                 c.note, {});
-}
-
 void MainWindow::uploadModule(sync::LibraryApi& api, const std::shared_ptr<core::Map>& module, const QString& updateId,
                               const QString& title, const QString& orgSlug, const QString& note,
-                              const std::function<void(bool)>& done) {
+                              const std::function<void(bool, const QString&, int)>& done) {
     // Its picture now, while the parts are at hand: as big as the web's,
     // smaller when the server's limit can't take that.
     QByteArray png;
@@ -495,7 +480,7 @@ void MainWindow::uploadModule(sync::LibraryApi& api, const std::shared_ptr<core:
     const QString server = entry ? entry->label() : api.base().host();
     auto failed = [this, done](const sync::ServerRefusal& r) {
         QMessageBox::warning(this, tr("Save module"), tr("Couldn't save the module: %1").arg(ServerLibrary::refusalText(r)));
-        if (done) done(false);
+        if (done) done(false, {}, 0);
     };
     // Write the module into what the server holds (a new one starts with
     // the server's empty layout), then save it as a version.
@@ -507,16 +492,16 @@ void MainWindow::uploadModule(sync::LibraryApi& api, const std::shared_ptr<core:
             if (snapshot.isEmpty()) {
                 QMessageBox::warning(this, tr("Save module"), tr("Couldn't save the module (%1).").arg(error));
                 if (created) api.deleteModule(id, {}, {});
-                if (done) done(false);
+                if (done) done(false, {}, 0);
                 return;
             }
             api.saveModuleSnapshot(id, snapshot, note, [this, &api, id, name, png, server, done](int version) {
-                auto finished = [this, name, version, server, done] {
+                auto finished = [this, id, name, version, server, done] {
                     statusBar()->showMessage(version > 1 ? tr("Saved version %1 of “%2” on %3").arg(version).arg(name, server)
                                                          : tr("Saved “%1” on %2").arg(name, server),
                                              6000);
                     serverLibrary_->refresh();
-                    if (done) done(true);
+                    if (done) done(true, id, version);
                 };
                 if (png.isEmpty()) {
                     finished();

@@ -2,6 +2,7 @@
 
 #include "../core/Brick.h"
 #include "../core/Group.h"
+#include "ModuleLibraryMenu.h"
 #include "SnapFeel.h"
 
 #include <QColor>
@@ -199,8 +200,13 @@ public:
     // one module named `name`, centred on `scenePos` (snapped like a drop),
     // reading its part pictures first with the loading card. Selects the
     // placed parts. False when it has no parts.
+    // `libraryId` / `libraryVersion`: from the library, the module is linked to it.
     bool placeModule(core::Map& module, const QString& name, const QString& source, QPointF scenePos,
-                     snapfeel::Session* dragSnap = nullptr);
+                     snapfeel::Session* dragSnap = nullptr, const QString& libraryId = {}, int libraryVersion = 0);
+    // What a module's library entries are, for its right-click menu (MainWindow knows the library).
+    void setModuleLibraryInfo(ModuleLibraryInfoFn fn) { moduleLibraryInfo_ = std::move(fn); }
+    // The touch bar's Module button: the picked module's menu, or Make a module.
+    void touchModule();
     // The scene point at the middle of what the map shows.
     QPointF viewCentre() const;
     class TouchActionBar* touchActionBar() const { return touchBar_; }
@@ -264,6 +270,9 @@ signals:
     void editingModuleChanged(const QString& moduleId);
     // The map's right-click menu: a module's Colours...
     void moduleLookRequested(const QString& moduleId);
+    // A module's library entry (save, publish or pull), and Make a module for the picked parts.
+    void moduleLibraryActionRequested(const QString& moduleId, const QString& action);
+    void makeModuleRequested();
 
 protected:
     // Touch (pinch, two-finger pan, tap, drag, long press) and trackpad
@@ -585,7 +594,9 @@ private:
     // The topmost item at a viewport point, past module frames and names.
     QGraphicsItem* itemUnder(QPoint viewPos) const;
     // A module's entries at the top of the right-click menu.
-    void addModuleMenu(class QMenu& menu, const QString& clickedBrickGuid);
+    // True when the menu is about a whole module.
+    bool addModuleMenu(class QMenu& menu, const QString& clickedBrickGuid);
+    ModuleLibraryInfoFn moduleLibraryInfo_;
 
     // Live overlay item that paints outlines around every selected item.
     // Lives in the scene with a very high z-value so it's always on top.

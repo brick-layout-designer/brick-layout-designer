@@ -137,6 +137,8 @@ public:
     void listModules(std::function<void(const QList<ServerModule>&)> done, Fail failed);
     // The module's contents: a shared document (Yjs v1 update).
     void moduleSnapshot(const QString& id, std::function<void(const QByteArray&)> done, Fail failed);
+    // One saved version's contents (Update from library: was it changed here?).
+    void moduleVersionSnapshot(const QString& id, int version, std::function<void(const QByteArray&)> done, Fail failed);
     // A new, empty module of yours (orgSlug empty) or a club's.
     void createModule(const QString& title, const QString& orgSlug,
                       std::function<void(const QString& id, const QString& title)> done, Fail failed);

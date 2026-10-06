@@ -24,7 +24,7 @@ class QMenu;
 class QComboBox;
 class QJsonObject;
 
-namespace bld::core { struct Venue; class Map; struct SavedView; }
+namespace bld::core { struct Venue; class Map; struct SavedView; struct Module; }
 namespace bld::sync {
 struct ConnectResult;
 class EventStream;
@@ -33,6 +33,9 @@ namespace merge { struct Snapshot; }
 namespace bld::parts { class PartsLibrary; }
 
 namespace bld::ui {
+
+struct ModuleLibraryInfo;
+struct ConfirmOptions;
 
 class MapView;
 class LayerPanel;
@@ -111,14 +114,16 @@ private slots:
     void onBatchImport();
     void onExportPartList();
     void onAbout();
-    void onCreateModuleFromSelection();
+    // Make a module: the picked parts become a module in this layout
+    // (MainWindowModuleLibrary.cpp); "Also save to my library" saves it too.
+    void onMakeModule();
     // The Module look window for one placed module (its name, colours).
     void editModuleLook(const QString& moduleId);
     void onImportBbmAsModule();
-    void onSaveSelectionAsModule();
     // Writes `module` into the Module library folder: as `name`.bbm when
     // given (asking before replacing one), else asking for a name and file.
-    void saveModuleLocally(const core::Map& module, int partCount, const QString& name = {});
+    // Returns the file written, empty when not.
+    QString saveModuleLocally(const core::Map& module, int partCount, const QString& name = {});
     void onSaveSelectionAsSet();
     void onImportModuleFromLibraryPath(const QString& bbmPath);
     void rebuildRecentMenu();
@@ -356,13 +361,25 @@ private:
     void insertCatalogModule(const bld::sync::CatalogItem& item);
     // Opens the module as the document here; Save makes a new version.
     void openServerModule(const QString& moduleId);
-    void saveModuleToServer(core::Map& module, int partCount);
+    // A placed module and its library copy (MainWindowModuleLibrary.cpp).
+    void saveModuleToLibrary(const QString& moduleId);
+    void publishModule(const QString& moduleId);
+    void pullModule(const QString& moduleId);
+    void onModuleLibraryAction(const QString& moduleId, const QString& action);
+    ModuleLibraryInfo moduleLibraryInfo(const core::Module& m) const;
+    // Saves `module` (the parts of placed module `moduleId`) to the library
+    // (or this computer), then links the placed module to what was saved.
+    void saveModuleMap(core::Map module, const QString& moduleId, const QString& title, bool onThisComputer,
+                       const QString& orgSlug, const QString& updateId, const QString& note);
+    void linkModule(const QString& moduleId, const QString& libraryId, int version, const QString& sourceFile);
+    void replaceWithLibrary(const QString& moduleId, core::Map& library, const QString& libraryId, int version);
+    bool confirmModuleLibrary(const ConfirmOptions& o);
     bool saveEditedModule();
     // Writes `module` to the server: a new module (`title`, `orgSlug`) or
     // a new version of `updateId`, then its picture.
     void uploadModule(bld::sync::LibraryApi& api, const std::shared_ptr<core::Map>& module, const QString& updateId,
                       const QString& title, const QString& orgSlug, const QString& note,
-                      const std::function<void(bool)>& done);
+                      const std::function<void(bool saved, const QString& id, int version)>& done);
     void clearEditingModule();
     // Your warnings not yet acknowledged, as a notice over the map.
     void refreshNotices();
@@ -383,6 +400,8 @@ public:
     // For tests.
     class ServerLibrary* serverLibrary() const { return serverLibrary_; }
     const EditingModule& editingModule() const { return editingModule_; }
+    // How Update from library and Update library file ask first (tests answer instead).
+    std::function<bool(const ConfirmOptions&)> confirmModuleLibrary_;
 private:
 
     // Auto-save: flushes the current map to a sidecar file every N seconds if

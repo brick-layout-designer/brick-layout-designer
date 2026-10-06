@@ -14,6 +14,7 @@
 #include <QObject>
 #include <QUuid>
 
+#include <algorithm>
 #include <cmath>
 
 namespace bld::edit {
@@ -377,74 +378,87 @@ void FlattenModuleCommand::undo() {
     map_.sidecar.modules.insert(map_.sidecar.modules.begin() + idx, *removed_);
 }
 
-// ----- RescanModuleCommand -----
+// ----- ReplaceModulePartsCommand -----
 
-RescanModuleCommand::RescanModuleCommand(core::Map& map, int targetLayerIndex, QString moduleId,
-                                         std::vector<core::Brick> freshBricks,
-                                         QUndoCommand* parent)
-    : QUndoCommand(parent), map_(map), layerIndex_(targetLayerIndex),
-      moduleId_(std::move(moduleId)), freshBricks_(std::move(freshBricks)) {
-    setText(QObject::tr("Update module (%1 parts)").arg(freshBricks_.size()));
+ReplaceModulePartsCommand::ReplaceModulePartsCommand(core::Map& map, QString moduleId,
+                                                     std::vector<ImportBbmAsModuleCommand::LayerBatch> batches,
+                                                     QString libraryId, int libraryVersion, QUndoCommand* parent)
+    : QUndoCommand(parent), map_(map), moduleId_(std::move(moduleId)), batches_(std::move(batches)),
+      libraryId_(std::move(libraryId)), libraryVersion_(libraryVersion) {
+    // Fresh guids once, so redo after undo puts back the same parts.
+    for (auto& batch : batches_)
+        for (auto& b : batch.bricks)
+            if (b.guid.isEmpty()) b.guid = core::newBbmId();
+    setText(QObject::tr("Update module from the Module library"));
 }
 
-void RescanModuleCommand::redo() {
+QSet<QString> ReplaceModulePartsCommand::newMembers() const {
+    QSet<QString> out;
+    for (const auto& batch : batches_)
+        for (const auto& b : batch.bricks) out.insert(b.guid);
+    return out;
+}
+
+void ReplaceModulePartsCommand::redo() {
     const int mi = findModuleIndex(map_, moduleId_);
     if (mi < 0) return;
-    auto* L = brickLayer(map_, layerIndex_);
-    if (!L) return;
-
-    // Snapshot the pre-state once: remove old members from the layer and
-    // stash them so undo reinstates.
-    if (!captured_) {
-        oldMemberIds_ = map_.sidecar.modules[mi].memberIds;
-        oldBricks_.clear();
-        auto it = L->bricks.begin();
-        while (it != L->bricks.end()) {
-            if (oldMemberIds_.contains(it->guid)) {
-                oldBricks_.push_back(*it);
-                it = L->bricks.erase(it);
+    core::Module& mod = map_.sidecar.modules[mi];
+    before_ = mod;
+    removed_.clear();
+    for (auto& L : map_.layers()) {
+        if (!L || L->kind() != core::LayerKind::Brick) continue;
+        auto& bricks = static_cast<core::LayerBrick&>(*L).bricks;
+        // Each part's index before any were taken out (undo puts them back in this order).
+        int taken = 0;
+        for (int i = 0; i < static_cast<int>(bricks.size());) {
+            if (mod.memberIds.contains(bricks[i].guid)) {
+                removed_.push_back({ L->guid, i + taken, bricks[i] });
+                bricks.erase(bricks.begin() + i);
+                ++taken;
             } else {
-                ++it;
+                ++i;
             }
         }
-        captured_ = true;
-    } else {
-        // Re-apply on redo after undo: remove the same guids again.
-        auto it = L->bricks.begin();
-        while (it != L->bricks.end()) {
-            if (oldMemberIds_.contains(it->guid)) it = L->bricks.erase(it);
-            else                                   ++it;
-        }
     }
-
-    // Insert fresh bricks and update memberIds. Fresh guids have already been
-    // minted by the caller (MainWindow reads the .bbm and clears guids).
-    QSet<QString> newIds;
-    for (auto& b : freshBricks_) {
-        if (b.guid.isEmpty()) b.guid = core::newBbmId();
-        newIds.insert(b.guid);
-        L->bricks.push_back(b);
+    for (const auto& batch : batches_) {
+        int idx = -1;
+        for (int i = 0; i < static_cast<int>(map_.layers().size()); ++i)
+            if (map_.layers()[i] && map_.layers()[i]->kind() == core::LayerKind::Brick && map_.layers()[i]->guid == batch.targetLayerGuid) idx = i;
+        auto* BL = brickLayer(map_, idx);
+        if (!BL) continue;
+        for (const auto& b : batch.bricks) BL->bricks.push_back(b);
+        for (const auto& g : batch.groups) BL->groups.push_back(g);
     }
-    map_.sidecar.modules[mi].memberIds = newIds;
-    map_.sidecar.modules[mi].importedAt = QDateTime::currentDateTimeUtc();
+    mod.memberIds = newMembers();
+    mod.libraryModuleId = libraryId_;
+    mod.libraryVersion = libraryVersion_;
 }
 
-void RescanModuleCommand::undo() {
-    const int mi = findModuleIndex(map_, moduleId_);
-    if (mi < 0) return;
-    auto* L = brickLayer(map_, layerIndex_);
-    if (!L) return;
-    // Remove fresh bricks.
-    QSet<QString> freshIds;
-    for (const auto& b : freshBricks_) freshIds.insert(b.guid);
-    auto it = L->bricks.begin();
-    while (it != L->bricks.end()) {
-        if (freshIds.contains(it->guid)) it = L->bricks.erase(it);
-        else                              ++it;
+void ReplaceModulePartsCommand::undo() {
+    const QSet<QString> fresh = newMembers();
+    QSet<QString> groups;
+    for (const auto& batch : batches_)
+        for (const auto& g : batch.groups) groups.insert(g.guid);
+    for (auto& L : map_.layers()) {
+        if (!L || L->kind() != core::LayerKind::Brick) continue;
+        auto& BL = static_cast<core::LayerBrick&>(*L);
+        BL.bricks.erase(std::remove_if(BL.bricks.begin(), BL.bricks.end(), [&](const core::Brick& b) { return fresh.contains(b.guid); }),
+                        BL.bricks.end());
+        BL.groups.erase(std::remove_if(BL.groups.begin(), BL.groups.end(), [&](const core::Group& g) { return groups.contains(g.guid); }),
+                        BL.groups.end());
     }
-    // Restore old bricks + memberIds.
-    for (const auto& b : oldBricks_) L->bricks.push_back(b);
-    map_.sidecar.modules[mi].memberIds = oldMemberIds_;
+    // Back where they were, in the order they were taken out.
+    for (const auto& r : removed_) {
+        for (auto& L : map_.layers()) {
+            if (!L || L->kind() != core::LayerKind::Brick || L->guid != r.layerGuid) continue;
+            auto& bricks = static_cast<core::LayerBrick&>(*L).bricks;
+            const int at = std::clamp(r.index, 0, static_cast<int>(bricks.size()));
+            bricks.insert(bricks.begin() + at, r.brick);
+            break;
+        }
+    }
+    const int mi = findModuleIndex(map_, moduleId_);
+    if (mi >= 0 && before_) map_.sidecar.modules[mi] = *before_;
 }
 
 // ----- ImportBbmAsModuleCommand -----
@@ -554,6 +568,8 @@ void ImportBbmAsModuleCommand::redo() {
     mod.name = name_;
     mod.sourceFile = sourcePath_;
     mod.importedAt = QDateTime::currentDateTimeUtc();
+    mod.libraryModuleId = libraryId_;
+    mod.libraryVersion = libraryVersion_;
     for (const auto& a : applied_)
         for (const QString& g : a.addedGuids) mod.memberIds.insert(g);
     map_.sidecar.modules.push_back(std::move(mod));

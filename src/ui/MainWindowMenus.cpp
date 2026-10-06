@@ -618,14 +618,13 @@ void MainWindow::setupMenus() {
     setupBudgetMenu();
 
     auto* modules = menuBar()->addMenu(tr("&Modules"));
-    auto* createModAct = modules->addAction(tr("&Group Selection as Module..."));
-    createModAct->setToolTip(tr("Keep the selected parts together as a module in this layout"));
-    connect(createModAct, &QAction::triggered, this, &MainWindow::onCreateModuleFromSelection);
+    auto* createModAct = modules->addAction(tr("&Make a Module..."));
+    createModAct->setObjectName(QStringLiteral("makeModule"));
+    createModAct->setToolTip(tr("Make the picked parts one module in this layout. To use it in other layouts, "
+                                "choose Save to Module library... from its menu."));
+    connect(createModAct, &QAction::triggered, this, &MainWindow::onMakeModule);
     auto* importModAct = modules->addAction(tr("&Import .bbm as Module..."));
     connect(importModAct, &QAction::triggered, this, &MainWindow::onImportBbmAsModule);
-    auto* saveModAct = modules->addAction(tr("&Save Selection as Module..."));
-    saveModAct->setToolTip(tr("Save the selected parts to your Module library, to insert them in other layouts"));
-    connect(saveModAct, &QAction::triggered, this, &MainWindow::onSaveSelectionAsModule);
     auto* saveSetAct = modules->addAction(tr("Save Selection as &Set..."));
     saveSetAct->setToolTip(tr("Export the current brick selection as a "
                               "BrickTracks-style .set.xml drop-in for the parts library"));

@@ -5,9 +5,11 @@
 #include "../core/Module.h"
 
 #include <QPointF>
+#include <QSet>
 #include <QString>
 #include <QUndoCommand>
 
+#include <optional>
 #include <vector>
 
 namespace bld::core { class Map; }
@@ -174,27 +176,6 @@ private:
     int insertIndex_ = -1;
 };
 
-// Re-scan a module from its source .bbm: delete current member bricks and
-// re-import from the file with fresh guids. Useful when the upstream
-// module file was edited and the user wants to pick up the change.
-// Snapshots pre-state so undo fully restores the previous members.
-class RescanModuleCommand : public QUndoCommand {
-public:
-    RescanModuleCommand(core::Map& map, int targetLayerIndex, QString moduleId,
-                        std::vector<core::Brick> freshBricks,
-                        QUndoCommand* parent = nullptr);
-    void undo() override;
-    void redo() override;
-private:
-    core::Map& map_;
-    int         layerIndex_;
-    QString     moduleId_;
-    std::vector<core::Brick> freshBricks_;
-    std::vector<core::Brick> oldBricks_;        // snapshot for undo
-    QSet<QString> oldMemberIds_;
-    bool captured_ = false;
-};
-
 // Load a .bbm, merge its brick layers into the current map (remapping guids
 // to fresh ones to avoid collisions), and register the new bricks as a
 // module. Preserves the source's per-layer structure: every distinct
@@ -231,6 +212,8 @@ public:
     void undo() override;
     void redo() override;
     const QString& moduleId() const { return moduleId_; }
+    // From the library: the new module is linked to it (call before pushing).
+    void setLibrary(const QString& id, int version) { libraryId_ = id; libraryVersion_ = version; }
 
     // After redo() runs (the undo stack pushes call redo immediately),
     // returns every (layerIndex, guid) pair the command inserted. Lets
@@ -263,6 +246,35 @@ private:
     std::vector<AppliedLayer> applied_;
     bool captured_ = false;
     std::vector<core::Brick> bricks_;
+    QString libraryId_;
+    int libraryVersion_ = 0;
+};
+
+// Update from library: the module's parts are replaced by a library
+// version's (`batches`, already placed where the module is, each with its
+// targetLayerGuid: the sheet its parts go on). The module keeps its id,
+// name, look and pin, and is linked to `libraryId` at `libraryVersion`.
+// One undo step; undo puts the old parts back where they were.
+class ReplaceModulePartsCommand : public QUndoCommand {
+public:
+    ReplaceModulePartsCommand(core::Map& map, QString moduleId,
+                              std::vector<ImportBbmAsModuleCommand::LayerBatch> batches,
+                              QString libraryId, int libraryVersion, QUndoCommand* parent = nullptr);
+    void undo() override;
+    void redo() override;
+    // The new parts' guids (after the first redo).
+    QSet<QString> newMembers() const;
+
+private:
+    core::Map& map_;
+    QString moduleId_;
+    std::vector<ImportBbmAsModuleCommand::LayerBatch> batches_;
+    QString libraryId_;
+    int libraryVersion_ = 0;
+    // The old parts, where they were (layer guid, index), for undo.
+    struct Removed { QString layerGuid; int index = 0; core::Brick brick; };
+    std::vector<Removed> removed_;
+    std::optional<core::Module> before_;
 };
 
 }

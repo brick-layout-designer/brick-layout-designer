@@ -27,6 +27,8 @@ dialog.exportImage
 dialog.exportPartList
 dialog.moduleLook
 module.edit
+module.make
+module.library
 module.sheets
 download.formats
 download.layout

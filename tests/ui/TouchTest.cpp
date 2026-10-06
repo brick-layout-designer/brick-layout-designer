@@ -807,7 +807,7 @@ TEST(ModuleLibraryWords, SaysOnThisComputerAndLinksToTheWeb) {
     // An empty folder says what to do next.
     auto* list = panel.findChild<QListWidget*>();
     ASSERT_TRUE(list && list->count() == 1);
-    EXPECT_TRUE(list->item(0)->text().contains(QStringLiteral("Save Selection as Module")));
+    EXPECT_TRUE(list->item(0)->text().contains(QStringLiteral("Save to Module library…")));
 
     auto* web = panel.findChild<QPushButton*>(QStringLiteral("webModules"));
     ASSERT_TRUE(web);

@@ -24,14 +24,19 @@ namespace bld::ui {
 SaveModuleDialog::SaveModuleDialog(ServerLibrary& library, const QString& defaultOwner, QWidget* parent)
     : QDialog(parent), library_(library) {
     setObjectName(QStringLiteral("saveModuleDialog"));
-    setWindowTitle(tr("Save Selection as Module"));
+    setWindowTitle(tr("Save to Module library"));
     auto* col = new QVBoxLayout(this);
 
     const QList<sync::ServerModule> editable = library_.editableModules();
-    new_ = new QRadioButton(tr("New module"), this);
+    auto* intro = new QLabel(tr("A copy goes to your Module library, so you and your club can use it in other layouts. "
+                                "This module stays linked to it."),
+                             this);
+    intro->setWordWrap(true);
+    col->addWidget(intro);
+    new_ = new QRadioButton(tr("New module in the Module library"), this);
     new_->setObjectName(QStringLiteral("saveModuleNew"));
-    update_ = new QRadioButton(editable.isEmpty() ? tr("Update an existing module (none you can change yet)")
-                                                  : tr("Update an existing module"),
+    update_ = new QRadioButton(editable.isEmpty() ? tr("New version of a module in the Module library (none you can change yet)")
+                                                  : tr("New version of a module in the Module library"),
                                this);
     update_->setObjectName(QStringLiteral("saveModuleUpdate"));
     update_->setEnabled(!editable.isEmpty());
@@ -125,6 +130,11 @@ SaveModuleDialog::SaveModuleDialog(ServerLibrary& library, const QString& defaul
     confirmSaveToClub = [this](const QString& club) {
         return ConfirmDialog::ask(this, saveToClubOptions(club));
     };
+}
+
+void SaveModuleDialog::setModuleName(const QString& name) {
+    setWindowTitle(tr("Save “%1” to the Module library").arg(name.isEmpty() ? tr("module") : name));
+    name_->setText(name);
 }
 
 void SaveModuleDialog::showMode() {

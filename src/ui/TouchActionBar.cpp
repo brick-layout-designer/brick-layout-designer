@@ -30,6 +30,7 @@ TouchActionBar::TouchActionBar(QWidget* parent) : QWidget(parent) {
         addButton(QStringLiteral("touchRotateLeft"), tr("Rotate left"), QStringLiteral("turnLeft")),
         addButton(QStringLiteral("touchRotateRight"), tr("Rotate right"), QStringLiteral("turnRight")),
         addButton(QStringLiteral("touchDuplicate"), tr("Duplicate"), {}),
+        addButton(QStringLiteral("touchModule"), tr("Module"), {}),
         addButton(QStringLiteral("touchDelete"), tr("Delete"), QStringLiteral("delete")),
         addButton(QStringLiteral("touchDone"), tr("Done"), {}),
     };
@@ -43,6 +44,7 @@ TouchActionBar::TouchActionBar(QWidget* parent) : QWidget(parent) {
     connect(button(QStringLiteral("touchRotateLeft")), &QToolButton::clicked, this, &TouchActionBar::rotateLeft);
     connect(button(QStringLiteral("touchRotateRight")), &QToolButton::clicked, this, &TouchActionBar::rotateRight);
     connect(button(QStringLiteral("touchDuplicate")), &QToolButton::clicked, this, &TouchActionBar::duplicate);
+    connect(button(QStringLiteral("touchModule")), &QToolButton::clicked, this, &TouchActionBar::module);
     connect(button(QStringLiteral("touchDelete")), &QToolButton::clicked, this, &TouchActionBar::remove);
     connect(button(QStringLiteral("touchDone")), &QToolButton::clicked, this, &TouchActionBar::done);
     connect(button(QStringLiteral("touchAddPart")), &QToolButton::clicked, this, &TouchActionBar::addPart);
