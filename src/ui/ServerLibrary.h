@@ -20,6 +20,7 @@
 #include <QImage>
 #include <QList>
 #include <QObject>
+#include <QSet>
 #include <QString>
 #include <QUrl>
 #include <QWidget>
@@ -128,7 +129,12 @@ private:
     QString inserting_;
     QString cacheRoot_;
     int generation_ = 0;  // a newer refresh (or server) wins
+    int session_ = 0;     // a newer server or sign-in
     QHash<QString, QList<std::function<void(const QImage&)>>> waiting_;
+    // Pictures this server said it hasn't got: not asked again until the
+    // server or sign-in changes (each refresh redraws the rows, and a burst
+    // of 404s from a show's shared address gets it banned by a firewall).
+    QSet<QString> missing_;
 };
 
 // The friendly line over a tab: what's wrong and the one button that helps.
