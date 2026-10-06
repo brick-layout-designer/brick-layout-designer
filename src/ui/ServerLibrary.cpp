@@ -5,6 +5,7 @@
 #include "../sync/ServerList.h"
 
 #include <QCryptographicHash>
+#include <QDesktopServices>
 #include <QDir>
 #include <QFile>
 #include <QFrame>
@@ -548,6 +549,18 @@ void ServerModulesTab::remove(const QString& id) {
 QString itemsText(int n) { return n == 1 ? QObject::tr("1 item") : QObject::tr("%1 items").arg(n); }
 QString usesText(int n) { return n == 1 ? QObject::tr("1 use") : QObject::tr("%1 uses").arg(n); }
 
+// "960 × 480 studs (7.7 × 3.8 m) · 1,204 parts" for a layout or venue; empty when the server said nothing.
+QString sizeText(const sync::CatalogItem& it) {
+    QStringList out;
+    if (it.widthStuds > 0 && it.heightStuds > 0)
+        out << QObject::tr("%1 × %2 studs (%3 × %4 m)")
+                   .arg(it.widthStuds)
+                   .arg(it.heightStuds)
+                   .arg(QLocale().toString(it.widthStuds * 0.008, 'f', 1), QLocale().toString(it.heightStuds * 0.008, 'f', 1));
+    if (it.partCount >= 0) out << (it.partCount == 1 ? QObject::tr("1 part") : QObject::tr("%1 parts").arg(QLocale().toString(it.partCount)));
+    return out.join(QStringLiteral(" · "));
+}
+
 QString collectionAddText(const sync::CollectionAddResult& r) {
     QStringList parts;
     parts << (r.added == 0 ? QObject::tr("Nothing new to add") : QObject::tr("Added %1").arg(itemsText(r.added)));
@@ -572,11 +585,14 @@ CatalogTab::CatalogTab(ServerLibrary& library, QWidget* parent) : QWidget(parent
     segRow->setSpacing(2);
     const QList<std::pair<Kind, QString>> kinds{ { Kind::Modules, tr("Modules") },
                                                   { Kind::Parts, tr("Parts") },
+                                                  { Kind::Layouts, tr("Layouts") },
+                                                  { Kind::Venues, tr("Venues") },
                                                   { Kind::Collections, tr("Collections") } };
     for (const auto& [k, label] : kinds) {
         auto* b = new QPushButton(label, seg);
         b->setCheckable(true);
         b->setObjectName(QStringLiteral("catalogKind%1").arg(static_cast<int>(k)));
+        b->setProperty("catalogKind", static_cast<int>(k));
         const Kind kind = k;
         connect(b, &QPushButton::clicked, this, [this, kind] { setKind(kind); });
         segRow->addWidget(b);
@@ -640,8 +656,20 @@ void CatalogTab::setKind(Kind kind) {
     kind_ = kind;
     openCollection_.clear();
     added_.clear();
-    for (int i = 0; i < kindButtons_.size(); ++i) kindButtons_[i]->setChecked(i == static_cast<int>(kind));
+    for (QPushButton* b : std::as_const(kindButtons_)) b->setChecked(b->property("catalogKind").toInt() == static_cast<int>(kind));
     reload();
+}
+
+bool CatalogTab::kindOn(Kind k) const {
+    const auto& on = library_.catalog();
+    switch (k) {
+    case Kind::Modules: return on.modules;
+    case Kind::Parts: return on.parts;
+    case Kind::Layouts: return on.layouts;
+    case Kind::Venues: return on.venues;
+    case Kind::Collections: return on.modules || on.parts || on.layouts || on.venues;
+    }
+    return false;
 }
 
 void CatalogTab::clearRows() {
@@ -661,21 +689,23 @@ void CatalogTab::reload() {
     clearRows();
     const int gen = ++generation_;
     const bool ready = library_.state() == ServerLibrary::State::Ready;
-    const auto& on = library_.catalog();
-    kindButtons_[0]->setVisible(on.modules);
-    kindButtons_[1]->setVisible(on.parts);
-    kindButtons_[2]->setVisible(on.modules || on.parts);
+    for (QPushButton* b : std::as_const(kindButtons_)) b->setVisible(kindOn(static_cast<Kind>(b->property("catalogKind").toInt())));
     kinds_->setVisible(ready);
     search_->setVisible(ready && kind_ != Kind::Collections);
     back_->setVisible(ready && !openCollection_.isEmpty());
     note_->clear();
     if (!ready) return;
-    if (!on.modules && !on.parts) {
+    if (!kindOn(Kind::Collections)) {
         note_->setText(tr("The catalog isn't turned on on this server. Its admins can turn it on."));
         return;
     }
-    if ((kind_ == Kind::Modules && !on.modules) || (kind_ == Kind::Parts && !on.parts)) {
-        setKind(on.modules ? Kind::Modules : Kind::Parts);
+    if (!kindOn(kind_)) {
+        for (Kind k : { Kind::Modules, Kind::Parts, Kind::Layouts, Kind::Venues }) {
+            if (kindOn(k)) {
+                setKind(k);
+                return;
+            }
+        }
         return;
     }
     if (added_.isEmpty()) note_->setText(tr("Loading…"));
@@ -692,7 +722,11 @@ void CatalogTab::reload() {
             if (gen == generation_) showCollections(list);
         }, failed);
     } else {
-        library_.api().catalogItems(kind_ == Kind::Modules ? QStringLiteral("module") : QStringLiteral("part"),
+        const QString kind = kind_ == Kind::Modules  ? QStringLiteral("module")
+                             : kind_ == Kind::Parts  ? QStringLiteral("part")
+                             : kind_ == Kind::Layouts ? QStringLiteral("layout")
+                                                      : QStringLiteral("venue");
+        library_.api().catalogItems(kind,
                                     search_->text(), [this, gen](const QList<sync::CatalogItem>& items) {
             if (gen == generation_) showItems(items);
         }, failed);
@@ -705,6 +739,10 @@ void CatalogTab::showItems(const QList<sync::CatalogItem>& items) {
                                                                          : tr("Nothing matches."))
                    : kind_ == Kind::Modules && openCollection_.isEmpty()
                        ? tr("Adding copies it into your modules first.")
+                   : kind_ == Kind::Layouts && openCollection_.isEmpty()
+                       ? tr("Open a copy: it's yours (or your club's) to change. The shared one stays as it is.")
+                   : kind_ == Kind::Venues && openCollection_.isEmpty()
+                       ? tr("Use this venue: a copy goes to your venues, and a new layout starts in it.")
                        : QString());
     int at = 0;
     for (const auto& it : items) {
@@ -734,7 +772,7 @@ QWidget* CatalogTab::itemRow(const sync::CatalogItem& it) {
     h->setSpacing(8);
     QLabel* pic = pictureLabel(frame);
     h->addWidget(pic, 0, Qt::AlignTop);
-    library_.picture(it.previewPath, pic, [pic](const QImage& img) { showPicture(pic, img); });
+    library_.picture(it.picturePath(), pic, [pic](const QImage& img) { showPicture(pic, img); });
     auto* text = new QVBoxLayout();
     text->setSpacing(2);
     auto* title = new QLabel(it.title, frame);
@@ -742,6 +780,7 @@ QWidget* CatalogTab::itemRow(const sync::CatalogItem& it) {
     title->setWordWrap(true);
     text->addWidget(title);
     text->addWidget(mutedLabel(tr("by %1 · %2").arg(it.by, usesText(it.uses)), frame));
+    if (const QString size = sizeText(it); !size.isEmpty()) text->addWidget(mutedLabel(size, frame));
     if (!it.description.isEmpty()) {
         title->setToolTip(it.description);
         pic->setToolTip(it.description);
@@ -755,10 +794,33 @@ QWidget* CatalogTab::itemRow(const sync::CatalogItem& it) {
         connect(insert, &QPushButton::clicked, this, [this, item = it] { emit library_.catalogInsertRequested(item); });
         text->addWidget(insert, 0, Qt::AlignLeft);
     }
-    auto* add = new QPushButton(isModule ? tr("Add to my modules") : tr("Add to my parts"), frame);
+    const bool isLayout = it.kind == QLatin1String("layout");
+    const bool isVenue = it.kind == QLatin1String("venue");
+    auto* add = new QPushButton(isModule  ? tr("Add to my modules")
+                                : isLayout ? tr("Open a copy")
+                                : isVenue  ? tr("Use this venue")
+                                           : tr("Add to my parts"),
+                                frame);
     add->setObjectName(QStringLiteral("catalogAdd"));
+    if (isLayout || isVenue) {
+        add->setProperty("accent", true);
+        add->setAccessibleName(isLayout ? tr("Open a copy of %1").arg(it.title) : tr("Use the venue %1").arg(it.title));
+    }
     connect(add, &QPushButton::clicked, this, [this, item = it, add] { addItem(item, add); });
-    text->addWidget(add, 0, Qt::AlignLeft);
+    if (isLayout || isVenue) {
+        auto* buttons = new QHBoxLayout();
+        buttons->setSpacing(4);
+        buttons->addWidget(add);
+        auto* web = new QPushButton(tr("View on the web"), frame);
+        web->setObjectName(QStringLiteral("catalogWeb"));
+        web->setFlat(true);
+        connect(web, &QPushButton::clicked, this, [this, id = it.id] { QDesktopServices::openUrl(library_.api().catalogItemWebUrl(id)); });
+        buttons->addWidget(web);
+        buttons->addStretch(1);
+        text->addLayout(buttons);
+    } else {
+        text->addWidget(add, 0, Qt::AlignLeft);
+    }
     h->addLayout(text, 1);
     return frame;
 }
@@ -818,18 +880,38 @@ std::optional<QString> CatalogTab::owner(const QString& title) {
 
 void CatalogTab::addItem(const sync::CatalogItem& it, QPushButton* button) {
     const bool isModule = it.kind == QLatin1String("module");
-    const auto dest = owner(isModule ? tr("Add to my modules") : tr("Add to my parts"));
+    const bool isLayout = it.kind == QLatin1String("layout");
+    const bool isVenue = it.kind == QLatin1String("venue");
+    const auto dest = owner(isModule   ? tr("Add to my modules")
+                            : isLayout ? tr("Open a copy")
+                            : isVenue  ? tr("Use this venue")
+                                       : tr("Add to my parts"));
     if (!dest) return;
     button->setEnabled(false);
     auto alive = std::make_shared<bool>(true);
     connect(button, &QObject::destroyed, this, [alive] { *alive = false; });
     QPushButton* b = button;
-    library_.api().addCatalogItem(it.id, *dest, [this, b, alive, isModule, title = it.title](const QString&, const QString&) {
-        if (*alive) b->setText(tr("Added"));
-        emit library_.message(isModule ? tr("Added \"%1\" to your modules").arg(title)
-                                       : tr("Added \"%1\" to your parts").arg(title));
-        if (isModule) library_.refresh();
-        else emit library_.partsAdded();
+    const QString kind = it.kind;
+    library_.api().addCatalogItem(it.id, *dest, [this, b, alive, kind, title = it.title](const QString&, const QString& id) {
+        const bool copy = kind == QLatin1String("layout") || kind == QLatin1String("venue");
+        if (*alive) {
+            // A layout or venue can be copied again (each copy is a new one).
+            b->setText(copy ? tr("Copied") : tr("Added"));
+            b->setEnabled(copy);
+        }
+        if (kind == QLatin1String("layout")) {
+            emit library_.message(tr("Copied \"%1\" to your layouts").arg(title));
+            emit library_.catalogLayoutCopied(id, title);
+        } else if (kind == QLatin1String("venue")) {
+            emit library_.message(tr("Copied \"%1\" to your venues").arg(title));
+            emit library_.catalogVenueCopied(id, title);
+        } else if (kind == QLatin1String("module")) {
+            emit library_.message(tr("Added \"%1\" to your modules").arg(title));
+            library_.refresh();
+        } else {
+            emit library_.message(tr("Added \"%1\" to your parts").arg(title));
+            emit library_.partsAdded();
+        }
     }, [this, b, alive](const sync::ServerRefusal& r) {
         if (*alive) b->setEnabled(true);
         QMessageBox::warning(this, tr("Catalog"), ServerLibrary::refusalText(r));

@@ -23,6 +23,7 @@
 #include "ui/SaveModuleDialog.h"
 #include "ui/ServerLibrary.h"
 #include "ui/UpdateCheck.h"
+#include "ui/VenueLibraryPanel.h"
 
 #include <gtest/gtest.h>
 
@@ -41,6 +42,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QLocale>
 #include <QMenu>
 #include <QPushButton>
 #include <QRadioButton>
@@ -629,6 +631,98 @@ TEST_F(LibraryTabs, CatalogAddsModulesAndPartsAndWholeCollections) {
     EXPECT_EQ(partsAdded, 2);
 }
 
+TEST_F(LibraryTabs, CatalogLayoutsAndVenuesShowWhenOnAndCopyThenOpen) {
+    serveModules();
+    // Modules on; layouts and venues off at first: no tabs for them.
+    http_.clear("/api/catalog/settings");
+    http_.reply("/api/catalog/settings", 200, { { QStringLiteral("modules"), true }, { QStringLiteral("parts"), false } });
+    http_.reply("/api/catalog/items?kind=module&sort=popular", 200, { { QStringLiteral("items"), QJsonArray{} } });
+    http_.reply("/api/catalog/items?kind=layout&sort=popular", 200,
+                { { QStringLiteral("items"),
+                    QJsonArray{ QJsonObject{ { QStringLiteral("id"), QStringLiteral("l1") }, { QStringLiteral("kind"), QStringLiteral("layout") },
+                                             { QStringLiteral("title"), QStringLiteral("Harbour town") }, { QStringLiteral("by"), QStringLiteral("Bob · in ArkLUG") },
+                                             { QStringLiteral("uses"), 2 }, { QStringLiteral("version"), 1 },
+                                             { QStringLiteral("previewUrl"), QStringLiteral("/api/catalog/items/l1/preview?v=1") },
+                                             { QStringLiteral("coverUrl"), QStringLiteral("/api/catalog/items/l1/cover?image=c1&size=small") },
+                                             { QStringLiteral("summary"), QJsonObject{ { QStringLiteral("widthStuds"), 960 }, { QStringLiteral("heightStuds"), 480 },
+                                                                                       { QStringLiteral("partCount"), 1204 } } } } } } });
+    http_.reply("/api/catalog/items?kind=venue&sort=popular", 200,
+                { { QStringLiteral("items"),
+                    QJsonArray{ QJsonObject{ { QStringLiteral("id"), QStringLiteral("v1") }, { QStringLiteral("kind"), QStringLiteral("venue") },
+                                             { QStringLiteral("title"), QStringLiteral("Town hall") }, { QStringLiteral("by"), QStringLiteral("Bob") },
+                                             { QStringLiteral("uses"), 0 }, { QStringLiteral("version"), 1 },
+                                             { QStringLiteral("previewUrl"), QStringLiteral("/api/catalog/items/v1/preview?v=1") },
+                                             { QStringLiteral("summary"), QJsonObject{ { QStringLiteral("widthStuds"), 400 }, { QStringLiteral("heightStuds"), 300 } } } } } } });
+    http_.reply("/api/catalog/items/l1/add", 201, { { QStringLiteral("kind"), QStringLiteral("layout") }, { QStringLiteral("id"), QStringLiteral("L9") } });
+    http_.reply("/api/catalog/items/v1/add", 201, { { QStringLiteral("kind"), QStringLiteral("venue") }, { QStringLiteral("id"), QStringLiteral("V9") } });
+    ui::CatalogTab tab(library_);
+    tab.chooseOwner = [](const QString&) -> std::optional<QString> { return QString(); };
+    auto kindButton = [&](ui::CatalogTab::Kind k) {
+        return tab.findChild<QPushButton*>(QStringLiteral("catalogKind%1").arg(static_cast<int>(k)));
+    };
+    connectSignedIn();
+    ASSERT_TRUE(waitFor([&] { return library_.catalog().modules; }));
+    QCoreApplication::processEvents();
+    EXPECT_FALSE(kindButton(ui::CatalogTab::Kind::Layouts)->isVisibleTo(&tab));
+    EXPECT_FALSE(kindButton(ui::CatalogTab::Kind::Venues)->isVisibleTo(&tab));
+
+    // The admin turns them on: the tabs show after the next refresh.
+    http_.clear("/api/catalog/settings");
+    http_.reply("/api/catalog/settings", 200,
+                { { QStringLiteral("modules"), true }, { QStringLiteral("parts"), false }, { QStringLiteral("layouts"), true }, { QStringLiteral("venues"), true } });
+    library_.refresh();
+    ASSERT_TRUE(waitFor([&] { return library_.catalog().venues; }));
+    QCoreApplication::processEvents();
+    EXPECT_TRUE(kindButton(ui::CatalogTab::Kind::Layouts)->isVisibleTo(&tab));
+    EXPECT_TRUE(kindButton(ui::CatalogTab::Kind::Venues)->isVisibleTo(&tab));
+
+    // A layout: its size and parts, its cover, and "Open a copy" copies it, then asks to open the copy.
+    tab.setKind(ui::CatalogTab::Kind::Layouts);
+    ASSERT_TRUE(waitFor([&] { return tab.row(QStringLiteral("l1")); }));
+    QStringList rowTexts;
+    for (QLabel* l : tab.row(QStringLiteral("l1"))->findChildren<QLabel*>()) rowTexts << l->text();
+    // In the machine's own number format (1,204 / 1.204 / 1204).
+    const QLocale here;
+    EXPECT_TRUE(rowTexts.join(QLatin1Char('|'))
+                    .contains(QStringLiteral("960 × 480 studs (%1 × %2 m) · %3 parts")
+                                  .arg(here.toString(7.68, 'f', 1), here.toString(3.84, 'f', 1), here.toString(1204))))
+        << rowTexts.join(QLatin1Char('|')).toStdString();
+    ASSERT_TRUE(waitFor([&] { return lastRequest(http_, "GET", "/api/catalog/items/l1/cover"); }));
+    EXPECT_EQ(tab.row(QStringLiteral("l1"))->findChild<QPushButton*>(QStringLiteral("catalogInsert")), nullptr);
+    QString opened;
+    QObject::connect(&library_, &ui::ServerLibrary::catalogLayoutCopied, [&](const QString& id, const QString&) { opened = id; });
+    QPushButton* copy = tab.row(QStringLiteral("l1"))->findChild<QPushButton*>(QStringLiteral("catalogAdd"));
+    EXPECT_EQ(copy->text(), QStringLiteral("Open a copy"));
+    copy->click();
+    ASSERT_TRUE(waitFor([&] { return opened == QStringLiteral("L9"); }));
+    EXPECT_TRUE(tab.row(QStringLiteral("l1"))->findChild<QPushButton*>(QStringLiteral("catalogWeb")));
+
+    // A venue: "Use this venue" copies it, then asks to use the copy.
+    tab.setKind(ui::CatalogTab::Kind::Venues);
+    ASSERT_TRUE(waitFor([&] { return tab.row(QStringLiteral("v1")); }));
+    QString used;
+    QObject::connect(&library_, &ui::ServerLibrary::catalogVenueCopied, [&](const QString& id, const QString&) { used = id; });
+    QPushButton* use = tab.row(QStringLiteral("v1"))->findChild<QPushButton*>(QStringLiteral("catalogAdd"));
+    EXPECT_EQ(use->text(), QStringLiteral("Use this venue"));
+    use->click();
+    ASSERT_TRUE(waitFor([&] { return used == QStringLiteral("V9"); }));
+}
+
+TEST(LibraryApi, ReadsALayoutsSizePartsAndCover) {
+    const auto it = sync::LibraryApi::catalogItemFromJson(
+        { { QStringLiteral("id"), QStringLiteral("l1") }, { QStringLiteral("kind"), QStringLiteral("layout") },
+          { QStringLiteral("previewUrl"), QStringLiteral("/p") }, { QStringLiteral("coverUrl"), QStringLiteral("/c") },
+          { QStringLiteral("summary"), QJsonObject{ { QStringLiteral("widthStuds"), 96 }, { QStringLiteral("heightStuds"), 8 }, { QStringLiteral("partCount"), 3 } } } });
+    EXPECT_EQ(it.picturePath(), QStringLiteral("/c"));
+    EXPECT_EQ(it.widthStuds, 96);
+    EXPECT_EQ(it.heightStuds, 8);
+    EXPECT_EQ(it.partCount, 3);
+    // A module from an older server: its drawn picture, no size.
+    const auto old = sync::LibraryApi::catalogItemFromJson({ { QStringLiteral("previewUrl"), QStringLiteral("/p") } });
+    EXPECT_EQ(old.picturePath(), QStringLiteral("/p"));
+    EXPECT_EQ(old.partCount, -1);
+}
+
 TEST_F(LibraryTabs, ACatalogThatIsOffSaysSo) {
     serveModules();
     http_.clear("/api/catalog/settings");
@@ -746,6 +840,32 @@ TEST_F(ServerModulesWindow, TheStatusBarSaysHowTheServerIsAndOpensServers) {
     EXPECT_EQ(opened, QStringLiteral("bld::sync::ServersDialog"));
     // Back from it: the window asks the list again, so the Main server is shown once more.
     ASSERT_TRUE(waitFor([&] { return status->text() == QStringLiteral("Connected to Club server"); }));
+}
+
+TEST_F(ServerModulesWindow, UseThisVenueKeepsTheCopyAndStartsALayoutInIt) {
+    auto* venues = window_->findChild<ui::VenueLibraryPanel*>();
+    ASSERT_NE(venues, nullptr);
+    const QDir dir(venues->libraryPath());
+    const QStringList before = dir.entryList({ QStringLiteral("*.bld-venue") }, QDir::Files);
+    const QJsonObject venue{ { QStringLiteral("name"), QStringLiteral("Town hall") },
+                             { QStringLiteral("enabled"), true },
+                             { QStringLiteral("minWalkwayStuds"), 30 },
+                             { QStringLiteral("bounds"), QJsonObject{ { QStringLiteral("x"), 0 }, { QStringLiteral("y"), 0 }, { QStringLiteral("w"), 400 }, { QStringLiteral("h"), 300 } } },
+                             { QStringLiteral("edges"), QJsonArray{ QJsonObject{ { QStringLiteral("kind"), 0 }, { QStringLiteral("doorWidthStuds"), 0 }, { QStringLiteral("label"), QString() },
+                                                                                  { QStringLiteral("poly"), QJsonArray{ QJsonObject{ { QStringLiteral("x"), 0 }, { QStringLiteral("y"), 0 } },
+                                                                                                                        QJsonObject{ { QStringLiteral("x"), 400 }, { QStringLiteral("y"), 0 } } } } } } },
+                             { QStringLiteral("obstacles"), QJsonArray{} } };
+    http_.reply("/api/venues/V9", 200, { { QStringLiteral("id"), QStringLiteral("V9") }, { QStringLiteral("name"), QStringLiteral("Town hall") }, { QStringLiteral("data"), venue } });
+    emit library_->catalogVenueCopied(QStringLiteral("V9"), QStringLiteral("Town hall"));
+    ASSERT_TRUE(waitFor([&] { return view_->currentMap()->sidecar.venue.has_value(); }));
+    EXPECT_EQ(view_->currentMap()->sidecar.venue->name, QStringLiteral("Town hall"));
+    EXPECT_EQ(view_->currentMap()->sidecar.venue->edges.size(), 1);
+    // The copy is kept in the Venue library too.
+    QStringList added = dir.entryList({ QStringLiteral("*.bld-venue") }, QDir::Files);
+    for (const QString& f : before) added.removeAll(f);
+    ASSERT_EQ(added.size(), 1);
+    EXPECT_TRUE(added.front().startsWith(QStringLiteral("Town hall")));
+    QFile::remove(dir.filePath(added.front()));
 }
 
 TEST_F(ServerModulesWindow, AddToLayoutPutsTheModulesPartsInAsOneModule) {

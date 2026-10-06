@@ -16,6 +16,9 @@
 #include "NoticeArea.h"
 #include "SaveModuleDialog.h"
 #include "ServerLibrary.h"
+#include "VenueLibraryPanel.h"
+#include "../import/LayoutSource.h"
+#include "../saveload/VenueIO.h"
 #include "tours/Tours.h"
 
 #include "../core/LayerBrick.h"
@@ -120,6 +123,33 @@ void MainWindow::setupServerLibrary() {
     connect(serverLibrary_, &ServerLibrary::catalogInsertRequested, this, &MainWindow::insertCatalogModule);
     connect(serverLibrary_, &ServerLibrary::partsAdded, this, [this] {
         syncServerParts(serverLibrary_->server(), serverLibrary_->token());
+    });
+    // The catalog's layouts: "Open a copy" made one for you (or a club); open it live.
+    connect(serverLibrary_, &ServerLibrary::catalogLayoutCopied, this, [this](const QString& id, const QString& title) {
+        import::LayoutSource source;
+        source.server = serverLibrary_->server().toString(QUrl::StripTrailingSlash);
+        source.layoutId = id;
+        source.title = title;
+        // After the click has returned: the connect dialog runs its own loop.
+        QTimer::singleShot(0, this, [this, source] { openSourceLive(source); });
+    });
+    // The catalog's venues: "Use this venue" copied it to your venues; keep it in the
+    // Venue library too, and start a new layout in it.
+    connect(serverLibrary_, &ServerLibrary::catalogVenueCopied, this, [this](const QString& id, const QString&) {
+        serverLibrary_->api().venueFile(id, [this](const QString& name, const QByteArray& file) {
+            const QString path = venueLibraryPanel_->addVenueFile(name, file);
+            QString error;
+            const auto venue = path.isEmpty() ? std::nullopt : saveload::readVenueFile(path, &error);
+            if (!venue) {
+                QMessageBox::warning(this, tr("Use this venue"),
+                                     tr("The venue “%1” couldn't be saved in the Venue library folder %2.")
+                                         .arg(name, venueLibraryPanel_->libraryPath()));
+                return;
+            }
+            startLayoutFromVenue(*venue);
+        }, [this](const sync::ServerRefusal& r) {
+            QMessageBox::warning(this, tr("Use this venue"), ServerLibrary::refusalText(r));
+        });
     });
     connect(serverLibrary_, &ServerLibrary::message, this, [this](const QString& text) {
         statusBar()->showMessage(text, 5000);

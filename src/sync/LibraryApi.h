@@ -62,17 +62,27 @@ struct ServerModule {
 struct CatalogSettings {
     bool modules = false;  // the module catalog is on
     bool parts = false;    // the parts catalog is on
+    bool layouts = false;  // public layouts are on (servers before them: off)
+    bool venues = false;   // public venues are on (servers before them: off)
 };
 
 struct CatalogItem {
     QString id;
-    QString kind;  // module / part
+    QString kind;  // module / part / layout / venue
     QString title;
     QString description;
     QString by;  // who shared it
     int uses = 0;
     int version = 0;
-    QString previewPath;  // the picture, a path on the server
+    QString previewPath;  // the drawn picture, a path on the server
+    QString coverPath;    // the card's picture: its owner's own, else the drawn one
+    // A layout or venue: its size in studs (0: unknown), a layout's part count (-1: none given).
+    int widthStuds = 0;
+    int heightStuds = 0;
+    int partCount = -1;
+
+    // The picture to show: the cover when the server sends one.
+    QString picturePath() const { return coverPath.isEmpty() ? previewPath : coverPath; }
 };
 
 struct CatalogCollection {
@@ -151,6 +161,10 @@ public:
     // A copy of the item for you (orgSlug empty) or a club: its new id.
     void addCatalogItem(const QString& itemId, const QString& orgSlug,
                         std::function<void(const QString& kind, const QString& id)> done, Fail failed);
+    // A venue of yours (or a club's): its name and its .bld-venue file.
+    void venueFile(const QString& id, std::function<void(const QString& name, const QByteArray& file)> done, Fail failed);
+    // A catalog item's page on the website (a layout's viewer, a venue's plan).
+    QUrl catalogItemWebUrl(const QString& id) const;
     void collections(std::function<void(const QList<CatalogCollection>&)> done, Fail failed);
     void collectionItems(const QString& id, std::function<void(const QList<CatalogItem>&)> done, Fail failed);
     void addCollection(const QString& id, const QString& orgSlug, std::function<void(const CollectionAddResult&)> done,
