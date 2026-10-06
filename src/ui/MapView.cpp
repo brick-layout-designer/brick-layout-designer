@@ -556,6 +556,7 @@ bool MapView::rulerEndpointAt(QPointF clickScene, bool startDrag) {
 
 void MapView::mousePressEvent(QMouseEvent* e) {
     snapMods_ = e->modifiers();
+    coarsePointer_ = touchAsMouse_;
     if (e->button() == Qt::LeftButton && scene()) {
         pressSelection_.clear();
         for (QGraphicsItem* it : scene()->selectedItems())
@@ -2338,6 +2339,7 @@ void MapView::clearDropTargetHint() {
 }
 
 void MapView::dragEnterEvent(QDragEnterEvent* e) {
+    coarsePointer_ = false;
     snapMods_ = e->modifiers();
     // A new drag: its own snap state.
     placeSnap_.reset();

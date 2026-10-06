@@ -130,12 +130,14 @@ void MapView::sendTouchMouse(QEvent::Type type, QPointF viewPos) {
     // finger's touch point, and its moves would stop coming here.
     QMouseEvent ev(type, viewPos, viewport()->mapToGlobal(viewPos), button, buttons,
                    Qt::NoModifier, QPointingDevice::primaryPointingDevice());
+    touchAsMouse_ = true;
     switch (type) {
     case QEvent::MouseButtonPress: mousePressEvent(&ev); break;
     case QEvent::MouseMove: mouseMoveEvent(&ev); break;
     case QEvent::MouseButtonRelease: mouseReleaseEvent(&ev); break;
     default: break;
     }
+    touchAsMouse_ = false;
 }
 
 void MapView::cancelTouchPress() {
@@ -367,6 +369,7 @@ void MapView::cancelPartPlacement() {
 }
 
 void MapView::touchPartDragTo(const QString& partKey, QPoint globalPos) {
+    coarsePointer_ = true;
     const QPoint vp = viewport()->mapFromGlobal(globalPos);
     if (!viewport()->rect().contains(vp)) {
         touchPartDragCancel();
@@ -391,6 +394,7 @@ void MapView::touchPartDragCancel() {
 }
 
 void MapView::touchModuleDragTo(const QString& bbmPath, QPoint globalPos) {
+    coarsePointer_ = true;
     const QPoint vp = viewport()->mapFromGlobal(globalPos);
     if (!viewport()->rect().contains(vp)) {
         touchPartDragCancel();
