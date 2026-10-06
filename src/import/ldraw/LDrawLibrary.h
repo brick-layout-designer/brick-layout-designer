@@ -36,9 +36,6 @@ public:
     LDrawLibrary() = default;
     explicit LDrawLibrary(QString root);
 
-    // Replace the root. Empty string means "no library configured" and
-    // every resolve() will fail.
-    void setRoot(QString root);
     const QString& root() const { return root_; }
 
     // True when the root looks like a real LDraw install — has

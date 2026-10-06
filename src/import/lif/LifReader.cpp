@@ -1,11 +1,6 @@
 #include "LifReader.h"
 
-#include "../ArchivePath.h"
-
-#include <QDir>
 #include <QFile>
-#include <QFileInfo>
-#include <QSaveFile>
 
 #include <functional>
 
@@ -207,33 +202,6 @@ QByteArray LifReader::read(const QString& lifPath) const {
     // Deep copy: data_ may alias a memory map that dies with this reader,
     // and mid() on raw data can return a view onto it.
     return QByteArray(data_.constData() + e.offset, static_cast<qsizetype>(e.size));
-}
-
-int LifReader::extractAll(const QString& destRoot) {
-    if (entries_.isEmpty()) return 0;
-    QDir dst(destRoot);
-    if (!dst.exists()) dst.mkpath(QStringLiteral("."));
-
-    int written = 0;
-    for (auto it = entries_.constBegin(); it != entries_.constEnd(); ++it) {
-        const QString rel = it.key().mid(1);  // drop leading '/'
-        const QString abs = resolveArchiveEntryPath(dst.absolutePath(), rel);
-        if (abs.isEmpty()) {
-            errorString_ += QStringLiteral("\n  skipped unsafe entry %1").arg(it.key());
-            continue;
-        }
-        QDir().mkpath(QFileInfo(abs).absolutePath());
-        QSaveFile f(abs);
-        if (!f.open(QIODevice::WriteOnly)) {
-            errorString_ += QStringLiteral("\n  write %1: %2").arg(abs, f.errorString());
-            continue;
-        }
-        const QByteArray bytes = read(it.key());
-        f.write(bytes);
-        if (f.commit()) ++written;
-        else errorString_ += QStringLiteral("\n  commit %1: %2").arg(abs, f.errorString());
-    }
-    return written;
 }
 
 }  // namespace bld::import

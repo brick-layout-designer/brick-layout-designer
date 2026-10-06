@@ -1,7 +1,9 @@
 #include "PreferencesDialog.h"
+
+#include "../import/ArchivePath.h"
+#include "BudgetSession.h"
 #include "LibraryPathsDialog.h"
 #include "help/HelpButton.h"
-#include "../import/ArchivePath.h"
 
 #include <QApplication>
 #include <QCheckBox>
@@ -68,7 +70,7 @@ QWidget* buildGeneralTab(QDialog* parent) {
 
     // BlueBrick's "default budget" choice: parts a budget doesn't list.
     auto* budgetInfiniteChk = new QCheckBox(QObject::tr("Parts without a budget are unlimited (otherwise: not allowed)"), w);
-    budgetInfiniteChk->setChecked(s.value(QStringLiteral("budget/defaultInfinite"), true).toBool());
+    budgetInfiniteChk->setChecked(BudgetSession::defaultBudgetIsInfinite());
     form->addRow(help::withHelp(budgetInfiniteChk, QStringLiteral("prefs.budgetUnlimited"), w));
 
     // Template file for File > New — vanilla "use default template" parity.
@@ -113,7 +115,7 @@ QWidget* buildGeneralTab(QDialog* parent) {
         s.setValue(QStringLiteral("general/wheelZoomFactor"), wheelSpin->value());
         s.setValue(QStringLiteral("general/reopenLastFile"), reopenChk->isChecked());
         s.setValue(QStringLiteral("general/showSplash"), splashChk->isChecked());
-        s.setValue(QStringLiteral("budget/defaultInfinite"), budgetInfiniteChk->isChecked());
+        BudgetSession::setDefaultBudgetIsInfinite(budgetInfiniteChk->isChecked());
         s.setValue(QStringLiteral("updates/checkAtStartup"), updatesChk->isChecked());
         s.setValue(QStringLiteral("general/newMapTemplate"), tplEdit->text());
         s.setValue(QStringLiteral("general/language"), langCombo->currentData().toString());

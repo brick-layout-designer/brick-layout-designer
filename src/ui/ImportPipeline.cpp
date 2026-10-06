@@ -226,12 +226,6 @@ PreparedPart fromLDDGeometry(PreparedPart out, const import::LDrawReadResult& re
 
 }  // namespace
 
-bool isImportableFile(const QString& path) {
-    static const QStringList exts{ QStringLiteral("ldr"), QStringLiteral("dat"), QStringLiteral("mpd"),
-                                   QStringLiteral("io"), QStringLiteral("lxf"), QStringLiteral("lxfml") };
-    return exts.contains(QFileInfo(path).suffix().toLower());
-}
-
 PreparedPart prepareImport(const QString& path, const ImportSettings& settings,
                            parts::PartsLibrary& parts, const HeavyRunner& runHeavy) {
     PreparedPart out;

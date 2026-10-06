@@ -9,16 +9,6 @@ namespace bld::import {
 
 LDrawLibrary::LDrawLibrary(QString root) : root_(std::move(root)) {}
 
-void LDrawLibrary::setRoot(QString root) {
-    root_ = std::move(root);
-    // Path-cache hits would point at the OLD root after this call;
-    // wipe both caches so resolve() rebuilds against the new tree.
-    indexBySubdir_.clear();
-    resolveCache_.clear();
-    movedFrom_.clear();
-    movedFromBuilt_ = false;
-}
-
 bool LDrawLibrary::looksValid() const {
     if (root_.isEmpty()) return false;
     QDir d(root_);

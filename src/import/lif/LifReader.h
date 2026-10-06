@@ -65,11 +65,6 @@ public:
     // QByteArray if the path is missing or refers to a directory.
     QByteArray read(const QString& lifPath) const;
 
-    // Extract every file to disk under `destRoot`, preserving the
-    // archive's directory tree. Returns the number of files written;
-    // appends to errorString() on per-file failures but continues.
-    int extractAll(const QString& destRoot);
-
 private:
     struct FileEntry {
         qint64 offset = 0;

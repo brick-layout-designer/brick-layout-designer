@@ -82,7 +82,4 @@ QString writeImportedPart(const PreparedPart& part, const QString& name,
                           const QString& destDir, const QString& author,
                           bool replaceExisting, QString* error);
 
-// True for the file extensions prepareImport understands.
-bool isImportableFile(const QString& path);
-
 }  // namespace bld::ui

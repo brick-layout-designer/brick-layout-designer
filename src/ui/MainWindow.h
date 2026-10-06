@@ -131,17 +131,17 @@ private:
     void setupShell();
     void refreshShellIcons();
     void addZoomReadout();
-    // Build / Room / Notes / Parts list: shortcuts onto the docks and dialogs.
+    // Build / Venue / Notes / Parts list: shortcuts onto the docks and dialogs.
     void showTask(const QString& task);
     // Every panel, in the web's Panels-menu order (PANEL_TITLES): Parts,
-    // Sheets, Views, Parts list, Modules, Module library, Room library.
+    // Sheets, Views, Parts list, Modules, Module library, Venue library.
     QList<class QDockWidget*> panelDocks() const;
     // View > Panels and the toolbar's Panels button: a tick per panel.
     class QMenu* panelsMenu_ = nullptr;
     // Edit > Settings...: the look and help settings.
     void openSettings();
-    // Help › Tour: …: runs the tour, opening the room designer or the
-    // server window first for the Rooms and Clubs tours.
+    // Help › Tour: …: runs the tour, opening the Venue Designer or the
+    // server window first for the Venues and Clubs tours.
     void startTourNamed(const QString& id);
     // The server the settings sync with now, or empty.
     QString syncedHost() const;
