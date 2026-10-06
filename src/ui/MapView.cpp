@@ -1536,8 +1536,8 @@ void MapView::addPartAtScenePos(const QString& partKey, QPointF sceneCenterPx, s
             std::vector<const core::Brick*> placed;
             placed.reserve(set.bricks.size());
             for (const auto& b : set.bricks) placed.push_back(&b);
-            if (const auto shift = moduleSnapShift(placed, centreStuds, dragSnap, true, nullptr))
-                for (auto& b : set.bricks) b.displayArea.translate(*shift);
+            const QPointF shift = moduleSnapShift(placed, centreStuds, dragSnap, true, nullptr).value_or(QPointF());
+            for (auto& b : set.bricks) b.displayArea.translate(shift);
             if (dragSnap) dragSnap->reset();
             QString setName = partKey;
             for (const auto& d : meta->descriptions) {
