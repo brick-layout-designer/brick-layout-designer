@@ -13,7 +13,9 @@
 #include "ui/theme/PanelHeader.h"
 #include "ui/theme/ThemeManager.h"
 #include "core/LayerBrick.h"
+#include "core/Ids.h"
 #include "core/Map.h"
+#include "parts/BrickPlacement.h"
 #include "parts/PartsLibrary.h"
 #include "rendering/SceneBuilder.h"
 #include "saveload/BbmReader.h"
@@ -155,6 +157,93 @@ protected:
     parts::PartsLibrary parts_;
     std::unique_ptr<ui::MapView> view_;
 };
+
+namespace {
+
+// Where the run's last brick's free rail end is drawn now (its item), studs.
+QPointF drawnEnd(ui::MapView& v, const QString& guid, QPointF local) {
+    for (QGraphicsItem* it : v.scene()->items())
+        if (ui::detail::isBrickItem(it) && it->data(ui::detail::kBrickDataGuid).toString() == guid)
+            return it->mapToScene(local * rendering::SceneBuilder::kPixelsPerStud) / rendering::SceneBuilder::kPixelsPerStud;
+    return {};
+}
+
+bool handleNear(ui::MapView& v, QPointF studs) {
+    for (const QPointF& h : v.bendHandlePositions())
+        if (QLineF(h, studs).length() < 0.05) return true;
+    return false;
+}
+
+}  // namespace
+
+TEST_F(TouchTest, BendHandlesFollowTheEndsAndAFingerOnOneBendsTheRun) {
+    if (!parts_.metadata(QStringLiteral("flex.group")))
+        GTEST_SKIP() << "the BlueBrickParts library isn't checked out (run git submodule update --init)";
+    ui::TouchMode::instance().setActive(true);
+    auto map = std::make_unique<core::Map>();
+    auto layer = std::make_unique<core::LayerBrick>();
+    layer->guid = core::newBbmId();
+    layer->name = QStringLiteral("Tracks");
+    map->layers().push_back(std::move(layer));
+    view_->loadMap(std::move(map));
+    view_->setTransform(QTransform::fromScale(1.0, 1.0));
+    const double px = rendering::SceneBuilder::kPixelsPerStud;
+    view_->centerOn(QPointF(4, 0) * px);
+    // Two flex track sets end to end.
+    view_->addPartAtScenePos(QStringLiteral("flex.group"), QPointF(0, 0));
+    view_->addPartAtScenePos(QStringLiteral("flex.group"), QPointF(4, 0) * px);
+    const auto& L = static_cast<const core::LayerBrick&>(*view_->currentMap()->layers().front());
+    ASSERT_EQ(L.bricks.size(), 4u);
+    const QString last = L.bricks[3].guid;
+    const QPointF rail(1.25, 0);  // the male half's rail end, from its sprite centre
+    QWidget* vp = view_->viewport();
+
+    // A tap picks the second set: a handle on each free end of the run.
+    tap(vp, view_->mapFromScene(QPointF(4, 0) * px));
+    ASSERT_EQ(view_->bendHandlePositions().size(), 2u);
+    EXPECT_TRUE(handleNear(*view_, drawnEnd(*view_, last, rail)));
+
+    // A finger moves the set by its middle: the end's handle goes with it,
+    // frame by frame, before the move is committed.
+    const QPoint from = view_->mapFromScene(QPointF(4, 0) * px);
+    const QPointF committed = drawnEnd(*view_, last, rail);
+    QTest::touchEvent(vp, touchScreen()).press(0, from);
+    for (int i = 1; i <= 6; ++i) {
+        QTest::touchEvent(vp, touchScreen()).move(0, from + QPoint(4 * i, 9 * i));
+        const QPointF now = drawnEnd(*view_, last, rail);
+        EXPECT_TRUE(handleNear(*view_, now)) << "frame " << i;
+        if (i == 6) {
+            EXPECT_GT(QLineF(now, committed).length(), 1.0) << "the set really moved";
+        }
+    }
+    QTest::touchEvent(vp, touchScreen()).release(0, from + QPoint(24, 54));
+    EXPECT_TRUE(handleNear(*view_, drawnEnd(*view_, last, rail))) << "after the move";
+    // A finger on the set itself, 2 studs from its end, moved the set: the
+    // handle only takes a finger off the parts beyond its ring.
+    EXPECT_NE(view_->undoStack()->undoText(), QStringLiteral("Bend flex track"));
+    EXPECT_EQ(L.bricks[3].orientation, 0.0f);
+    // Undo: back, and so is the handle.
+    view_->undoStack()->undo();
+    EXPECT_TRUE(handleNear(*view_, committed));
+
+    // A finger just off the end, on the handle but not on the part, bends
+    // the run (it used to pan the map).
+    view_->scene()->clearSelection();
+    tap(vp, view_->mapFromScene(QPointF(4, 0) * px));
+    ASSERT_EQ(view_->bendHandlePositions().size(), 2u);
+    // Past the part and its 13 px connection dot, inside the 22 px handle.
+    const QPoint end = view_->mapFromScene(committed * px) + QPoint(18, 0);
+    ASSERT_GE(view_->bendHandleAt(end), 0);
+    QGraphicsItem* under = view_->itemAt(end);
+    while (under && under->parentItem()) under = under->parentItem();
+    ASSERT_FALSE(under && ui::detail::isBrickItem(under)) << "the point must be off the part";
+    const QTransform before = view_->viewportTransform();
+    const float turnBefore = L.bricks[3].orientation;
+    touchDrag(vp, end, end + QPoint(-10, -40));
+    EXPECT_EQ(view_->viewportTransform(), before) << "the map didn't pan";
+    EXPECT_EQ(view_->undoStack()->undoText(), QStringLiteral("Bend flex track"));
+    EXPECT_NE(L.bricks[3].orientation, turnBefore);
+}
 
 TEST_F(TouchTest, PinchZoomsAroundTheFingers) {
     QWidget* vp = view_->viewport();

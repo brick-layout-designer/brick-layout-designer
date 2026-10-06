@@ -264,7 +264,8 @@ bool MapView::handleTouch(QTouchEvent* e) {
                                       || isLabelItem(under) || isVenueItem(under));
         const bool selectTool = tool_ == Tool::Select;
         const bool asMouse = !selectTool
-            || (armedPart_.isEmpty() && (onItem || rulerEndpointAt(mapToScene(vp), false) || wouldDragGridOrigin(vp)));
+            || (armedPart_.isEmpty() && (onItem || bendHandleAt(vp) >= 0 || rulerEndpointAt(mapToScene(vp), false)
+                                         || wouldDragGridOrigin(vp)));
         if (asMouse) {
             touchState_ = TouchState::Press;
             sendTouchMouse(QEvent::MouseButtonPress, touchStart_);
