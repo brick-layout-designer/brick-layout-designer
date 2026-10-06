@@ -41,6 +41,11 @@ public:
     static bool choose(QWidget* parent, const core::Map& map, const QString& moduleName,
                        std::vector<edit::ImportBbmAsModuleCommand::LayerBatch>& batches);
 
+    // Saving a module to this computer (no server, so no Save dialog): with
+    // parts on two or more sheets, says "This module uses 2 sheets: …" and
+    // offers "Put everything on one sheet". False on Cancel.
+    static bool askModuleSheets(QWidget* parent, core::Map& module);
+
 private:
     std::vector<edit::UnmatchedSheet> unmatched_;
     std::vector<QComboBox*> choices_;

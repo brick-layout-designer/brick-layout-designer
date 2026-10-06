@@ -26,6 +26,7 @@
 #include <QGraphicsRectItem>
 #include <QGraphicsScene>
 #include <QListWidget>
+#include <QMessageBox>
 #include <QPen>
 #include <QPushButton>
 #include <QTest>
@@ -311,4 +312,44 @@ TEST_F(ModuleSheetsView, AHiddenSheetDashesTheFrameAndEditModuleCanShowIt) {
     ASSERT_NE(frame(), nullptr);
     EXPECT_FALSE(frame()->data(rendering::kModulePartlyHiddenRole).toBool());
     EXPECT_FALSE(view_->moduleEditBar()->sheetsHint().contains(QStringLiteral("hidden")));
+}
+
+TEST(ModuleSheetsSave, SavingOnThisComputerAsksAboutTwoOrMoreSheets) {
+    const auto twoSheets = [] {
+        core::Map m;
+        m.layers().push_back(sheet(QStringLiteral("a"), QStringLiteral("Track"), { brickAt(QStringLiteral("1"), 0) }));
+        m.layers().push_back(sheet(QStringLiteral("b"), QStringLiteral("Buildings"), { brickAt(QStringLiteral("2"), 0), brickAt(QStringLiteral("3"), 4) }));
+        return m;
+    };
+    QString asked;
+    const auto answer = [&](const char* button) {
+        QTimer::singleShot(0, [&asked, button] {
+            auto* box = qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
+            if (!box) return;
+            asked = box->text();
+            if (auto* b = box->findChild<QPushButton*>(QLatin1String(button))) b->click();
+            else box->reject();
+        });
+    };
+    core::Map keep = twoSheets();
+    answer("moduleSheetsKeep");
+    EXPECT_TRUE(ui::SheetChoiceDialog::askModuleSheets(nullptr, keep));
+    EXPECT_EQ(asked, QStringLiteral("This module uses 2 sheets: Track, Buildings."));
+    EXPECT_EQ(keep.layers().size(), 2u);
+    core::Map one = twoSheets();
+    answer("moduleSheetsOne");
+    EXPECT_TRUE(ui::SheetChoiceDialog::askModuleSheets(nullptr, one));
+    ASSERT_EQ(one.layers().size(), 1u);
+    EXPECT_EQ(one.layers()[0]->name, QStringLiteral("Buildings"));
+    core::Map cancel = twoSheets();
+    answer("none");
+    EXPECT_FALSE(ui::SheetChoiceDialog::askModuleSheets(nullptr, cancel));
+    // One sheet: nothing to ask.
+    core::Map single;
+    single.layers().push_back(sheet(QStringLiteral("a"), QStringLiteral("Track"), { brickAt(QStringLiteral("1"), 0) }));
+    asked.clear();
+    answer("moduleSheetsOne");
+    EXPECT_TRUE(ui::SheetChoiceDialog::askModuleSheets(nullptr, single));
+    QTest::qWait(10);
+    EXPECT_TRUE(asked.isEmpty());
 }

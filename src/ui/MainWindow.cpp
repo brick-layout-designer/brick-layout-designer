@@ -978,6 +978,7 @@ void MainWindow::onSaveSelectionAsModule() {
         saveModuleToServer(module, static_cast<int>(picks.size()));
         return;
     }
+    if (!SheetChoiceDialog::askModuleSheets(this, module)) return;
     saveModuleLocally(module, static_cast<int>(picks.size()));
 }
 

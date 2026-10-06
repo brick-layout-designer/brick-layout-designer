@@ -7,6 +7,7 @@
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QMessageBox>
 #include <QPushButton>
 #include <QVBoxLayout>
 
@@ -114,6 +115,25 @@ bool SheetChoiceDialog::choose(QWidget* parent, const core::Map& map, const QStr
     if (d.exec() != QDialog::Accepted) return false;
     for (const auto& u : unmatched) edit::sendSheetTo(batches, u.name, d.targetFor(u.name));
     return true;
+}
+
+bool SheetChoiceDialog::askModuleSheets(QWidget* parent, core::Map& module) {
+    const QStringList names = edit::moduleSheetNames(module);
+    if (names.size() < 2) return true;
+    QMessageBox box(QMessageBox::Question, tr("Save module"),
+                    tr("This module uses %1 sheets: %2.").arg(names.size()).arg(names.join(QStringLiteral(", "))), QMessageBox::Cancel,
+                    parent);
+    box.setObjectName(QStringLiteral("moduleSheetsQuestion"));
+    box.setInformativeText(tr("When you add it to a layout, each sheet’s parts go on the layout’s sheet with the same "
+                              "name. If there isn’t one, you choose where they go."));
+    QPushButton* keep = box.addButton(tr("Keep the sheets"), QMessageBox::AcceptRole);
+    QPushButton* one = box.addButton(tr("Put everything on one sheet"), QMessageBox::AcceptRole);
+    keep->setObjectName(QStringLiteral("moduleSheetsKeep"));
+    one->setObjectName(QStringLiteral("moduleSheetsOne"));
+    box.setDefaultButton(keep);
+    box.exec();
+    if (box.clickedButton() == one) edit::putOnOneSheet(module);
+    return box.clickedButton() == keep || box.clickedButton() == one;
 }
 
 }  // namespace bld::ui
