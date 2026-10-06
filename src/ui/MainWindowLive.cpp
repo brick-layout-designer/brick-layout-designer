@@ -580,6 +580,13 @@ void MainWindow::onLiveReloaded() {
     if (!liveLayoutSeen_ && live_->active() && mapView_->currentMap()) {
         liveAskedParts_ |= sync::partNumbersIn(*mapView_->currentMap());
         liveLayoutSeen_ = true;
+        // Sets kept as modules or as loose halves become sets, as when a
+        // file opens; the change goes to the server like any edit (after this
+        // reload, not inside it). Once they are groups, nothing is found again.
+        if (!live_->readOnly())
+            QTimer::singleShot(0, this, [this] {
+                if (live_->active()) makeSetsOfSetModules();
+            });
     }
     layerPanel_->setMap(mapView_->currentMap(), mapView_->builder());
     modulesPanel_->setMap(mapView_->currentMap());

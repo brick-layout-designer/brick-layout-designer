@@ -9,6 +9,7 @@
 
 #include <QHash>
 #include <QPointF>
+#include <QSet>
 #include <QString>
 #include <QUndoCommand>
 
@@ -62,8 +63,16 @@ struct SetModule {
 // (its key or a description); unpinned, with the default look.
 std::vector<SetModule> findSetModules(const core::Map& map, parts::PartsLibrary& lib);
 
-// Turns those modules into sets (removes the modules, adds the groups) in
-// one undo step.
+// Sets used whole (<CanUngroup>false, joined by hinges: flex track) whose
+// parts lie loose on a brick layer, in no group: the halves of a flex track
+// that older builds, or a set copied before sets were groups, left apart. Each
+// is a SetModule with no moduleId. Parts in `skip` (already being made a set)
+// are left alone. Parts already in a group never are, so it can't run twice.
+std::vector<SetModule> findLooseSets(const core::Map& map, parts::PartsLibrary& lib,
+                                     const QSet<QString>& skip = {});
+
+// Turns those modules (and loose sets) into sets (removes the modules, adds
+// the groups) in one undo step.
 QUndoCommand* makeSetsCommand(core::Map& map, const std::vector<SetModule>& sets);
 
 }  // namespace bld::edit

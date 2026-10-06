@@ -236,3 +236,61 @@ TEST_F(SetsTest, ModulesThatAreNotExactlyASetStayModules) {
     ASSERT_EQ(found.size(), 1u);
     EXPECT_EQ(found[0].moduleId, map_.sidecar.modules[0].id);
 }
+
+TEST_F(SetsTest, LooseFlexHalvesStillJoinedAtTheirHingeBecomeSets) {
+    // What layouts made before sets were groups hold: the halves loose, in no
+    // group and no module (Aaron's could be pulled apart, one half alone).
+    const auto placeLoose = [&](QPointF at, double angle) {
+        auto set = edit::expandSet(lib_, QStringLiteral("flex.group"), at, angle);
+        for (auto& b : set.bricks) {
+            b.myGroupId.clear();
+            layer().bricks.push_back(b);
+        }
+    };
+    placeLoose({ 3, 4 }, 0);
+    placeLoose({ 30, 4 }, 90);
+    // Bent at the hinge, as a flex move leaves it.
+    placeLoose({ 60, 4 }, 0);
+    {
+        auto& female = layer().bricks[4];
+        auto& male = layer().bricks[5];
+        const QPointF hinge = parts::placement::connectionWorld(female, 1, lib_);
+        male.orientation = 9.0f;
+        parts::placement::placeByConnection(male, 1, hinge, lib_);
+    }
+    // A half alone, and a pair pulled apart: they stay loose.
+    placeLoose({ 90, 4 }, 0);
+    layer().bricks.pop_back();
+    placeLoose({ 120, 4 }, 0);
+    layer().bricks.back().displayArea.translate(0.5, 0);
+    // A set that is already a set: left as it is.
+    place(QStringLiteral("flex.group"), { 150, 4 });
+    edit::rebuildConnectivity(map_, lib_);
+
+    const auto found = edit::findLooseSets(map_, lib_);
+    ASSERT_EQ(found.size(), 3u);
+    for (const auto& s : found) EXPECT_TRUE(s.moduleId.isEmpty());
+    stack_.push(edit::makeSetsCommand(map_, found));
+    ASSERT_EQ(layer().groups.size(), 4u);
+    for (size_t i = 0; i < 6; ++i) EXPECT_FALSE(layer().bricks[i].myGroupId.isEmpty()) << i;
+    EXPECT_EQ(layer().bricks[0].myGroupId, layer().bricks[1].myGroupId);
+    EXPECT_EQ(layer().bricks[4].myGroupId, layer().bricks[5].myGroupId);
+    EXPECT_NE(layer().bricks[0].myGroupId, layer().bricks[2].myGroupId);
+    for (size_t i = 6; i < 9; ++i) EXPECT_TRUE(layer().bricks[i].myGroupId.isEmpty()) << i;
+    // Run again (another app, or the next open): nothing more to do.
+    EXPECT_TRUE(edit::findLooseSets(map_, lib_).empty());
+    stack_.undo();
+    EXPECT_EQ(layer().groups.size(), 1u);
+    for (size_t i = 0; i < 9; ++i) EXPECT_TRUE(layer().bricks[i].myGroupId.isEmpty()) << i;
+}
+
+TEST_F(SetsTest, LooseHalvesAlreadyBecomingASetFromTheirModuleAreLeftToIt) {
+    placeAsModule(QStringLiteral("flex.group"), { 3, 4 }, QStringLiteral("Flex Track"));
+    const auto modules = edit::findSetModules(map_, lib_);
+    ASSERT_EQ(modules.size(), 1u);
+    QSet<QString> taken;
+    for (auto it = modules[0].parentOf.constBegin(); it != modules[0].parentOf.constEnd(); ++it)
+        taken.insert(it.key());
+    EXPECT_TRUE(edit::findLooseSets(map_, lib_, taken).empty());
+    EXPECT_EQ(edit::findLooseSets(map_, lib_).size(), 1u);
+}
