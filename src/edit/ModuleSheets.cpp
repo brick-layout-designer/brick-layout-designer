@@ -86,9 +86,9 @@ std::vector<core::LayerBrick*> sheetsWithParts(core::Map& module) {
     return out;
 }
 core::LayerBrick* mostParts(const std::vector<core::LayerBrick*>& sheets) {
-    core::LayerBrick* best = sheets.empty() ? nullptr : sheets.front();
+    core::LayerBrick* best = nullptr;
     for (auto* s : sheets)
-        if (s->bricks.size() > best->bricks.size()) best = s;
+        if (!best || s->bricks.size() > best->bricks.size()) best = s;
     return best;
 }
 }  // namespace
