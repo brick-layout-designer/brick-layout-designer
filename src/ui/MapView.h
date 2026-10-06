@@ -457,10 +457,16 @@ private:
         int layer = -1;
         QString guid;
         int connection = -1;
-        QPointF studs;
+        QPointF studs;         // where the end is in the map (committed)
+        QPointF local;         // the connection on its brick, studs from the sprite centre
         QSet<QString> run;
     };
     std::vector<BendHandle> bendHandles_;
+    // The handles' bricks' scene items: a handle is drawn and grabbed where
+    // its brick's item is now, so it follows a drag, a turn or a bend
+    // before it's committed. Cleared before the scene is rebuilt.
+    QHash<QString, QGraphicsItem*> bendItems_;
+    QPointF bendHandleScene(const BendHandle& h) const;
     bool flexFromHandle_ = false;
     bool overBendHandle_ = false;
     void refreshBendHandles();
@@ -475,13 +481,8 @@ private:
     bool startBendFromHandle(int index);
     void paintBendHandles(QPainter* painter) const;
 public:
-    // The bend handles now (tests): where each sits, in studs.
-    std::vector<QPointF> bendHandlePositions() const {
-        std::vector<QPointF> out;
-        out.reserve(bendHandles_.size());
-        for (const auto& h : bendHandles_) out.push_back(h.studs);
-        return out;
-    }
+    // The bend handles now (tests): where each is drawn and grabbed, in studs.
+    std::vector<QPointF> bendHandlePositions() const;
 private:
     void updateFlexItems();
     void finishFlexMove();

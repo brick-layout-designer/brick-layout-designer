@@ -276,6 +276,10 @@ void MapView::loadMap(std::unique_ptr<core::Map> map) {
     dragStart_.clear();
     rulerDragStart_.clear();
     labelDragStart_.clear();
+    // The handles point at items the rebuild deletes; the selection's
+    // return (selectionChanged) puts them back.
+    bendHandles_.clear();
+    bendItems_.clear();
     flex_.reset();
     flexItems_.clear();
     liveSnapActive_ = false; liveSnapMovingScene_.reset();
@@ -2079,9 +2083,11 @@ void MapView::bendFlexTo(QPointF mouseStuds, bool final) {
 }
 
 void MapView::refreshBendHandles() {
+    if (flex_) return;  // the handles follow the bend; they're redone after it
     const bool had = !bendHandles_.empty();
     bendHandles_.clear();
-    if (!map_ || flex_) { if (had) viewport()->update(); return; }
+    bendItems_.clear();
+    if (!map_) { if (had) viewport()->update(); return; }
     QHash<int, QSet<QString>> selected;
     for (QGraphicsItem* it : scene()->selectedItems())
         if (isBrickItem(it)) selected[it->data(kBrickDataLayerIndex).toInt()].insert(it->data(kBrickDataGuid).toString());
@@ -2094,7 +2100,26 @@ void MapView::refreshBendHandles() {
         const auto ends = edit::flexRunEnds(static_cast<const core::LayerBrick&>(*L), it.value(), parts_, &run);
         // A pinned module (not the one being edited) never bends.
         if (ends.empty() || core::pinnedAmong(run, map_->sidecar.modules, editingModuleId_)) continue;
-        for (const auto& end : ends) bendHandles_.push_back({ li, end.guid, end.connection, end.world, run });
+        const auto& layer = static_cast<const core::LayerBrick&>(*L);
+        for (const auto& end : ends) {
+            QPointF local;
+            for (const auto& b : layer.bricks) {
+                if (b.guid != end.guid) continue;
+                if (const auto meta = parts_.metadata(b.partNumber); meta && end.connection < meta->connections.size())
+                    local = meta->connections[end.connection].position;
+                break;
+            }
+            bendHandles_.push_back({ li, end.guid, end.connection, end.world, local, run });
+        }
+    }
+    if (!bendHandles_.empty()) {
+        QSet<QString> wanted;
+        for (const auto& h : bendHandles_) wanted.insert(h.guid);
+        for (QGraphicsItem* item : scene()->items()) {
+            if (!isBrickItem(item)) continue;
+            const QString guid = item->data(kBrickDataGuid).toString();
+            if (wanted.contains(guid)) bendItems_.insert(guid, item);
+        }
     }
     if (!bendHandles_.empty() && !had) {
         const QString key = QStringLiteral("hints/bendHandle");
@@ -2108,7 +2133,9 @@ void MapView::refreshBendHandles() {
 
 double MapView::bendHandleScreenRadius(bool hit) const {
     // A fixed size on screen at every zoom: a 9 px ring for the mouse, 12 px
-    // under a finger; grabbed within 12 px, or the 44 px touch target.
+    // under a finger. It grabs within 12 px; a finger also within 22 px (a
+    // 44 px target) where it isn't on a part, so a finger on a short flex
+    // set still moves the set.
     const bool touch = TouchMode::instance().active();
     if (hit) return touch ? 22.0 : 12.0;
     return touch ? 12.0 : 9.0;
@@ -2118,24 +2145,47 @@ double MapView::bendHandleRadiusScenePx(bool hit) const {
     return bendHandleScreenRadius(hit) / std::max(1e-6, transform().m11());
 }
 
+QPointF MapView::bendHandleScene(const BendHandle& h) const {
+    const double px = rendering::SceneBuilder::kPixelsPerStud;
+    // The connection dots are children of the brick's item at these local
+    // coordinates, so this is where the end is drawn now.
+    if (QGraphicsItem* item = bendItems_.value(h.guid)) return item->mapToScene(h.local * px);
+    return h.studs * px;
+}
+
+std::vector<QPointF> MapView::bendHandlePositions() const {
+    std::vector<QPointF> out;
+    out.reserve(bendHandles_.size());
+    for (const auto& h : bendHandles_) out.push_back(bendHandleScene(h) / rendering::SceneBuilder::kPixelsPerStud);
+    return out;
+}
+
 int MapView::bendHandleAt(QPoint viewPos) const {
     if (bendHandles_.empty()) return -1;
     const QPointF scenePos = mapToScene(viewPos);
-    const double px = rendering::SceneBuilder::kPixelsPerStud;
-    const double r = bendHandleRadiusScenePx(true);
+    const double scale = std::max(1e-6, transform().m11());
+    const double sure = 12.0 / scale;               // on the ring: always the handle
+    const double reach = bendHandleRadiusScenePx(true);  // a finger's 44 px target, off the parts
     int best = -1;
-    double bestDist = r * r;
+    double bestDist = std::numeric_limits<double>::max();
     for (int i = 0; i < static_cast<int>(bendHandles_.size()); ++i) {
-        const QPointF d = bendHandles_[i].studs * px - scenePos;
-        const double dd = QPointF::dotProduct(d, d);
-        if (dd <= bestDist) { bestDist = dd; best = i; }
+        const QPointF d = bendHandleScene(bendHandles_[i]) - scenePos;
+        const double dist = std::hypot(d.x(), d.y());
+        if (dist < bestDist) { bestDist = dist; best = i; }
     }
-    return best;
+    if (best < 0 || bestDist > reach) return -1;
+    if (bestDist <= sure) return best;
+    // Between the ring and the target's edge: the handle only off the parts.
+    QGraphicsItem* under = itemAt(viewPos);
+    while (under && under->parentItem()) under = under->parentItem();
+    return under && isBrickItem(under) ? -1 : best;
 }
 
 bool MapView::startBendFromHandle(int index) {
     const BendHandle h = bendHandles_[index];
     auto* L = map_->layers()[h.layer].get();
+    // The pointer grabs the end where it's drawn (the committed place, as
+    // nothing else moves the map while a handle is grabbed).
     auto flex = edit::FlexMove::start(static_cast<core::LayerBrick&>(*L), h.run, h.guid, h.studs, parts_, h.connection);
     if (!flex) return false;
     flex_ = std::move(flex);
@@ -2152,17 +2202,18 @@ bool MapView::startBendFromHandle(int index) {
         const QString guid = it->data(kBrickDataGuid).toString();
         if (chain.contains(guid)) flexItems_.insert(guid, it);
     }
-    bendHandles_.clear();  // the end follows the pointer while it bends
+    // The handles stay, following the run's ends as it bends (its items).
+    for (const auto& handle : bendHandles_)
+        if (QGraphicsItem* item = flexItems_.value(handle.guid)) bendItems_.insert(handle.guid, item);
     viewport()->update();
     return true;
 }
 
 void MapView::paintBendHandles(QPainter* painter) const {
-    if (flex_) {
+    if (flex_ && !flex_->hingesAtLimit().empty()) {
         // While bending: each joint at its hinge limit (10 degrees for flex
         // track) gets an amber ring, so it's clear why the end stops.
         const auto limits = flex_->hingesAtLimit();
-        if (limits.empty()) return;
         const double px = rendering::SceneBuilder::kPixelsPerStud;
         const double r = bendHandleRadiusScenePx() * 0.6;
         painter->save();
@@ -2174,15 +2225,13 @@ void MapView::paintBendHandles(QPainter* painter) const {
         painter->setBrush(QColor(245, 158, 11, 90));
         for (const QPointF& p : limits) painter->drawEllipse(p * px, r, r);
         painter->restore();
-        return;
     }
     if (bendHandles_.empty()) return;
-    const double px = rendering::SceneBuilder::kPixelsPerStud;
     const double r = bendHandleRadiusScenePx();
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing, true);
     for (const auto& h : bendHandles_) {
-        const QPointF c = h.studs * px;
+        const QPointF c = bendHandleScene(h);
         QPen ring(QColor(255, 255, 255));
         ring.setCosmetic(true);
         ring.setWidthF(2.0);
