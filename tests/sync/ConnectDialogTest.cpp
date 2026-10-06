@@ -468,6 +468,18 @@ TEST(ConnectDialog, PublishesALayoutPersonallyOrToAnOrganisation) {
     ASSERT_TRUE(waitFor([&] { return owner->count() == 2; }));
     EXPECT_EQ(owner->itemText(1), QStringLiteral("Train Club"));
     owner->setCurrentIndex(1);
+    // Into a club: asked first. Cancel publishes nothing.
+    QStringList asked;
+    bool answer = false;
+    h.dialog.setConfirmSaveToClub([&](const QString& club) {
+        asked << club;
+        return answer;
+    });
+    const int before = static_cast<int>(h.http.requests.size());
+    h.dialog.findChild<QPushButton*>(QStringLiteral("publish"))->click();
+    EXPECT_EQ(asked, QStringList{ QStringLiteral("Train Club") });
+    EXPECT_FALSE(waitFor([&] { return static_cast<int>(h.http.requests.size()) > before; }, 300));
+    answer = true;
     h.dialog.findChild<QPushButton*>(QStringLiteral("publish"))->click();
     ASSERT_TRUE(waitFor([&] { return h.dialog.QDialog::result() == QDialog::Accepted; }));
     const auto body = QJsonDocument::fromJson(h.http.requests.back().body).object();
@@ -502,6 +514,7 @@ TEST(ConnectDialog, PublishesToAClubYouManage) {
     EXPECT_EQ(owner->itemText(1), QStringLiteral("Rail Club"));
     EXPECT_EQ(owner->itemText(2), QStringLiteral("Town Club"));
     owner->setCurrentIndex(1);
+    h.dialog.setConfirmSaveToClub([](const QString&) { return true; });
     h.dialog.findChild<QPushButton*>(QStringLiteral("publish"))->click();
     ASSERT_TRUE(waitFor([&] { return h.dialog.QDialog::result() == QDialog::Accepted; }));
     const auto body = QJsonDocument::fromJson(h.http.requests.back().body).object();
@@ -748,4 +761,107 @@ TEST(ConnectDialog, DeletesAVenueAndSaysWhyNot) {
     EXPECT_EQ(h.http.requests.back().path, QByteArray("/api/venues/V1"));
     EXPECT_TRUE(del->isEnabled());  // can try again
     EXPECT_EQ(h.list()->topLevelItemCount(), 1);
+}
+
+// A club's layout or venue back to its author, from the ⋯ button: the
+// author takes it back, a club's runner gives it back; the Owner column
+// says who made it.
+namespace {
+QJsonObject credited(QJsonObject item, const char* by, bool take, bool give) {
+    item.insert(QStringLiteral("credit"),
+                QJsonObject{ { QStringLiteral("by"), QString::fromUtf8(by) },
+                             { QStringLiteral("authorName"), QStringLiteral("Sam") },
+                             { QStringLiteral("club"), QStringLiteral("Train Club") },
+                             { QStringLiteral("canTakeBack"), take },
+                             { QStringLiteral("canGiveBack"), give } });
+    return item;
+}
+} // namespace
+
+TEST(ConnectDialog, TakesALayoutBackAfterAskingAndShowsWhoMadeEach) {
+    Harness h;
+    h.tokens.save(h.http.base(), QStringLiteral("bld_pat_saved"));
+    QJsonObject club = credited(layout("L1", "Show 2026", "editor", "Train Club"), "you", true, false);
+    club.insert(QStringLiteral("ownerOrgSlug"), QStringLiteral("club"));
+    const QJsonObject mine = layout("L2", "Home", "owner");
+    h.http.reply("/api/layouts", 200, { { QStringLiteral("layouts"), QJsonArray{ club, mine } } });
+    h.http.reply("/api/layouts/L1/take-back", 200,
+                 { { QStringLiteral("ok"), true }, { QStringLiteral("keptCopyId"), QStringLiteral("L9") } });
+    h.http.reply("/api/layouts", 200, { { QStringLiteral("layouts"), QJsonArray{ mine } } });
+    QStringList asked;
+    bool answer = false;
+    h.dialog.setConfirmReturn([&](const QString& name, const Credit& c, bool give) {
+        asked << name;
+        EXPECT_FALSE(give);
+        EXPECT_EQ(c.club, QStringLiteral("Train Club"));
+        return answer;
+    });
+    h.dialog.connectToServer();
+    ASSERT_TRUE(waitFor([&] { return h.listed(); }));
+    auto* show = h.list()->findItems(QStringLiteral("Show 2026"), Qt::MatchExactly).value(0);
+    EXPECT_EQ(show->text(1), QStringLiteral("by you · in Train Club"));
+    EXPECT_EQ(h.list()->findItems(QStringLiteral("Home"), Qt::MatchExactly).value(0)->text(1),
+              QStringLiteral("Me"));
+    auto* more = h.dialog.moreButton();
+    // Nothing to take back from your own layout.
+    h.list()->setCurrentItem(h.list()->findItems(QStringLiteral("Home"), Qt::MatchExactly).value(0));
+    EXPECT_FALSE(more->isEnabled());
+    h.list()->setCurrentItem(show);
+    ASSERT_TRUE(more->isEnabled());
+    const auto posts = [&] {
+        int n = 0;
+        for (const auto& r : h.http.requests)
+            n += r.path.endsWith("/take-back") || r.path.endsWith("/give-back");
+        return n;
+    };
+    h.dialog.returnSelected(true); // not a runner: no give back
+    h.dialog.returnSelected(false);
+    EXPECT_EQ(asked, QStringList{ QStringLiteral("Show 2026") });
+    EXPECT_FALSE(waitFor([&] { return posts() > 0; }, 300));
+    answer = true;
+    h.dialog.returnSelected(false);
+    ASSERT_TRUE(waitFor([&] { return h.list()->topLevelItemCount() == 1; }));
+    EXPECT_EQ(posts(), 1);
+    const auto it = std::find_if(h.http.requests.begin(), h.http.requests.end(),
+                                 [](const auto& r) { return r.path.endsWith("/take-back"); });
+    EXPECT_EQ(it->method, QByteArray("POST"));
+    EXPECT_EQ(it->path, QByteArray("/api/layouts/L1/take-back"));
+    EXPECT_EQ(it->authorization, QByteArray("Bearer bld_pat_saved"));
+    EXPECT_TRUE(h.message().contains(QStringLiteral("the club kept its own copy")));
+}
+
+TEST(ConnectDialog, GivesAVenueBackToItsAuthorAndSaysWhyNot) {
+    Harness h(ConnectDialog::Purpose::DownloadVenues);
+    h.tokens.save(h.http.base(), QStringLiteral("bld_pat_saved"));
+    const QJsonObject hall =
+        credited(QJsonObject{ { QStringLiteral("id"), QStringLiteral("V1") },
+                              { QStringLiteral("name"), QStringLiteral("Hall") },
+                              { QStringLiteral("ownerOrgId"), QStringLiteral("o1") },
+                              { QStringLiteral("ownerOrgName"), QStringLiteral("Train Club") },
+                              { QStringLiteral("ownerOrgSlug"), QStringLiteral("club") } },
+                 "Sam", false, true);
+    h.http.reply("/api/venues", 200, { { QStringLiteral("venues"), QJsonArray{ hall } } });
+    h.http.reply("/api/orgs", 200, { { QStringLiteral("orgs"), QJsonArray{} } });
+    h.http.reply("/api/venues/V1/give-back", 409,
+                 { { QStringLiteral("error"), QStringLiteral("author_gone") },
+                   { QStringLiteral("message"),
+                     QStringLiteral("The person who made it no longer has an account here.") } });
+    bool gave = false;
+    h.dialog.setConfirmReturn([&](const QString&, const Credit& c, bool give) {
+        gave = give;
+        EXPECT_EQ(c.authorName, QStringLiteral("Sam"));
+        return true;
+    });
+    h.dialog.connectToServer();
+    ASSERT_TRUE(waitFor([&] { return h.listed(); }));
+    EXPECT_EQ(h.list()->topLevelItem(0)->text(1), QStringLiteral("by Sam · in Train Club"));
+    h.list()->setCurrentItem(h.list()->topLevelItem(0));
+    ASSERT_TRUE(h.dialog.moreButton()->isEnabled());
+    h.dialog.returnSelected(false); // not the author: no take back
+    EXPECT_FALSE(gave);
+    h.dialog.returnSelected(true);
+    EXPECT_TRUE(gave);
+    ASSERT_TRUE(waitFor([&] { return h.message().startsWith(QStringLiteral("Could not do that")); }));
+    EXPECT_EQ(h.http.requests.back().path, QByteArray("/api/venues/V1/give-back"));
+    EXPECT_TRUE(h.dialog.moreButton()->isEnabled()); // can try again
 }

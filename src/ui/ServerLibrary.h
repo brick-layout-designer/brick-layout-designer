@@ -154,6 +154,10 @@ public:
     // Asks for a new name / confirms deleting (tests replace them).
     std::function<QString(const sync::ServerModule&)> askName;
     std::function<bool(const sync::ServerModule&)> confirmDelete;
+    // Asks before Take back / Give back (`give`); tests answer instead.
+    std::function<bool(const sync::ServerModule&, bool give)> confirmReturn;
+    // Take a club's module back (its author), or give it back (`give`, the club's runners).
+    void giveOrTakeBack(const QString& id, bool give);
 
 private:
     QWidget* makeRow(const sync::ServerModule& m);

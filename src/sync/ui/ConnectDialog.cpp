@@ -7,6 +7,7 @@
 #include "TokenStore.h"
 #include "core/Version.h"
 #include "ui/ConfirmDialog.h"
+#include "ui/ReturnWording.h"
 #include "ui/help/HelpButton.h"
 #include "ui/help/SourceLinks.h"
 
@@ -19,6 +20,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QLocale>
+#include <QMenu>
 #include <QPushButton>
 #include <QSettings>
 #include <QSignalBlocker>
@@ -187,6 +189,35 @@ ConnectDialog::ConnectDialog(ServerApi& api, TokenStore& tokens, std::function<v
     deleteBtn_->setObjectName(QStringLiteral("deleteItem"));
     deleteBtn_->setToolTip(venues ? tr("Delete the picked venue from the server") : tr("Delete the picked layout from the server (you own it)"));
     deleteBtn_->setEnabled(false);
+    // ⋯: a club's layout or venue back to the person who made it.
+    moreBtn_ = new QPushButton(QStringLiteral("⋯"), layoutsPage);
+    moreBtn_->setObjectName(QStringLiteral("moreItem"));
+    moreBtn_->setToolTip(tr("More for the picked item"));
+    moreBtn_->setAccessibleName(tr("More for the picked item"));
+    moreBtn_->setEnabled(false);
+    auto* moreMenu = new QMenu(moreBtn_);
+    moreMenu->setToolTipsVisible(true);
+    moreBtn_->setMenu(moreMenu);
+    connect(moreMenu, &QMenu::aboutToShow, this, [this, moreMenu] {
+        moreMenu->clear();
+        const auto items = layouts_->selectedItems();
+        if (items.size() != 1) return;
+        const auto* item = items.first();
+        if (item->data(OwnerCol, Qt::UserRole + 1).toBool()) {
+            QAction* take = moreMenu->addAction(tr("Take Back to Mine…"));
+            take->setObjectName(QStringLiteral("takeBack"));
+            take->setToolTip(tr("It becomes yours again; the club keeps its own copy, credited to you."));
+            connect(take, &QAction::triggered, this, [this] { returnSelected(false); });
+        }
+        if (item->data(OwnerCol, Qt::UserRole + 2).toBool()) {
+            QAction* give = moreMenu->addAction(
+                tr("Give Back to %1…").arg(item->data(OwnerCol, Qt::UserRole + 3).toString()));
+            give->setObjectName(QStringLiteral("giveBack"));
+            give->setToolTip(tr("It goes back to the person who made it; the club keeps its own copy."));
+            connect(give, &QAction::triggered, this, [this] { returnSelected(true); });
+        }
+    });
+    bottom->addWidget(moreBtn_);
     bottom->addWidget(deleteBtn_);
     bottom->addWidget(openBtn_);
     show_ = new QComboBox(layoutsPage);
@@ -250,6 +281,21 @@ ConnectDialog::ConnectDialog(ServerApi& api, TokenStore& tokens, std::function<v
         return bld::ui::ConfirmDialog::confirmDelete(this, name, layout ? bld::ui::ConfirmDialog::layoutWording()
                                                                         : bld::ui::ConfirmDialog::venueWording());
     };
+    confirmReturn_ = [this](const QString& name, const Credit& credit, bool give) {
+        const bool venue = purpose_ == Purpose::DownloadVenues;
+        return bld::ui::ConfirmDialog::ask(
+            this, bld::ui::returnOptions(venue ? tr("venue") : tr("layout"), name, credit, give));
+    };
+    confirmSaveToClub_ = [this](const QString& club) {
+        return bld::ui::ConfirmDialog::ask(this, bld::ui::saveToClubOptions(club));
+    };
+    connect(&api_, &ServerApi::returned, this, [this] {
+        afterList_ =
+            tr("Done: “%1” went back to its author, and the club kept its own copy.").arg(returning_);
+        showMessage(afterList_);
+        returning_.clear();
+        refreshList();
+    });
     connect(&api_, &ServerApi::deleted, this, [this] {
         afterList_ = tr("Deleted “%1”").arg(deleting_);
         showMessage(afterList_);
@@ -463,6 +509,9 @@ void ConnectDialog::signInAgain() {
 void ConnectDialog::updateDeleteButton() {
     const auto items = layouts_->selectedItems();
     const bool venues = purpose_ == Purpose::DownloadVenues;
+    moreBtn_->setEnabled(returning_.isEmpty() && items.size() == 1
+                         && (items.first()->data(OwnerCol, Qt::UserRole + 1).toBool()
+                             || items.first()->data(OwnerCol, Qt::UserRole + 2).toBool()));
     deleteBtn_->setEnabled(deleting_.isEmpty() && items.size() == 1
                            && (venues || items.first()->data(AccessCol, Qt::UserRole + 1).toBool()));
 }
@@ -481,7 +530,31 @@ void ConnectDialog::deleteSelected() {
     else api_.deleteVenue(id);
 }
 
+void ConnectDialog::returnSelected(bool give) {
+    const auto items = layouts_->selectedItems();
+    if (items.size() != 1 || !returning_.isEmpty()) return;
+    const auto* item = items.first();
+    if (!item->data(OwnerCol, Qt::UserRole + (give ? 2 : 1)).toBool()) return;
+    Credit credit;
+    credit.authorName = item->data(OwnerCol, Qt::UserRole + 3).toString();
+    credit.club = item->data(OwnerCol, Qt::UserRole + 4).toString();
+    const QString name = item->text(TitleCol);
+    if (!confirmReturn_ || !confirmReturn_(name, credit, give)) return;
+    returning_ = name;
+    updateDeleteButton();
+    showMessage(give ? tr("Giving “%1” back…").arg(name) : tr("Taking “%1” back…").arg(name));
+    api_.returnToAuthor(purpose_ == Purpose::DownloadVenues ? QStringLiteral("venues")
+                                                            : QStringLiteral("layouts"),
+                        item->data(TitleCol, Qt::UserRole).toString(), give);
+}
+
 void ConnectDialog::onFailed(const QString& what, const QString& message, bool unauthorized) {
+    if (what == QLatin1String("return")) {
+        returning_.clear();
+        updateDeleteButton();
+        showMessage(tr("Could not do that: %1").arg(message));
+        return;
+    }
     if (what == QLatin1String("delete")) {
         deleting_.clear();
         updateDeleteButton();
@@ -549,6 +622,10 @@ void ConnectDialog::showOrgs(const QList<OrgEntry>& orgs) {
 void ConnectDialog::publishNow() {
     if (publishBbm_.isEmpty()) return;
     const QString title = publishTitle_->text().trimmed();
+    // Into a club: say what that means first (the club owns it, you stay its author).
+    if (!owner_->currentData().toString().isEmpty() && confirmSaveToClub_
+        && !confirmSaveToClub_(owner_->currentText()))
+        return;
     publishBtn_->setEnabled(false);
     showMessage(tr("Publishing…"));
     api_.publishLayout(title.isEmpty() ? tr("Untitled Layout") : title, publishBbm_, publishSidecar_,
@@ -577,6 +654,19 @@ void ConnectDialog::pickAgain(const QStringList& ids) {
     }
 }
 
+// The Owner column: the credit when the server sends one ("by Sam · in
+// ArkLUG"), else "Me" or the club; what Take back / Give back need rides along.
+static void setOwnerCell(QTreeWidgetItem* item, const ItemOwner& owner, const Credit& credit) {
+    const QString line = creditLine(credit);
+    item->setText(OwnerCol, line.isEmpty() ? owner.label : line);
+    item->setToolTip(OwnerCol, line.isEmpty() ? owner.label : owner.label + QStringLiteral(" — ") + line);
+    item->setData(OwnerCol, Qt::UserRole, owner.key);
+    item->setData(OwnerCol, Qt::UserRole + 1, credit.canTakeBack);
+    item->setData(OwnerCol, Qt::UserRole + 2, credit.canGiveBack);
+    item->setData(OwnerCol, Qt::UserRole + 3, credit.authorName);
+    item->setData(OwnerCol, Qt::UserRole + 4, credit.club.isEmpty() ? owner.label : credit.club);
+}
+
 void ConnectDialog::showVenues(const QList<VenueEntry>& venues) {
     const QStringList keep = pickedIds();
     layouts_->setSortingEnabled(false);
@@ -586,8 +676,7 @@ void ConnectDialog::showVenues(const QList<VenueEntry>& venues) {
         auto* item = new LayoutItem(layouts_);
         const ItemOwner owner = itemOwner(v.ownerOrgSlug, v.ownerOrgId, v.ownerOrgName);
         item->setText(TitleCol, v.name);
-        item->setText(OwnerCol, owner.label);
-        item->setData(OwnerCol, Qt::UserRole, owner.key);
+        setOwnerCell(item, owner, v.credit);
         item->setData(TitleCol, Qt::UserRole, v.id);
         if (owner.key != kShowMine) clubs.append({ owner.key, owner.label });
     }
@@ -608,8 +697,7 @@ void ConnectDialog::showLayouts(const QList<LayoutEntry>& layouts) {
         auto* item = new LayoutItem(layouts_);
         const ItemOwner owner = itemOwner(e.ownerOrgSlug, QString(), e.ownerOrgName);
         item->setText(TitleCol, e.title);
-        item->setText(OwnerCol, owner.label);
-        item->setData(OwnerCol, Qt::UserRole, owner.key);
+        setOwnerCell(item, owner, e.credit);
         if (owner.key != kShowMine) clubs.append({ owner.key, owner.label });
         item->setText(AccessCol, e.role == QLatin1String("viewer")  ? tr("View only")
                                  : e.role == QLatin1String("owner") ? tr("Owner")

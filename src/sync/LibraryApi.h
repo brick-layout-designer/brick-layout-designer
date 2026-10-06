@@ -12,6 +12,7 @@
 // said (ServerRefusal: a 403 says why). A destroyed LibraryApi never calls
 // back. The token rides in the Authorization header only.
 
+#include "Credit.h"
 #include "ServerApi.h"
 #include "ServerRefusal.h"
 
@@ -48,6 +49,7 @@ struct ServerModule {
     int latestVersion = 0;  // the newest saved version; 0: no history yet
     qint64 thumbnailAt = 0;  // when its picture was made (ms); 0: none yet
     QDateTime updatedAt;
+    Credit credit; // who made it; Take back / Give back
 
     bool canEdit() const { return role == QLatin1String("owner") || role == QLatin1String("editor"); }
     bool canDelete() const { return role == QLatin1String("owner"); }
@@ -134,6 +136,11 @@ public:
     void setModuleThumbnail(const QString& id, const QByteArray& png, std::function<void()> done, Fail failed);
     void renameModule(const QString& id, const QString& title, std::function<void()> done, Fail failed);
     void deleteModule(const QString& id, std::function<void()> done, Fail failed);
+    // A club's module (`kindPath` "modules", or "layouts", "venues", "custom-parts")
+    // back to its author: taken back by them (`give` false) or given back by
+    // the club's admins and managers. The club keeps a copy: its id.
+    void returnToAuthor(const QString& kindPath, const QString& id, bool give,
+                        std::function<void(const QString& keptCopyId)> done, Fail failed);
     // Any picture on the server (a module's thumbnail, a catalog preview).
     void picture(const QString& pathAndQuery, std::function<void(const QByteArray&)> done, Fail failed);
 

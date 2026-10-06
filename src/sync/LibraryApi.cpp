@@ -81,6 +81,7 @@ ServerModule LibraryApi::moduleFromJson(const QJsonObject& o) {
     const QJsonValue at = o.value(QLatin1String("thumbnailAt"));
     m.thumbnailAt = at.isDouble() ? static_cast<qint64>(at.toDouble()) : 0;
     m.updatedAt = timeOf(o.value(QLatin1String("updatedAt")));
+    m.credit = creditFromJson(o);
     const QJsonObject owner = o.value(QLatin1String("owner")).toObject();
     m.owner.kind = owner.value(QLatin1String("kind")).toString();
     m.owner.id = owner.value(QLatin1String("id")).toString();
@@ -189,6 +190,19 @@ void LibraryApi::deleteModule(const QString& id, std::function<void()> done, Fai
              if (done) done();
          },
          std::move(failed));
+}
+
+void LibraryApi::returnToAuthor(const QString& kindPath, const QString& id, bool give,
+                                std::function<void(const QString&)> done, Fail failed) {
+    sendJson(
+        "POST",
+        QStringLiteral("/api/%1/%2/%3")
+            .arg(kindPath, idPath(id), give ? QStringLiteral("give-back") : QStringLiteral("take-back")),
+        QJsonObject(),
+        [done = std::move(done)](const QJsonObject& o) {
+            if (done) done(o.value(QLatin1String("keptCopyId")).toString());
+        },
+        std::move(failed));
 }
 
 void LibraryApi::picture(const QString& pathAndQuery, std::function<void(const QByteArray&)> done, Fail failed) {
