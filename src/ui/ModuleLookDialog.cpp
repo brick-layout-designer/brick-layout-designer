@@ -90,8 +90,10 @@ void ModuleLookDialog::refresh() {
     title_->setText(m->name.isEmpty() ? tr("(module)") : m->name);
     showName_->setChecked(m->showName);
     same_->setChecked(core::coloursLinked(*m));
-    const QString o = core::moduleColour(*m, core::ModuleColourPart::Outline);
-    const QString n = core::moduleColour(*m, core::ModuleColourPart::Name);
+    const QString own = defaultColour ? defaultColour() : QString();
+    const QString fallback = own.isEmpty() ? core::kModuleDefaultColour : own;
+    const QString o = core::moduleColour(*m, core::ModuleColourPart::Outline, fallback);
+    const QString n = core::moduleColour(*m, core::ModuleColourPart::Name, fallback);
     outline_->setIcon(swatch(o));
     outline_->setText(o);
     name_->setIcon(swatch(n));
@@ -111,7 +113,9 @@ void ModuleLookDialog::pickColour(bool outline, const QColor& c) {
 void ModuleLookDialog::chooseColour(bool outline) {
     const auto* m = current_();
     if (!m) return;
-    const QColor start(core::moduleColour(*m, outline ? core::ModuleColourPart::Outline : core::ModuleColourPart::Name));
+    const QString own = defaultColour ? defaultColour() : QString();
+    const QColor start(core::moduleColour(*m, outline ? core::ModuleColourPart::Outline : core::ModuleColourPart::Name,
+                                          own.isEmpty() ? core::kModuleDefaultColour : own));
     const QColor c = QColorDialog::getColor(start, this, outline ? tr("Outline colour") : tr("Name colour"));
     pickColour(outline, c);
 }

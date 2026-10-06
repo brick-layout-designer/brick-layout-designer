@@ -1,6 +1,7 @@
 #include "parts/PartsLibrary.h"
 #include "rendering/SceneBuilder.h"
 #include "saveload/BbmReader.h"
+#include "saveload/SidecarIO.h"
 #include "core/Map.h"
 
 #include <QApplication>
@@ -54,6 +55,14 @@ int main(int argc, char** argv) {
     if (!result.ok()) {
         std::fprintf(stderr, "Load failed: %s\n", result.error.toUtf8().constData());
         return 2;
+    }
+
+    // Its sidecar too (modules, labels, venue), when it sits next to the
+    // file: "<file>.bld", or ".cld" as older builds named it.
+    for (const QString& sidecar : { bld::saveload::sidecarPathFor(inputPath), inputPath + QStringLiteral(".cld") }) {
+        if (!QFile::exists(sidecar)) continue;
+        bld::saveload::readSidecar(sidecar, {}, result.map->sidecar);
+        break;
     }
 
     QGraphicsScene scene;

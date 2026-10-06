@@ -19,9 +19,10 @@ inline const QString kModuleDefaultColour = QStringLiteral("#64b4ff");
 
 inline bool coloursLinked(const Module& m) { return m.sameColor; }
 
-inline QString moduleColour(const Module& m, ModuleColourPart part) {
+// The chosen colour, else `fallback` (the module's own default colour, rendering::moduleColours).
+inline QString moduleColour(const Module& m, ModuleColourPart part, const QString& fallback = kModuleDefaultColour) {
     const QString& c = part == ModuleColourPart::Outline ? m.outlineColor : m.nameColor;
-    return c.isEmpty() ? kModuleDefaultColour : c;
+    return c.isEmpty() ? fallback.toLower() : c;
 }
 
 inline bool hasCustomColours(const Module& m) {

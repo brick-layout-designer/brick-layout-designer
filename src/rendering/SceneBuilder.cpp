@@ -801,7 +801,7 @@ void SceneBuilder::rebuildFollowers(const core::Map& posed, const QSet<QString>&
     moduleAnnotationRects_.clear();
     shortenedModuleNames_.clear();
     electricItems_.clear();
-    addModuleLabels(posed);
+    addModuleLabels(posed, true);
     addElectricCircuits(posed);
 
     // Rulers fixed to a moving part: their ends follow its pivot.
