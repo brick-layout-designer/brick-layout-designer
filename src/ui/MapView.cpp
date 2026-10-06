@@ -2687,7 +2687,7 @@ std::optional<MapView::ModuleSnap> MapView::moduleSnapShift(const std::vector<co
 }
 
 bool MapView::placeModule(core::Map& loaded, const QString& name, const QString& source, QPointF scenePos,
-                          snapfeel::Session* dragSnap) {
+                          snapfeel::Session* dragSnap, const QString& libraryId, int libraryVersion) {
     if (!map_) return false;
     parts::placement::fixStaleAreas(loaded, parts_);
     // Its pictures first, with the loading card ("Loading part pictures… 3 of 12").
@@ -2768,6 +2768,7 @@ bool MapView::placeModule(core::Map& loaded, const QString& name, const QString&
 
     auto* cmd = new edit::ImportBbmAsModuleCommand(
         *map_, source, name, std::move(batches));
+    if (!libraryId.isEmpty()) cmd->setLibrary(libraryId, libraryVersion);
     const bool joins = !editingModuleId_.isEmpty();
     if (joins) undoStack_->beginMacro(tr("Insert module"));
     undoStack_->push(cmd);

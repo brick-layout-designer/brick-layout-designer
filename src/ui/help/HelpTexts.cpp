@@ -41,7 +41,9 @@ constexpr Raw kShared[] = {
       QT_TRANSLATE_NOOP("HelpTexts", "Groups of pieces kept together, so you can move or reuse them as "
                                      "one."),
       QT_TRANSLATE_NOOP("HelpTexts", "A module is like a table section: pick it to select everything in "
-                                     "it at once. Save a module to reuse it in other layouts.") },
+                                     "it at once. Make a module from the parts you picked; it belongs to this "
+                                     "layout. To use it in other layouts, choose Save to Module library… from "
+                                     "its ⋯ menu.") },
     { "panel.moduleLibrary", "",
       QT_TRANSLATE_NOOP("HelpTexts", "Module library"),
       QT_TRANSLATE_NOOP("HelpTexts", "Modules saved to your account or your club, ready to drop in."),
@@ -168,6 +170,22 @@ constexpr Raw kShared[] = {
                                      "join it, and a part dragged outside it asks whether to leave. Done, Esc or "
                                      "a click outside goes back to the whole layout. Pin in place stops the whole "
                                      "module moving, but you can still edit it.") },
+    { "module.make", "",
+      QT_TRANSLATE_NOOP("HelpTexts", "Make a module"),
+      QT_TRANSLATE_NOOP("HelpTexts", "The parts you picked become one module in this layout."),
+      QT_TRANSLATE_NOOP("HelpTexts", "A module moves as one piece, shows its name on the map and is listed in the "
+                                     "Modules panel. It stays in this layout only. To use it in other layouts "
+                                     "too, tick Also save to my Module library, or later choose Save to Module "
+                                     "library… from its ⋯ menu.") },
+    { "module.library", "",
+      QT_TRANSLATE_NOOP("HelpTexts", "Modules in the Module library"),
+      QT_TRANSLATE_NOOP("HelpTexts", "A module saved to the Module library stays linked to it."),
+      QT_TRANSLATE_NOOP("HelpTexts", "Save to Module library… puts a copy in your modules or a club’s; modules you "
+                                     "add from the Module library are linked too. After changing it in a layout, "
+                                     "Update Module library version makes that the next version, with a note on "
+                                     "what changed. When the Module library has a newer version, Update from "
+                                     "Module library brings it in where the module sits, and asks first if you "
+                                     "changed it here.") },
     { "module.sheets", "",
       QT_TRANSLATE_NOOP("HelpTexts", "Module sheets"),
       QT_TRANSLATE_NOOP("HelpTexts", "A module keeps the sheets its parts were on, like Track and Buildings."),

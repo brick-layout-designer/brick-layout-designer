@@ -385,7 +385,7 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
         modulesPanel_->setMap(mapView_->currentMap());
     });
     connect(modulesPanel_, &ModulesPanel::createModuleRequested,
-            this, &MainWindow::onCreateModuleFromSelection);
+            this, &MainWindow::onMakeModule);
     connect(modulesPanel_, &ModulesPanel::importBbmRequested,
             this, &MainWindow::onImportBbmAsModule);
 
@@ -516,179 +516,13 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
         statusBar()->showMessage(tr("Module cloned"), 3000);
     });
 
-    // Save module to the configured module library folder as its own .bbm.
-    // Matches "Save Selection as Module" but auto-targets the library folder
-    // and doesn't require re-picking members.
-    connect(modulesPanel_, &ModulesPanel::saveToLibraryRequested, this,
-            [this](const QString& id){
-        auto* map = mapView_->currentMap();
-        if (!map) return;
-        const core::Module* mod = nullptr;
-        for (const auto& m : map->sidecar.modules) if (m.id == id) { mod = &m; break; }
-        if (!mod) return;
-
-        // Build a standalone map with ONE brick layer per source layer
-        // that contributes members — preserves z-order / layer identity
-        // so re-import drops bricks onto the right layers instead of
-        // merging them all into one.
-        core::Map out;
-        out.author = map->author;
-        out.lug    = map->lug;
-        out.event  = mod->name.isEmpty() ? QStringLiteral("Module") : mod->name;
-        int total = 0;
-        for (const auto& L : map->layers()) {
-            if (!L || L->kind() != core::LayerKind::Brick) continue;
-            auto outL = std::make_unique<core::LayerBrick>();
-            outL->guid = core::newBbmId();
-            outL->name = L->name.isEmpty() ? QStringLiteral("Module") : L->name;
-            outL->transparency = L->transparency;
-            outL->visible = L->visible;
-            outL->hull = L->hull;
-            for (const auto& b : static_cast<const core::LayerBrick&>(*L).bricks) {
-                if (mod->memberIds.contains(b.guid)) outL->bricks.push_back(b);
-            }
-            if (outL->bricks.empty()) continue;
-            total += static_cast<int>(outL->bricks.size());
-            out.layers().push_back(std::move(outL));
-        }
-        if (total == 0) {
-            QMessageBox::information(this, tr("Save to Module library"),
-                tr("This module currently has no brick members."));
-            return;
-        }
-        out.nbItems = total;
-
-        // Read the current module-library folder from QSettings so we pick
-        // up any change the user just made in Preferences → Library (the
-        // ModuleLibraryPanel caches its path_ from construction time, so
-        // its libraryPath() can lag the live setting). Fall back to the
-        // panel's value, then to <AppData>/modules.
-        QString dir = QSettings().value(QStringLiteral("modules/libraryPath")).toString();
-        if (dir.isEmpty()) dir = moduleLibraryPanel_->libraryPath();
-        if (dir.isEmpty()) {
-            dir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
-                  + QStringLiteral("/modules");
-        }
-        moduleLibraryPanel_->setLibraryPath(dir);  // sync panel + persist
-        // Ensure the directory exists BEFORE we try to write into it. Show a
-        // specific error (instead of the writeBbm "no such file" one) if we
-        // can't create it — user can then fix permissions or pick another
-        // folder.
-        if (!QDir().mkpath(dir)) {
-            QMessageBox::warning(this, tr("Save to Module library"),
-                tr("Cannot create or access the module library folder:\n%1\n\n"
-                   "Pick a different folder in Preferences → Library.").arg(dir));
-            return;
-        }
-
-        // Sanitize the filename: strip characters that are invalid on
-        // Windows/macOS/Linux filesystems and any leading/trailing dots
-        // or spaces. Falls back to "Module" if the result would be empty.
-        auto sanitizeFilename = [](QString n) -> QString {
-            static const QRegularExpression bad(QStringLiteral(R"([<>:"/\\|?*\x00-\x1F])"));
-            n.replace(bad, QStringLiteral("_"));
-            while (n.startsWith(QLatin1Char('.')) || n.startsWith(QLatin1Char(' '))) n.remove(0, 1);
-            while (n.endsWith(QLatin1Char('.'))  || n.endsWith(QLatin1Char(' ')))  n.chop(1);
-            if (n.isEmpty()) n = QStringLiteral("Module");
-            return n;
-        };
-
-        bool ok = false;
-        const QString defaultName = sanitizeFilename(mod->name.isEmpty() ? tr("Module") : mod->name);
-        const QString rawName = QInputDialog::getText(
-            this, tr("Save to Module library"), tr("Module name (filename):"),
-            QLineEdit::Normal, defaultName, &ok);
-        if (!ok || rawName.isEmpty()) return;
-        const QString name = sanitizeFilename(rawName);
-        const QString target = QDir(dir).filePath(name + QStringLiteral(".bbm"));
-        if (QFile::exists(target)) {
-            const auto btn = QMessageBox::question(this, tr("Save to Module library"),
-                tr("%1 already exists. Overwrite?").arg(target));
-            if (btn != QMessageBox::Yes) return;
-        }
-
-        // Double-check the immediate parent exists (mkpath above should
-        // cover this, but be defensive — the user might have entered a name
-        // with a subfolder, or something raced).
-        QDir().mkpath(QFileInfo(target).absolutePath());
-
-        auto r = saveload::writeBbm(out, target);
-        if (!r.ok) {
-            QMessageBox::warning(this, tr("Save to Module library"),
-                tr("%1\n\nTarget path:\n%2").arg(r.error, target));
-            return;
-        }
-
-        // Update the in-memory module so Re-scan from source works from here on.
-        for (auto& m : map->sidecar.modules) {
-            if (m.id == id) {
-                m.sourceFile = target;
-                m.importedAt = QDateTime::currentDateTimeUtc();
-                break;
-            }
-        }
-        const int savedCount = out.nbItems;
-        moduleLibraryPanel_->refresh();
-        modulesPanel_->setMap(map);
-        statusBar()->showMessage(
-            tr("Saved module '%1' to the Module library (%2 parts)")
-                .arg(name).arg(savedCount), 4000);
-    });
-
-    // Re-scan: reload the module's sourceFile, replace its member bricks
-    // with fresh imports (new guids), pick up any upstream edits.
-    connect(modulesPanel_, &ModulesPanel::rescanRequested, this, [this](const QString& id){
-        auto* map = mapView_->currentMap();
-        if (!map) return;
-        const core::Module* mod = nullptr;
-        for (const auto& m : map->sidecar.modules) if (m.id == id) { mod = &m; break; }
-        if (!mod) return;
-        if (mod->sourceFile.isEmpty()) {
-            QMessageBox::information(this, tr("Re-scan module"),
-                tr("This module has no source .bbm file (it was created from a selection)."));
-            return;
-        }
-        if (!QFile::exists(mod->sourceFile)) {
-            QMessageBox::warning(this, tr("Re-scan module"),
-                tr("Source file not found:\n%1").arg(mod->sourceFile));
-            return;
-        }
-        auto res = saveload::readBbm(mod->sourceFile);
-        if (!res.ok()) {
-            QMessageBox::warning(this, tr("Re-scan module"),
-                tr("Could not read %1: %2").arg(mod->sourceFile, res.error));
-            return;
-        }
-        parts::placement::fixStaleAreas(*res.map, parts_);
-        // Find the target layer (first brick layer currently holding a member).
-        int targetLayer = -1;
-        for (int li = 0; li < static_cast<int>(map->layers().size()); ++li) {
-            auto* L = map->layers()[li].get();
-            if (!L || L->kind() != core::LayerKind::Brick) continue;
-            for (const auto& b : static_cast<const core::LayerBrick&>(*L).bricks) {
-                if (mod->memberIds.contains(b.guid)) { targetLayer = li; break; }
-            }
-            if (targetLayer >= 0) break;
-        }
-        if (targetLayer < 0) targetLayer = 0;
-        std::vector<core::Brick> fresh;
-        for (const auto& L : res.map->layers()) {
-            if (!L || L->kind() != core::LayerKind::Brick) continue;
-            for (const auto& b : static_cast<const core::LayerBrick&>(*L).bricks) {
-                core::Brick copy = b;
-                copy.guid.clear();
-                fresh.push_back(std::move(copy));
-            }
-        }
-        if (fresh.empty()) {
-            QMessageBox::information(this, tr("Re-scan module"),
-                tr("Source file has no parts sheets to import."));
-            return;
-        }
-        mapView_->undoStack()->push(new edit::RescanModuleCommand(
-            *map, targetLayer, id, std::move(fresh)));
-        modulesPanel_->setMap(map);
-    });
+    // A placed module and its library copy: Save to library…, Update library
+    // version…, Update from library (MainWindowModuleLibrary.cpp).
+    modulesPanel_->setLibraryInfo([this](const core::Module& m) { return moduleLibraryInfo(m); });
+    connect(modulesPanel_, &ModulesPanel::libraryActionRequested, this, &MainWindow::onModuleLibraryAction);
+    mapView_->setModuleLibraryInfo([this](const core::Module& m) { return moduleLibraryInfo(m); });
+    connect(mapView_, &MapView::moduleLibraryActionRequested, this, &MainWindow::onModuleLibraryAction);
+    connect(mapView_, &MapView::makeModuleRequested, this, &MainWindow::onMakeModule);
 
     setupMenus();
 
@@ -899,90 +733,7 @@ MainWindow::~MainWindow() {
 }
 
 
-void MainWindow::onCreateModuleFromSelection() {
-    auto* map = mapView_->currentMap();
-    if (!map) return;
-    std::vector<edit::CreateModuleCommand::Member> members;
-    for (QGraphicsItem* it : mapView_->scene()->selectedItems()) {
-        if (it->data(2).toString() != QStringLiteral("brick")) continue;
-        members.push_back({ it->data(0).toInt(), it->data(1).toString() });
-    }
-    if (members.empty()) {
-        QMessageBox::information(this, tr("Group as module"),
-            tr("Select one or more parts first."));
-        return;
-    }
-    bool ok = false;
-    const QString name = QInputDialog::getText(
-        this, tr("Group as module"), tr("Module name:"),
-        QLineEdit::Normal, tr("New Module"), &ok);
-    if (!ok || name.isEmpty()) return;
-    mapView_->undoStack()->push(new edit::CreateModuleCommand(*map, name, std::move(members)));
-    modulesPanel_->setMap(map);
-    statusBar()->showMessage(tr("Grouped as a module"), 3000);
-}
-
-void MainWindow::onSaveSelectionAsModule() {
-    auto* map = mapView_->currentMap();
-    if (!map) return;
-    // Gather selected bricks BY source layer so the written .bbm has one
-    // brick layer per source layer. Re-importing preserves the z-order
-    // and layer membership of every piece — otherwise tracks end up on
-    // top of scenery, etc.
-    struct PickedBrick { int layerIndex; core::Brick brick; };
-    std::vector<PickedBrick> picks;
-    for (QGraphicsItem* it : mapView_->scene()->selectedItems()) {
-        if (it->data(2).toString() != QStringLiteral("brick")) continue;
-        const int li = it->data(0).toInt();
-        const QString guid = it->data(1).toString();
-        if (li < 0 || li >= static_cast<int>(map->layers().size())) continue;
-        auto* L = map->layers()[li].get();
-        if (!L || L->kind() != core::LayerKind::Brick) continue;
-        for (const auto& b : static_cast<core::LayerBrick&>(*L).bricks) {
-            if (b.guid == guid) { picks.push_back({ li, b }); break; }
-        }
-    }
-    if (picks.empty()) {
-        QMessageBox::information(this, tr("Save module"),
-            tr("Select one or more parts first."));
-        return;
-    }
-
-    // Build the module map with one LayerBrick per source layer. Iterate
-    // host layers in their original order so the exported z-order matches
-    // the source project.
-    core::Map module;
-    module.author = map->author;
-    module.lug = map->lug;
-    module.event = QObject::tr("Module");
-    int total = 0;
-    for (int li = 0; li < static_cast<int>(map->layers().size()); ++li) {
-        auto* src = map->layers()[li].get();
-        if (!src || src->kind() != core::LayerKind::Brick) continue;
-        auto outL = std::make_unique<core::LayerBrick>();
-        outL->guid = core::newBbmId();
-        outL->name = src->name.isEmpty() ? QStringLiteral("Module") : src->name;
-        outL->transparency = src->transparency;
-        outL->visible = src->visible;
-        outL->hull = src->hull;
-        for (const auto& p : picks)
-            if (p.layerIndex == li) outL->bricks.push_back(p.brick);
-        if (outL->bricks.empty()) continue;
-        total += static_cast<int>(outL->bricks.size());
-        module.layers().push_back(std::move(outL));
-    }
-    module.nbItems = total;
-
-    // Signed in to a server: a new module or version there (or this computer).
-    if (serverLibrary_ && serverLibrary_->state() == ServerLibrary::State::Ready) {
-        saveModuleToServer(module, static_cast<int>(picks.size()));
-        return;
-    }
-    if (!SheetChoiceDialog::askModuleSheets(this, module)) return;
-    saveModuleLocally(module, static_cast<int>(picks.size()));
-}
-
-void MainWindow::saveModuleLocally(const core::Map& module, int partCount, const QString& name) {
+QString MainWindow::saveModuleLocally(const core::Map& module, int partCount, const QString& name) {
     // Pick target path: if module library path is configured, default there;
     // otherwise fall back to QFileDialog's default.
     QString startDir = moduleLibraryPanel_->libraryPath();
@@ -990,7 +741,7 @@ void MainWindow::saveModuleLocally(const core::Map& module, int partCount, const
     const QString rawName = !name.isEmpty() ? name : QInputDialog::getText(
         this, tr("Save module"), tr("Module name:"),
         QLineEdit::Normal, tr("New Module"));
-    if (rawName.isEmpty()) return;
+    if (rawName.isEmpty()) return {};
     // Sanitize the filename — same logic as the save-to-library handler.
     auto sanitize = [](QString n) -> QString {
         static const QRegularExpression bad(QStringLiteral(R"([<>:"/\\|?*\x00-\x1F])"));
@@ -1007,23 +758,24 @@ void MainWindow::saveModuleLocally(const core::Map& module, int partCount, const
         target = QDir(startDir).filePath(defaultName + QStringLiteral(".bbm"));
         if (QFile::exists(target) &&
             QMessageBox::question(this, tr("Save module"), tr("%1 already exists. Replace it?").arg(target)) != QMessageBox::Yes)
-            return;
+            return {};
     } else {
         target = QFileDialog::getSaveFileName(
             this, tr("Save selection as module"),
             startDir.isEmpty() ? defaultName + ".bbm" : QDir(startDir).filePath(defaultName + ".bbm"),
             tr("BlueBrick map (*.bbm)"));
     }
-    if (target.isEmpty()) return;
+    if (target.isEmpty()) return {};
     if (!target.endsWith(QStringLiteral(".bbm"), Qt::CaseInsensitive)) target += QStringLiteral(".bbm");
 
     auto r = saveload::writeBbm(module, target);
     if (!r.ok) {
         QMessageBox::warning(this, tr("Save module failed"), r.error);
-        return;
+        return {};
     }
     statusBar()->showMessage(tr("Saved %1 bricks to %2").arg(partCount).arg(target), 4000);
     moduleLibraryPanel_->refresh();
+    return target;
 }
 
 void MainWindow::onSaveSelectionAsSet() {

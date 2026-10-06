@@ -14,10 +14,15 @@
 #include "core/LayerBrick.h"
 #include "core/Map.h"
 #include "edit/EditCommands.h"
+#include "edit/ModuleCommands.h"
+#include "edit/ModuleLibraryLink.h"
 #include "parts/PartsLibrary.h"
 #include "sync/Credit.h"
 #include "ui/MainWindow.h"
+#include "ui/ConfirmDialog.h"
 #include "ui/MapView.h"
+#include "ui/ModuleLibraryDialogs.h"
+#include "ui/ModulesPanel.h"
 #include "ui/ModuleLibraryPanel.h"
 #include "ui/NoticeArea.h"
 #include "ui/SaveModuleDialog.h"
@@ -907,37 +912,70 @@ TEST_F(ServerModulesWindow, AddToLayoutPutsTheModulesPartsInAsOneModule) {
     EXPECT_EQ(bricksInMap(), 0);
 }
 
-TEST_F(ServerModulesWindow, SaveSelectionAsModuleMakesANewModuleOnTheServer) {
+// Two parts on the map, picked, in no module yet.
+static void placeLoose(ui::MapView* view, int tracks) {
+    auto module = sampleModule(tracks);
+    const auto answers = answerNewSheets();
+    view->placeModule(*module, QStringLiteral("x"), QString(), QPointF(4000, 4000));
+    core::Map& m = *view->currentMap();
+    view->undoStack()->push(new edit::DeleteModuleCommand(m, m.sidecar.modules.front().id));
+    for (QGraphicsItem* it : view->scene()->items())
+        if (it->data(2).toString() == QStringLiteral("brick")) it->setSelected(true);
+}
+
+// Make a module: the picked parts become a module in this layout, and
+// nothing goes to the server.
+TEST_F(ServerModulesWindow, MakeAModuleKeepsItInThisLayoutOnly) {
+    placeLoose(view_, 1);
+    ASSERT_EQ(bricksInMap(), 2);
+    QTimer::singleShot(0, [&] {
+        auto* d = qobject_cast<ui::MakeModuleDialog*>(QApplication::activeModalWidget());
+        ASSERT_NE(d, nullptr);
+        EXPECT_FALSE(d->alsoSaveBox()->isChecked());
+        d->nameEdit()->setText(QStringLiteral("Yard"));
+        d->accept();
+    });
+    QMetaObject::invokeMethod(window_.get(), "onMakeModule", Qt::DirectConnection);
+    const core::Map& m = *view_->currentMap();
+    ASSERT_EQ(m.sidecar.modules.size(), 1u);
+    EXPECT_EQ(m.sidecar.modules.front().name, QStringLiteral("Yard"));
+    EXPECT_EQ(m.sidecar.modules.front().memberIds.size(), 2);
+    EXPECT_TRUE(m.sidecar.modules.front().libraryModuleId.isEmpty());
+    EXPECT_EQ(count(http_, "POST", "/api/modules"), 0);
+    EXPECT_EQ(count(http_, "PUT", "/api/modules"), 0);
+}
+
+// "Also save to my Module library": made, saved as a new module (centred, with its
+// picture), and linked to it.
+TEST_F(ServerModulesWindow, MakeAndSaveMakesANewModuleOnTheServerAndLinksIt) {
     // The server's empty layout for a new module.
     core::Map empty;
     http_.replyRaw("/api/modules/new1/snapshot", 200, snapshotOf(empty), "application/octet-stream");
-    http_.reply("/api/modules/new1/snapshot?note=First%20go", 200, { { QStringLiteral("version"), 1 } });
+    http_.reply("/api/modules/new1/snapshot", 200, { { QStringLiteral("version"), 1 } });
     http_.reply("/api/modules/new1/thumbnail", 200, { { QStringLiteral("ok"), true } });
     // POST and GET share the path: the create answers first.
     http_.clear("/api/modules");
     http_.reply("/api/modules", 201, { { QStringLiteral("id"), QStringLiteral("new1") }, { QStringLiteral("title"), QStringLiteral("Yard") } });
     http_.reply("/api/modules", 200, modules({ moduleJson(QStringLiteral("new1"), QStringLiteral("Yard"), QStringLiteral("owner"), {}, 5) }));
-    // Two parts on the map, selected.
-    auto module = sampleModule(1);
-    const auto answers = answerNewSheets();
-    view_->placeModule(*module, QStringLiteral("x"), QString(), QPointF(4000, 4000));
-    ASSERT_EQ(bricksInMap(), 2);
+    placeLoose(view_, 1);
     QTimer::singleShot(0, [&] {
-        auto* d = qobject_cast<ui::SaveModuleDialog*>(QApplication::activeModalWidget());
+        auto* d = qobject_cast<ui::MakeModuleDialog*>(QApplication::activeModalWidget());
         ASSERT_NE(d, nullptr);
-        EXPECT_EQ(d->saveTo()->itemText(1), QStringLiteral("Train Club"));
         d->nameEdit()->setText(QStringLiteral("Yard"));
-        d->noteEdit()->setText(QStringLiteral("First go"));
+        d->alsoSaveBox()->setChecked(true);
+        EXPECT_EQ(d->makeButton()->text(), QStringLiteral("Make and save"));
+        EXPECT_EQ(d->saveTo()->itemText(1), QStringLiteral("Train Club"));
+        d->saveTo()->setCurrentIndex(0);
         d->accept();
     });
-    QMetaObject::invokeMethod(window_.get(), "onSaveSelectionAsModule", Qt::DirectConnection);
+    QMetaObject::invokeMethod(window_.get(), "onMakeModule", Qt::DirectConnection);
     ASSERT_TRUE(waitFor([&] { return lastRequest(http_, "PUT", "/api/modules/new1/thumbnail"); }));
     const auto* created = lastRequest(http_, "POST", "/api/modules");
     ASSERT_NE(created, nullptr);
     EXPECT_TRUE(created->body.contains("\"title\":\"Yard\""));
     EXPECT_FALSE(created->body.contains("orgSlug"));
-    // The saved contents are the selection, centred on the origin as the web saves them.
-    const auto* put = lastRequest(http_, "PUT", "/api/modules/new1/snapshot?note=First%20go");
+    // The saved contents are the module, centred on the origin as the web saves them.
+    const auto* put = lastRequest(http_, "PUT", "/api/modules/new1/snapshot");
     ASSERT_NE(put, nullptr);
     auto saved = sync::mapFromModuleSnapshot(put->body);
     ASSERT_TRUE(saved);
@@ -953,12 +991,16 @@ TEST_F(ServerModulesWindow, SaveSelectionAsModuleMakesANewModuleOnTheServer) {
     QImage img;
     ASSERT_TRUE(img.loadFromData(QByteArray::fromBase64(thumb.value(QLatin1String("data")).toString().toLatin1())));
     EXPECT_GT(std::max(img.width(), img.height()), 256);
-    ASSERT_TRUE(waitFor([&] { return library_->module(QStringLiteral("new1")); }));
+    // Linked.
+    ASSERT_TRUE(waitFor([&] { return !view_->currentMap()->sidecar.modules.front().libraryModuleId.isEmpty(); }));
+    EXPECT_EQ(view_->currentMap()->sidecar.modules.front().libraryModuleId, QStringLiteral("new1"));
+    EXPECT_EQ(view_->currentMap()->sidecar.modules.front().libraryVersion, 1);
 }
 
-// Parts on two sheets: the dialog says so, and "Put everything on one
-// sheet" saves one sheet named after the one with the most parts.
-TEST_F(ServerModulesWindow, SaveModuleSaysWhichSheetsAndCanPutThemOnOne) {
+// Save to Module library… from a module's menu: parts on two sheets, the dialog
+// says so, and "Put everything on one sheet" saves one sheet named after
+// the one with the most parts. The module is linked to what was saved.
+TEST_F(ServerModulesWindow, SaveToLibrarySaysWhichSheetsAndLinksTheModule) {
     core::Map empty;
     http_.replyRaw("/api/modules/new2/snapshot", 200, snapshotOf(empty), "application/octet-stream");
     http_.reply("/api/modules/new2/snapshot?note=Two", 200, { { QStringLiteral("version"), 1 } });
@@ -968,12 +1010,24 @@ TEST_F(ServerModulesWindow, SaveModuleSaysWhichSheetsAndCanPutThemOnOne) {
     http_.reply("/api/modules", 200, modules({ moduleJson(QStringLiteral("new2"), QStringLiteral("Depot"), QStringLiteral("owner"), {}, 5) }));
     auto module = sampleModule(2);  // Baseplates: 1 part, Tracks: 2
     const auto answers = answerNewSheets();
-    view_->placeModule(*module, QStringLiteral("x"), QString(), QPointF(4000, 4000));
+    view_->placeModule(*module, QStringLiteral("Depot here"), QString(), QPointF(4000, 4000));
     ASSERT_EQ(bricksInMap(), 3);
-    QString shown, oneShown;
+    const QString id = view_->currentMap()->sidecar.modules.front().id;
+    // The module's menu offers Save to Module library….
+    auto* panel = window_->findChild<ui::ModulesPanel*>();
+    {
+        QMenu menu;
+        panel->fillMenu(menu, id);
+        auto* save = menu.findChild<QAction*>(QStringLiteral("moduleLibrary_save"));
+        ASSERT_NE(save, nullptr);
+        EXPECT_EQ(menu.findChild<QAction*>(QStringLiteral("moduleLibrary_publish")), nullptr);
+    }
+    QString shown, oneShown, title;
     QTimer::singleShot(0, [&] {
         auto* d = qobject_cast<ui::SaveModuleDialog*>(QApplication::activeModalWidget());
         ASSERT_NE(d, nullptr);
+        title = d->windowTitle();
+        EXPECT_EQ(d->nameEdit()->text(), QStringLiteral("Depot here"));
         EXPECT_TRUE(d->sheetsBox()->isVisibleTo(d));
         shown = d->sheetsLabel()->text();
         d->oneSheetBox()->setChecked(true);
@@ -982,7 +1036,8 @@ TEST_F(ServerModulesWindow, SaveModuleSaysWhichSheetsAndCanPutThemOnOne) {
         d->noteEdit()->setText(QStringLiteral("Two"));
         d->accept();
     });
-    QMetaObject::invokeMethod(window_.get(), "onSaveSelectionAsModule", Qt::DirectConnection);
+    emit panel->libraryActionRequested(id, QStringLiteral("save"));
+    EXPECT_EQ(title, QStringLiteral("Save “Depot here” to the Module library"));
     EXPECT_EQ(shown, QStringLiteral("This module uses 2 sheets: <b>Baseplates, Tracks</b>."));
     EXPECT_EQ(oneShown, QStringLiteral("All its parts go on one sheet: <b>Tracks</b>."));
     ASSERT_TRUE(waitFor([&] { return lastRequest(http_, "PUT", "/api/modules/new2/snapshot?note=Two"); }));
@@ -992,6 +1047,116 @@ TEST_F(ServerModulesWindow, SaveModuleSaysWhichSheetsAndCanPutThemOnOne) {
     EXPECT_EQ(saved->layers().front()->name, QStringLiteral("Tracks"));
     EXPECT_EQ(saved->layers().front()->transparency, 100);
     EXPECT_EQ(sync::partCount(*saved), 3);
+    ASSERT_TRUE(waitFor([&] { return view_->currentMap()->sidecar.modules.front().libraryModuleId == QStringLiteral("new2"); }));
+    // The layout's sheets stay as they were.
+    EXPECT_EQ(sync::partCount(*view_->currentMap()), 3);
+    // Linked: the menu now offers Update Module library version.
+    ASSERT_TRUE(waitFor([&] { return library_->module(QStringLiteral("new2")); }));
+    QMenu menu;
+    panel->fillMenu(menu, id);
+    EXPECT_NE(menu.findChild<QAction*>(QStringLiteral("moduleLibrary_publish")), nullptr);
+}
+
+// The library module m1 at version `latest`, whose version 1 is `v1` and
+// whose newest contents are `now`.
+static void serveVersions(FakeHttp& http, int latest, const core::Map& v1, const core::Map& now) {
+    http.clear("/api/modules");
+    http.reply("/api/modules", 200, modules({ moduleJson(QStringLiteral("m1"), QStringLiteral("Freight yard"), QStringLiteral("owner"), {}, 0, latest) }));
+    http.clear("/api/modules/m1/snapshot");
+    http.replyRaw("/api/modules/m1/snapshot", 200, snapshotOf(now), "application/octet-stream");
+    http.replyRaw("/api/modules/m1/versions/1/snapshot", 200, snapshotOf(v1), "application/octet-stream");
+}
+
+// Added from the Module library, the module is linked; Update Module library version
+// saves the next version with its note; Update from Module library brings a newer
+// version in where the module sits, without asking when it wasn't changed.
+TEST_F(ServerModulesWindow, LinkedModulesUpdateTheLibraryAndFromIt) {
+    const auto answers = answerNewSheets();
+    emit library_->insertRequested(QStringLiteral("m1"));
+    ASSERT_TRUE(waitFor([&] { return bricksInMap() == 3; }));
+    const QString id = view_->currentMap()->sidecar.modules.front().id;
+    EXPECT_EQ(view_->currentMap()->sidecar.modules.front().libraryModuleId, QStringLiteral("m1"));
+    EXPECT_EQ(view_->currentMap()->sidecar.modules.front().libraryVersion, 1);
+
+    // Update Module library version: version 2, with its note.
+    http_.reply("/api/modules/m1/snapshot?note=More%20track", 200, { { QStringLiteral("version"), 2 } });
+    http_.reply("/api/modules/m1/thumbnail", 200, { { QStringLiteral("ok"), true } });
+    QString text;
+    QTimer::singleShot(0, [&] {
+        auto* d = qobject_cast<ui::PublishModuleDialog*>(QApplication::activeModalWidget());
+        ASSERT_NE(d, nullptr);
+        text = d->text()->text();
+        EXPECT_FALSE(d->newerWarning()->isVisibleTo(d));
+        d->noteEdit()->setText(QStringLiteral("More track"));
+        d->accept();
+    });
+    emit window_->findChild<ui::ModulesPanel*>()->libraryActionRequested(id, QStringLiteral("publish"));
+    EXPECT_TRUE(text.contains(QStringLiteral("version 2 of <b>Freight yard</b>"))) << text.toStdString();
+    ASSERT_TRUE(waitFor([&] { return view_->currentMap()->sidecar.modules.front().libraryVersion == 2; }));
+    ASSERT_NE(lastRequest(http_, "PUT", "/api/modules/m1/snapshot?note=More%20track"), nullptr);
+
+    // The library moves on to version 3, with a fourth part; this copy is version 1's.
+    {
+        core::Map& m = *view_->currentMap();
+        core::Module linked = m.sidecar.modules.front();
+        linked.libraryVersion = 1;
+        view_->undoStack()->push(new edit::UpdateModuleCommand(m, linked, QStringLiteral("t")));
+    }
+    serveVersions(http_, 3, *sampleModule(2), *sampleModule(3));
+    library_->refresh();
+    ASSERT_TRUE(waitFor([&] { return library_->module(QStringLiteral("m1")) && library_->module(QStringLiteral("m1"))->latestVersion == 3; }));
+    const auto before = edit::placedParts(*view_->currentMap(), view_->currentMap()->sidecar.modules.front().memberIds);
+    int asked = 0;
+    window_->confirmModuleLibrary_ = [&](const ui::ConfirmOptions&) { ++asked; return true; };
+    emit window_->findChild<ui::ModulesPanel*>()->libraryActionRequested(id, QStringLiteral("pull"));
+    ASSERT_TRUE(waitFor([&] { return bricksInMap() == 4; }));
+    EXPECT_EQ(asked, 0);
+    const core::Module& mod = view_->currentMap()->sidecar.modules.front();
+    EXPECT_EQ(mod.id, id);
+    EXPECT_EQ(mod.libraryVersion, 3);
+    EXPECT_EQ(mod.memberIds.size(), 4);
+    // The parts it had stay where they were.
+    const auto after = edit::placedParts(*view_->currentMap(), mod.memberIds);
+    for (const auto& b : before) {
+        bool same = false;
+        for (const auto& a : after)
+            same = same || (a.partNumber == b.partNumber && std::abs(a.displayArea.x() - b.displayArea.x()) < 0.01 &&
+                            std::abs(a.displayArea.y() - b.displayArea.y()) < 0.01);
+        QString all;
+        for (const auto& a : after) all += QStringLiteral(" %1@%2,%3").arg(a.partNumber).arg(a.displayArea.x()).arg(a.displayArea.y());
+        EXPECT_TRUE(same) << b.partNumber.toStdString() << " at " << b.displayArea.x() << "," << b.displayArea.y() << " in" << all.toStdString();
+    }
+    // Undo puts the old parts back.
+    view_->undoStack()->undo();
+    EXPECT_EQ(bricksInMap(), 3);
+    EXPECT_EQ(view_->currentMap()->sidecar.modules.front().libraryVersion, 1);
+}
+
+// Changed in this layout: Update from Module library asks first, and No keeps it.
+TEST_F(ServerModulesWindow, UpdateFromLibraryAsksWhenTheModuleWasChangedHere) {
+    const auto answers = answerNewSheets();
+    emit library_->insertRequested(QStringLiteral("m1"));
+    ASSERT_TRUE(waitFor([&] { return bricksInMap() == 3; }));
+    const QString id = view_->currentMap()->sidecar.modules.front().id;
+    serveVersions(http_, 3, *sampleModule(2), *sampleModule(3));
+    library_->refresh();
+    ASSERT_TRUE(waitFor([&] { return library_->module(QStringLiteral("m1")) && library_->module(QStringLiteral("m1"))->latestVersion == 3; }));
+    // A part moves.
+    {
+        core::Map& m = *view_->currentMap();
+        for (auto& l : m.layers())
+            if (l->kind() == core::LayerKind::Brick && !static_cast<core::LayerBrick&>(*l).bricks.empty()) {
+                static_cast<core::LayerBrick&>(*l).bricks.front().displayArea.translate(8, 0);
+                break;
+            }
+    }
+    QStringList asked;
+    window_->confirmModuleLibrary_ = [&](const ui::ConfirmOptions& o) { asked << o.title; return false; };
+    emit window_->findChild<ui::ModulesPanel*>()->libraryActionRequested(id, QStringLiteral("pull"));
+    ASSERT_TRUE(waitFor([&] { return !asked.isEmpty(); }));
+    EXPECT_EQ(asked, QStringList{ QStringLiteral("Replace “Freight yard” with version 3?") });
+    EXPECT_EQ(bricksInMap(), 3);
+    EXPECT_EQ(view_->currentMap()->sidecar.modules.front().libraryVersion, 1);
 }
 
 // A new module saved straight into a club asks first: the club will own it.

@@ -1,8 +1,8 @@
 #pragma once
 
-// "Save Selection as Module" when a server is signed in,
-// as the web's SaveModuleDialog: a new module, or a new version of one you
-// can change, with a "What changed?" note. A new one is saved to you or one
+// Save to library… for a placed module when a server is signed in, as the
+// web's SaveToLibraryDialog: a new library module, or a new version of one
+// you can change, with a "What changed?" note. A new one is saved to you or one
 // of your clubs ("Save to"); "This computer" keeps it in the Module library
 // folder as before. The server decides who may save where (members of some
 // clubs can't add modules); its answer is shown as it comes.
@@ -44,6 +44,8 @@ public:
     SaveModuleDialog(ServerLibrary& library, const QString& defaultOwner, QWidget* parent = nullptr);
 
     Choice choice() const;
+    // The placed module being saved: the title says it, and its name is the new module's.
+    void setModuleName(const QString& name);
     // The module's sheets: with two or more, the dialog says "This module
     // uses 2 sheets: Track, Buildings" and offers "Put everything on one
     // sheet" (named `oneSheetName`).

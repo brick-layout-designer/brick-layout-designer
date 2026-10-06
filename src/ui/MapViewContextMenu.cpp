@@ -20,6 +20,9 @@
 #include "../edit/RulerCommands.h"
 #include "EditDialogs.h"
 #include "MapViewInternal.h"
+#include "TouchActionBar.h"
+
+#include <QToolButton>
 
 #include <QAction>
 #include <QContextMenuEvent>
@@ -106,7 +109,7 @@ void MapView::contextMenuEvent(QContextMenuEvent* e) {
     }
 
     QMenu menu(this);
-    addModuleMenu(menu, clickedBrickGuid);
+    const bool wholeModule = addModuleMenu(menu, clickedBrickGuid);
     const auto sel = scene()->selectedItems();
     const bool hasSel = !sel.isEmpty();
     int brickCount = 0, textCount = 0;
@@ -180,6 +183,13 @@ void MapView::contextMenuEvent(QContextMenuEvent* e) {
             selPath->setToolTip(tr("Extend selection to every brick connected to current selection"));
             connect(selPath, &QAction::triggered, [this]{ selectPath(); });
             menu.addSeparator();
+            // Already one whole module: its own entries are at the top.
+            if (!wholeModule || !editingModuleId_.isEmpty()) {
+                auto* make = menu.addAction(tr("Make a Module..."));
+                make->setObjectName(QStringLiteral("ctxMakeModule"));
+                connect(make, &QAction::triggered, this, &MapView::makeModuleRequested);
+                menu.addSeparator();
+            }
 
             auto* cut = menu.addAction(tr("Cut"));
             connect(cut, &QAction::triggered, [this]{ cutSelection(); });
@@ -256,12 +266,12 @@ void MapView::contextMenuEvent(QContextMenuEvent* e) {
     e->accept();
 }
 
-void MapView::addModuleMenu(QMenu& menu, const QString& clickedBrickGuid) {
-    if (!map_) return;
+bool MapView::addModuleMenu(QMenu& menu, const QString& clickedBrickGuid) {
+    if (!map_) return false;
     if (!editingModuleId_.isEmpty()) {
         menu.addAction(tr("Done editing module"), this, [this] { setEditingModule({}); });
         menu.addSeparator();
-        return;
+        return false;
     }
     // The module of the part right-clicked, or a whole module that is the selection.
     const auto byPart = core::moduleByPart(map_->sidecar.modules);
@@ -275,7 +285,7 @@ void MapView::addModuleMenu(QMenu& menu, const QString& clickedBrickGuid) {
             if (first && first->memberIds == sel) mod = first;
         }
     }
-    if (!mod) return;
+    if (!mod) return false;
     const QString id = mod->id;
     menu.addSection(mod->name.isEmpty() ? tr("Module") : mod->name);
     menu.addAction(tr("Edit module"), this, [this, id] { setEditingModule(id); });
@@ -290,7 +300,32 @@ void MapView::addModuleMenu(QMenu& menu, const QString& clickedBrickGuid) {
                                                            m->showName ? tr("Hide module name") : tr("Show module name")));
     });
     menu.addAction(tr("Colours..."), this, [this, id] { emit moduleLookRequested(id); });
+    if (moduleLibraryInfo_) {
+        menu.addSeparator();
+        for (const auto& e : moduleLibraryInfo_(*mod).entries) {
+            QAction* a = menu.addAction(e.label);
+            a->setObjectName(QStringLiteral("moduleLibrary_") + e.action);
+            a->setEnabled(e.enabled);
+            a->setToolTip(e.tip);
+            const QString action = e.action;
+            connect(a, &QAction::triggered, this, [this, id, action] { emit moduleLibraryActionRequested(id, action); });
+        }
+    }
     menu.addSeparator();
+    return true;
+}
+
+void MapView::touchModule() {
+    QMenu menu(this);
+    // A whole module picked: its menu; otherwise make one of the picked parts.
+    if (!addModuleMenu(menu, QString())) {
+        emit makeModuleRequested();
+        return;
+    }
+    QPoint at = mapToGlobal(viewport()->rect().center());
+    if (touchBar_)
+        if (QWidget* b = touchBar_->button(QStringLiteral("touchModule"))) at = b->mapToGlobal(QPoint(0, 0));
+    menu.exec(at);
 }
 
 }  // namespace bld::ui

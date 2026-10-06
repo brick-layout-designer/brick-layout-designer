@@ -4,6 +4,7 @@
 #include "../core/Sidecar.h"
 
 #include <QCryptographicHash>
+#include <algorithm>
 #include <QDateTime>
 #include <QFile>
 #include <QJsonArray>
@@ -97,7 +98,8 @@ const QStringList& knownModuleKeys() {
                                    QStringLiteral("sourceFile"), QStringLiteral("importedAt"),
                                    QStringLiteral("showName"),   QStringLiteral("outlineColor"),
                                    QStringLiteral("nameColor"),  QStringLiteral("sameColor"),
-                                   QStringLiteral("pinned") };
+                                   QStringLiteral("pinned"),     QStringLiteral("libraryModuleId"),
+                                   QStringLiteral("libraryVersion") };
     return keys;
 }
 
@@ -122,6 +124,8 @@ QJsonObject encodeModule(const core::Module& m) {
     if (!m.nameColor.isEmpty()) o[QStringLiteral("nameColor")] = m.nameColor;
     if (!m.sameColor) o[QStringLiteral("sameColor")] = false;
     if (m.pinned) o[QStringLiteral("pinned")] = true;
+    if (!m.libraryModuleId.isEmpty()) o[QStringLiteral("libraryModuleId")] = m.libraryModuleId;
+    if (m.libraryVersion > 0) o[QStringLiteral("libraryVersion")] = m.libraryVersion;
     return o;
 }
 
@@ -147,6 +151,8 @@ core::Module decodeModule(const QJsonObject& o) {
     m.nameColor = o.value(QStringLiteral("nameColor")).toString();
     m.sameColor = o.value(QStringLiteral("sameColor")).toBool(true);
     m.pinned = o.value(QStringLiteral("pinned")).toBool(false);
+    m.libraryModuleId = o.value(QStringLiteral("libraryModuleId")).toString();
+    m.libraryVersion = std::max(0, o.value(QStringLiteral("libraryVersion")).toInt(0));
     for (auto it = o.constBegin(); it != o.constEnd(); ++it)
         if (!knownModuleKeys().contains(it.key())) m.extras.insert(it.key(), it.value());
     return m;

@@ -5,6 +5,8 @@ add_library(bld_edit STATIC
     ModuleCommands.h
     ModuleSheets.cpp
     ModuleSheets.h
+    ModuleLibraryLink.cpp
+    ModuleLibraryLink.h
     LabelCommands.cpp
     LabelCommands.h
     TextCommands.cpp

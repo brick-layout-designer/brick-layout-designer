@@ -420,6 +420,8 @@ void MapView::refreshTouchBar() {
         connect(touchBar_, &TouchActionBar::rotateLeft, this, [this] { rotateSelected(static_cast<float>(-rotationStepDegrees_)); });
         connect(touchBar_, &TouchActionBar::rotateRight, this, [this] { rotateSelected(static_cast<float>(rotationStepDegrees_)); });
         connect(touchBar_, &TouchActionBar::duplicate, this, &MapView::duplicateSelection);
+        // After the tap returns: the module's menu runs its own loop.
+        connect(touchBar_, &TouchActionBar::module, this, [this] { QTimer::singleShot(0, this, &MapView::touchModule); });
         connect(touchBar_, &TouchActionBar::remove, this, &MapView::deleteSelected);
         connect(touchBar_, &TouchActionBar::done, this, &MapView::deselectAll);
         connect(touchBar_, &TouchActionBar::addPart, this, &MapView::addPartRequested);
