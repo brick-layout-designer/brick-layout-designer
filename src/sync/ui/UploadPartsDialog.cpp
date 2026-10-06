@@ -50,7 +50,8 @@ UploadPartsDialog::UploadPartsDialog(ServerApi& api, PartsUpload& upload, const 
     connect(uploadBtn_, &QPushButton::clicked, this, &UploadPartsDialog::uploadChecked);
 
     connect(&api_, &ServerApi::orgsReady, this, [this](const QList<OrgEntry>& orgs) {
-        for (const auto& o : orgs) owner_->addItem(o.name, o.slug);
+        for (const auto& o : orgs)
+            if (o.canAdd) owner_->addItem(o.name, o.slug);
     });
     connect(&upload_, &PartsUpload::uploaded, this, [this](int count, const QStringList& failed) {
         uploaded_ = count;

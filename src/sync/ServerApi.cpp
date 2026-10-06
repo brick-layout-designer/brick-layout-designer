@@ -248,7 +248,8 @@ void ServerApi::fetchOrgs() {
             const QJsonObject e = v.toObject();
             out << OrgEntry{ e.value(QLatin1String("slug")).toString(),
                              e.value(QLatin1String("name")).toString(),
-                             e.value(QLatin1String("myRole")).toString() };
+                             e.value(QLatin1String("myRole")).toString(),
+                             e.value(QLatin1String("canAdd")).toBool(true) };
         }
         emit orgsReady(out);
     });
