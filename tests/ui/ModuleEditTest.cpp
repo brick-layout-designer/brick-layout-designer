@@ -369,7 +369,9 @@ TEST_F(LiveDragTest, TheModuleFrameAndNameMoveBeforeTheRelease) {
         for (const auto& L : m.layers())
             if (L->kind() == core::LayerKind::Brick)
                 for (const auto& b : static_cast<const core::LayerBrick&>(*L).bricks)
-                    if (b.guid == *a_.begin()) EXPECT_TRUE(view_->liveDragging());
+                    if (b.guid == *a_.begin()) {
+                        EXPECT_TRUE(view_->liveDragging());
+                    }
     });
     mouseAt(view_->viewport(), QEvent::MouseButtonRelease, at + QPoint(80, 40), Qt::NoButton);
     EXPECT_FALSE(view_->liveDragging());
