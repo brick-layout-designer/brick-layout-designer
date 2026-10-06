@@ -22,6 +22,7 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QContextMenuEvent>
 #include <QDir>
 #include <QDockWidget>
 #include <QFile>
@@ -29,19 +30,19 @@
 #include <QGraphicsScene>
 #include <QIcon>
 #include <QImage>
-#include <QSet>
 #include <QLabel>
 #include <QListWidget>
 #include <QMainWindow>
 #include <QMenu>
-#include <QPushButton>
 #include <QNativeGestureEvent>
 #include <QPointingDevice>
+#include <QPushButton>
 #include <QScroller>
+#include <QSet>
 #include <QSettings>
 #include <QSignalSpy>
-#include <QTemporaryDir>
 #include <QStyle>
+#include <QTemporaryDir>
 #include <QTest>
 #include <QTimer>
 #include <QToolButton>
@@ -290,6 +291,46 @@ TEST_F(TouchTest, LongPressOpensTheContextMenuWithARing) {
     EXPECT_TRUE(ringShown);
     EXPECT_TRUE(actions.contains(QStringLiteral("Rotate CW"))) << actions.join(u',').toStdString();
     EXPECT_EQ(selectedGuids(*view_->scene()), QStringList{ it->data(ui::detail::kBrickDataGuid).toString() });
+}
+
+// A part missing from the library is drawn with a red cross of its own
+// items: the menu opened on the cross is for that part.
+TEST_F(TouchTest, MenuOnAMissingPartsCrossIsForThatPart) {
+    parts::PartsLibrary empty;
+    auto loaded = saveload::readBbm(fixture());
+    ASSERT_TRUE(loaded.ok());
+    ui::MapView v(empty);
+    v.resize(800, 600);
+    v.show();
+    ASSERT_TRUE(QTest::qWaitForWindowExposed(&v));
+    v.loadMap(std::move(loaded.map));
+    QGraphicsItem* part = nullptr;
+    QPoint at;
+    for (QGraphicsItem* it : v.scene()->items()) {
+        if (!it->parentItem() || !ui::detail::isBrickItem(it->parentItem())) continue;
+        const QPoint p = v.mapFromScene(it->parentItem()->sceneBoundingRect().center());
+        if (v.itemAt(p) == it && v.viewport()->rect().contains(p)) {
+            part = it->parentItem();
+            at = p;
+            break;
+        }
+    }
+    ASSERT_NE(part, nullptr) << "no missing part's cross on screen";
+    QStringList actions;
+    QTimer closer;
+    closer.setInterval(20);
+    QObject::connect(&closer, &QTimer::timeout, [&] {
+        if (auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget())) {
+            for (QAction* a : menu->actions()) actions << a->text();
+            menu->close();
+            closer.stop();
+        }
+    });
+    closer.start();
+    QContextMenuEvent ce(QContextMenuEvent::Mouse, at, v.viewport()->mapToGlobal(at));
+    QApplication::sendEvent(v.viewport(), &ce);
+    EXPECT_TRUE(actions.contains(QStringLiteral("Rotate CW"))) << actions.join(u',').toStdString();
+    EXPECT_EQ(selectedGuids(*v.scene()), QStringList{ part->data(ui::detail::kBrickDataGuid).toString() });
 }
 
 TEST_F(TouchTest, ActionBarActsThroughUndoableCommands) {
