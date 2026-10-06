@@ -1,5 +1,6 @@
 add_executable(bld_sync_tests
     YDocSummaryTest.cpp
+    UpdateGuardTest.cpp
     CompatTest.cpp
     WebModelTest.cpp
     SyncDocTest.cpp

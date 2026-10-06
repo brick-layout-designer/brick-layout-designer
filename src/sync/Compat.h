@@ -21,6 +21,8 @@ constexpr int kDocMinReadable = 1;
 // SyncSession::ended's code when the shared layout is in a form this
 // version can't read (not a WebSocket close code from the server).
 constexpr int kUnreadableDocCode = 4415;
+// ...and when an update to it can't be read, even after a full resync.
+constexpr int kUnreadableUpdateCode = 4416;
 
 enum class Standing { Ok, UpdateSuggested, UpdateRequired };
 

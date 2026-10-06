@@ -10,7 +10,7 @@ src=$(cd "$(dirname "$0")/.." && pwd)
 cmake -S "$src" -B "$build" -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
       -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
       -DBLD_FUZZ=ON -DBUILD_TESTING=OFF ${BLD_FUZZ_CMAKE_ARGS:-} > /dev/null
-targets=(bbm sidecar venue part_xml budget ldraw_map tdl ncp ldraw_import lxfml studio)
+targets=(bbm sidecar venue part_xml budget ldraw_map tdl ncp ldraw_import lxfml studio ydoc sync_message)
 cmake --build "$build" --target bld_fuzz_seeds "${targets[@]/#/fuzz_}"
 
 seeds="$build/fuzz-seeds"
@@ -33,6 +33,23 @@ corpus ncp "$oracle"/*.ncp
 corpus ldraw_import "$oracle"/*.ldr "$oracle"/*.mpd
 corpus lxfml "$seeds"/lxfml/*
 corpus studio "$seeds"/studio/*
+corpus ydoc "$src"/fixtures/sync/*.ydoc "$src"/fixtures/fuzz-regressions/ydoc-*
+# Server messages: sync step 1 (an empty state vector), step 2 (a whole
+# layout), an update and a presence update, in the y-websocket framing.
+varuint() {  # lib0 varUint of $1, as bytes
+    local v=$1
+    while [ "$v" -gt 127 ]; do printf "\\x$(printf %02x $(( (v & 127) | 128 )))"; v=$(( v >> 7 )); done
+    printf "\\x$(printf %02x "$v")"
+}
+message() {  # message <prefix bytes> <payload file> <out>
+    { printf "$1"; varuint "$(wc -c < "$2")"; cat "$2"; } > "$3"
+}
+msgs="$build/fuzz-corpus/sync_message"
+mkdir -p "$msgs"
+printf '\x00\x00\x01\x00' > "$msgs/step1"
+printf '\x00\x02\x02\x00\x00' > "$msgs/update"
+message '\x00\x01' "$src/fixtures/sync/tight-corner.ydoc" "$msgs/step2"
+message '\x01' "$src/fixtures/sync/awareness.bin" "$msgs/awareness"
 
 export QT_QPA_PLATFORM=offscreen
 # alloc_dealloc_mismatch: std::stable_sort's temporary buffer (libstdc++ 16)

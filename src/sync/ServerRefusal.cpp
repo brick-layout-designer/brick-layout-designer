@@ -73,6 +73,8 @@ QString liveCloseText(int code, const QString& reason) {
     if (code == 4415 && reason == QLatin1String("unreadable_doc"))
         return tr("this layout was saved by a newer version of Brick Layout Designer. Please download the new "
                   "version (Help > Check for Updates) to keep working on it");
+    if (code == 4416 && reason == QLatin1String("unreadable_update"))
+        return tr("this layout's live update couldn't be read. Please reopen the layout to keep working on it live");
     if (code == 4426)
         return tr("this version of Brick Layout Designer is too old for this server. Please download the new "
                   "version (Help > Check for Updates)");

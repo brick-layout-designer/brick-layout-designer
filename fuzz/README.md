@@ -16,7 +16,7 @@ AddressSanitizer and UndefinedBehaviorSanitizer:
 | `ldraw_import` | LDraw models for part import |
 | `lxfml` | LDD models |
 | `studio` | Studio `.io` archives |
-| `ydoc` | live-sync documents (Yjs updates, `sync::summarizeDoc`), seed `fixtures/sync/*.ydoc` |
+| `ydoc` | live-sync documents (Yjs updates through `sync::UpdateGuard` into yrs: `summarizeDoc`, `SyncDoc::applyUpdate`), seeds `fixtures/sync/*.ydoc` and `fixtures/fuzz-regressions/ydoc-*` |
 | `sync_message` | y-websocket messages from the server (`sync::protocol::decode`) |
 
 Run them all (60 s each by default):

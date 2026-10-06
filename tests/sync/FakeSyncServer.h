@@ -18,6 +18,7 @@
 #include <QWebSocketServer>
 
 #include <functional>
+#include <optional>
 #include <stdexcept>
 #include <vector>
 
@@ -104,6 +105,11 @@ public:
         for (QWebSocket* p : peers) p->sendBinaryMessage(protocol::encode(Kind::Update, update));
     }
 
+    // Bytes sent as they are (a damaged or oversized message).
+    void sendRaw(const QByteArray& message) {
+        for (QWebSocket* p : peers) p->sendBinaryMessage(message);
+    }
+
     void dropAll(QWebSocketProtocol::CloseCode code, const QString& reason = {}) {
         for (QWebSocket* p : std::vector<QWebSocket*>(peers)) p->close(code, reason);
     }
@@ -116,13 +122,19 @@ public:
     // connection set which ids.
     QHash<quint32, sync::awareness::Entry> presence;
     QHash<QWebSocket*, QSet<quint32>> owners;
+    // The state vectors clients sent in sync step 1, in order.
+    std::vector<QByteArray> step1s;
+    // When set, the answers to step 1 are these bytes instead.
+    std::optional<QByteArray> step2Override;
 
 private:
     void onMessage(QWebSocket* from, const QByteArray& message) {
         const auto m = protocol::decode(message);
         if (!m) return;
         if (m->kind == Kind::SyncStep1) {
-            from->sendBinaryMessage(protocol::encode(Kind::SyncStep2, doc.diffSince(m->payload)));
+            step1s.push_back(m->payload);
+            from->sendBinaryMessage(
+                protocol::encode(Kind::SyncStep2, step2Override ? *step2Override : doc.diffSince(m->payload)));
         } else if (m->kind == Kind::Awareness) {
             // y-protocols applyAwarenessUpdate: a newer clock wins; at the
             // same clock only a removal does. What changed goes to everyone else.
