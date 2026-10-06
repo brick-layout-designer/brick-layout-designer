@@ -197,6 +197,7 @@ MapView::MapView(parts::PartsLibrary& parts, QWidget* parent)
             reentrant = false;
         }
         refreshSelectionOverlay();
+        refreshBendHandles();
         emit selectionChanged();
     });
     // Also refresh the overlay whenever anything in the scene changes
@@ -557,6 +558,15 @@ void MapView::mousePressEvent(QMouseEvent* e) {
     }
     lastMouseScenePos_ = mapToScene(e->pos());
 
+    // A bend handle: the flexible run bends as its end is dragged.
+    if (e->button() == Qt::LeftButton && tool_ == Tool::Select && !flex_) {
+        const int h = bendHandleAt(e->pos());
+        if (h >= 0 && startBendFromHandle(h)) {
+            e->accept();
+            return;
+        }
+    }
+
     // Edit module: a click outside the module (not on one of its parts)
     // goes back to the whole layout.
     if (e->button() == Qt::LeftButton && tool_ == Tool::Select && !editingModuleId_.isEmpty() && map_) {
@@ -731,6 +741,16 @@ void MapView::mousePressEvent(QMouseEvent* e) {
 void MapView::mouseMoveEvent(QMouseEvent* e) {
     snapMods_ = e->modifiers();
     lastMouseScenePos_ = mapToScene(e->pos());
+
+    // Over a bend handle: a hand says it can be dragged.
+    if (e->buttons() == Qt::NoButton) {
+        const bool over = bendHandleAt(e->pos()) >= 0;
+        if (over != overBendHandle_) {
+            overBendHandle_ = over;
+            if (over) viewport()->setCursor(Qt::OpenHandCursor);
+            else viewport()->unsetCursor();
+        }
+    }
 
     // A pinned module in the selection: no drag (said once).
     if (pinnedDragBlocked_ && (e->buttons() & Qt::LeftButton)) {
@@ -1961,6 +1981,14 @@ void MapView::finishFlexMove() {
     auto flex = std::move(flex_);
     flexItems_.clear();
     setSnapMarks(false, {}, std::nullopt);
+    if (!flexMoved_ && flexFromHandle_) {
+        // A click on a bend handle without a drag changes nothing.
+        flex->restore();
+        flexFromHandle_ = false;
+        refreshBendHandles();
+        viewport()->update();
+        return;
+    }
     if (!flexMoved_) {
         // A plain double-click: edit the brick, as BlueBrick does, or a
         // module's part opens Edit module with that part picked.
@@ -1990,8 +2018,109 @@ void MapView::finishFlexMove() {
         entries.push_back(e);
     }
     auto* cmd = new edit::RotateBricksCommand(*map_, std::move(entries));
-    cmd->setText(tr("Flex move"));
+    cmd->setText(flexFromHandle_ ? tr("Bend flex track") : tr("Flex move"));
+    flexFromHandle_ = false;
     undoStack_->push(cmd);  // indexChanged handler relinks and rebuilds the scene
+}
+
+void MapView::refreshBendHandles() {
+    const bool had = !bendHandles_.empty();
+    bendHandles_.clear();
+    if (!map_ || flex_) { if (had) viewport()->update(); return; }
+    QHash<int, QSet<QString>> selected;
+    for (QGraphicsItem* it : scene()->selectedItems())
+        if (isBrickItem(it)) selected[it->data(kBrickDataLayerIndex).toInt()].insert(it->data(kBrickDataGuid).toString());
+    for (auto it = selected.cbegin(); it != selected.cend(); ++it) {
+        const int li = it.key();
+        if (li < 0 || li >= static_cast<int>(map_->layers().size())) continue;
+        const auto* L = map_->layers()[li].get();
+        if (!L || L->kind() != core::LayerKind::Brick || !L->visible) continue;
+        QSet<QString> run;
+        const auto ends = edit::flexRunEnds(static_cast<const core::LayerBrick&>(*L), it.value(), parts_, &run);
+        // A pinned module (not the one being edited) never bends.
+        if (ends.empty() || core::pinnedAmong(run, map_->sidecar.modules, editingModuleId_)) continue;
+        for (const auto& end : ends) bendHandles_.push_back({ li, end.guid, end.connection, end.world, run });
+    }
+    if (!bendHandles_.empty() && !had) {
+        const QString key = QStringLiteral("hints/bendHandle");
+        if (!QSettings().value(key, false).toBool()) {
+            QSettings().setValue(key, true);
+            showStatus(tr("Drag the round handle at the end of the flex track to bend it"), 8000);
+        }
+    }
+    viewport()->update();
+}
+
+double MapView::bendHandleRadiusScenePx() const {
+    // Easy to grab: at least half a touch target across under a finger.
+    return handleRadiusScenePx(TouchMode::instance().active() ? TouchMode::kMinTarget / 2.0 : 9.0);
+}
+
+int MapView::bendHandleAt(QPoint viewPos) const {
+    if (bendHandles_.empty()) return -1;
+    const QPointF scenePos = mapToScene(viewPos);
+    const double px = rendering::SceneBuilder::kPixelsPerStud;
+    const double r = bendHandleRadiusScenePx() * 1.25;
+    int best = -1;
+    double bestDist = r * r;
+    for (int i = 0; i < static_cast<int>(bendHandles_.size()); ++i) {
+        const QPointF d = bendHandles_[i].studs * px - scenePos;
+        const double dd = QPointF::dotProduct(d, d);
+        if (dd <= bestDist) { bestDist = dd; best = i; }
+    }
+    return best;
+}
+
+bool MapView::startBendFromHandle(int index) {
+    const BendHandle h = bendHandles_[index];
+    auto* L = map_->layers()[h.layer].get();
+    auto flex = edit::FlexMove::start(static_cast<core::LayerBrick&>(*L), h.run, h.guid, h.studs, parts_, h.connection);
+    if (!flex) return false;
+    flex_ = std::move(flex);
+    flexFromHandle_ = true;
+    flexLayer_ = h.layer;
+    flexGrabbed_ = h.guid;
+    flexMoved_ = false;
+    flexItems_.clear();
+    QSet<QString> chain;
+    for (const auto& st : flex_->initialState()) chain.insert(st.guid);
+    for (QGraphicsItem* it : scene()->items()) {
+        if (!isBrickItem(it) || it->data(kBrickDataLayerIndex).toInt() != h.layer) continue;
+        const QString guid = it->data(kBrickDataGuid).toString();
+        if (chain.contains(guid)) flexItems_.insert(guid, it);
+    }
+    bendHandles_.clear();  // the end follows the pointer while it bends
+    viewport()->update();
+    return true;
+}
+
+void MapView::paintBendHandles(QPainter* painter) const {
+    if (bendHandles_.empty() || flex_) return;
+    const double px = rendering::SceneBuilder::kPixelsPerStud;
+    const double r = bendHandleRadiusScenePx();
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing, true);
+    for (const auto& h : bendHandles_) {
+        const QPointF c = h.studs * px;
+        QPen ring(QColor(255, 255, 255));
+        ring.setCosmetic(true);
+        ring.setWidthF(2.0);
+        painter->setPen(ring);
+        painter->setBrush(selection::kHandleFill);
+        painter->drawEllipse(c, r, r);
+        // A curved arrow: bend.
+        QPen arrow(selection::kHandleStroke);
+        arrow.setCosmetic(true);
+        arrow.setWidthF(1.6);
+        painter->setPen(arrow);
+        painter->setBrush(Qt::NoBrush);
+        const QRectF arc(c.x() - r * 0.55, c.y() - r * 0.55, r * 1.1, r * 1.1);
+        painter->drawArc(arc, 200 * 16, 140 * 16);
+        const QPointF tip(c.x() + r * 0.55 * std::cos(qDegreesToRadians(-340.0)), c.y() + r * 0.55 * std::sin(qDegreesToRadians(-340.0)));
+        painter->drawLine(tip, tip + QPointF(-r * 0.3, -r * 0.05));
+        painter->drawLine(tip, tip + QPointF(-r * 0.05, r * 0.3));
+    }
+    painter->restore();
 }
 
 void MapView::addTextAtViewCenter(const QString& text) {
