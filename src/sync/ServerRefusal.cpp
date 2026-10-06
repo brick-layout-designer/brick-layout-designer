@@ -30,6 +30,10 @@ bool isLimitRefusal(const ServerRefusal& r) {
            r.code == QLatin1String("rate_limited") || r.code == QLatin1String("verify_email_first");
 }
 
+bool isAccountState(const ServerRefusal& r) {
+    return r.code == QLatin1String("account_pending_deletion") || r.code == QLatin1String("account_restricted");
+}
+
 bool isUpdateRequired(const ServerRefusal& r) {
     return r.status == 426 || r.code == QLatin1String("update_required");
 }
@@ -39,7 +43,7 @@ bool isFirewallBlock(const ServerRefusal& r) {
 }
 
 bool needsSignIn(const ServerRefusal& r) {
-    if (isLimitRefusal(r) || isFirewallBlock(r)) return false;
+    if (isLimitRefusal(r) || isFirewallBlock(r) || isAccountState(r)) return false;
     return r.status == 401 || r.status == 403;
 }
 
@@ -55,6 +59,14 @@ QString describe(const ServerRefusal& r) {
         if (r.code == QLatin1String("verify_email_first")) return tr("Please confirm your email address first.");
         return tr("You have reached a limit on this server. Ask the site admin for more room.");
     }
+    if (isAccountState(r)) {
+        if (!r.message.isEmpty()) return r.message.left(400);
+        if (r.code == QLatin1String("account_pending_deletion"))
+            return tr("This account is being deleted. To keep it, sign in on the website before then; then this app "
+                      "works again.");
+        return tr("Your account is on hold (read only) while a privacy request is looked at. You can still see and "
+                  "download your things. Ask the site admin.");
+    }
     if (isUpdateRequired(r)) {
         if (!r.message.isEmpty()) return r.message.left(400);
         return tr("This server needs a newer Brick Layout Designer. Please download the new version.");
@@ -65,7 +77,7 @@ QString describe(const ServerRefusal& r) {
 }
 
 QString failureText(const ServerRefusal& r) {
-    if (isFirewallBlock(r) || isLimitRefusal(r) || isUpdateRequired(r) || r.status == 0) return describe(r);
+    if (isFirewallBlock(r) || isLimitRefusal(r) || isAccountState(r) || isUpdateRequired(r) || r.status == 0) return describe(r);
     return tr("The server answered %1").arg(r.status);
 }
 
@@ -78,6 +90,11 @@ QString liveCloseText(int code, const QString& reason) {
     if (code == 4426)
         return tr("this version of Brick Layout Designer is too old for this server. Please download the new "
                   "version (Help > Check for Updates)");
+    if (code == 1008 && reason == QLatin1String("account_pending_deletion"))
+        return tr("this account is being deleted. To keep it, sign in on the website before the date in your email; "
+                  "then open the layout again");
+    if (code == 1008 && reason == QLatin1String("account_restricted"))
+        return tr("your account is on hold (read only) while a privacy request is looked at. Ask the site admin");
     if (code == 4429 && reason == QLatin1String("limit_reached"))
         return tr("too many people have this layout open right now; try again in a little while");
     return {};

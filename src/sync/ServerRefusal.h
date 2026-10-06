@@ -5,7 +5,8 @@
 // can act on: a usage limit reached ("Your club has used its 10 GB. Ask
 // the site admin for more room."), a read-only account, too many requests,
 // or an email that needs confirming. Those are shown as they come and
-// never mean "sign in again"; other 401/403 answers still do.
+// never mean "sign in again"; other 401/403 answers still do. The same goes
+// for an account that is being deleted or is on hold (isAccountState).
 
 #include <QByteArray>
 #include <QString>
@@ -30,6 +31,12 @@ ServerRefusal readRefusal(int status, const QByteArray& body, const QString& net
 
 // A limit, a read-only account, a rate limit or an unconfirmed email.
 bool isLimitRefusal(const ServerRefusal& r);
+
+// The account itself is on hold: it's being deleted (the person asked;
+// signing in on the website keeps it) or restricted while a privacy
+// request is looked at (read only). Shown as the server words it, and
+// never "sign in again": signing in here can't change it.
+bool isAccountState(const ServerRefusal& r);
 
 // This app is older than the server accepts (426 update_required).
 bool isUpdateRequired(const ServerRefusal& r);

@@ -413,6 +413,52 @@ TEST(ServerRefusal, ReadsLimitsReadOnlyAndRateLimits) {
     EXPECT_TRUE(liveCloseText(4429, QStringLiteral("too_many_connections")).isEmpty());
 }
 
+// An account being deleted, or on hold for a privacy request: the server's
+// own sentence, and never "sign in again".
+TEST(ServerRefusal, ExplainsAnAccountBeingDeletedOrOnHold) {
+    const auto del = readRefusal(
+        403, R"({"error":"account_pending_deletion","deletionDueAt":1900000000000,"message":"This account is being deleted on Sat, 17 Mar 2030. To keep it, sign in on the website before then."})");
+    EXPECT_TRUE(isAccountState(del));
+    EXPECT_FALSE(needsSignIn(del));
+    EXPECT_FALSE(isLimitRefusal(del));
+    EXPECT_TRUE(describe(del).startsWith(QStringLiteral("This account is being deleted on")));
+    EXPECT_EQ(failureText(del), describe(del));
+
+    const auto held = readRefusal(403, R"({"error":"account_restricted"})");
+    EXPECT_TRUE(isAccountState(held));
+    EXPECT_FALSE(needsSignIn(held));
+    EXPECT_TRUE(describe(held).startsWith(QStringLiteral("Your account is on hold (read only)")));
+    EXPECT_EQ(failureText(held), describe(held));
+    // Without the server's words, still plain words.
+    EXPECT_TRUE(describe(readRefusal(403, R"({"error":"account_pending_deletion"})")).contains(QStringLiteral("sign in on the website")));
+    EXPECT_FALSE(isAccountState(readRefusal(403, R"({"error":"forbidden"})")));
+    // A live layout closed because of it says why.
+    EXPECT_TRUE(liveCloseText(1008, QStringLiteral("account_pending_deletion")).contains(QStringLiteral("being deleted")));
+    EXPECT_TRUE(liveCloseText(1008, QStringLiteral("account_restricted")).contains(QStringLiteral("on hold")));
+    EXPECT_TRUE(liveCloseText(1008, QStringLiteral("token_revoked")).isEmpty());
+}
+
+// Every HTTP caller shows the account's state instead of asking to sign in again.
+TEST(ServerApi, ShowsTheAccountStateInsteadOfSignIn) {
+    FakeHttp http;
+    ServerApi api;
+    api.setBase(http.base());
+    api.setToken(QStringLiteral("bld_pat_x"));
+    http.reply("/api/orgs", 403,
+               { { QStringLiteral("error"), QStringLiteral("account_pending_deletion") },
+                 { QStringLiteral("message"), QStringLiteral("This account is being deleted on Sat, 17 Mar 2030.") } });
+    QString message;
+    bool unauthorized = true;
+    QObject::connect(&api, &ServerApi::requestFailed, [&](const QString&, const QString& m, bool u) {
+        message = m;
+        unauthorized = u;
+    });
+    api.fetchOrgs();
+    ASSERT_TRUE(waitFor([&] { return !message.isEmpty(); }));
+    EXPECT_EQ(message, QStringLiteral("This account is being deleted on Sat, 17 Mar 2030."));
+    EXPECT_FALSE(unauthorized);
+}
+
 // Club roles: managers look after the club's things like admins, but only
 // admins change its settings.
 TEST(ServerApi, ReadsEachClubRoleAndWhatItMayDo) {
