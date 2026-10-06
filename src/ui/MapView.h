@@ -120,6 +120,8 @@ public:
     // px at the current zoom, kept between 0.5 and 4 studs, scaled by the
     // Snap strength setting (SnapFeel.h).
     double connectionSnapReachStuds() const;
+    // A connection snap is showing (the ring) during a drag.
+    bool connectionSnapShown() const { return liveSnapActive_; }
     // Alt (Option on a Mac) is held: place without connection snap.
     bool snapBypassed() const;
 
