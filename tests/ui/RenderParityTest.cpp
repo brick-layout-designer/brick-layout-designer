@@ -177,6 +177,10 @@ TEST(RenderParity, ModuleStyleMatchesTheSharedDescription) {
     ASSERT_EQ(dash.size(), 2);
     EXPECT_EQ(rendering::kModuleFrameDash[0], dash[0].toDouble());
     EXPECT_EQ(rendering::kModuleFrameDash[1], dash[1].toDouble());
+    const QJsonArray hiddenDash = style[QLatin1String("partlyHiddenFrameDash")].toArray();
+    ASSERT_EQ(hiddenDash.size(), 2);
+    EXPECT_EQ(rendering::kModuleFramePartlyHiddenDash[0], hiddenDash[0].toDouble());
+    EXPECT_EQ(rendering::kModuleFramePartlyHiddenDash[1], hiddenDash[1].toDouble());
     // The name's outline: fontPx / 12, at least 2 px.
     EXPECT_DOUBLE_EQ(rendering::moduleNameStrokePx(12), 2.0);
     EXPECT_DOUBLE_EQ(rendering::moduleNameStrokePx(120), 10.0);

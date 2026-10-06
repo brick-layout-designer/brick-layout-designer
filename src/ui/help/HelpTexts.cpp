@@ -168,6 +168,13 @@ constexpr Raw kShared[] = {
                                      "join it, and a part dragged outside it asks whether to leave. Done, Esc or "
                                      "a click outside goes back to the whole layout. Pin in place stops the whole "
                                      "module moving, but you can still edit it.") },
+    { "module.sheets", "",
+      QT_TRANSLATE_NOOP("HelpTexts", "Module sheets"),
+      QT_TRANSLATE_NOOP("HelpTexts", "A module keeps the sheets its parts were on, like Track and Buildings."),
+      QT_TRANSLATE_NOOP("HelpTexts", "When you add it to a layout, each sheet’s parts go on the layout’s sheet with "
+                                     "the same name. If the layout has no sheet by that name, you choose where they "
+                                     "go: the picked sheet, or a new sheet with that name. Put everything on one "
+                                     "sheet saves the module with a single sheet instead.") },
     // Downloading
     { "download.formats", "/help#files",
       QT_TRANSLATE_NOOP("HelpTexts", "Download as"),

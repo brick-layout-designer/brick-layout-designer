@@ -218,6 +218,10 @@ public:
     // Who else is editing which module (from presence): module id -> names.
     void setPeersEditing(const QHash<QString, QStringList>& who);
     class ModuleEditBar* moduleEditBar() const { return editBar_; }
+    // Shows the hidden sheets the module being edited has parts on (its edit bar's Show button).
+    void showEditedModuleSheets();
+    // The edit bar again, after something it reports changed (a sheet shown or hidden, the picked sheet).
+    void refreshModuleEditBar();
     class SelectionOverlay* selectionOverlay() const { return selectionOverlay_; }
     // Whether the selection may move or turn as a whole; says why not when
     // a pinned module stops it.
@@ -562,7 +566,6 @@ private:
     QString editingModuleId_;
     QHash<QString, QStringList> peersEditing_;
     class ModuleEditBar* editBar_ = nullptr;
-    void refreshModuleEditBar();
     // Item flags and dimming for Edit module and pinned modules, after a build.
     void applyModuleState();
     // Modules picked whole (or only the edited one's parts): called from

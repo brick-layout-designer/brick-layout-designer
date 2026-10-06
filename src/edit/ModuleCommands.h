@@ -205,12 +205,16 @@ private:
 class ImportBbmAsModuleCommand : public QUndoCommand {
 public:
     // One batch per source layer. layerName is matched against existing
-    // brick-layer names in the host map; a new brick layer is created
-    // when no match is found.
+    // brick-layer names in the host map (ignoring case and the spaces
+    // around it, edit/ModuleSheets.h). With no match the batch goes on
+    // targetLayerGuid's layer (the answer to "Where should these go?",
+    // ui/SheetChoiceDialog) when set, else on a new brick layer named
+    // layerName.
     struct LayerBatch {
         QString layerName;
         std::vector<core::Brick> bricks;
         std::vector<core::Group> groups;  // the sets (groups) the bricks are in
+        QString targetLayerGuid;          // where an unmatched batch goes; empty: a new layer
     };
 
     ImportBbmAsModuleCommand(core::Map& map,
@@ -251,6 +255,7 @@ private:
     // Populated on first redo so undo can exactly reverse the operation.
     struct AppliedLayer {
         QString  layerName;
+        QString  layerGuid;               // the host layer it went on (found again on redo)
         int      layerIndex = -1;
         bool     wasCreated = false;      // created by this command → remove on undo
         QList<QString> addedGuids;         // bricks we appended to this layer

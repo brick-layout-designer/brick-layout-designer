@@ -1,4 +1,5 @@
 #include "MapView.h"
+#include "SheetChoiceDialog.h"
 #include "../core/ModuleEdit.h"
 #include "../rendering/ModuleLabels.h"
 #include "ConfirmDialog.h"
@@ -2760,6 +2761,10 @@ bool MapView::placeModule(core::Map& loaded, const QString& name, const QString&
         }
     }
     if (dragSnap) dragSnap->reset();
+
+    // Its sheets go on the layout's sheets with the same names; for the
+    // rest, ask where (Cancel puts nothing down).
+    if (!SheetChoiceDialog::choose(this, *map_, name, batches)) return false;
 
     auto* cmd = new edit::ImportBbmAsModuleCommand(
         *map_, source, name, std::move(batches));

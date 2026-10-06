@@ -6,6 +6,7 @@
 #include "MapView.h"
 #include "MapViewInternal.h"
 #include "ModuleEditBar.h"
+#include "../edit/ModuleSheets.h"
 
 #include "../core/LayerBrick.h"
 #include "../core/Map.h"
@@ -83,12 +84,50 @@ void MapView::refreshModuleEditBar() {
     if (!editBar_) {
         editBar_ = new ModuleEditBar(this);
         connect(editBar_, &ModuleEditBar::done, this, [this] { setEditingModule({}); });
+        connect(editBar_, &ModuleEditBar::showHiddenSheets, this, &MapView::showEditedModuleSheets);
     }
     editBar_->setModuleName(mod->name.isEmpty() ? tr("(module)") : mod->name);
     editBar_->setOthers(core::hereTooText(peersEditing_.value(editingModuleId_)));
+    {
+        // On several sheets: where new parts go. Some hidden: a Show button.
+        const auto uses = edit::moduleSheetsUsed(*map_, mod->memberIds);
+        int hidden = 0;
+        for (const auto& u : uses) hidden += u.visible ? 0 : 1;
+        QStringList lines;
+        if (uses.size() > 1) {
+            const int picked = edit::pickedPartsSheet(*map_);
+            QString line = tr("This module uses %1 sheets.").arg(uses.size());
+            if (picked >= 0) {
+                const QString name = map_->layers()[picked]->name;
+                line += QLatin1Char(' ') + tr("New parts go on <b>%1</b> (the picked sheet).")
+                                               .arg((name.isEmpty() ? tr("untitled") : name).toHtmlEscaped());
+            }
+            lines << line;
+        }
+        if (hidden > 0)
+            lines << (hidden == static_cast<int>(uses.size())
+                          ? (uses.size() == 1 ? tr("Its sheet is hidden.") : tr("Its sheets are hidden."))
+                          : (hidden == 1 ? tr("1 of its sheets is hidden.") : tr("%1 of its sheets are hidden.").arg(hidden)));
+        editBar_->setSheetsHint(lines.join(QLatin1Char(' ')),
+                                hidden == 0 ? QString() : hidden == 1 ? tr("Show it") : tr("Show them"));
+    }
     editBar_->place(viewport()->geometry());
     editBar_->show();
     editBar_->raise();
+}
+
+void MapView::showEditedModuleSheets() {
+    const core::Module* mod =
+        map_ && !editingModuleId_.isEmpty() ? core::findModule(map_->sidecar.modules, editingModuleId_) : nullptr;
+    if (!mod) return;
+    for (const auto& u : edit::moduleSheetsUsed(*map_, mod->memberIds)) {
+        if (u.visible) continue;
+        map_->layers()[u.index]->visible = true;
+        if (builder_) builder_->setLayerVisible(u.index, true);
+    }
+    if (builder_) builder_->refreshModuleLabels(*map_);
+    refreshModuleEditBar();
+    emit layersChanged();
 }
 
 std::optional<QRectF> MapView::editedModuleFrameStuds() const {

@@ -171,7 +171,10 @@ LayerPanel::LayerPanel(QWidget* parent) : QDockWidget(tr("Sheets"), parent) {
         // reappear despite the checkbox still showing unchecked.
         if (map_ && idx >= 0 && idx < static_cast<int>(map_->layers().size())) {
             map_->layers()[idx]->visible = visible;
+            // Module frames fit the parts that show, dashed more sparsely when some are hidden.
+            builder_->refreshModuleLabels(*map_);
         }
+        emit layerVisibilityChanged(idx, visible);
     });
     // Clicking (or arrow-keying) onto a row sets it as the active layer —
     // vanilla BlueBrick uses Map.selectedLayerIndex for new-item placements.

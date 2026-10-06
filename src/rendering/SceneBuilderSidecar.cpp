@@ -327,11 +327,16 @@ void SceneBuilder::addModuleLabels(const core::Map& map) {
     const LineWidthAt lineWidth = mapLineWidth(QStringLiteral("Bold"));
     for (const auto& mod : map.sidecar.modules) {
         QRectF studs;
-        // Pieces on hidden sheets don't frame or name their module.
+        // Pieces on hidden sheets don't frame or name their module; when
+        // some are hidden, the frame round the rest is dashed more sparsely.
+        bool partlyHidden = false;
         for (const auto& L : map.layers()) {
-            if (!L || L->kind() != core::LayerKind::Brick || !L->visible) continue;
-            for (const auto& b : static_cast<const core::LayerBrick&>(*L).bricks)
-                if (mod.memberIds.contains(b.guid)) studs = studs.united(b.displayArea);
+            if (!L || L->kind() != core::LayerKind::Brick) continue;
+            for (const auto& b : static_cast<const core::LayerBrick&>(*L).bricks) {
+                if (!mod.memberIds.contains(b.guid)) continue;
+                if (L->visible) studs = studs.united(b.displayArea);
+                else partlyHidden = true;
+            }
         }
         if (studs.isEmpty()) continue;
         const QString name = mod.name.isEmpty() ? QStringLiteral("(module)") : mod.name;
@@ -343,11 +348,13 @@ void SceneBuilder::addModuleLabels(const core::Map& map) {
         framePen.setWidthF(frameThickness);
         framePen.setCosmetic(true);
         // Qt's dash is in pen widths; the web's is in screen px.
-        framePen.setDashPattern({ kModuleFrameDash[0] / frameThickness, kModuleFrameDash[1] / frameThickness });
+        const double* dash = partlyHidden ? kModuleFramePartlyHiddenDash : kModuleFrameDash;
+        framePen.setDashPattern({ dash[0] / frameThickness, dash[1] / frameThickness });
         framePen.setCapStyle(Qt::FlatCap);
         frame->setPen(framePen);
         frame->setBrush(Qt::NoBrush);
         frame->setData(kModuleAnnotationRole, QStringLiteral("frame"));
+        frame->setData(kModulePartlyHiddenRole, partlyHidden);
         // Clicks go through to the parts.
         frame->setAcceptedMouseButtons(Qt::NoButton);
         frame->setData(kModuleIdRole, mod.id);

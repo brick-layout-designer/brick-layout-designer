@@ -21,6 +21,7 @@
 #include "ui/ModuleLibraryPanel.h"
 #include "ui/NoticeArea.h"
 #include "ui/SaveModuleDialog.h"
+#include "ui/SheetChoiceDialog.h"
 #include "ui/ServerLibrary.h"
 #include "ui/UpdateCheck.h"
 #include "ui/VenueLibraryPanel.h"
@@ -32,6 +33,7 @@
 #include <QDir>
 #include <QInputDialog>
 #include <QKeySequence>
+#include <QCheckBox>
 #include <QComboBox>
 #include <QElapsedTimer>
 #include <QFrame>
@@ -868,7 +870,22 @@ TEST_F(ServerModulesWindow, UseThisVenueKeepsTheCopyAndStartsALayoutInIt) {
     QFile::remove(dir.filePath(added.front()));
 }
 
+// "Where should these go?" (the layout lacks the module's sheets): new
+// sheets by their names, whenever it opens while the timer lives.
+static std::unique_ptr<QTimer> answerNewSheets() {
+    auto t = std::make_unique<QTimer>();
+    QObject::connect(t.get(), &QTimer::timeout, [] {
+        auto* d = qobject_cast<ui::SheetChoiceDialog*>(QApplication::activeModalWidget());
+        if (!d) return;
+        for (auto* box : d->findChildren<QComboBox*>(QStringLiteral("sheetChoice"))) box->setCurrentIndex(box->count() - 1);
+        d->placeButton()->click();
+    });
+    t->start(20);
+    return t;
+}
+
 TEST_F(ServerModulesWindow, AddToLayoutPutsTheModulesPartsInAsOneModule) {
+    const auto answers = answerNewSheets();
     emit library_->insertRequested(QStringLiteral("m1"));
     ASSERT_TRUE(waitFor([&] { return bricksInMap() == 3; }));
     const core::Map& m = *view_->currentMap();
@@ -902,6 +919,7 @@ TEST_F(ServerModulesWindow, SaveSelectionAsModuleMakesANewModuleOnTheServer) {
     http_.reply("/api/modules", 200, modules({ moduleJson(QStringLiteral("new1"), QStringLiteral("Yard"), QStringLiteral("owner"), {}, 5) }));
     // Two parts on the map, selected.
     auto module = sampleModule(1);
+    const auto answers = answerNewSheets();
     view_->placeModule(*module, QStringLiteral("x"), QString(), QPointF(4000, 4000));
     ASSERT_EQ(bricksInMap(), 2);
     QTimer::singleShot(0, [&] {
@@ -936,6 +954,44 @@ TEST_F(ServerModulesWindow, SaveSelectionAsModuleMakesANewModuleOnTheServer) {
     ASSERT_TRUE(img.loadFromData(QByteArray::fromBase64(thumb.value(QLatin1String("data")).toString().toLatin1())));
     EXPECT_GT(std::max(img.width(), img.height()), 256);
     ASSERT_TRUE(waitFor([&] { return library_->module(QStringLiteral("new1")); }));
+}
+
+// Parts on two sheets: the dialog says so, and "Put everything on one
+// sheet" saves one sheet named after the one with the most parts.
+TEST_F(ServerModulesWindow, SaveModuleSaysWhichSheetsAndCanPutThemOnOne) {
+    core::Map empty;
+    http_.replyRaw("/api/modules/new2/snapshot", 200, snapshotOf(empty), "application/octet-stream");
+    http_.reply("/api/modules/new2/snapshot?note=Two", 200, { { QStringLiteral("version"), 1 } });
+    http_.reply("/api/modules/new2/thumbnail", 200, { { QStringLiteral("ok"), true } });
+    http_.clear("/api/modules");
+    http_.reply("/api/modules", 201, { { QStringLiteral("id"), QStringLiteral("new2") }, { QStringLiteral("title"), QStringLiteral("Depot") } });
+    http_.reply("/api/modules", 200, modules({ moduleJson(QStringLiteral("new2"), QStringLiteral("Depot"), QStringLiteral("owner"), {}, 5) }));
+    auto module = sampleModule(2);  // Baseplates: 1 part, Tracks: 2
+    const auto answers = answerNewSheets();
+    view_->placeModule(*module, QStringLiteral("x"), QString(), QPointF(4000, 4000));
+    ASSERT_EQ(bricksInMap(), 3);
+    QString shown, oneShown;
+    QTimer::singleShot(0, [&] {
+        auto* d = qobject_cast<ui::SaveModuleDialog*>(QApplication::activeModalWidget());
+        ASSERT_NE(d, nullptr);
+        EXPECT_TRUE(d->sheetsBox()->isVisibleTo(d));
+        shown = d->sheetsLabel()->text();
+        d->oneSheetBox()->setChecked(true);
+        oneShown = d->sheetsLabel()->text();
+        d->nameEdit()->setText(QStringLiteral("Depot"));
+        d->noteEdit()->setText(QStringLiteral("Two"));
+        d->accept();
+    });
+    QMetaObject::invokeMethod(window_.get(), "onSaveSelectionAsModule", Qt::DirectConnection);
+    EXPECT_EQ(shown, QStringLiteral("This module uses 2 sheets: <b>Baseplates, Tracks</b>."));
+    EXPECT_EQ(oneShown, QStringLiteral("All its parts go on one sheet: <b>Tracks</b>."));
+    ASSERT_TRUE(waitFor([&] { return lastRequest(http_, "PUT", "/api/modules/new2/snapshot?note=Two"); }));
+    auto saved = sync::mapFromModuleSnapshot(lastRequest(http_, "PUT", "/api/modules/new2/snapshot?note=Two")->body);
+    ASSERT_TRUE(saved);
+    ASSERT_EQ(saved->layers().size(), 1u);
+    EXPECT_EQ(saved->layers().front()->name, QStringLiteral("Tracks"));
+    EXPECT_EQ(saved->layers().front()->transparency, 100);
+    EXPECT_EQ(sync::partCount(*saved), 3);
 }
 
 // A new module saved straight into a club asks first: the club will own it.

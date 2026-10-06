@@ -6,6 +6,7 @@
 #include "ui/MapViewInternal.h"
 #include "ui/PartsBrowser.h"
 #include "ui/ModuleLibraryPanel.h"
+#include "ui/SheetChoiceDialog.h"
 #include "ui/CatalogLink.h"
 #include "ui/TouchActionBar.h"
 #include "ui/TouchMode.h"
@@ -646,6 +647,12 @@ TEST_F(TouchTest, ModuleLibraryDragByTouchDropsTheModuleOnTheMap) {
     const QPoint spotOnMap = emptySpot(*view_);
     const QPoint to = list->viewport()->mapFromGlobal(view_->viewport()->mapToGlobal(spotOnMap));
     const QPoint side = from + QPoint(to.x() > from.x() ? 40 : -40, 0);
+    // The layout has none of the module's sheets: "Where should these go?" — Place (the picked sheet).
+    QTimer place;
+    QObject::connect(&place, &QTimer::timeout, [] {
+        if (auto* d = qobject_cast<ui::SheetChoiceDialog*>(QApplication::activeModalWidget())) d->placeButton()->click();
+    });
+    place.start(20);
     QTest::touchEvent(list->viewport(), touchScreen()).press(0, from);
     QTest::touchEvent(list->viewport(), touchScreen()).move(0, side);
     QTest::touchEvent(list->viewport(), touchScreen()).move(0, to);

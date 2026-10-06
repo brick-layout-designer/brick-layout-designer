@@ -45,6 +45,8 @@ signals:
     void renameLayerRequested(int index, const QString& newName);
     void activeLayerChanged(int index);
     void layerOptionsRequested(int index);
+    // A sheet was shown or hidden from its checkbox (Show all, Solo too).
+    void layerVisibilityChanged(int index, bool visible);
 
 protected:
     bool eventFilter(QObject* watched, QEvent* e) override;

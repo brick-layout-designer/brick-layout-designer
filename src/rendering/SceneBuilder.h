@@ -77,6 +77,10 @@ public:
     void rebuildFollowers(const core::Map& posed, const QSet<QString>& moving,
                           const QSet<int>& keepRulerLayers);
 
+    // Draw every module's frame and name again from `map` (a sheet shown or
+    // hidden changes which parts frame a module, and how its frame is dashed).
+    void refreshModuleLabels(const core::Map& map);
+
     // Toggle the visibility of a layer (by index). Returns false if out of range.
     bool setLayerVisible(int layerIndex, bool visible);
 

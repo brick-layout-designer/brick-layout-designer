@@ -776,6 +776,17 @@ void SceneBuilder::build(const core::Map& map) {
     addElectricCircuits(map);
 }
 
+void SceneBuilder::refreshModuleLabels(const core::Map& map) {
+    for (auto* it : moduleLabelItems_) {
+        scene_.removeItem(it);
+        delete it;
+    }
+    moduleLabelItems_.clear();
+    moduleAnnotationRects_.clear();
+    shortenedModuleNames_.clear();
+    addModuleLabels(map);
+}
+
 void SceneBuilder::rebuildFollowers(const core::Map& posed, const QSet<QString>& moving,
                                     const QSet<int>& keepRulerLayers) {
     for (auto* it : moduleLabelItems_) {
