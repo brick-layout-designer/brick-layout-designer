@@ -207,7 +207,8 @@ void MapView::captureGrabAnchor(QPointF clickScenePos) {
     // picked run, its hinge and rail both joined to parts moving with it):
     // the moving set's free end nearest the grab leads instead, as a
     // BlueBrick group's own connection does. Without it the run never snapped.
-    if (idx < static_cast<int>(brick->connections.size()) && takenWhileMoving(brick->connections[idx].linkedToId, keys)) {
+    if (idx < static_cast<int>(brick->connections.size())
+        && takenWhileMoving(brick->connections[idx].linkedToId, keys)) {
         double best = std::numeric_limits<double>::max();
         for (const auto& s : dragStart_) {
             const core::Brick* other = findBrick(*map_, s.layerIndex, s.guid);
@@ -217,13 +218,14 @@ void MapView::captureGrabAnchor(QPointF clickScenePos) {
             const QPointF centre = parts::placement::imageCentre(*other, parts_);
             for (int i = 0; i < meta->connections.size(); ++i) {
                 if (meta->connections[i].type.isEmpty()) continue;
-                if (i < static_cast<int>(other->connections.size()) &&
-                    takenWhileMoving(other->connections[i].linkedToId, keys)) continue;
-                const QPointF d = centre + rotatePoint(meta->connections[i].position, other->orientation) - clickStuds;
+                if (i < static_cast<int>(other->connections.size())
+                    && takenWhileMoving(other->connections[i].linkedToId, keys))
+                    continue;
+                const QPointF d =
+                    centre + rotatePoint(meta->connections[i].position, other->orientation) - clickStuds;
                 const double sq = d.x() * d.x() + d.y() * d.y();
                 if (sq >= best) continue;
                 best = sq;
-                brick = other;
                 guid = s.guid;
                 li = s.layerIndex;
                 idx = i;

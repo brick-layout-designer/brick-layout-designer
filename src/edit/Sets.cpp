@@ -252,7 +252,8 @@ std::vector<SetModule> findSetModules(const core::Map& map, parts::PartsLibrary&
     return out;
 }
 
-std::vector<SetModule> findLooseSets(const core::Map& map, parts::PartsLibrary& lib, const QSet<QString>& skip) {
+std::vector<SetModule> findLooseSets(const core::Map& map, parts::PartsLibrary& lib,
+                                     const QSet<QString>& skip) {
     std::vector<SetModule> out;
     // The sets used whole, with their parts (upper case, sorted).
     struct Kind {
@@ -263,7 +264,8 @@ std::vector<SetModule> findLooseSets(const core::Map& map, parts::PartsLibrary& 
     QSet<QString> setParts;
     for (const QString& key : lib.keys()) {
         const auto meta = lib.metadata(key);
-        if (!meta || meta->kind != parts::PartKind::Group || meta->canUngroup || meta->subparts.isEmpty()) continue;
+        if (!meta || meta->kind != parts::PartKind::Group || meta->canUngroup || meta->subparts.isEmpty())
+            continue;
         const ExpandedSet set = expandSet(lib, key, QPointF(0, 0));
         if (set.bricks.size() < 2) continue;
         Kind k{ key, {} };
@@ -279,7 +281,8 @@ std::vector<SetModule> findLooseSets(const core::Map& map, parts::PartsLibrary& 
         const auto* L = brickLayerAt(map, li);
         if (!L) continue;
         const auto loose = [&](const core::Brick& b) {
-            return b.myGroupId.isEmpty() && !skip.contains(b.guid) && setParts.contains(b.partNumber.toUpper());
+            return b.myGroupId.isEmpty() && !skip.contains(b.guid)
+                   && setParts.contains(b.partNumber.toUpper());
         };
         // Loose set parts by their connections' ids.
         QHash<QString, int> byConnection;
@@ -297,7 +300,8 @@ std::vector<SetModule> findLooseSets(const core::Map& map, parts::PartsLibrary& 
                 const core::Brick& b = L->bricks[joined[n]];
                 const auto meta = lib.metadata(b.partNumber);
                 if (!meta) continue;
-                const int count = std::min(static_cast<int>(meta->connections.size()), static_cast<int>(b.connections.size()));
+                const int count = std::min(static_cast<int>(meta->connections.size()),
+                                           static_cast<int>(b.connections.size()));
                 for (int c = 0; c < count; ++c) {
                     if (connectionHingeAngle(meta->connections[c].type) <= 0.0f) continue;
                     const int j = byConnection.value(b.connections[c].linkedToId, -1);

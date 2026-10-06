@@ -289,7 +289,8 @@ TEST_F(SetsTest, LooseHalvesAlreadyBecomingASetFromTheirModuleAreLeftToIt) {
     const auto modules = edit::findSetModules(map_, lib_);
     ASSERT_EQ(modules.size(), 1u);
     QSet<QString> taken;
-    for (auto it = modules[0].parentOf.constBegin(); it != modules[0].parentOf.constEnd(); ++it) taken.insert(it.key());
+    for (auto it = modules[0].parentOf.constBegin(); it != modules[0].parentOf.constEnd(); ++it)
+        taken.insert(it.key());
     EXPECT_TRUE(edit::findLooseSets(map_, lib_, taken).empty());
     EXPECT_EQ(edit::findLooseSets(map_, lib_).size(), 1u);
 }

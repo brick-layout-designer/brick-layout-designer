@@ -256,14 +256,15 @@ void MainWindow::makeSetsOfSetModules() {
     actions << NoticeAction{ tr("OK"), {} };
     QStringList what;
     if (fromModules > 0)
-        what << tr("%n set(s) such as flex track were kept as modules by an older version.", nullptr, fromModules);
-    if (loose > 0)
-        what << tr("%n flex track piece(s) had come apart into loose halves.", nullptr, loose);
-    notices_->showNotice(QStringLiteral("sets-from-modules"), tr("Sets are sets again"),
-                         tr("%1 They are now sets: each one selects, moves and counts as one part, as in BlueBrick. "
-                            "Undo puts them back as they were.")
-                             .arg(what.join(QLatin1Char(' '))),
-                         actions);
+        what << tr("%n set(s) such as flex track were kept as modules by an older version.", nullptr,
+                   fromModules);
+    if (loose > 0) what << tr("%n flex track piece(s) had come apart into loose halves.", nullptr, loose);
+    notices_->showNotice(
+        QStringLiteral("sets-from-modules"), tr("Sets are sets again"),
+        tr("%1 They are now sets: each one selects, moves and counts as one part, as in BlueBrick. "
+           "Undo puts them back as they were.")
+            .arg(what.join(QLatin1Char(' '))),
+        actions);
 }
 
 void MainWindow::onOpen() {
