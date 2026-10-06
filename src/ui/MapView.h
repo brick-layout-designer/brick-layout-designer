@@ -352,6 +352,11 @@ private:
     Qt::KeyboardModifiers snapMods_;
     mutable snapfeel::Session dragSnap_;
     mutable snapfeel::Session placeSnap_;
+    // A flex move's end snapping (calm snap: hold and switch on targets).
+    snapfeel::Session flexSnap_;
+    // Bend the flex move's chain to the pointer, its end snapping like a
+    // dragged part's grabbed end; `final` on release.
+    void bendFlexTo(QPointF mouseStuds, bool final);
     mutable snapfeel::Session moduleSnap_;
     double snapClockMs() const;
     // A pointer move at viewport position `vp` for `session`'s speed.
@@ -459,8 +464,14 @@ private:
     bool flexFromHandle_ = false;
     bool overBendHandle_ = false;
     void refreshBendHandles();
+public:
+    // A bend handle's radius on screen (px, the same at every zoom) and in
+    // the scene now; `hit` for the area that grabs it.
+    double bendHandleScreenRadius(bool hit = false) const;
+    double bendHandleRadiusScenePx(bool hit = false) const;
+    // The bend handle under a viewport point, or -1.
     int bendHandleAt(QPoint viewPos) const;
-    double bendHandleRadiusScenePx() const;
+private:
     bool startBendFromHandle(int index);
     void paintBendHandles(QPainter* painter) const;
 public:

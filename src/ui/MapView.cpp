@@ -773,13 +773,8 @@ void MapView::mouseMoveEvent(QMouseEvent* e) {
     }
 
     if (flex_ && (e->buttons() & Qt::LeftButton)) {
-        const double px = rendering::SceneBuilder::kPixelsPerStud;
-        // The editor's connection-snap reach; Alt bends without snapping.
-        const auto snapped = flex_->moveTo(lastMouseScenePos_ / px, connectionSnapReachStuds(), !snapBypassed());
-        flexMoved_ = true;
-        updateFlexItems();
-        setSnapMarks(snapped.has_value(), snapped ? *snapped * px : QPointF(), std::nullopt);
-        viewport()->update();
+        sampleSnapSpeed(flexSnap_, e->position());
+        bendFlexTo(lastMouseScenePos_ / rendering::SceneBuilder::kPixelsPerStud, false);
         e->accept();
         return;
     }
@@ -919,6 +914,8 @@ void MapView::mouseReleaseEvent(QMouseEvent* e) {
         return;
     }
     if (flex_ && e->button() == Qt::LeftButton) {
+        // The release settles the join (no speed gate), so it links.
+        if (flexMoved_) bendFlexTo(mapToScene(e->pos()) / rendering::SceneBuilder::kPixelsPerStud, true);
         finishFlexMove();
         e->accept();
         return;
@@ -1979,6 +1976,7 @@ bool MapView::startFlexMove(QGraphicsItem* under, QPointF scenePos) {
     if (core::pinnedAmong(chain, map_->sidecar.modules, editingModuleId_)) return false;
 
     flex_ = std::move(flex);
+    flexSnap_.reset();
     flexLayer_ = li;
     flexGrabbed_ = grabbed;
     flexMoved_ = false;
@@ -2059,6 +2057,27 @@ void MapView::finishFlexMove() {
     undoStack_->push(cmd);  // indexChanged handler relinks and rebuilds the scene
 }
 
+void MapView::bendFlexTo(QPointF mouseStuds, bool final) {
+    if (!flex_) return;
+    // The moving end is where the pointer has it (reach from the raw
+    // pointer); it joins the nearest free end of its type at any angle,
+    // with the calm-snap hold and switch (Alt bends without snapping).
+    const auto& targets = flex_->snapTargets();
+    std::vector<FreeTarget> free;
+    free.reserve(targets.size());
+    for (const auto& t : targets) free.push_back({ t.key, t.type, t.world, t.angle });
+    const QPointF end = flex_->endFor(mouseStuds);
+    const std::vector<MovingConn> moving{ { QStringLiteral("flex"), flex_->endType(), end, 0.0, flex_->endAngle() } };
+    const SnapPick pick = pickConnectionSnap(moving, free, connectionSnapReachStuds(), &flexSnap_, snapBypassed(), final);
+    const bool joined = flex_->bendTo(mouseStuds, pick.applied() ? pick.target : -1);
+    if (pick.applied() && !joined) flexSnap_.lock.reset();  // out of the chain's reach
+    flexMoved_ = true;
+    updateFlexItems();
+    const double px = rendering::SceneBuilder::kPixelsPerStud;
+    setSnapMarks(joined, joined ? targets[pick.target].world * px : QPointF(), std::nullopt);
+    viewport()->update();
+}
+
 void MapView::refreshBendHandles() {
     const bool had = !bendHandles_.empty();
     bendHandles_.clear();
@@ -2087,16 +2106,23 @@ void MapView::refreshBendHandles() {
     viewport()->update();
 }
 
-double MapView::bendHandleRadiusScenePx() const {
-    // Easy to grab: at least half a touch target across under a finger.
-    return handleRadiusScenePx(TouchMode::instance().active() ? TouchMode::kMinTarget / 2.0 : 9.0);
+double MapView::bendHandleScreenRadius(bool hit) const {
+    // A fixed size on screen at every zoom: a 9 px ring for the mouse, 12 px
+    // under a finger; grabbed within 12 px, or the 44 px touch target.
+    const bool touch = TouchMode::instance().active();
+    if (hit) return touch ? 22.0 : 12.0;
+    return touch ? 12.0 : 9.0;
+}
+
+double MapView::bendHandleRadiusScenePx(bool hit) const {
+    return bendHandleScreenRadius(hit) / std::max(1e-6, transform().m11());
 }
 
 int MapView::bendHandleAt(QPoint viewPos) const {
     if (bendHandles_.empty()) return -1;
     const QPointF scenePos = mapToScene(viewPos);
     const double px = rendering::SceneBuilder::kPixelsPerStud;
-    const double r = bendHandleRadiusScenePx() * 1.25;
+    const double r = bendHandleRadiusScenePx(true);
     int best = -1;
     double bestDist = r * r;
     for (int i = 0; i < static_cast<int>(bendHandles_.size()); ++i) {
@@ -2113,6 +2139,7 @@ bool MapView::startBendFromHandle(int index) {
     auto flex = edit::FlexMove::start(static_cast<core::LayerBrick&>(*L), h.run, h.guid, h.studs, parts_, h.connection);
     if (!flex) return false;
     flex_ = std::move(flex);
+    flexSnap_.reset();
     flexFromHandle_ = true;
     flexLayer_ = h.layer;
     flexGrabbed_ = h.guid;
