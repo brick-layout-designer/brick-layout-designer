@@ -498,13 +498,14 @@ TEST(LiveDrag, TheVenueCheckFollowsTheDrag) {
     view->loadMap(std::move(loaded.map));
     // The status may come a moment later (a slower machine).
     QLabel* status = nullptr;
-    QTest::qWaitFor(
+    const bool found = QTest::qWaitFor(
         [&] {
             for (QLabel* l : w.findChildren<QLabel*>())
                 if (l->text().startsWith(QStringLiteral("Venue:"))) status = l;
             return status != nullptr;
         },
         5000);
+    ASSERT_TRUE(found);
     ASSERT_NE(status, nullptr);
     ASSERT_EQ(status->text(), QStringLiteral("Venue: fits"));
     // Press on a part that's on top, drag it far out, keep holding.
