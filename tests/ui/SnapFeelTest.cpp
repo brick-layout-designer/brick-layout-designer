@@ -566,8 +566,12 @@ TEST_P(GroupTurnTest, LoosePartsPickedTogetherTurnAsOneToJoin) {
     for (QGraphicsItem* it : view_->scene()->items()) {
         if (!detail::isBrickItem(it)) continue;
         const QString g = it->data(detail::kBrickDataGuid).toString();
-        if (g == QLatin1String("A")) EXPECT_NEAR(snapfeel::wrap180(it->rotation() - turn), 0, 1e-3);
-        if (g == QLatin1String("B")) EXPECT_NEAR(snapfeel::wrap180(it->rotation() - 22.5 - turn), 0, 1e-3);
+        if (g == QLatin1String("A")) {
+            EXPECT_NEAR(snapfeel::wrap180(it->rotation() - turn), 0, 1e-3);
+        }
+        if (g == QLatin1String("B")) {
+            EXPECT_NEAR(snapfeel::wrap180(it->rotation() - 22.5 - turn), 0, 1e-3);
+        }
     }
     slowDrag(sc.a + QPointF(6 - 0.4, 0), sc.a + QPointF(6 - 0.4, 0));
     const core::Brick* a = brick(QStringLiteral("A"));
