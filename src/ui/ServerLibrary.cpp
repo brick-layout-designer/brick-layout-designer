@@ -627,13 +627,20 @@ CatalogTab::CatalogTab(ServerLibrary& library, QWidget* parent) : QWidget(parent
     col->addWidget(scroll, 1);
 
     chooseOwner = [this](const QString& title) -> std::optional<QString> {
+        // Only the clubs that will take it (one that keeps adding to its admins is left out).
         QStringList names{ tr("Me") };
-        for (const auto& o : library_.orgs()) names << o.name;
+        QStringList slugs{ QString() };
+        for (const auto& o : library_.orgs()) {
+            if (!o.canAdd) continue;
+            names << o.name;
+            slugs << o.slug;
+        }
+        if (names.size() == 1) return QString();
         bool ok = false;
         const QString picked = QInputDialog::getItem(this, title, tr("Add to"), names, 0, false, &ok);
         if (!ok) return std::nullopt;
-        const int i = static_cast<int>(names.indexOf(picked));
-        return i <= 0 ? QString() : library_.orgs().at(i - 1).slug;
+        const auto i = names.indexOf(picked);
+        return i <= 0 ? QString() : slugs.at(i);
     };
 
     connect(search_, &QLineEdit::textChanged, this, [this] { reload(); });

@@ -94,6 +94,9 @@ struct OrgEntry {
     QString slug;
     QString name;
     QString role; // your role: admin / manager / member
+    // May you save new things to it? False when the club keeps adding to
+    // its admins and managers and you're a member (servers before this: true).
+    bool canAdd = true;
     // Admins and managers look after the club's layouts, venues, modules
     // and parts; only admins change its settings.
     bool managesThings() const { return role == QLatin1String("admin") || role == QLatin1String("manager"); }

@@ -3,6 +3,7 @@
 // when it was revoked, refuse a server we can't talk to, and hand back the
 // chosen layout (view-only access included).
 
+#include <optional>
 #include "ConnectDialog.h"
 #include "ServerList.h"
 #include "FakeHttp.h"
@@ -519,6 +520,30 @@ TEST(ConnectDialog, PublishesToAClubYouManage) {
     ASSERT_TRUE(waitFor([&] { return h.dialog.QDialog::result() == QDialog::Accepted; }));
     const auto body = QJsonDocument::fromJson(h.http.requests.back().body).object();
     EXPECT_EQ(body.value(QLatin1String("orgSlug")).toString(), QStringLiteral("rail"));
+}
+
+// A club that keeps adding to its admins isn't offered to its members
+// (the server would refuse); a server that doesn't say offers every club.
+TEST(ConnectDialog, PublishOffersOnlyClubsThatTakeIt) {
+    Harness h(ConnectDialog::Purpose::Publish);
+    h.tokens.save(h.http.base(), QStringLiteral("bld_pat_saved"));
+    const auto org = [](const char* slug, const char* name, std::optional<bool> canAdd) {
+        QJsonObject o{ { QStringLiteral("slug"), QLatin1String(slug) },
+                       { QStringLiteral("name"), QLatin1String(name) },
+                       { QStringLiteral("myRole"), QStringLiteral("member") } };
+        if (canAdd) o.insert(QStringLiteral("canAdd"), *canAdd);
+        return o;
+    };
+    h.http.reply("/api/orgs", 200,
+                 { { QStringLiteral("orgs"), QJsonArray{ org("rail", "Rail Club", true), org("town", "Town Club", false),
+                                                         org("old", "Old Club", std::nullopt) } } });
+    h.dialog.setPublishContent(QByteArrayLiteral("<Map/>"), {}, QStringLiteral("Yard"));
+    h.dialog.connectToServer();
+    auto* owner = h.dialog.findChild<QComboBox*>(QStringLiteral("publishOwner"));
+    ASSERT_TRUE(waitFor([&] { return owner->count() == 3; }));
+    EXPECT_EQ(owner->itemText(0), QStringLiteral("Me"));
+    EXPECT_EQ(owner->itemText(1), QStringLiteral("Rail Club"));
+    EXPECT_EQ(owner->itemText(2), QStringLiteral("Old Club"));
 }
 
 TEST(ConnectDialog, PublishingWithAnOldSignInSignsInAgain) {

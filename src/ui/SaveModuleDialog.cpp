@@ -58,7 +58,8 @@ SaveModuleDialog::SaveModuleDialog(ServerLibrary& library, const QString& defaul
     saveTo_ = new QComboBox(newPage);
     saveTo_->setObjectName(QStringLiteral("saveModuleOwner"));
     saveTo_->addItem(tr("Me (on %1)").arg(library_.label()), QString());
-    for (const auto& o : library_.orgs()) saveTo_->addItem(o.name, o.slug);
+    for (const auto& o : library_.orgs())
+        if (o.canAdd) saveTo_->addItem(o.name, o.slug);
     saveTo_->addItem(tr("This computer only (Module library folder)"), QString::fromLatin1(kThisComputer));
     const int def = saveTo_->findData(defaultOwner);
     saveTo_->setCurrentIndex(def >= 0 ? def : 0);
