@@ -26,15 +26,33 @@ namespace bld::edit {
 // ConnectionTypeList.xml; 0 for rigid connections.
 float connectionHingeAngle(const QString& type);
 
+// A free end of a flexible run that a bend handle sits on.
+struct FlexEnd {
+    QString guid;        // the brick at the end
+    int connection = -1; // its free connection
+    QPointF world;       // where that connection is, studs
+};
+
+// The flexible run through the selected bricks of `layer`: every brick with
+// a hinged connection (and at most two connections) reachable through
+// linked connections from a selected one, so a chain of flex track sets is
+// one run. Returns its free ends (none when every end is joined) and puts
+// the run's bricks in `run`.
+std::vector<FlexEnd> flexRunEnds(const core::LayerBrick& layer, const QSet<QString>& selection,
+                                 parts::PartsLibrary& lib, QSet<QString>* run = nullptr);
+
 class FlexMove {
 public:
     // Starts a flex move of `grabbedGuid` within the `selection` of
     // `layer`, or nothing when the selection has no flexible chain through
     // that brick. The layer's bricks are edited in place while the move
     // runs; their vector must not change size meanwhile.
+    // `activeConnection` (when >= 0) is the grabbed brick's connection that
+    // follows the mouse and snaps (a bend handle's end), instead of its
+    // active connection.
     static std::unique_ptr<FlexMove> start(core::LayerBrick& layer, const QSet<QString>& selection,
                                            const QString& grabbedGuid, QPointF mouseStuds,
-                                           parts::PartsLibrary& lib);
+                                           parts::PartsLibrary& lib, int activeConnection = -1);
     ~FlexMove();
 
     // Bend the chain so its end reaches `mouseStuds`, snapping (unless

@@ -434,6 +434,32 @@ private:
     // chain with hinged connections (flex track, magnet couplings) to
     // bend it. Edits the map live; one undo command on release.
     bool startFlexMove(QGraphicsItem* under, QPointF scenePos);
+    // Bend handles: a round handle on each free end of the flexible run
+    // the selection holds (flex track, magnet couplings...); dragging one
+    // bends the run so that end follows.
+    struct BendHandle {
+        int layer = -1;
+        QString guid;
+        int connection = -1;
+        QPointF studs;
+        QSet<QString> run;
+    };
+    std::vector<BendHandle> bendHandles_;
+    bool flexFromHandle_ = false;
+    bool overBendHandle_ = false;
+    void refreshBendHandles();
+    int bendHandleAt(QPoint viewPos) const;
+    double bendHandleRadiusScenePx() const;
+    bool startBendFromHandle(int index);
+    void paintBendHandles(QPainter* painter) const;
+public:
+    // The bend handles now (tests): where each sits, in studs.
+    std::vector<QPointF> bendHandlePositions() const {
+        std::vector<QPointF> out;
+        for (const auto& h : bendHandles_) out.push_back(h.studs);
+        return out;
+    }
+private:
     void updateFlexItems();
     void finishFlexMove();
     // BlueBrick's MoveGridOrigin: with the grid layer selected (showing

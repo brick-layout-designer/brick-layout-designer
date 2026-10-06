@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <optional>
 
 namespace bld::edit {
 
@@ -140,6 +141,7 @@ struct FlexMove::Impl {
     bool useTwoTargets = false;
     Ccd status = Ccd::Failure;
     core::Brick* grabbed = nullptr;
+    int active = -1;    // the grabbed brick's connection that follows the mouse
     QPointF grabDelta;  // mouse - active connection, at the start
 
     Impl(core::LayerBrick& l, parts::PartsLibrary& p) : layer(l), lib(p) {}
@@ -328,12 +330,63 @@ struct FlexMove::Impl {
     }
 };
 
+std::vector<FlexEnd> flexRunEnds(const core::LayerBrick& layer, const QSet<QString>& selection,
+                                 parts::PartsLibrary& lib, QSet<QString>* runOut) {
+    std::vector<FlexEnd> ends;
+    QHash<QString, const core::Brick*> byGuid;
+    QHash<QString, std::pair<const core::Brick*, int>> owner;  // connection guid -> (brick, index)
+    for (const auto& b : layer.bricks) {
+        byGuid.insert(b.guid, &b);
+        for (int i = 0; i < static_cast<int>(b.connections.size()); ++i)
+            if (!b.connections[i].guid.isEmpty()) owner.insert(b.connections[i].guid, { &b, i });
+    }
+    QHash<const core::Brick*, std::optional<parts::PartMetadata>> metas;
+    const auto meta = [&](const core::Brick* b) -> const parts::PartMetadata* {
+        auto it = metas.find(b);
+        if (it == metas.end()) it = metas.insert(b, lib.metadata(b->partNumber));
+        return it.value() ? &*it.value() : nullptr;
+    };
+    const auto flexible = [&](const core::Brick* b) {
+        const auto* m = meta(b);
+        if (!m || m->connections.isEmpty() || m->connections.size() > 2) return false;
+        return std::any_of(m->connections.cbegin(), m->connections.cend(),
+                           [](const auto& c) { return connectionHingeAngle(c.type) != 0.0f; });
+    };
+    QSet<QString> run;
+    std::vector<const core::Brick*> todo;
+    for (const QString& guid : selection) {
+        const core::Brick* b = byGuid.value(guid);
+        if (b && flexible(b) && !run.contains(guid)) { run.insert(guid); todo.push_back(b); }
+    }
+    while (!todo.empty()) {
+        const core::Brick* b = todo.back();
+        todo.pop_back();
+        for (const auto& c : b->connections) {
+            if (c.linkedToId.isEmpty()) continue;
+            const core::Brick* next = owner.value(c.linkedToId).first;
+            if (!next || run.contains(next->guid) || !flexible(next)) continue;
+            run.insert(next->guid);
+            todo.push_back(next);
+        }
+    }
+    for (const auto& b : layer.bricks) {
+        if (!run.contains(b.guid)) continue;
+        const auto* m = meta(&b);
+        for (int i = 0; i < m->connections.size() && i < static_cast<int>(b.connections.size()); ++i) {
+            if (m->connections[i].type.isEmpty() || !b.connections[i].linkedToId.isEmpty()) continue;
+            ends.push_back({ b.guid, i, parts::placement::imageCentre(b, lib) + parts::placement::rotated(m->connections[i].position, b.orientation) });
+        }
+    }
+    if (runOut) *runOut = run;
+    return ends;
+}
+
 FlexMove::FlexMove(std::unique_ptr<Impl> impl) : d_(std::move(impl)) {}
 FlexMove::~FlexMove() = default;
 
 std::unique_ptr<FlexMove> FlexMove::start(core::LayerBrick& layer, const QSet<QString>& selection,
                                           const QString& grabbedGuid, QPointF mouseStuds,
-                                          parts::PartsLibrary& lib) {
+                                          parts::PartsLibrary& lib, int activeConnection) {
     auto d = std::make_unique<Impl>(layer, lib);
     QSet<core::Brick*> list;
     for (auto& b : layer.bricks) {
@@ -361,8 +414,8 @@ std::unique_ptr<FlexMove> FlexMove::start(core::LayerBrick& layer, const QSet<QS
     d->createChain(list, g, startConn);
     if (d->bones.size() < 2) return nullptr;
 
-    const int active = std::clamp(g->activeConnectionPointIndex, 0, n - 1);
-    d->grabDelta = mouseStuds - d->world(d->conn(g, active));
+    d->active = std::clamp(activeConnection >= 0 ? activeConnection : g->activeConnectionPointIndex, 0, n - 1);
+    d->grabDelta = mouseStuds - d->world(d->conn(g, d->active));
 
     std::unique_ptr<FlexMove> move(new FlexMove(std::move(d)));
     move->initial_ = move->currentState();
@@ -376,8 +429,7 @@ std::optional<QPointF> FlexMove::moveTo(QPointF mouseStuds, double reachStuds, b
     // connection-snap reach; BlueBrick used max(grid, 4) studs).
     Conn target;
     core::Brick* g = d_->grabbed;
-    const int n = d_->connectionCount(g);
-    const Conn active = d_->conn(g, std::clamp(g->activeConnectionPointIndex, 0, n - 1));
+    const Conn active = d_->conn(g, d_->active);
     if (snap && reachStuds > 0.0 && d_->isFree(active)) {
         const QString type = d_->type(active);
         const QPointF virtualPos = mouseStuds - d_->grabDelta;

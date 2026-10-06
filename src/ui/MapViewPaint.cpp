@@ -153,6 +153,7 @@ void MapView::drawForeground(QPainter* painter, const QRectF& rect) {
     paintModuleEdit(painter);
     QGraphicsView::drawForeground(painter, rect);
     paintLongPressRing(painter);
+    paintBendHandles(painter);
 
     // Endpoint handles for any selected single linear ruler. drawn in
     // scene coords so they pin to the actual endpoints regardless of

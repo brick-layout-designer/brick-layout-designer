@@ -248,6 +248,54 @@ TEST_F(MapViewTest, ADuplicatedSetStaysASet) {
     EXPECT_EQ(L.groups.size(), 1u);
 }
 
+TEST_F(MapViewTest, ABendHandleOnTheFreeEndBendsTheWholeRun) {
+    if (!parts_.metadata(QStringLiteral("flex.group")))
+        GTEST_SKIP() << "the BlueBrickParts library isn't checked out (run git submodule update --init)";
+    auto map = std::make_unique<core::Map>();
+    auto layer = std::make_unique<core::LayerBrick>();
+    layer->guid = core::newBbmId();
+    map->layers().push_back(std::move(layer));
+    view_->loadMap(std::move(map));
+    view_->resize(800, 600);
+    const double px = 8.0;  // SceneBuilder::kPixelsPerStud
+    view_->centerOn(QPointF(2, 0) * px);
+    // Two flex track sets end to end: one run of four halves, two hinges.
+    view_->addPartAtScenePos(QStringLiteral("flex.group"), QPointF(0, 0));
+    view_->addPartAtScenePos(QStringLiteral("flex.group"), QPointF(4, 0) * px);
+    const auto& L = static_cast<const core::LayerBrick&>(*view_->currentMap()->layers().front());
+    ASSERT_EQ(L.bricks.size(), 4u);
+    ASSERT_EQ(L.bricks[1].connections[0].linkedToId, L.bricks[2].connections[0].guid) << "the sets are joined";
+
+    // Selecting the first set shows a handle on each free end of the run.
+    view_->scene()->clearSelection();
+    for (QGraphicsItem* it : brickItems(*view_->scene()))
+        if (it->data(ui::detail::kBrickDataGuid).toString() == L.bricks[0].guid) it->setSelected(true);
+    auto handles = view_->bendHandlePositions();
+    ASSERT_EQ(handles.size(), 2u);
+    std::sort(handles.begin(), handles.end(), [](QPointF a, QPointF b) { return a.x() < b.x(); });
+    EXPECT_NEAR(handles[0].x(), -1.95, 0.01);
+    EXPECT_NEAR(handles[1].x(), 6.05, 0.01);
+
+    const std::vector<core::Brick> before = L.bricks;
+    const int undoBefore = view_->undoStack()->count();
+    QWidget* vp = view_->viewport();
+    const QPoint grab = view_->mapFromScene(handles[1] * px);
+    // A click without a drag changes nothing (and opens nothing).
+    mouse(vp, QEvent::MouseButtonPress, grab, Qt::LeftButton);
+    mouse(vp, QEvent::MouseButtonRelease, grab, Qt::NoButton);
+    EXPECT_EQ(view_->undoStack()->count(), undoBefore);
+    // A drag bends the run; the far end stays put.
+    mouse(vp, QEvent::MouseButtonPress, grab, Qt::LeftButton);
+    for (QPointF p : { QPointF(6, -0.5), QPointF(5.8, -1.5) })
+        mouse(vp, QEvent::MouseMove, view_->mapFromScene(p * px), Qt::LeftButton);
+    mouse(vp, QEvent::MouseButtonRelease, view_->mapFromScene(QPointF(5.8, -1.5) * px), Qt::NoButton);
+    EXPECT_EQ(view_->undoStack()->count(), undoBefore + 1);
+    EXPECT_EQ(view_->undoStack()->undoText(), QStringLiteral("Bend flex track"));
+    EXPECT_EQ(L.bricks[0].displayArea, before[0].displayArea) << "the other end stays";
+    EXPECT_NE(L.bricks[3].orientation, before[3].orientation);
+    EXPECT_EQ(L.groups.size(), 2u) << "still two sets";
+}
+
 TEST_F(MapViewTest, BudgetLimitationRefusesPartsOverTheirLimit) {
     QSettings().setValue(QStringLiteral("general/warnBudgetLimitation"), false);  // no modal message
     ui::BudgetSession budget(parts_);
