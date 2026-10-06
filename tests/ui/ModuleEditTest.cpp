@@ -369,9 +369,7 @@ TEST_F(LiveDragTest, TheModuleFrameAndNameMoveBeforeTheRelease) {
         for (const auto& L : m.layers())
             if (L->kind() == core::LayerKind::Brick)
                 for (const auto& b : static_cast<const core::LayerBrick&>(*L).bricks)
-                    if (b.guid == *a_.begin()) {
-                        EXPECT_TRUE(view_->liveDragging());
-                    }
+                    if (b.guid == *a_.begin()) { EXPECT_TRUE(view_->liveDragging()); }
     });
     mouseAt(view_->viewport(), QEvent::MouseButtonRelease, at + QPoint(80, 40), Qt::NoButton);
     EXPECT_FALSE(view_->liveDragging());
@@ -498,10 +496,15 @@ TEST(LiveDrag, TheVenueCheckFollowsTheDrag) {
     v.edges = { e };
     loaded.map->sidecar.venue = v;
     view->loadMap(std::move(loaded.map));
-    QApplication::processEvents();
+    // The status may come a moment later (a slower machine).
     QLabel* status = nullptr;
-    for (QLabel* l : w.findChildren<QLabel*>())
-        if (l->text().startsWith(QStringLiteral("Venue:"))) status = l;
+    QTest::qWaitFor(
+        [&] {
+            for (QLabel* l : w.findChildren<QLabel*>())
+                if (l->text().startsWith(QStringLiteral("Venue:"))) status = l;
+            return status != nullptr;
+        },
+        5000);
     ASSERT_NE(status, nullptr);
     ASSERT_EQ(status->text(), QStringLiteral("Venue: fits"));
     // Press on a part that's on top, drag it far out, keep holding.

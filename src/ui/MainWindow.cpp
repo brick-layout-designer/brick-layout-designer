@@ -780,6 +780,8 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
     connect(mapView_, &MapView::layersChanged, this,
             [refreshVenueStatus]{ refreshVenueStatus(); });
     connect(mapView_, &MapView::liveDragMoved, this, [refreshVenueStatus] { refreshVenueStatus(); });
+    // A layout opened (or loaded from the server) gets its check at once.
+    connect(mapView_, &MapView::mapLoaded, this, [refreshVenueStatus] { refreshVenueStatus(); });
     QTimer::singleShot(0, this, refreshVenueStatus);
 
     // Budget status readout — mirrors the venue one. Silent without a budget.
