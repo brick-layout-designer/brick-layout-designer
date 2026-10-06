@@ -347,6 +347,7 @@ void MapView::rebuildScene() {
     dragStart_.clear();
     rulerDragStart_.clear();
     labelDragStart_.clear();
+    liveMoved_ = false;
     // A flex move points into the bricks being rebuilt from.
     flex_.reset();
     flexItems_.clear();
@@ -898,6 +899,9 @@ void MapView::mouseMoveEvent(QMouseEvent* e) {
     if (!dragStart_.empty() && (e->buttons() & Qt::LeftButton)) {
         sampleSnapSpeed(dragSnap_, e->position());
         applyLiveConnectionSnap();
+        // Module frames and names, rulers fixed to the parts, circuits and
+        // the like follow the drag every frame, not only the drop.
+        refreshLiveFollowers();
     }
 }
 
@@ -1054,6 +1058,7 @@ void MapView::mouseReleaseEvent(QMouseEvent* e) {
     if (e->button() == Qt::LeftButton) {
         pinnedDragBlocked_ = false;
         commitDragIfMoved();
+        liveMoved_ = false;
         // Editing a module: parts dragged clear of it may leave it.
         checkPartsLeftModule();
         clearGrabAnchor();

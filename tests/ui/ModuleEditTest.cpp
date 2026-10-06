@@ -2,6 +2,7 @@
 // Pin in place stops it moving as a whole (core/ModuleEdit.h and
 // MapViewModules.cpp, the web's moduleEdit.ts and BrickLayer.tsx).
 
+#include "ui/MainWindow.h"
 #include "ui/MapView.h"
 #include "ui/MapViewInternal.h"
 #include "ui/ModuleEditBar.h"
@@ -9,20 +10,29 @@
 #include "ui/theme/Tokens.h"
 
 #include "core/LayerBrick.h"
+#include "core/LayerRuler.h"
 #include "core/Map.h"
 #include "core/ModuleEdit.h"
+#include "core/Venue.h"
 #include "parts/PartsLibrary.h"
+#include "rendering/ModuleLabels.h"
 #include "saveload/BbmReader.h"
+#include "ui/SelectionOverlay.h"
 
 #include <gtest/gtest.h>
 
 #include <QApplication>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QGraphicsItem>
 #include <QGraphicsScene>
+#include <QGraphicsSimpleTextItem>
 #include <QKeyEvent>
+#include <QLabel>
+#include <QMouseEvent>
 #include <QPushButton>
+#include <QSettings>
 #include <QTest>
 #include <QUndoStack>
 
@@ -286,4 +296,333 @@ TEST_F(ModuleEditTest, PicturesForReview) {
         view_->grab().save(out + (mode == ui::theme::Mode::Dark ? QStringLiteral("/desk-edit-dark.png")
                                                                   : QStringLiteral("/desk-edit-light.png")));
     }
+}
+
+// ---------------------------------------------------------------------------
+// A drag: what is drawn from the layout but follows parts moves with them
+// every frame (MapView's live pose), before the button is let go.
+// ---------------------------------------------------------------------------
+
+namespace {
+void mouseAt(QWidget* vp, QEvent::Type type, QPoint at, Qt::MouseButtons buttons) {
+    QMouseEvent ev(type, QPointF(at), vp->mapToGlobal(QPointF(at)),
+                   type == QEvent::MouseMove ? Qt::NoButton : Qt::LeftButton, buttons, Qt::NoModifier);
+    QApplication::sendEvent(vp, &ev);
+}
+QGraphicsItem* moduleItem(QGraphicsScene& scene, const QString& id, const QString& role) {
+    for (QGraphicsItem* it : scene.items())
+        if (it->data(rendering::kModuleAnnotationRole).toString() == role
+            && it->data(rendering::kModuleIdRole).toString() == id)
+            return it;
+    return nullptr;
+}
+} // namespace
+
+class LiveDragTest : public ModuleEditTest {
+protected:
+    // Presses on a part of module A that's on top, ready to drag it.
+    QPoint pressOnA() {
+        for (const QString& g : a_) {
+            QGraphicsItem* it = brickItem(*view_->scene(), g);
+            view_->centerOn(it);
+            QApplication::processEvents();
+            const QPoint at = view_->mapFromScene(it->sceneBoundingRect().center());
+            for (QGraphicsItem* top : view_->items(at)) {
+                // A ruler over the part would take the press.
+                if (!ui::detail::isBrickItem(top) && !ui::detail::isRulerItem(top)) continue;
+                if (top == it) {
+                    mouseAt(view_->viewport(), QEvent::MouseButtonPress, at, Qt::LeftButton);
+                    return at;
+                }
+                break;
+            }
+        }
+        ADD_FAILURE() << "no part of module A on top";
+        return {};
+    }
+    void moveTo(QPoint from, QPoint by) {
+        for (int i = 1; i <= 4; ++i)
+            mouseAt(view_->viewport(), QEvent::MouseMove, from + by * i / 4, Qt::LeftButton);
+    }
+};
+
+TEST_F(LiveDragTest, TheModuleFrameAndNameMoveBeforeTheRelease) {
+    QSettings().setValue(QStringLiteral("view/moduleNames"), true);
+    view_->rebuildScene();
+    const QRectF frame0 =
+        moduleItem(*view_->scene(), QStringLiteral("A"), QStringLiteral("frame"))->sceneBoundingRect();
+    const QRectF name0 =
+        moduleItem(*view_->scene(), QStringLiteral("A"), QStringLiteral("name"))->sceneBoundingRect();
+    const QPoint at = pressOnA();
+    moveTo(at, QPoint(80, 40));
+    // Still held: the frame and the name moved with the parts.
+    const QRectF frame1 =
+        moduleItem(*view_->scene(), QStringLiteral("A"), QStringLiteral("frame"))->sceneBoundingRect();
+    const QRectF name1 =
+        moduleItem(*view_->scene(), QStringLiteral("A"), QStringLiteral("name"))->sceneBoundingRect();
+    const QPointF moved = frame1.center() - frame0.center();
+    EXPECT_GT(moved.x(), 1.0);
+    EXPECT_GT(moved.y(), 0.5);
+    EXPECT_NEAR(name1.center().x() - name0.center().x(), moved.x(), 1.0);
+    // The live pose says the same.
+    view_->withLivePose([&](const core::Map& m) {
+        for (const auto& L : m.layers())
+            if (L->kind() == core::LayerKind::Brick)
+                for (const auto& b : static_cast<const core::LayerBrick&>(*L).bricks)
+                    if (b.guid == *a_.begin()) EXPECT_TRUE(view_->liveDragging());
+    });
+    mouseAt(view_->viewport(), QEvent::MouseButtonRelease, at + QPoint(80, 40), Qt::NoButton);
+    EXPECT_FALSE(view_->liveDragging());
+    const QRectF frame2 =
+        moduleItem(*view_->scene(), QStringLiteral("A"), QStringLiteral("frame"))->sceneBoundingRect();
+    EXPECT_NEAR(frame2.center().x(), frame1.center().x(), 2.0);
+    QSettings().remove(QStringLiteral("view/moduleNames"));
+}
+
+TEST_F(LiveDragTest, ThePoseMovesTheDraggedPartsOnlyWhileTheDragLasts) {
+    const auto areaOf = [&](const core::Map& m, const QString& g) {
+        for (const auto& L : m.layers())
+            if (L->kind() == core::LayerKind::Brick)
+                for (const auto& b : static_cast<const core::LayerBrick&>(*L).bricks)
+                    if (b.guid == g) return b.displayArea;
+        return QRectF();
+    };
+    const QString part = *a_.begin();
+    QRectF committed, posed;
+    view_->withLivePose([&](const core::Map& m) { committed = areaOf(m, part); });
+    const QPoint at = pressOnA();
+    moveTo(at, QPoint(80, 0));
+    view_->withLivePose([&](const core::Map& m) { posed = areaOf(m, part); });
+    EXPECT_GT(posed.center().x() - committed.center().x(), 1.0);
+    // The layout itself still has it where it was until the drop.
+    EXPECT_EQ(areaOf(*view_->currentMap(), part), committed);
+    EXPECT_EQ(areaOf(*view_->currentMap(), loose_),
+              committed.isNull() ? QRectF() : areaOf(*view_->currentMap(), loose_));
+    mouseAt(view_->viewport(), QEvent::MouseButtonRelease, at + QPoint(80, 0), Qt::NoButton);
+}
+
+TEST_F(LiveDragTest, RulersFixedToDraggedPartsFollowBeforeTheRelease) {
+    // A ruler from a part of A to a point on the map.
+    auto* map = view_->currentMap();
+    auto layer = std::make_unique<core::LayerRuler>();
+    layer->guid = QStringLiteral("rulers");
+    core::LayerRuler::AnyRuler any;
+    any.kind = core::RulerKind::Linear;
+    any.linear.guid = QStringLiteral("r1");
+    any.linear.attachedBrick1Id = *a_.begin();
+    any.linear.point1 = QPointF(0, 0);
+    any.linear.point2 = QPointF(-200, -200);
+    any.linear.displayArea = QRectF(-200, -200, 200, 200);
+    any.linear.lineThickness = 1;
+    layer->rulers.push_back(any);
+    map->layers().push_back(std::move(layer));
+    view_->rebuildScene();
+    const auto rulerRect = [&] {
+        QRectF r;
+        for (QGraphicsItem* it : view_->scene()->items())
+            if (ui::detail::isRulerItem(it)) r = r.united(it->sceneBoundingRect());
+        return r;
+    };
+    const QRectF before = rulerRect();
+    QGraphicsItem* part = brickItem(*view_->scene(), *a_.begin());
+    const QPointF part0 = part->scenePos();
+    const QPoint at = pressOnA();
+    moveTo(at, QPoint(80, 40));
+    // Still held: the end fixed to the part moved as far as the part did,
+    // and the free end stayed put.
+    const QPointF moved = part->scenePos() - part0;
+    ASSERT_GT(QLineF(QPointF(), moved).length(), 20.0);
+    const QPointF endShift = rulerRect().bottomRight() - before.bottomRight();
+    EXPECT_LT(QLineF(endShift, moved).length(), 4.0);
+    EXPECT_LT(QLineF(rulerRect().topLeft(), before.topLeft()).length(), 4.0);
+    mouseAt(view_->viewport(), QEvent::MouseButtonRelease, at + QPoint(80, 40), Qt::NoButton);
+}
+
+TEST_F(LiveDragTest, APickedModuleIsOutlinedAsOnePiece) {
+    brickItem(*view_->scene(), *a_.begin())->setSelected(true);
+    ASSERT_EQ(selected(*view_->scene()), a_);
+    EXPECT_EQ(view_->selectionOverlay()->outlines().size(), 1);
+    // Editing it: its parts one by one.
+    view_->setEditingModule(QStringLiteral("A"));
+    for (const QString& g : a_) brickItem(*view_->scene(), g)->setSelected(true);
+    EXPECT_EQ(view_->selectionOverlay()->outlines().size(), a_.size());
+}
+
+TEST_F(LiveDragTest, ElevationLabelsAndHullsRideOnTheirPart) {
+    auto* map = view_->currentMap();
+    for (const auto& L : map->layers())
+        if (L->kind() == core::LayerKind::Brick) {
+            auto& bl = static_cast<core::LayerBrick&>(*L);
+            for (auto& b : bl.bricks) b.altitude = 2.0f;
+        }
+    QSettings().setValue(QStringLiteral("view/brickElevation"), true);
+    view_->rebuildScene();
+    QSettings().remove(QStringLiteral("view/brickElevation"));
+    QGraphicsItem* part = brickItem(*view_->scene(), *a_.begin());
+    bool label = false;
+    for (QGraphicsItem* child : part->childItems())
+        if (dynamic_cast<QGraphicsSimpleTextItem*>(child)) label = true;
+    EXPECT_TRUE(label);
+}
+
+// The status bar's venue check follows a drag: a part dragged out of the
+// room shows as a problem before it is let go.
+TEST(LiveDrag, TheVenueCheckFollowsTheDrag) {
+    if (!QFile::exists(fixture())) GTEST_SKIP() << "tight-corner.bbm missing";
+    parts::PartsLibrary parts;
+    const QString partsRoot = QString::fromUtf8(BLD_PARTS_LIBRARY_ROOT);
+    if (QDir(partsRoot).exists()) {
+        parts.addSearchPath(partsRoot);
+        parts.scan();
+    }
+    ui::MainWindow w(parts);
+    w.resize(1200, 800);
+    w.show();
+    auto* view = w.findChild<ui::MapView*>();
+    ASSERT_NE(view, nullptr);
+    auto loaded = saveload::readBbm(fixture());
+    ASSERT_TRUE(loaded.ok());
+    // A room round every part, with no walkway rule.
+    QRectF all;
+    for (const auto& L : loaded.map->layers())
+        if (L->kind() == core::LayerKind::Brick)
+            for (const auto& b : static_cast<const core::LayerBrick&>(*L).bricks)
+                all = all.united(b.displayArea);
+    core::Venue v;
+    v.minWalkwayStuds = 0;
+    core::VenueEdge e;
+    const QRectF room = all.adjusted(-5, -5, 5, 5);
+    e.polyline = { room.topLeft(), room.topRight(), room.bottomRight(), room.bottomLeft(), room.topLeft() };
+    v.edges = { e };
+    loaded.map->sidecar.venue = v;
+    view->loadMap(std::move(loaded.map));
+    QApplication::processEvents();
+    QLabel* status = nullptr;
+    for (QLabel* l : w.findChildren<QLabel*>())
+        if (l->text().startsWith(QStringLiteral("Venue:"))) status = l;
+    ASSERT_NE(status, nullptr);
+    ASSERT_EQ(status->text(), QStringLiteral("Venue: fits"));
+    // Press on a part that's on top, drag it far out, keep holding.
+    QPoint at;
+    QGraphicsItem* part = nullptr;
+    for (QGraphicsItem* it : view->scene()->items()) {
+        if (!ui::detail::isBrickItem(it)) continue;
+        view->centerOn(it);
+        QApplication::processEvents();
+        at = view->mapFromScene(it->sceneBoundingRect().center());
+        for (QGraphicsItem* top : view->items(at))
+            if (ui::detail::isBrickItem(top)) {
+                if (top == it) part = it;
+                break;
+            }
+        if (part) break;
+    }
+    ASSERT_NE(part, nullptr);
+    mouseAt(view->viewport(), QEvent::MouseButtonPress, at, Qt::LeftButton);
+    const QPoint far = view->mapFromScene(room.bottomRight() * 8 + QPointF(400, 400));
+    for (int i = 1; i <= 6; ++i)
+        mouseAt(view->viewport(), QEvent::MouseMove, at + (far - at) * i / 6, Qt::LeftButton);
+    EXPECT_NE(status->text(), QStringLiteral("Venue: fits"));
+    mouseAt(view->viewport(), QEvent::MouseButtonRelease, far, Qt::NoButton);
+}
+
+TEST_F(LiveDragTest, ElectricCircuitsAreDrawnAgainFromThePose) {
+    QSettings().setValue(QStringLiteral("view/electricCircuits"), true);
+    view_->rebuildScene();
+    // Every circuit stroke's box, in a fixed order.
+    const auto circuits = [&](double dx) {
+        QStringList boxes;
+        for (QGraphicsItem* it : view_->scene()->items())
+            if (it->zValue() >= 5e5 && it->zValue() < 6e5) {
+                const QRectF r = it->sceneBoundingRect().translated(dx, 0);
+                boxes << QStringLiteral("%1,%2,%3,%4")
+                             .arg(r.x(), 0, 'f', 0)
+                             .arg(r.y(), 0, 'f', 0)
+                             .arg(r.width(), 0, 'f', 0)
+                             .arg(r.height(), 0, 'f', 0);
+            }
+        boxes.sort();
+        return boxes;
+    };
+    const QStringList before = circuits(0);
+    if (before.isEmpty()) {
+        QSettings().remove(QStringLiteral("view/electricCircuits"));
+        GTEST_SKIP() << "no electric parts drawn (parts library missing)";
+    }
+    // The layout with every part moved 40 studs: the posed layout a drag hands over.
+    core::Map* map = view_->currentMap();
+    QSet<QString> moving;
+    for (const auto& L : map->layers())
+        if (L->kind() == core::LayerKind::Brick)
+            for (auto& b : static_cast<core::LayerBrick&>(*L).bricks) {
+                b.displayArea.translate(40, 0);
+                moving.insert(b.guid);
+            }
+    view_->builder()->rebuildFollowers(*map, moving, {});
+    // Drawn again where the parts are now: the same strokes, 40 studs over.
+    EXPECT_EQ(circuits(-40 * ui::detail::studToPx()), before);
+    QSettings().remove(QStringLiteral("view/electricCircuits"));
+}
+
+// Perf: dragging one part of a module being edited on a layout of about a
+// thousand parts (Fordyce 2026) stays well inside a frame per move.
+TEST(LiveDrag, AnEditModuleDragOnABigLayoutStaysQuick) {
+    const QString fordyce = QString::fromUtf8(BLD_BBM_CORPUS_DIR) + QStringLiteral("/fordyce-2026.bbm");
+    if (!QFile::exists(fordyce)) GTEST_SKIP() << "fordyce-2026.bbm missing";
+    parts::PartsLibrary parts;
+    const QString partsRoot = QString::fromUtf8(BLD_PARTS_LIBRARY_ROOT);
+    if (QDir(partsRoot).exists()) {
+        parts.addSearchPath(partsRoot);
+        parts.scan();
+    }
+    auto loaded = saveload::readBbm(fordyce);
+    ASSERT_TRUE(loaded.ok());
+    QStringList guids;
+    for (const auto& L : loaded.map->layers())
+        if (L->kind() == core::LayerKind::Brick)
+            for (auto& b : static_cast<core::LayerBrick&>(*L).bricks) {
+                b.myGroupId.clear();
+                guids << b.guid;
+            }
+    ASSERT_GT(guids.size(), 900);
+    std::reverse(guids.begin(), guids.end());
+    core::Module m;
+    m.id = QStringLiteral("M");
+    m.name = QStringLiteral("Big module");
+    for (int i = 0; i < 200; ++i) m.memberIds.insert(guids[i]);
+    loaded.map->sidecar.modules = { m };
+    ui::MapView view(parts);
+    view.resize(1200, 800);
+    view.show();
+    ASSERT_TRUE(QTest::qWaitForWindowExposed(&view));
+    view.loadMap(std::move(loaded.map));
+    view.setEditingModule(QStringLiteral("M"));
+    // A member on top where it's pressed.
+    QPoint at;
+    bool found = false;
+    for (int i = 0; i < 200 && !found; ++i) {
+        QGraphicsItem* it = brickItem(*view.scene(), guids[i]);
+        if (!it) continue;
+        view.centerOn(it);
+        QApplication::processEvents();
+        at = view.mapFromScene(it->sceneBoundingRect().center());
+        for (QGraphicsItem* top : view.items(at))
+            if (ui::detail::isBrickItem(top)) {
+                found = top == it;
+                break;
+            }
+    }
+    ASSERT_TRUE(found);
+    mouseAt(view.viewport(), QEvent::MouseButtonPress, at, Qt::LeftButton);
+    QElapsedTimer t;
+    t.start();
+    for (int i = 1; i <= 30; ++i) {
+        mouseAt(view.viewport(), QEvent::MouseMove, at + QPoint(6 * i, 4 * i), Qt::LeftButton);
+        QApplication::processEvents();
+    }
+    const double perMove = t.elapsed() / 30.0;
+    mouseAt(view.viewport(), QEvent::MouseButtonRelease, at + QPoint(180, 120), Qt::NoButton);
+    std::printf("edit-module drag: %.1f ms per move\n", perMove);
+    // A sanitizer or a loaded CI machine is slower: a generous bound.
+    EXPECT_LT(perMove, 100.0);
 }

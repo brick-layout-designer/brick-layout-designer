@@ -339,10 +339,12 @@ void addBrickLayer(const core::LayerBrick& L, LayerSink& sink, parts::PartsLibra
                 poly->setParentItem(item);
                 hull = poly;
             } else {
-                auto* rect = new QGraphicsRectItem(areaPx);
+                // A child of the part too, so it moves with a drag.
+                auto* rect = new QGraphicsRectItem(item->mapRectFromScene(areaPx));
                 rect->setBrush(Qt::NoBrush);
+                rect->setParentItem(item);
+                rect->setAcceptedMouseButtons(Qt::NoButton);
                 hull = rect;
-                sink.add(rect);
             }
             QPen p(L.hull.color.color.isValid() ? L.hull.color.color : QColor(0, 0, 0));
             p.setWidthF(L.hull.thickness > 0 ? L.hull.thickness : 1);
@@ -361,10 +363,11 @@ void addBrickLayer(const core::LayerBrick& L, LayerSink& sink, parts::PartsLibra
             alt->setFont(f);
             alt->setBrush(QBrush(QColor(40, 40, 40)));
             const QRectF bb = alt->boundingRect();
-            alt->setPos(centerPx.x() - bb.width() / 2.0,
-                        centerPx.y() - bb.height() / 2.0);
+            // A child of the part (centred on it), so it moves with a drag.
+            alt->setParentItem(item);
+            alt->setAcceptedMouseButtons(Qt::NoButton);
+            alt->setPos(item->mapFromScene(centerPx) - QPointF(bb.width() / 2.0, bb.height() / 2.0));
             alt->setZValue(brick.altitude + 0.6);
-            sink.add(alt);
         }
 
         brickByGuid.insert(brick.guid, item);
@@ -771,6 +774,53 @@ void SceneBuilder::build(const core::Map& map) {
     addAnchoredLabels(map);
     addModuleLabels(map);
     addElectricCircuits(map);
+}
+
+void SceneBuilder::rebuildFollowers(const core::Map& posed, const QSet<QString>& moving,
+                                    const QSet<int>& keepRulerLayers) {
+    for (auto* it : moduleLabelItems_) {
+        scene_.removeItem(it);
+        delete it;
+    }
+    for (auto* it : electricItems_) {
+        scene_.removeItem(it);
+        delete it;
+    }
+    moduleLabelItems_.clear();
+    moduleAnnotationRects_.clear();
+    shortenedModuleNames_.clear();
+    electricItems_.clear();
+    addModuleLabels(posed);
+    addElectricCircuits(posed);
+
+    // Rulers fixed to a moving part: their ends follow its pivot.
+    for (const auto& layerPtr : posed.layers()) {
+        if (!layerPtr || layerPtr->kind() != core::LayerKind::Brick) continue;
+        for (const auto& b : static_cast<const core::LayerBrick&>(*layerPtr).bricks)
+            if (moving.contains(b.guid))
+                brickCentreByGuid_.insert(b.guid, parts::placement::imageCentre(b, parts_));
+    }
+    for (int i = 0; i < static_cast<int>(posed.layers().size()); ++i) {
+        const auto& layerPtr = posed.layers()[static_cast<size_t>(i)];
+        if (!layerPtr || layerPtr->kind() != core::LayerKind::Ruler || keepRulerLayers.contains(i)) continue;
+        bool fixed = false;
+        for (const auto& any : static_cast<const core::LayerRuler&>(*layerPtr).rulers) {
+            if (any.kind == core::RulerKind::Linear)
+                fixed = fixed || moving.contains(any.linear.attachedBrick1Id)
+                        || moving.contains(any.linear.attachedBrick2Id);
+            else fixed = fixed || moving.contains(any.circular.attachedBrickId);
+        }
+        if (!fixed) continue;
+        auto& list = itemsByLayer_[i];
+        const bool shown = list.isEmpty() || list.front()->isVisible();
+        for (auto* it : list) {
+            scene_.removeItem(it);
+            delete it;
+        }
+        list.clear();
+        addLayer(*layerPtr, i);
+        for (auto* it : itemsByLayer_[i]) it->setVisible(shown);
+    }
 }
 
 void SceneBuilder::addLayer(const core::Layer& L, int layerIndex) {

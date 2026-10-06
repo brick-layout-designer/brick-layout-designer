@@ -16,6 +16,7 @@
 #include <QRectF>
 #include <QStringList>
 
+#include <functional>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -213,6 +214,7 @@ public:
     // Who else is editing which module (from presence): module id -> names.
     void setPeersEditing(const QHash<QString, QStringList>& who);
     class ModuleEditBar* moduleEditBar() const { return editBar_; }
+    class SelectionOverlay* selectionOverlay() const { return selectionOverlay_; }
     // Whether the selection may move or turn as a whole; says why not when
     // a pinned module stops it.
     bool selectionMayMove();
@@ -222,6 +224,16 @@ public:
     // The edited module's outline (its parts on visible sheets, plus the
     // frame's half-stud margin), in studs.
     std::optional<QRectF> editedModuleFrameStuds() const;
+
+    // The live drag pose, shared by everything drawn from the layout that
+    // follows parts (module frames and names, rulers fixed to parts,
+    // electric circuits, others' selections, the venue check): runs `fn`
+    // on the layout with the dragged parts where the drag has them now
+    // (their areas moved and turned), then puts them back. Without a drag,
+    // `fn` sees the layout as it is. The web's liveDragPose.ts is the same.
+    void withLivePose(const std::function<void(const core::Map&)>& fn);
+    // Whether parts are being dragged (and have moved).
+    bool liveDragging() const { return liveMoved_; }
 
     // Area paint state (read by the paint handler).
     void setPaintColor(QColor c) { paintColor_ = c; }
@@ -237,6 +249,9 @@ signals:
     void mapLoaded();
     // The touch bar's Add part: show the parts panel.
     void addPartRequested();
+    // The dragged parts moved (every frame of a drag): what follows them
+    // can draw again from withLivePose().
+    void liveDragMoved();
     // Edit module was entered (an id) or left (empty).
     void editingModuleChanged(const QString& moduleId);
     // The map's right-click menu: a module's Colours...
@@ -331,6 +346,9 @@ private:
     QString armedPart_;
 
     void captureDragStart();
+    // Draws again what follows the dragged parts, and says so.
+    void refreshLiveFollowers();
+    bool liveMoved_ = false;
     void commitDragIfMoved();
     // Run connection snap as a single rigid group shift during drag. Called
     // after QGraphicsView::mouseMoveEvent has translated every selected
