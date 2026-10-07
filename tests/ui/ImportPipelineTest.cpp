@@ -13,6 +13,7 @@
 #include "core/LayerBrick.h"
 #include "core/Map.h"
 #include "import/ImportConnections.h"
+#include "import/ldraw/LDrawReader.h"
 
 #include <gtest/gtest.h>
 
@@ -25,6 +26,7 @@
 #include <QElapsedTimer>
 #include <QGraphicsView>
 #include <QLabel>
+#include <QLineF>
 #include <QMargins>
 #include <QStandardPaths>
 #include <QTest>
@@ -279,6 +281,9 @@ TEST(ImportPipeline, RealStudioFile) {
               << " warning(s), " << part.connections.size() << " connection(s), snap margin " << part.snapMargin.left()
               << "/" << part.snapMargin.top() << "/" << part.snapMargin.right() << "/" << part.snapMargin.bottom() << " in "
               << t.elapsed() << " ms\n";
+    // BLD_IMPORT_SAVE_DIR: keep the sprite to look at.
+    if (const QString out = qEnvironmentVariable("BLD_IMPORT_SAVE_DIR"); !out.isEmpty())
+        part.sprite.save(QDir(out).filePath(QFileInfo(path).completeBaseName() + QStringLiteral(".png")));
     for (int i = 0; i < std::min<qsizetype>(part.warnings.size(), 15); ++i)
         std::cout << "[ warn ] " << part.warnings[i].toStdString() << '\n';
 }
@@ -394,6 +399,9 @@ TEST(ImportPipeline, RealLddFiles) {
                   << part.heightStuds << " studs, " << part.stats.lddRendered << " LDD parts drawn, "
                   << part.stats.unresolved << " missing, " << part.connections.size() << " connection(s) in "
                   << t.elapsed() << " ms\n";
+        // BLD_IMPORT_SAVE_DIR: keep the sprite to look at.
+        if (const QString out = qEnvironmentVariable("BLD_IMPORT_SAVE_DIR"); !out.isEmpty())
+            part.sprite.save(QDir(out).filePath(QFileInfo(path).completeBaseName() + QStringLiteral(".png")));
         for (const auto& c : part.connections)
             std::cout << "[ conn ] type " << c.type.toStdString() << " at (" << c.xStuds << ", " << c.yStuds
                       << ") facing " << c.angleDeg << "\n";
@@ -563,4 +571,76 @@ TEST(ImportPipeline, ConnectionPointsLoseTheModelsRoundingNoise) {
     EXPECT_EQ(ends[0].angleDeg, -90.0);
     EXPECT_EQ(ends[1].yStuds, 8.0);
     EXPECT_EQ(ends[1].angleDeg, 90.0);
+}
+
+TEST(ImportPipeline, RcPointsSnapLikeThe9VPoints) {
+    // The RC (6 studs wide) points 53404 (right) and 53407 (left), from
+    // LDraw / Studio: BlueBrick draws them as its 9V points 2859 / 2861,
+    // whose LDraw origin is at the points end; the RC ones' is mid-way.
+    RealTrack track;
+    QTemporaryDir dir;
+    const QString ldr = dir.filePath(QStringLiteral("points.ldr"));
+    writeFile(ldr, "0 points\n"
+                   "1 71 0 -8 0 1 0 0 0 1 0 0 0 1 53404.dat\n"
+                   "1 71 1000 -8 0 -1 0 0 0 1 0 0 0 -1 53407.dat\n"
+                   "1 71 0 -8 -2000 0 0 1 0 1 0 -1 0 0 53404.dat\n");
+    const auto read = import::readLDraw(ldr);
+    ASSERT_TRUE(read.ok);
+    auto map = import::toBlueBrickMap(read, &track.lib);
+    const auto& bricks = static_cast<const core::LayerBrick&>(*map->layers().front()).bricks;
+    ASSERT_EQ(bricks.size(), 3u);
+    const auto ends = [&](const core::Brick& b) {
+        QList<QPair<QPointF, double>> out;
+        const auto meta = track.lib.metadata(b.partNumber);
+        for (int i = 0; meta && i < meta->connections.size(); ++i)
+            out << qMakePair(parts::placement::connectionWorld(b, i, track.lib),
+                             std::remainder(meta->connections[i].angleDegrees + b.orientation, 360.0));
+        return out;
+    };
+    const auto expectEnds = [](const QList<QPair<QPointF, double>>& got, const QList<QPair<QPointF, double>>& want) {
+        ASSERT_EQ(got.size(), want.size());
+        for (const auto& w : want) {
+            bool found = false;
+            for (const auto& g : got)
+                found |= QLineF(g.first, w.first).length() < 0.01 && std::abs(std::remainder(g.second - w.second, 360.0)) < 0.01;
+            EXPECT_TRUE(found) << w.first.x() << "," << w.first.y() << " @" << w.second;
+        }
+    };
+    // Right: the straight from -16 to 16 studs, branching to +y (LDraw -z).
+    EXPECT_EQ(bricks[0].partNumber, QStringLiteral("2859.8"));
+    expectEnds(ends(bricks[0]), { { { -16, 0 }, 180 }, { { 16, 0 }, 0 }, { { 16.6927, 12.9552 }, 22.5 } });
+    // Left, turned round at 50 studs: branching to -y before the turn, +y after.
+    EXPECT_EQ(bricks[1].partNumber, QStringLiteral("2861.8"));
+    expectEnds(ends(bricks[1]), { { { 66, 0 }, 0 }, { { 34, 0 }, 180 }, { { 33.3073, 12.9552 }, 157.5 } });
+    // Right, a quarter turn at 100 studs up the page.
+    expectEnds(ends(bricks[2]), { { { 0, 84 }, -90 }, { { 0, 116 }, 90 }, { { -12.9552, 116.6927 }, 112.5 } });
+}
+
+TEST(ImportPipeline, PartsHiddenUnderOthersAreStillThere) {
+    // A plate entirely under a bigger one: not visible from above, but it is
+    // in the model and counted as drawn.
+    TrackLibrary track;
+    QTemporaryDir ldraw;
+    writeFile(ldraw.filePath(QStringLiteral("LDConfig.ldr")),
+              "0 !COLOUR Red CODE 4 VALUE #C91A09 EDGE #333333\n"
+              "0 !COLOUR Trans_Clear CODE 47 VALUE #FCFCFC EDGE #C3C3C3 ALPHA 128\n");
+    writeFile(ldraw.filePath(QStringLiteral("parts/big.dat")), "4 16 -40 0 -40 40 0 -40 40 0 40 -40 0 40\n");
+    writeFile(ldraw.filePath(QStringLiteral("parts/small.dat")), "4 16 -20 0 -20 20 0 -20 20 0 20 -20 0 20\n");
+    QTemporaryDir models;
+    const QString path = models.filePath(QStringLiteral("stack.ldr"));
+    writeFile(path, "1 4 0 0 0 1 0 0 0 1 0 0 0 1 small.dat\n"
+                    "1 47 0 -8 0 1 0 0 0 1 0 0 0 1 big.dat\n");
+    ui::ImportSettings settings;
+    settings.ldrawLibrary = ldraw.path();
+    settings.pxPerStud = 8;
+    const auto part = ui::prepareImport(path, settings, track.lib, kInline);
+    ASSERT_TRUE(part.ok()) << part.error.toStdString();
+    EXPECT_EQ(part.stats.ldrawResolved, 2);
+    EXPECT_EQ(part.stats.unresolved, 0);
+    // The red plate shows through the Trans-Clear one above it.
+    const QImage img = part.sprite.convertToFormat(QImage::Format_ARGB32);
+    const QColor middle = img.pixelColor(img.width() / 2, img.height() / 2);
+    EXPECT_GT(middle.red(), middle.green() + 40) << "red under the clear plate";
+    const QColor corner = img.pixelColor(3, 3);
+    EXPECT_LT(corner.alpha(), 255) << "only the clear plate there";
 }

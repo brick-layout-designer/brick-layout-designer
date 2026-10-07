@@ -298,6 +298,8 @@ QString resolvePartKey(const LDrawPartRef& ref, const QString& partNumber, int c
         { QStringLiteral("74747"), QStringLiteral("2867") },  // 9V curve
         { QStringLiteral("75541"), QStringLiteral("2859") },  // 9V point right
         { QStringLiteral("75542"), QStringLiteral("2861") },  // 9V point left
+        { QStringLiteral("53404"), QStringLiteral("2859") },  // RC point right
+        { QStringLiteral("53407"), QStringLiteral("2861") },  // RC point left
     };
     for (const QString& n : QStringList(candidates))
         if (const auto it = kSameTrack.constFind(n); it != kSameTrack.constEnd()) add(it.value());
@@ -367,6 +369,20 @@ std::unique_ptr<core::Map> toBlueBrickMap(const LDrawReadResult& src,
         double angle = yRotationDegrees(ref.m);
         double x = ref.x;
         double y = src.lddAxes ? ref.z : -ref.z;
+        if (lib && !src.lddAxes) {
+            // Parts drawn as another BlueBrick part whose LDraw origin is
+            // elsewhere: move to that origin first. The RC points (origin
+            // mid-way along the straight) are the 9V points 2859/2861,
+            // whose BlueBrick remap is for 2859c01's origin at the points end.
+            static const QHash<QString, double> kOriginAlongX{
+                { QStringLiteral("53404"), -320.0 },  // RC point right
+                { QStringLiteral("53407"), -320.0 },  // RC point left
+            };
+            if (const auto it = kOriginAlongX.constFind(pn); it != kOriginAlongX.constEnd()) {
+                x += ref.m[0] * it.value();
+                y -= ref.m[6] * it.value();
+            }
+        }
         if (lib && !src.lddAxes) {
             const QString key = resolvePartKey(ref, pn, ref.colorCode, *lib, ldraw);
             if (!key.isEmpty()) {

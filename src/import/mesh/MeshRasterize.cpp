@@ -193,7 +193,12 @@ RasterizeResult rasterizeMeshTopDown(const geom::Mesh& mesh,
     // Rasterise each triangle. Project each vertex into (px, py) screen
     // space, interpolate world Y for depth and the world-space normal
     // for lighting.
-    for (const auto& tri : mesh.tris) {
+    // Opaque triangles first, through the depth buffer; then see-through
+    // ones (Trans-Clear windows, water) from the lowest up, blended over
+    // what is below them so it shows through. They don't take the depth
+    // buffer, so they never hide a part or the edges drawn later.
+    std::vector<const geom::Triangle*> seeThrough;
+    const auto rasterize = [&](const geom::Triangle& tri, bool blend) {
         double px[3], py[3], wy[3];
         for (int k = 0; k < 3; ++k) {
             const double xs = tri.v[k].x * opt.studsPerLdu;
@@ -211,12 +216,12 @@ RasterizeResult rasterizeMeshTopDown(const geom::Mesh& mesh,
         const int xHi = std::min(W - 1, static_cast<int>(std::ceil(bxMax)));
         const int yLo = std::max(0, static_cast<int>(std::floor(byMin)));
         const int yHi = std::min(H - 1, static_cast<int>(std::ceil(byMax)));
-        if (xLo > xHi || yLo > yHi) continue;
+        if (xLo > xHi || yLo > yHi) return;
 
         const double dx10 = px[1] - px[0], dy10 = py[1] - py[0];
         const double dx20 = px[2] - px[0], dy20 = py[2] - py[0];
         const double denom = dx10 * dy20 - dy10 * dx20;
-        if (std::abs(denom) < 1e-9) continue;
+        if (std::abs(denom) < 1e-9) return;
         const double invDenom = 1.0 / denom;
 
         // Per-triangle pre-shade. We use the average of the three
@@ -237,7 +242,7 @@ RasterizeResult rasterizeMeshTopDown(const geom::Mesh& mesh,
         // Apply shading to the triangle's base colour.
         const QColor base = tri.color;
         const int alpha = base.alpha();
-        if (alpha == 0) continue;
+        if (alpha == 0) return;
         const int rr = static_cast<int>(std::lround(base.red()   * shade));
         const int gg = static_cast<int>(std::lround(base.green() * shade));
         const int bb = static_cast<int>(std::lround(base.blue()  * shade));
@@ -245,7 +250,8 @@ RasterizeResult rasterizeMeshTopDown(const geom::Mesh& mesh,
         const int ggC = std::clamp(gg, 0, 255);
         const int bbC = std::clamp(bb, 0, 255);
         const quint32 argb = packPremul(QColor::fromRgb(rrC, ggC, bbC, alpha));
-        if (argb == 0u) continue;
+        if (argb == 0u) return;
+        const quint32 keep = 255u - static_cast<quint32>(alpha);
 
         for (int yy = yLo; yy <= yHi; ++yy) {
             const double sampY = yy + 0.5;
@@ -258,13 +264,32 @@ RasterizeResult rasterizeMeshTopDown(const geom::Mesh& mesh,
                 if (b0 < -1e-7 || b1 < -1e-7 || b2 < -1e-7) continue;
                 const float depth = static_cast<float>(b0 * wy[0] + b1 * wy[1] + b2 * wy[2]);
                 Frag& f = buf[static_cast<size_t>(yy) * W + static_cast<size_t>(xx)];
-                if (depth > f.yWorld) {
+                if (depth <= f.yWorld) continue;
+                if (!blend) {
                     f.yWorld = depth;
                     f.argb   = argb;
+                    continue;
                 }
+                // Premultiplied "over": this colour plus what is below,
+                // dimmed by how much this one covers.
+                quint32 out = 0;
+                for (int shift = 0; shift < 32; shift += 8) {
+                    const quint32 below = (f.argb >> shift) & 0xFFu;
+                    const quint32 top = (argb >> shift) & 0xFFu;
+                    out |= std::min(255u, top + (below * keep + 127u) / 255u) << shift;
+                }
+                f.argb = out;
             }
         }
+    };
+    for (const auto& tri : mesh.tris) {
+        if (tri.color.alpha() < 255) seeThrough.push_back(&tri);
+        else rasterize(tri, false);
     }
+    const auto highest = [](const geom::Triangle* t) { return std::max({ t->v[0].y, t->v[1].y, t->v[2].y }); };
+    std::stable_sort(seeThrough.begin(), seeThrough.end(),
+                     [&](const geom::Triangle* a, const geom::Triangle* b) { return highest(a) < highest(b); });
+    for (const geom::Triangle* tri : seeThrough) rasterize(*tri, true);
 
     // Materialise the supersampled image from the colour buffer.
     QImage img(W, H, QImage::Format_ARGB32_Premultiplied);
