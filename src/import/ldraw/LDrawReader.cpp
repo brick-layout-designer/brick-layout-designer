@@ -9,6 +9,7 @@
 #include "LDrawMeshLoader.h"
 
 #include <QFile>
+#include <QHash>
 #include <QRegularExpression>
 #include <QTextStream>
 #include <QUuid>
@@ -271,15 +272,35 @@ QString resolvePartKey(const LDrawPartRef& ref, const QString& partNumber, int c
         }
     }
     // LDraw suffixes pre-assembled parts with cNN ("2861c01" = the 9V
-    // switch with its lever); BlueBrickParts lists the base number.
+    // switch with its lever) and formed variants with -fN ("75542-f1" =
+    // the switch set straight); BlueBrickParts lists the base number.
     static const QRegularExpression assembly(QStringLiteral("^(.*\\d)C\\d\\d$"),
                                              QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression formed(QStringLiteral("^(.*\\d)(?:C\\d\\d)?-F\\d+$"),
+                                           QRegularExpression::CaseInsensitiveOption);
     QStringList candidates;
+    const auto add = [&candidates](const QString& n) {
+        if (!candidates.contains(n)) candidates << n;
+    };
     for (const QString& n : names) {
-        candidates << n;
-        const auto m = assembly.match(n);
-        if (m.hasMatch()) candidates << m.captured(1).toUpper();
+        add(n);
+        if (const auto m = formed.match(n); m.hasMatch()) add(m.captured(1).toUpper());
+        if (const auto m = assembly.match(n); m.hasMatch()) add(m.captured(1).toUpper());
     }
+    // Track BlueBrickParts draws under another number: the RC (plastic)
+    // track has the 9V track's shape and joints, and current LDraw numbers
+    // of the 9V pieces map back to BlueBrick's (also without an LDraw
+    // library to find the "~Moved to" stubs).
+    static const QHash<QString, QString> kSameTrack{
+        { QStringLiteral("53401"), QStringLiteral("2865") },  // RC straight
+        { QStringLiteral("53400"), QStringLiteral("2867") },  // RC curve
+        { QStringLiteral("74746"), QStringLiteral("2865") },  // 9V straight
+        { QStringLiteral("74747"), QStringLiteral("2867") },  // 9V curve
+        { QStringLiteral("75541"), QStringLiteral("2859") },  // 9V point right
+        { QStringLiteral("75542"), QStringLiteral("2861") },  // 9V point left
+    };
+    for (const QString& n : QStringList(candidates))
+        if (const auto it = kSameTrack.constFind(n); it != kSameTrack.constEnd()) add(it.value());
     const QStringList keys = lib.keys();
     for (const QString& pn : candidates) {
         const QString exact = QStringLiteral("%1.%2").arg(pn).arg(colorCode);

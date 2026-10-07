@@ -37,9 +37,9 @@ public:
 
     // Look up an LDD design ID. Returns the LDraw .dat filename (e.g.
     // "3001.dat") or an empty string when no mapping exists.
-    QString partFor(const QString& lddDesignId) const {
-        return brickToLdraw_.value(lddDesignId);
-    }
+    // Train track missing from the file (LDD's own ldraw.xml has none)
+    // comes from a built-in table, so track always gets snap points.
+    QString partFor(const QString& lddDesignId) const;
 
     // Every LDraw file ldraw.xml maps this design ID to, oldest first
     // (partFor() is the last one, which lxf2ldr uses too).
@@ -61,9 +61,7 @@ public:
         double angle = 0.0;
         bool   exists = false;
     };
-    Transformation transformFor(const QString& ldrawDat) const {
-        return transformations_.value(ldrawDat);
-    }
+    Transformation transformFor(const QString& ldrawDat) const;
 
     // Convert a readLDD() result (LDD axes, LDD design/material IDs) into
     // the equivalent LDraw model: LDraw part files and colours, LDraw

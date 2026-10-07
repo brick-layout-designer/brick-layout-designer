@@ -12,6 +12,24 @@
 
 namespace bld::import {
 
+namespace {
+
+// Rounding noise from a model's float coordinates (LDD's 0.99999988s, a
+// bottom layer a hair short) shouldn't reach the part: a position within
+// a few hundredths of a half stud, or an angle within a tenth of a degree
+// of a multiple of 11.25° (every BlueBrick track angle), is that value.
+double tidyPosition(double v) {
+    const double half = std::round(v * 2.0) / 2.0;
+    return std::abs(v - half) < 0.03 ? half : v;
+}
+
+double tidyAngle(double deg) {
+    const double step = std::round(deg / 11.25) * 11.25;
+    return std::remainder(std::abs(deg - step) < 0.1 ? step : deg, 360.0);
+}
+
+}  // namespace
+
 QVector<ImportedConnection> externalConnections(core::Map& map,
                                                 parts::PartsLibrary& lib,
                                                 QPointF partOriginStuds) {
@@ -39,9 +57,9 @@ QVector<ImportedConnection> externalConnections(core::Map& map,
                 const QPointF world = centre + rotate(c.position, brick.orientation);
                 ImportedConnection ic;
                 ic.type     = c.type;
-                ic.xStuds   = world.x() - partOriginStuds.x();
-                ic.yStuds   = world.y() - partOriginStuds.y();
-                ic.angleDeg = std::remainder(c.angleDegrees + brick.orientation, 360.0);
+                ic.xStuds   = tidyPosition(world.x() - partOriginStuds.x());
+                ic.yStuds   = tidyPosition(world.y() - partOriginStuds.y());
+                ic.angleDeg = tidyAngle(c.angleDegrees + brick.orientation);
                 out.append(ic);
             }
         }
