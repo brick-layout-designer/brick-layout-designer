@@ -170,6 +170,11 @@ QList<LocalPart> PartsUpload::scanFolder(const QString& dir) {
 PartPayload PartsUpload::payloadFor(const LocalPart& part, qint64 maxBytes) {
     PartPayload out;
     out.xml = readAll(part.xmlPath);
+    // <ImportSource> holds the model's path on this computer (for Re-import
+    // from Source): it stays here. <ImportedFrom> (the file's name) goes.
+    static const QRegularExpression importSource(QStringLiteral("\\s*<ImportSource>.*?</ImportSource>"),
+                                                 QRegularExpression::DotMatchesEverythingOption);
+    out.xml = QString::fromUtf8(out.xml).remove(importSource).toUtf8();
     out.sprite = readAll(part.spritePath);
     const int declared = declaredPxPerStud(out.xml);
     if (!part.spritePath.endsWith(QLatin1String(".png"), Qt::CaseInsensitive)) {

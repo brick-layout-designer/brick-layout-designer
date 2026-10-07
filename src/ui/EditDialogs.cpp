@@ -11,6 +11,7 @@
 #include "../edit/TextCommands.h"
 #include "../parts/PartsLibrary.h"
 
+#include <QLabel>
 #include <QCheckBox>
 #include <QColorDialog>
 #include <QComboBox>
@@ -120,6 +121,14 @@ bool editBrickDialog(QWidget* parent, core::Map& map, int layerIndex,
     connSpin->setValue(std::min(brick->activeConnectionPointIndex, std::max(0, nConn - 1)));
     connSpin->setEnabled(nConn > 0);
     form->addRow(QObject::tr("Active connection #:"), connSpin);
+    if (meta && meta->importedFrom) {
+        // Quietly: where an imported part came from.
+        auto* from = new QLabel(QObject::tr("Imported from %1").arg(meta->importedFrom->file), &dlg);
+        from->setObjectName(QStringLiteral("importedFrom"));
+        from->setEnabled(false);
+        if (!meta->importedFrom->date.isEmpty()) from->setToolTip(meta->importedFrom->date);
+        form->addRow(from);
+    }
 
     auto* bb = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
     form->addRow(bb);

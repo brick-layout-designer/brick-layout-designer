@@ -6,6 +6,8 @@
 #include <QImage>
 #include <QtMath>
 #include <QPainter>
+#include <QPainterPath>
+#include <QRegion>
 #include <QSet>
 #include <QTransform>
 #include <QXmlStreamReader>
@@ -242,6 +244,14 @@ bool parsePartXml(const QString& xmlPath, PartMetadata& out) {
                 PartMetadata::TrackDesigner td;
                 readTrackDesigner(r, td);
                 if (td.defaultId != 0 || !td.registryIds.isEmpty()) out.trackDesigner = td;
+            }
+            else if (n == QStringLiteral("ImportedFrom")) {
+                PartMetadata::ImportedFrom from;
+                from.file = r.attributes().value(QStringLiteral("file")).toString();
+                from.format = r.attributes().value(QStringLiteral("format")).toString();
+                from.date = r.attributes().value(QStringLiteral("date")).toString();
+                r.skipCurrentElement();
+                if (!from.file.isEmpty()) out.importedFrom = from;
             }
             else if (n == QStringLiteral("ImportSource")) {
                 PartMetadata::ImportSource src;
@@ -611,6 +621,106 @@ QVector<QPointF> convexHull(QVector<QPointF> pts) {
 
 }  // namespace
 
+namespace {
+
+// Douglas-Peucker on a closed ring of points.
+void simplifyRun(const QPolygonF& in, int a, int b, double tol, QVector<bool>& keep) {
+    if (b <= a + 1) return;
+    const QPointF p = in[a], q = in[b];
+    const double len = std::hypot(q.x() - p.x(), q.y() - p.y());
+    double worst = -1;
+    int at = -1;
+    for (int i = a + 1; i < b; ++i) {
+        const QPointF r = in[i];
+        const double d = len < 1e-9 ? std::hypot(r.x() - p.x(), r.y() - p.y())
+                                    : std::abs((q.x() - p.x()) * (p.y() - r.y()) - (p.x() - r.x()) * (q.y() - p.y())) / len;
+        if (d > worst) { worst = d; at = i; }
+    }
+    if (worst > tol) {
+        keep[at] = true;
+        simplifyRun(in, a, at, tol, keep);
+        simplifyRun(in, at, b, tol, keep);
+    }
+}
+
+QPolygonF simplifyRing(QPolygonF ring, double tol) {
+    if (ring.size() > 1 && ring.front() == ring.back()) ring.removeLast();
+    if (ring.size() < 4) return ring;
+    // Split at the point farthest from the first, so both halves are runs.
+    int far = 0;
+    double best = -1;
+    for (int i = 1; i < ring.size(); ++i) {
+        const double d = std::hypot(ring[i].x() - ring[0].x(), ring[i].y() - ring[0].y());
+        if (d > best) { best = d; far = i; }
+    }
+    QPolygonF closed = ring;
+    closed << ring.front();
+    QVector<bool> keep(closed.size(), false);
+    keep[0] = keep[far] = keep[closed.size() - 1] = true;
+    simplifyRun(closed, 0, far, tol, keep);
+    simplifyRun(closed, far, closed.size() - 1, tol, keep);
+    QPolygonF out;
+    for (int i = 0; i + 1 < closed.size(); ++i)
+        if (keep[i]) out << closed[i];
+    return out;
+}
+
+}  // namespace
+
+bool PartsLibrary::isImported(const QString& key) {
+    const auto meta = metadata(key);
+    return meta && (meta->importedFrom || meta->importSource);
+}
+
+QList<QPolygonF> PartsLibrary::outlineStuds(const QString& key) {
+    const QString lk = key.toLower();
+    if (auto it = outlineCache_.constFind(lk); it != outlineCache_.constEnd()) return it.value();
+    QList<QPolygonF> out;
+    const QPixmap pm = pixmap(lk);
+    const auto meta = metadata(lk);
+    if (pm.isNull() || !meta) { outlineCache_.insert(lk, out); return out; }
+    const QImage img = pm.toImage().convertToFormat(QImage::Format_ARGB32);
+    const double pxPerStud = meta->pxPerStud > 0 ? meta->pxPerStud : 8;
+    // Quarter-stud cells: a cell is part of the shape when any of its
+    // pixels shows something.
+    const int cell = std::max(1, qRound(pxPerStud / 4.0));
+    const int cw = (img.width() + cell - 1) / cell, ch = (img.height() + cell - 1) / cell;
+    QRegion region;
+    for (int cy = 0; cy < ch; ++cy) {
+        int runStart = -1;
+        for (int cx = 0; cx <= cw; ++cx) {
+            bool on = false;
+            if (cx < cw) {
+                for (int y = cy * cell; y < std::min(img.height(), (cy + 1) * cell) && !on; ++y) {
+                    const QRgb* line = reinterpret_cast<const QRgb*>(img.constScanLine(y));
+                    for (int x = cx * cell; x < std::min(img.width(), (cx + 1) * cell); ++x)
+                        if (qAlpha(line[x]) >= 32) { on = true; break; }
+                }
+            }
+            if (on && runStart < 0) runStart = cx;
+            if (!on && runStart >= 0) {
+                region += QRect(runStart, cy, cx - runStart, 1);
+                runStart = -1;
+            }
+        }
+    }
+    QPainterPath path;
+    path.addRegion(region);
+    path = path.simplified();
+    const double toStuds = cell / pxPerStud;
+    for (const QPolygonF& ring : path.toSubpathPolygons()) {
+        QPolygonF studs;
+        for (const QPointF& p : ring)
+            studs << QPointF(p.x() * toStuds - img.width() / (2.0 * pxPerStud),
+                             p.y() * toStuds - img.height() / (2.0 * pxPerStud));
+        // Up to a third of a stud off the staircase: at most a few dozen points.
+        studs = simplifyRing(studs, 0.35);
+        if (studs.size() >= 3) out << studs;
+    }
+    outlineCache_.insert(lk, out);
+    return out;
+}
+
 QPolygonF PartsLibrary::hullPolygonStuds(const QString& key) {
     const QString lk = key.toLower();
     auto cached = hullCache_.constFind(lk);
@@ -666,6 +776,7 @@ void PartsLibrary::forget(const QString& key) {
     index_.remove(lk);
     pixmapCache_.remove(lk);
     hullCache_.remove(lk);
+    outlineCache_.remove(lk);
 }
 
 bool PartsLibrary::pixmapTried(const QString& key) const { return pixmapCache_.contains(key.toLower()); }
@@ -674,6 +785,7 @@ void PartsLibrary::forgetPixmap(const QString& key) {
     const QString lk = key.toLower();
     pixmapCache_.remove(lk);
     hullCache_.remove(lk);
+    outlineCache_.remove(lk);
 }
 
 void PartsLibrary::clear() {
@@ -683,6 +795,7 @@ void PartsLibrary::clear() {
     fourDBrixNames_.clear();
     pixmapCache_.clear();
     hullCache_.clear();
+    outlineCache_.clear();
 }
 
 }

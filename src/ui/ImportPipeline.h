@@ -28,6 +28,7 @@ struct ImportStats {
 // and snap points. Nothing is written until writeImportedPart().
 struct PreparedPart {
     QString source;
+    QString title;                                  // the model's own name, if it has one
     QString kindLabel;                              // "LDraw import", ...
     QImage  sprite;
     int     widthStuds  = 0;
@@ -82,8 +83,11 @@ void applyImportEdits(PreparedPart& part, int quarterTurns, const QVector<QPoint
 // existing part of that name is overwritten; otherwise a -2, -3 ... suffix
 // keeps both. The source and preview edits are recorded for Re-import from
 // Source. Returns the part key, or empty with *error set.
+// `name` is what people see (the part's description); the part number is
+// made from it. `keyName`, when given, is the part number to write instead
+// (a re-import keeps its part).
 QString writeImportedPart(const PreparedPart& part, const QString& name,
                           const QString& destDir, const QString& author,
-                          bool replaceExisting, QString* error);
+                          bool replaceExisting, QString* error, const QString& keyName = {});
 
 }  // namespace bld::ui

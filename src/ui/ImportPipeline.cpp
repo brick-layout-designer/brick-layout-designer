@@ -27,6 +27,7 @@
 #include <QGraphicsPixmapItem>
 #include <QGraphicsScene>
 #include <QLineF>
+#include <QRegularExpression>
 #include <QPainter>
 #include <QTransform>
 
@@ -245,6 +246,7 @@ PreparedPart prepareImport(const QString& path, const ImportSettings& settings,
         out.error = Text::tr("Could not read %1: %2").arg(QFileInfo(path).fileName(), read.error);
         return out;
     }
+    out.title = read.title.trimmed();
 
     if (format == Format::LDD) {
         import::LDDAssets assets;
@@ -317,14 +319,19 @@ void applyImportEdits(PreparedPart& part, int quarterTurns, const QVector<QPoint
 
 QString writeImportedPart(const PreparedPart& part, const QString& name,
                           const QString& destDir, const QString& author,
-                          bool replaceExisting, QString* error) {
+                          bool replaceExisting, QString* error, const QString& keyName) {
     import::ImportSource source;
+    source.displayName = name.trimmed();
+    static const QRegularExpression modelExt(QStringLiteral("\\.(ldr|dat|mpd|io|lxf|lxfml)$"),
+                                             QRegularExpression::CaseInsensitiveOption);
+    source.displayName.remove(modelExt);
+    source.format = import::importFormatOf(part.source);
     source.path = QFileInfo(part.source).absoluteFilePath();
     source.modified = QFileInfo(part.source).lastModified();
     source.quarterTurns = part.quarterTurns;
     source.droppedConnections = part.droppedConnections;
     return import::writeImportedModelAsLibraryPart(
-        name, part.sprite, part.widthStuds, part.heightStuds, destDir, author,
+        keyName.isEmpty() ? name : keyName, part.sprite, part.widthStuds, part.heightStuds, destDir, author,
         part.connections, error, replaceExisting, part.source.isEmpty() ? nullptr : &source,
         part.snapMargin);
 }
