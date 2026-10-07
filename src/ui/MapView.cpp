@@ -6,6 +6,7 @@
 #include "LoadingCard.h"
 
 #include "../core/Brick.h"
+#include "../core/GridSnap.h"
 #include "../core/Layer.h"
 #include "../core/LayerArea.h"
 #include "../core/LayerBrick.h"
@@ -278,6 +279,7 @@ void MapView::loadMap(std::unique_ptr<core::Map> map) {
     dragStart_.clear();
     rulerDragStart_.clear();
     labelDragStart_.clear();
+    annoItemsAtPress_.clear();
     // The handles point at items the rebuild deletes; the selection's
     // return (selectionChanged) puts them back.
     bendHandles_.clear();
@@ -341,6 +343,19 @@ void MapView::loadMap(std::unique_ptr<core::Map> map) {
 }
 
 namespace {
+
+// The part a module dropped on the map snaps to the grid by, as BlueBrick
+// drops a group: the first that has a connection, else the first.
+const core::Brick* moduleSnapLead(const std::vector<core::Brick>& bricks, parts::PartsLibrary& lib) {
+    for (const auto& b : bricks) {
+        const auto meta = lib.metadata(b.partNumber);
+        if (!meta) continue;
+        for (const auto& c : meta->connections)
+            if (!c.type.isEmpty()) return &b;
+    }
+    return bricks.empty() ? nullptr : &bricks.front();
+}
+
 QSet<QString> partGuids(const core::Map& map) {
     QSet<QString> out;
     for (const auto& L : map.layers())
@@ -386,6 +401,7 @@ void MapView::rebuildScene() {
     dragStart_.clear();
     rulerDragStart_.clear();
     labelDragStart_.clear();
+    annoItemsAtPress_.clear();
     liveMoved_ = false;
     // A flex move points into the bricks being rebuilt from.
     flex_.reset();
@@ -668,12 +684,7 @@ void MapView::mousePressEvent(QMouseEvent* e) {
         // Snap the start point so a drag from a near-grid spot anchors
         // exactly on the grid intersection. Without this the line jumps
         // visibly when the user moves the mouse and the endpoint snaps.
-        if (snapStepStuds_ > 0.0) {
-            const double pxPerStud = rendering::SceneBuilder::kPixelsPerStud;
-            const double sPx = snapStepStuds_ * pxPerStud;
-            rulerStart_ = QPointF(std::round(rulerStart_.x() / sPx) * sPx,
-                                   std::round(rulerStart_.y() / sPx) * sPx);
-        }
+        rulerStart_ = gridPoint(rulerStart_ / studToPx()) * studToPx();
         e->accept();
         return;
     }
@@ -684,7 +695,8 @@ void MapView::mousePressEvent(QMouseEvent* e) {
         (tool_ == Tool::DrawVenueOutline || tool_ == Tool::DrawVenueObstacle)) {
         const double px = rendering::SceneBuilder::kPixelsPerStud;
         const QPointF scenePos = mapToScene(e->pos());
-        venueDrawPoints_.append(QPointF(scenePos.x() / px, scenePos.y() / px));
+        // On the grid as the parts are (Alt: where clicked).
+        venueDrawPoints_.append(gridPoint(QPointF(scenePos.x() / px, scenePos.y() / px)));
         updateVenueDrawPreview();
         e->accept();
         return;
@@ -829,10 +841,7 @@ void MapView::mouseMoveEvent(QMouseEvent* e) {
         const double pxPerStud = rendering::SceneBuilder::kPixelsPerStud;
         QPointF target(rulerEndpointDragLast_.x() / pxPerStud,
                        rulerEndpointDragLast_.y() / pxPerStud);
-        if (snapStepStuds_ > 0.0) {
-            target.setX(std::round(target.x() / snapStepStuds_) * snapStepStuds_);
-            target.setY(std::round(target.y() / snapStepStuds_) * snapStepStuds_);
-        }
+        target = gridPoint(target);
         if (auto* L = map_->layers()[rulerEndpointLayer_].get();
             L && L->kind() == core::LayerKind::Ruler) {
             auto& RL = static_cast<core::LayerRuler&>(*L);
@@ -942,6 +951,8 @@ void MapView::mouseMoveEvent(QMouseEvent* e) {
         // Module frames and names, rulers fixed to the parts, circuits and
         // the like follow the drag every frame, not only the drop.
         refreshLiveFollowers();
+    } else if (!annoItemsAtPress_.empty() && (e->buttons() & Qt::LeftButton)) {
+        applyAnnoGridSnap();
     }
 }
 
@@ -978,10 +989,7 @@ void MapView::mouseReleaseEvent(QMouseEvent* e) {
         const double pxPerStud = rendering::SceneBuilder::kPixelsPerStud;
         QPointF finalStuds(rulerEndpointDragLast_.x() / pxPerStud,
                            rulerEndpointDragLast_.y() / pxPerStud);
-        if (snapStepStuds_ > 0.0) {
-            finalStuds.setX(std::round(finalStuds.x() / snapStepStuds_) * snapStepStuds_);
-            finalStuds.setY(std::round(finalStuds.y() / snapStepStuds_) * snapStepStuds_);
-        }
+        finalStuds = gridPoint(finalStuds);
         // Restore pre-drag value so the command's redo() captures the
         // correct `before_` state. Without this the live in-place
         // mutation would fool the command into thinking nothing changed.
@@ -1053,19 +1061,9 @@ void MapView::mouseReleaseEvent(QMouseEvent* e) {
         core::LayerRuler::AnyRuler any;
         QPointF p1(rulerStart_.x() / pxPerStud, rulerStart_.y() / pxPerStud);
         QPointF p2(endScene.x()    / pxPerStud, endScene.y()    / pxPerStud);
-        // Snap both endpoints to the grid when snap is active. Vanilla
-        // BlueBrick rounds the cursor to the nearest grid intersection
-        // while drawing — we only have a release-time hook here, so we
-        // apply the same rounding at commit. Future polish: also snap
-        // during drag preview (would feed updateRulerPreview).
-        if (snapStepStuds_ > 0.0) {
-            auto snap = [s = snapStepStuds_](QPointF p){
-                return QPointF(std::round(p.x() / s) * s,
-                               std::round(p.y() / s) * s);
-            };
-            p1 = snap(p1);
-            p2 = snap(p2);
-        }
+        // Both ends on the nearest grid point, as BlueBrick draws them
+        // (the start was put there on the press; Alt draws freely).
+        p2 = gridPoint(p2);
 
         if (tool_ == Tool::DrawLinearRuler) {
             any.kind = core::RulerKind::Linear;
@@ -1127,11 +1125,7 @@ void MapView::updateRulerPreview(QPointF endScene) {
     const double pxPerStud = rendering::SceneBuilder::kPixelsPerStud;
     // Apply the same grid snap the release-time commit will use, so the
     // preview line matches what the user actually gets on release.
-    if (snapStepStuds_ > 0.0) {
-        const double sPx = snapStepStuds_ * pxPerStud;
-        endScene = QPointF(std::round(endScene.x() / sPx) * sPx,
-                           std::round(endScene.y() / sPx) * sPx);
-    }
+    endScene = gridPoint(endScene / pxPerStud) * pxPerStud;
     const QPointF d = endScene - rulerStart_;
     const double lenScene = std::hypot(d.x(), d.y());
     const double lenStuds = lenScene / pxPerStud;
@@ -1550,16 +1544,15 @@ void MapView::resolvePartPlacement(const QString& partKey, QPointF cursorScenePx
             snapPoint = QPointF(tc.world.x() * pxPerStud, tc.world.y() * pxPerStud);
             snapped = true;
         } else if (snapStepStuds_ > 0.0) {
-            // Snap the displayArea's corner, as for placed bricks.
+            // The grid, as BlueBrick drops a part from the library: held
+            // by the middle of its box, its snap corner lands on the grid.
             core::Brick probe;
             probe.partNumber = partKey;
             probe.orientation = orientation;
             probe.displayArea = QRectF(0, 0, widthStuds, heightStuds);
-            parts::placement::placeByImageCentre(probe, centreStuds, parts_);
-            QPointF topLeft = probe.displayArea.topLeft();
-            topLeft.setX(std::round(topLeft.x() / snapStepStuds_) * snapStepStuds_);
-            topLeft.setY(std::round(topLeft.y() / snapStepStuds_) * snapStepStuds_);
-            probe.displayArea.moveTopLeft(topLeft);
+            parts::placement::placeByAreaCentre(probe, centreStuds, parts_);
+            probe.displayArea.translate(
+                gridsnap::dragShift(centreStuds, parts::placement::snapCorner(probe, parts_), snapStepStuds_));
             centreStuds = parts::placement::imageCentre(probe, parts_);
         }
     }
@@ -1691,9 +1684,6 @@ void MapView::addPartAtScenePos(const QString& partKey, QPointF sceneCenterPx, s
 
 void MapView::setSnapStepStuds(double studs) {
     snapStepStuds_ = studs;
-    // Propagate to the rendering side so item-level ItemPositionChange snaps
-    // bricks live while dragging (in addition to commit-time snap on release).
-    rendering::SceneBuilder::setLiveSnapStepStuds(studs);
 }
 
 void MapView::selectAll() {
@@ -2040,7 +2030,6 @@ bool MapView::startFlexMove(QGraphicsItem* under, QPointF scenePos) {
 void MapView::updateFlexItems() {
     if (!flex_) return;
     const double px = rendering::SceneBuilder::kPixelsPerStud;
-    rendering::SceneBuilder::setSuppressItemSnap(true);
     for (const auto& s : flex_->currentState()) {
         QGraphicsItem* it = flexItems_.value(s.guid);
         if (!it) continue;
@@ -2053,7 +2042,6 @@ void MapView::updateFlexItems() {
         it->setTransform(QTransform::fromTranslate(offset.x(), offset.y()));
         it->setPos(s.area.center() * px);
     }
-    rendering::SceneBuilder::setSuppressItemSnap(false);
 }
 
 void MapView::finishFlexMove() {
@@ -2331,9 +2319,9 @@ void MapView::addTextAtScenePos(const QString& text, QPointF sceneCenterPx) {
     c.font.sizePt = 12.0f;
     c.font.styleString = QStringLiteral("Regular");
     c.alignment = core::TextAlignment::Center;
-    c.displayArea = QRectF(sceneCenterPx.x() / pxPerStud - widthStuds / 2.0,
-                            sceneCenterPx.y() / pxPerStud - heightStuds / 2.0,
-                            widthStuds, heightStuds);
+    // Its middle on the grid, as the parts are.
+    const QPointF centre = gridPoint(sceneCenterPx / pxPerStud);
+    c.displayArea = QRectF(centre.x() - widthStuds / 2.0, centre.y() - heightStuds / 2.0, widthStuds, heightStuds);
     undoStack_->push(new edit::AddTextCellCommand(*map_, targetLayer, std::move(c)));  // indexChanged handler rebuilds the scene
 }
 
@@ -2502,13 +2490,9 @@ void MapView::updateModuleDragPreview(const QString& bbmPath, QPointF cursorScen
 
         const double pxPerStud = rendering::SceneBuilder::kPixelsPerStud;
 
-        // Walk the bricks once to compute the centroid AND the bounding-
-        // box top-left, both in studs. Top-left drives grid-snap so the
-        // module's edge (not its centroid) lands on a stud-aligned grid
-        // line — matches how a single-brick drop snaps its top-left.
+        // Walk the bricks once for the centroid (studs) and the box (px).
         QPointF centroidStuds; int count = 0;
         QRectF bboxPx;
-        QRectF bboxStuds;
         for (const auto& L : res.map->layers()) {
             if (!L || L->kind() != core::LayerKind::Brick) continue;
             for (const auto& b : static_cast<const core::LayerBrick&>(*L).bricks) {
@@ -2519,8 +2503,6 @@ void MapView::updateModuleDragPreview(const QString& bbmPath, QPointF cursorScen
                                  b.displayArea.width()  * pxPerStud,
                                  b.displayArea.height() * pxPerStud);
                 bboxPx = bboxPx.isNull() ? bp : bboxPx.united(bp);
-                bboxStuds = bboxStuds.isNull() ? b.displayArea
-                                                : bboxStuds.united(b.displayArea);
             }
         }
         if (count == 0 || bboxPx.isEmpty()) return;
@@ -2535,8 +2517,6 @@ void MapView::updateModuleDragPreview(const QString& bbmPath, QPointF cursorScen
                 moduleBricks.push_back(std::move(copy));
             }
         }
-        // Vector from centroid to bbox top-left (negative numbers).
-        dragPreviewModuleTopLeftOffsetStuds_ = bboxStuds.topLeft() - centroidStuds;
 
         // Render the module via a temporary scene + SceneBuilder so we
         // pick up the same pixmaps + transforms users already see. Then
@@ -2577,23 +2557,16 @@ void MapView::updateModuleDragPreview(const QString& bbmPath, QPointF cursorScen
         dragPreviewModuleBricks_ = std::move(moduleBricks);
     }
 
-    // Modules drop centroid-at-cursor with no rotation. When grid snap
-    // is active, snap the bbox TOP-LEFT to the grid (matches how single-
-    // brick drops snap their top-left) and back-derive the centroid.
-    // Snapping the centroid directly would land non-square modules off
-    // the stud grid even though "snap is on".
+    // Modules drop centroid-at-cursor with no rotation. On the grid, its
+    // lead part's snap corner lands on it, as the drop does.
     QPointF placedScene = cursorScenePx;
     if (snapStepStuds_ > 0.0) {
         const double pxPerStud = rendering::SceneBuilder::kPixelsPerStud;
-        const QPointF cursorStuds(cursorScenePx.x() / pxPerStud,
-                                   cursorScenePx.y() / pxPerStud);
-        const QPointF wantTopLeft = cursorStuds + dragPreviewModuleTopLeftOffsetStuds_;
-        QPointF snappedTopLeft(
-            std::round(wantTopLeft.x() / snapStepStuds_) * snapStepStuds_,
-            std::round(wantTopLeft.y() / snapStepStuds_) * snapStepStuds_);
-        const QPointF snappedCentroid = snappedTopLeft - dragPreviewModuleTopLeftOffsetStuds_;
-        placedScene = QPointF(snappedCentroid.x() * pxPerStud,
-                               snappedCentroid.y() * pxPerStud);
+        const QPointF cursorStuds = cursorScenePx / pxPerStud;
+        if (const core::Brick* lead = moduleSnapLead(dragPreviewModuleBricks_, parts_)) {
+            const QPointF rawCorner = cursorStuds + parts::placement::snapCorner(*lead, parts_);
+            placedScene = (cursorStuds + gridsnap::dragShift(cursorStuds, rawCorner, snapStepStuds_)) * pxPerStud;
+        }
     }
     // Connection snap, as the drop will do it (with this drag's hold and
     // speed gate).
@@ -2734,15 +2707,12 @@ bool MapView::placeModule(core::Map& loaded, const QString& name, const QString&
     // drop position.
     std::vector<edit::ImportBbmAsModuleCommand::LayerBatch> batches;
     QPointF srcCentre; int count = 0;
-    QRectF  srcBbox;
     for (const auto& L : loaded.layers()) {
         if (!L || L->kind() != core::LayerKind::Brick) continue;
         edit::ImportBbmAsModuleCommand::LayerBatch batch;
         batch.layerName = L->name.isEmpty() ? QStringLiteral("Module") : L->name;
         for (const auto& b : static_cast<const core::LayerBrick&>(*L).bricks) {
             srcCentre += b.displayArea.center(); ++count;
-            srcBbox = srcBbox.isNull() ? b.displayArea
-                                        : srcBbox.united(b.displayArea);
             core::Brick copy = b;
             copy.guid.clear();
             batch.bricks.push_back(std::move(copy));
@@ -2755,17 +2725,16 @@ bool MapView::placeModule(core::Map& loaded, const QString& name, const QString&
     if (batches.empty() || count == 0) return false;
     srcCentre /= count;
     QPointF targetCentre(scenePos.x() / px, scenePos.y() / px);
-    // Grid-snap the bbox TOP-LEFT (not the centroid) so the module's
-    // visible edges line up with the stud grid, matching the preview
-    // ghost. Snapping the centroid would leave non-square modules
-    // off-grid even with snap enabled.
+    // On the grid, the module's lead part's snap corner lands on it, as
+    // BlueBrick drops a group: held by its middle, by the part that holds
+    // its first connection.
     if (snapStepStuds_ > 0.0) {
-        const QPointF offset = srcBbox.topLeft() - srcCentre;
-        const QPointF wantTL = targetCentre + offset;
-        const QPointF snappedTL(
-            std::round(wantTL.x() / snapStepStuds_) * snapStepStuds_,
-            std::round(wantTL.y() / snapStepStuds_) * snapStepStuds_);
-        targetCentre = snappedTL - offset;
+        std::vector<core::Brick> all;
+        for (const auto& batch : batches) all.insert(all.end(), batch.bricks.begin(), batch.bricks.end());
+        if (const core::Brick* lead = moduleSnapLead(all, parts_)) {
+            const QPointF rawCorner = parts::placement::snapCorner(*lead, parts_) + targetCentre - srcCentre;
+            targetCentre += gridsnap::dragShift(targetCentre, rawCorner, snapStepStuds_);
+        }
     }
     const QPointF translation = targetCentre - srcCentre;
     for (auto& batch : batches)

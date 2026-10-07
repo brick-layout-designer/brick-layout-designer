@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../core/GridSnap.h"
+
 #include <QHash>
 #include <QPixmap>
 #include <QPointF>
@@ -122,6 +124,10 @@ struct PartMetadata {
     // <hull> outline in sprite pixels (half-pixel centred, as BlueBrick
     // reads it). Empty: the hull is the sprite's bounding box.
     QList<QPointF> xmlHullPx;
+
+    // <SnapMargin>: the margin inside the sprite that grid snapping leaves
+    // out, in studs (a 9V straight's half stud each side of the rails).
+    gridsnap::Margin snapMargin;
 
     // <TrackDesigner> remap: how this part maps to TrackDesigner (.tdl).
     struct TrackDesignerPort {

@@ -88,6 +88,9 @@ public:
     // Snap step applied to brick drag-drop, in studs. 0 disables snapping.
     void  setSnapStepStuds(double studs);
     double snapStepStuds() const { return snapStepStuds_; }
+    // `studs` on the nearest grid point, unless the grid is off or Alt is
+    // held: where a ruler end, label, text or venue corner goes.
+    QPointF gridPoint(QPointF studs) const;
 
     // Default rotation step in degrees — used by the menu Rotate CW/CCW
     // actions (the explicit rotateSelected(degrees) call still takes a
@@ -455,6 +458,24 @@ private:
     int     grabActiveConnIdx_   = -1;   // index into part meta->connections
     void captureGrabAnchor(QPointF clickScenePos);
     void clearGrabAnchor();
+    // The part under the press, which the drag snaps to the grid by.
+    QString snapLeadGuid_;
+    // The shift from where the pointer has the dragged parts (moved
+    // `rawDeltaStuds` from the press) onto the grid; none with the grid off.
+    QPointF brickGridShift(QPointF rawDeltaStuds) const;
+    // The picked rulers and labels the drag moves (not those riding on a
+    // picked part), at their pos() at the press.
+    std::vector<std::pair<QGraphicsItem*, QPointF>> annoItemsAtPress_;
+    // The point a drag of only rulers and labels snaps to the grid by:
+    // the grabbed ruler's first end or centre, or the label's corner (studs).
+    std::optional<QPointF> annoSnapRef_;
+    QPointF dragPressScene_;
+    // Puts the picked rulers and labels `deltaPx` from where they were at
+    // the press.
+    void shiftAnnoItems(QPointF deltaPx);
+    // A drag of only rulers and labels: they follow the pointer, the
+    // grabbed one on the grid.
+    void applyAnnoGridSnap();
 
     // Internal (in-process) brick clipboard. Cross-process paste would require
     // serialising to QMimeData via the system clipboard; deferred until a user
@@ -650,10 +671,6 @@ private:
     // the ghost can be repositioned cheaply on every dragMove without
     // re-parsing or re-rasterizing.
     QPointF dragPreviewModuleCentroidScenePx_;
-    // Offset in studs from the module's centroid to the bbox top-left.
-    // Used so grid-snap can align the bbox top-left (matching how
-    // single-brick drops snap their top-left), regardless of module size.
-    QPointF dragPreviewModuleTopLeftOffsetStuds_;
     // The dragged module's bricks, centroid at the origin, for its snap.
     std::vector<core::Brick> dragPreviewModuleBricks_;
     // The connection snap of `bricks` (already placed) onto the map's free

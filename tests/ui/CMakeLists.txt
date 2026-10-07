@@ -30,6 +30,7 @@ add_executable(bld_ui_tests
     PartsIconSizeTest.cpp
     UiWordingTest.cpp
     SnapFeelTest.cpp
+    GridSnapTest.cpp
     ModuleLookTest.cpp
     ModuleEditTest.cpp
     ModuleSheetsTest.cpp

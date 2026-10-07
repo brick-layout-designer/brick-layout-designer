@@ -13,7 +13,9 @@
 #include "MapView.h"
 
 #include "../core/Brick.h"
+#include "../core/GridSnap.h"
 #include "../core/LayerBrick.h"
+#include "../core/LayerRuler.h"
 #include "../core/Map.h"
 #include "../edit/EditCommands.h"
 #include "../edit/LabelCommands.h"
@@ -146,10 +148,19 @@ void MapView::captureDragStart() {
     dragRawDeltaPx_.reset();
     rulerDragStart_.clear();
     labelDragStart_.clear();
+    annoItemsAtPress_.clear();
+    annoSnapRef_.reset();
+    dragPressScene_ = lastMouseScenePos_;
     if (!map_) return;
     QSet<QString> rulerSeen;
     QSet<QString> labelSeen;
     for (QGraphicsItem* it : scene()->selectedItems()) {
+        if (isRulerItem(it) || isLabelItem(it)) {
+            // A label on a picked part rides with it.
+            bool riding = false;
+            for (QGraphicsItem* p = it->parentItem(); p && !riding; p = p->parentItem()) riding = p->isSelected();
+            if (!riding) annoItemsAtPress_.emplace_back(it, it->pos());
+        }
         if (isRulerItem(it)) {
             const QString guid = it->data(kBrickDataGuid).toString();
             if (guid.isEmpty() || rulerSeen.contains(guid)) continue;
@@ -171,9 +182,67 @@ void MapView::captureDragStart() {
             labelDragStart_.push_back(l);
         }
     }
+
+    // A drag of only rulers and labels snaps by the one under the press.
+    if (!dragStart_.empty() || annoItemsAtPress_.empty()) return;
+    QGraphicsItem* lead = nullptr;
+    for (QGraphicsItem* it : scene()->items(dragPressScene_)) {
+        if ((isRulerItem(it) || isLabelItem(it)) && it->isSelected()) {
+            lead = it;
+            break;
+        }
+    }
+    if (!lead) lead = annoItemsAtPress_.front().first;
+    if (isLabelItem(lead)) {
+        annoSnapRef_ = lead->scenePos() / studToPx();
+        return;
+    }
+    const int li = lead->data(kBrickDataLayerIndex).toInt();
+    const QString guid = lead->data(kBrickDataGuid).toString();
+    if (li < 0 || li >= static_cast<int>(map_->layers().size())) return;
+    const auto* L = map_->layers()[li].get();
+    if (!L || L->kind() != core::LayerKind::Ruler) return;
+    for (const auto& any : static_cast<const core::LayerRuler&>(*L).rulers) {
+        if (any.kind == core::RulerKind::Linear && any.linear.guid == guid) annoSnapRef_ = any.linear.point1;
+        if (any.kind == core::RulerKind::Circular && any.circular.guid == guid) annoSnapRef_ = any.circular.center;
+    }
+}
+
+QPointF MapView::gridPoint(QPointF studs) const {
+    return gridsnap::snapPoint(studs, snapBypassed() ? 0.0 : snapStepStuds_);
+}
+
+void MapView::shiftAnnoItems(QPointF deltaPx) {
+    for (const auto& [item, atPress] : annoItemsAtPress_) {
+        const QGraphicsItem* parent = item->parentItem();
+        // The move in the parent's terms (a label on a part that stays).
+        const QPointF d = parent ? parent->mapFromScene(deltaPx) - parent->mapFromScene(QPointF()) : deltaPx;
+        item->setPos(atPress + d);
+    }
+}
+
+void MapView::applyAnnoGridSnap() {
+    if (!annoSnapRef_) return;
+    const double px = studToPx();
+    const QPointF raw = lastMouseScenePos_ - dragPressScene_;
+    const QPointF at = *annoSnapRef_ + raw / px;
+    shiftAnnoItems(raw + (gridPoint(at) - at) * px);
+}
+
+QPointF MapView::brickGridShift(QPointF rawDeltaStuds) const {
+    if (snapStepStuds_ <= 0.0 || !map_ || dragStart_.empty()) return {};
+    const BrickOriginSnapshot* lead = &dragStart_.front();
+    for (const auto& s : dragStart_)
+        if (s.guid == snapLeadGuid_) lead = &s;
+    const core::Brick* b = findBrick(*map_, lead->layerIndex, lead->guid);
+    if (!b) return {};
+    const auto& layer = static_cast<const core::LayerBrick&>(*map_->layers()[lead->layerIndex]);
+    const QPointF rawCorner = parts::placement::grabSnapCorner(layer, *b, parts_) + rawDeltaStuds;
+    return gridsnap::dragShift(lastMouseScenePos_ / studToPx(), rawCorner, snapStepStuds_);
 }
 
 void MapView::captureGrabAnchor(QPointF clickScenePos) {
+    snapLeadGuid_.clear();
     grabBrickGuid_.clear();
     grabBrickLayerIndex_ = -1;
     grabActiveConnIdx_   = -1;
@@ -194,6 +263,7 @@ void MapView::captureGrabAnchor(QPointF clickScenePos) {
         if (brick) break;
     }
     if (!brick) return;
+    snapLeadGuid_ = guid;
 
     const double px = studToPx();
     const QPointF clickStuds(clickScenePos.x() / px, clickScenePos.y() / px);
@@ -271,6 +341,7 @@ void MapView::captureGrabAnchor(QPointF clickScenePos) {
 }
 
 void MapView::clearGrabAnchor() {
+    snapLeadGuid_.clear();
     grabBrickGuid_.clear();
     grabBrickLayerIndex_ = -1;
     grabActiveConnIdx_   = -1;
@@ -384,13 +455,11 @@ void MapView::applyLiveConnectionSnap(bool fromMove) {
 
     // Put every item where the pointer has it, unturned; a snap below
     // moves (and turns) them from there.
-    rendering::SceneBuilder::setSuppressItemSnap(true);
     for (const auto& s : dragStart_) {
         if (!s.item) continue;
         s.item->setPos(rawPos(s));
         s.item->setRotation(s.rotationAtPress);
     }
-    rendering::SceneBuilder::setSuppressItemSnap(false);
 
     // A fast drag that stops dead gets no more moves: snap shortly after.
     if (!snapSettle_) {
@@ -426,32 +495,15 @@ void MapView::applyLiveConnectionSnap(bool fromMove) {
 
     if (!best.applied()) {
         // No connection snap (parts without connection points like Tables,
-        // nothing within reach, Alt held, or a fast drag). Fall back to
-        // live grid snap so the group still tracks the grid while
-        // dragging. Single-brick live drags already get grid snap via
-        // SnappingPixmap::itemChange; this covers the multi-brick case
-        // where that per-item snap is deliberately disabled.
-        QPointF gridShiftStuds;
-        if (snapStepStuds_ > 0.0 && dragStart_.size() > 1) {
-            const auto& anchor = dragStart_.front();
-            if (anchor.item) {
-                const QPointF anchorCenterPx = anchor.item->scenePos();
-                const QPointF anchorCenterStuds(anchorCenterPx.x() / px, anchorCenterPx.y() / px);
-                const QPointF snapped(
-                    std::round(anchorCenterStuds.x() / snapStepStuds_) * snapStepStuds_,
-                    std::round(anchorCenterStuds.y() / snapStepStuds_) * snapStepStuds_);
-                gridShiftStuds = snapped - anchorCenterStuds;
-                const QPointF shiftPxGrid(gridShiftStuds.x() * px, gridShiftStuds.y() * px);
-                if (std::abs(shiftPxGrid.x()) > 0.01 || std::abs(shiftPxGrid.y()) > 0.01) {
-                    rendering::SceneBuilder::setSuppressItemSnap(true);
-                    for (const auto& s : dragStart_) {
-                        if (!s.item) continue;
-                        s.item->setPos(s.item->scenePos() + shiftPxGrid);
-                    }
-                    rendering::SceneBuilder::setSuppressItemSnap(false);
-                }
-            }
+        // nothing within reach, Alt held, or a fast drag): the grid, as the
+        // drop will do it, with the rulers and labels picked with them.
+        const QPointF gridShiftStuds = brickGridShift(dragRawDeltaPx_.value_or(QPointF()) / px);
+        const QPointF shiftPxGrid = gridShiftStuds * px;
+        if (!shiftPxGrid.isNull()) {
+            for (const auto& s : dragStart_)
+                if (s.item) s.item->setPos(rawPos(s) + shiftPxGrid);
         }
+        shiftAnnoItems(dragRawDeltaPx_.value_or(QPointF()) + shiftPxGrid);
         if (moving.empty()) {
             statusHint(tr("Connection snap: no free connections in selection"));
         } else if (bypass) {
@@ -475,7 +527,7 @@ void MapView::applyLiveConnectionSnap(bool fromMove) {
     // snap so the alignment survives the setPos round-trip.
     const QPointF target = targets[best.target].world;
     const QPointF pivot = active[best.moving].world;
-    rendering::SceneBuilder::setSuppressItemSnap(true);
+    shiftAnnoItems(dragRawDeltaPx_.value_or(QPointF()));
     for (const auto& s : dragStart_) {
         if (!s.item) continue;
         const auto* b = findBrick(*map_, s.layerIndex, s.guid);
@@ -486,7 +538,6 @@ void MapView::applyLiveConnectionSnap(bool fromMove) {
         s.item->setPos(moved * px);
         s.item->setRotation(s.rotationAtPress + best.turn);
     }
-    rendering::SceneBuilder::setSuppressItemSnap(false);
     // The ring on the target; the joined connection's dot inside it.
     setSnapMarks(true, target * px, target * px);
 }
@@ -497,8 +548,16 @@ void MapView::commitDragIfMoved() {
 
     // Rulers and labels first: push Move* commands based on scene-pos
     // deltas. Done BEFORE the brick path so an empty brick snapshot
-    // doesn't short-circuit the ruler/label commits. Wrapped in a single
-    // macro so a mixed drag undoes as one.
+    // doesn't short-circuit the ruler/label commits. One macro holds them
+    // and the parts' moves, so a mixed drag undoes as one; it closes on
+    // the way out, so the scene is rebuilt (and the dragged items freed)
+    // only once everything is pushed.
+    struct MacroGuard {
+        QUndoStack* stack = nullptr;
+        ~MacroGuard() {
+            if (stack) stack->endMacro();
+        }
+    } macro;
     if (!rulerDragStart_.empty() || !labelDragStart_.empty()) {
         const double pxToStud = 1.0 / studToPx();
         std::vector<std::tuple<int, QString, QPointF>> rulerCmds;
@@ -519,16 +578,17 @@ void MapView::commitDragIfMoved() {
         }
         if (!rulerCmds.empty() || !labelCmds.empty()) {
             undoStack_->beginMacro(tr("Drag"));
+            macro.stack = undoStack_.get();
             for (const auto& [li, g, d] : rulerCmds) {
                 undoStack_->push(new edit::MoveRulerItemCommand(*map_, li, g, d));
             }
             for (const auto& [id, d] : labelCmds) {
                 undoStack_->push(new edit::MoveAnchoredLabelCommand(*map_, id, d));
             }
-            undoStack_->endMacro();
         }
         rulerDragStart_.clear();
         labelDragStart_.clear();
+        annoItemsAtPress_.clear();
     }
 
     if (dragStart_.empty()) return;
@@ -638,12 +698,9 @@ void MapView::commitDragIfMoved() {
         }
     }
 
-    // Grid snap fallback.
-    if (snapStepStuds_ > 0.0 && !connectionSnapped) {
-        const QPointF tl = entries.front().afterTopLeft;
-        const QPointF snapped(std::round(tl.x() / snapStepStuds_) * snapStepStuds_,
-                              std::round(tl.y() / snapStepStuds_) * snapStepStuds_);
-        const QPointF extra = snapped - tl;
+    // No connection: the grid, by the grabbed part's snap corner.
+    if (!connectionSnapped) {
+        const QPointF extra = brickGridShift(groupDelta);
         if (!extra.isNull()) {
             for (auto& e : entries) e.afterTopLeft += extra;
         }

@@ -4,6 +4,7 @@ add_library(bld_core STATIC
     Version.cpp
     Ids.h
     Geometry.h
+    GridSnap.h
     Map.h
     Layer.h
     LayerItem.h

@@ -83,9 +83,10 @@ constexpr Raw kShared[] = {
     { "toolbar.snap", "",
       QT_TRANSLATE_NOOP("HelpTexts", "Snap"),
       QT_TRANSLATE_NOOP("HelpTexts", "Pieces jump to the nearest grid line, so rows stay straight."),
-      QT_TRANSLATE_NOOP("HelpTexts", "The number is how far apart the grid lines are, in studs. Pick "
-                                     "“off” to place something exactly where you drop it. Track ends "
-                                     "still click together.") },
+      QT_TRANSLATE_NOOP("HelpTexts", "The number is how far apart the grid lines are, in studs; rulers, "
+                                     "labels, text and venue corners land on it too. Hold Alt (⌥ on a "
+                                     "Mac) to put those exactly where you let go, or pick “off” to place "
+                                     "everything where you drop it. Track ends still click together.") },
     { "toolbar.rotateStep", "",
       QT_TRANSLATE_NOOP("HelpTexts", "Turn step"),
       QT_TRANSLATE_NOOP("HelpTexts", "How far a piece turns each time you press R."),
