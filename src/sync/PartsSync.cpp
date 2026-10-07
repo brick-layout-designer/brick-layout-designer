@@ -205,8 +205,18 @@ void PartsSync::next() {
         else if (!f.sha256.isEmpty() && got != f.sha256)
             error = tr("%1: the download didn't match its hash").arg(f.what);
         else if (!writeFile(target, data)) error = tr("%1: could not write %2").arg(f.what, target);
-        if (error.isEmpty()) ++result_.downloaded;
-        else {
+        if (error.isEmpty()) {
+            ++result_.downloaded;
+            // A part re-sent with the other kind of sprite: drop the old one,
+            // which the parts library could otherwise pick (it prefers the
+            // .png for a hi-res XML and the .gif otherwise).
+            if (!f.spriteBase.isEmpty()) {
+                const QString other = f.spriteBase
+                                      + (target.endsWith(QLatin1String(".png")) ? QStringLiteral(".gif")
+                                                                                 : QStringLiteral(".png"));
+                QFile::remove(other);
+            }
+        } else {
             result_.failed << error;
             if (!f.library.isEmpty()) failedLibraries_.insert(f.library);
             if (!f.customId.isEmpty()) failedCustom_.insert(f.customId);

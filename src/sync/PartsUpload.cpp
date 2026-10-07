@@ -10,11 +10,14 @@
 #include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
+#include <QBuffer>
+#include <QImage>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QRegularExpression>
 #include <QSet>
 #include <QXmlStreamReader>
 
@@ -39,6 +42,51 @@ QString englishDescription(const QByteArray& xml) {
             return r.readElementText().trimmed();
     }
     return {};
+}
+
+// The resolution the XML declares for its sprite (<PixelsPerStud> under the
+// root element), read as PartsLibrary does: 8 when absent or out of range.
+int declaredPxPerStud(const QByteArray& xml) {
+    QXmlStreamReader r(xml);
+    int depth = 0;
+    while (!r.atEnd()) {
+        r.readNext();
+        if (r.isStartElement()) {
+            ++depth;
+            if (depth == 2 && r.name() == QLatin1String("PixelsPerStud")) {
+                bool ok = false;
+                const int v = r.readElementText().trimmed().toInt(&ok);
+                return ok && v >= 4 && v <= 256 ? v : 8;
+            }
+        } else if (r.isEndElement()) {
+            --depth;
+        }
+    }
+    return 8;
+}
+
+// `xml` declaring `px` pixels a stud: the <PixelsPerStud> element set, or
+// removed for 8 (vanilla's implicit resolution). Everything else is kept
+// byte for byte.
+QByteArray withPxPerStud(const QByteArray& xml, int px) {
+    QString text = QString::fromUtf8(xml);
+    if (px == 8) {
+        static const QRegularExpression element(
+            QStringLiteral("[ \\t]*<PixelsPerStud>[^<]*</PixelsPerStud>[ \\t]*\\r?\\n?"));
+        text.remove(element);
+    } else {
+        static const QRegularExpression value(QStringLiteral("<PixelsPerStud>[^<]*</PixelsPerStud>"));
+        text.replace(value, QStringLiteral("<PixelsPerStud>%1</PixelsPerStud>").arg(px));
+    }
+    return text.toUtf8();
+}
+
+QByteArray encodePng(const QImage& image) {
+    QByteArray out;
+    QBuffer buffer(&out);
+    buffer.open(QIODevice::WriteOnly);
+    image.save(&buffer, "PNG");
+    return out;
 }
 
 // A path in one comparable spelling: '/' separators (Windows paths may
@@ -94,19 +142,59 @@ QList<LocalPart> PartsUpload::scanFolder(const QString& dir) {
     while (it.hasNext()) {
         const QFileInfo xml(it.next());
         const QString base = xml.absolutePath() + QLatin1Char('/') + xml.completeBaseName();
+        const QByteArray xmlBytes = readAll(xml.absoluteFilePath());
+        // The sprite PartsLibrary::scanFile draws: an import keeps its hi-res
+        // .png (declared by <PixelsPerStud>) beside an 8 px a stud .gif for
+        // vanilla BlueBrick. Sending the .gif with an XML that says 32 made
+        // the part four times too small on the web.
+        const bool hiRes = declaredPxPerStud(xmlBytes) != 8;
         QString sprite;
-        for (const char* ext : { ".gif", ".png" })
+        for (const char* ext : hiRes ? std::initializer_list<const char*>{ ".png", ".gif" }
+                                     : std::initializer_list<const char*>{ ".gif", ".png" })
             if (QFile::exists(base + QLatin1String(ext))) {
                 sprite = base + QLatin1String(ext);
                 break;
             }
         if (sprite.isEmpty()) continue;
-        const QString description = englishDescription(readAll(xml.absoluteFilePath()));
+        const QString description = englishDescription(xmlBytes);
         out << LocalPart{ xml.completeBaseName(),
                           description.isEmpty() ? xml.completeBaseName() : description,
                           xml.absoluteFilePath(), sprite };
     }
     std::sort(out.begin(), out.end(), [](const LocalPart& a, const LocalPart& b) { return a.key < b.key; });
+    return out;
+}
+
+PartPayload PartsUpload::payloadFor(const LocalPart& part, qint64 maxBytes) {
+    PartPayload out;
+    out.xml = readAll(part.xmlPath);
+    out.sprite = readAll(part.spritePath);
+    const int declared = declaredPxPerStud(out.xml);
+    if (!part.spritePath.endsWith(QLatin1String(".png"), Qt::CaseInsensitive)) {
+        // A .gif is 8 px a stud (PartsLibrary::scanFile), so its XML must say so.
+        out.mime = QStringLiteral("image/gif");
+        if (declared != 8) out.xml = withPxPerStud(out.xml, 8);
+        return out;
+    }
+    out.mime = QStringLiteral("image/png");
+    out.pxPerStud = declared;
+    // Too big for the server: halve the resolution until it fits. Not for a
+    // part with a <hull>, whose points are in the sprite's pixels.
+    if (out.xml.size() + out.sprite.size() <= maxBytes || declared <= 8 || out.xml.contains("<hull"))
+        return out;
+    QImage image;
+    if (!image.loadFromData(out.sprite)) return out;
+    int px = declared;
+    while (px > 8 && out.xml.size() + out.sprite.size() > maxBytes) {
+        px = std::max(8, px / 2);
+        const double scale = static_cast<double>(px) / declared;
+        const QImage smaller = image.scaled(std::max(1, qRound(image.width() * scale)),
+                                            std::max(1, qRound(image.height() * scale)), Qt::IgnoreAspectRatio,
+                                            Qt::SmoothTransformation);
+        out.sprite = encodePng(smaller);
+        out.xml = withPxPerStud(readAll(part.xmlPath), px);
+        out.pxPerStud = px;
+    }
     return out;
 }
 
@@ -163,15 +251,12 @@ void PartsUpload::uploadNext() {
         return;
     }
     const LocalPart p = queue_.takeFirst();
-    const QByteArray xml = readAll(p.xmlPath), sprite = readAll(p.spritePath);
+    const PartPayload payload = payloadFor(p);
     QJsonObject body{ { QStringLiteral("partNumber"), p.key },
                       { QStringLiteral("displayName"), p.displayName },
-                      { QStringLiteral("xmlBase64"), QString::fromLatin1(xml.toBase64()) },
-                      { QStringLiteral("spriteBase64"), QString::fromLatin1(sprite.toBase64()) },
-                      { QStringLiteral("spriteMime"),
-                        p.spritePath.endsWith(QLatin1String(".png"), Qt::CaseInsensitive)
-                            ? QStringLiteral("image/png")
-                            : QStringLiteral("image/gif") } };
+                      { QStringLiteral("xmlBase64"), QString::fromLatin1(payload.xml.toBase64()) },
+                      { QStringLiteral("spriteBase64"), QString::fromLatin1(payload.sprite.toBase64()) },
+                      { QStringLiteral("spriteMime"), payload.mime } };
     if (!orgSlug_.isEmpty()) body.insert(QStringLiteral("orgSlug"), orgSlug_);
     QUrl url = server_;
     url.setPath(QStringLiteral("/api/custom-parts"));

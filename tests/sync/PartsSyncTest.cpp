@@ -192,3 +192,23 @@ TEST(PartsSync, SaysTheFirewallBlockedAnEmpty403) {
     EXPECT_TRUE(message.startsWith(QStringLiteral("The site's firewall blocked this request.")));
     EXPECT_FALSE(unauthorized);
 }
+
+TEST(PartsSync, APartResentWithTheOtherSpriteDropsTheOldOne) {
+    // The parts library prefers a .png for a hi-res XML and a .gif
+    // otherwise, so a stale sibling could be drawn at the wrong size.
+    QTemporaryDir dir;
+    FakeHttp http;
+    serveManifest(http, QStringLiteral("L1"), QStringLiteral("C1"), QJsonArray{});
+    http.replyRaw("/api/custom-parts/c1/xml", 200, kCustomXml, "application/xml");
+    http.replyRaw("/api/custom-parts/c1/sprite", 200, kPng, "image/png");
+    sync(http, dir.path());
+    ASSERT_TRUE(QFile::exists(dir.filePath(QStringLiteral("custom/MY.1.png"))));
+
+    serveManifest(http, QStringLiteral("L1"), QStringLiteral("C2"), QJsonArray{});
+    http.clear("/api/custom-parts/c1/sprite");
+    http.replyRaw("/api/custom-parts/c1/sprite", 200, kGif, "image/gif");
+    const auto second = sync(http, dir.path());
+    EXPECT_TRUE(second.failed.isEmpty()) << second.failed.join(QStringLiteral("; ")).toStdString();
+    EXPECT_EQ(read(dir.filePath(QStringLiteral("custom/MY.1.gif"))), kGif);
+    EXPECT_FALSE(QFile::exists(dir.filePath(QStringLiteral("custom/MY.1.png"))));
+}
