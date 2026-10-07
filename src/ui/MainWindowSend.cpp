@@ -318,7 +318,7 @@ void MainWindow::shareToCatalog(const sync::CatalogShare& share, bool isUpdate, 
         const sync::ServerList list = sync::ServerList::load();
         const sync::ServerEntry* e = list.find(serverLibrary_->server());
         const bool native = e && e->features && e->features->contains(QStringLiteral("layoutDownload"));
-        dialog.makeThumbnail = [this, id = share.sourceId, native](std::function<void(const QByteArray&)> done) {
+        dialog.makeThumbnail = [this, id = share.sourceId, native](const std::function<void(const QByteArray&)>& done) {
             serverLibrary_->api().layoutFile(id, native, [this, native, done](const QByteArray& bytes) {
                 std::unique_ptr<core::Map> map;
                 if (native) {

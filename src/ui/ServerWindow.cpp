@@ -50,7 +50,7 @@ QString showSettingsKey(const QUrl& server) {
 
 // "by Sam · in ArkLUG", else whose it is ("Yours", the club).
 QString whoseText(const sync::Credit& credit, const sync::ItemOwner& owner) {
-    const QString line = sync::creditLine(credit);
+    QString line = sync::creditLine(credit);
     if (!line.isEmpty()) return line;
     return owner.key == sync::kShowMine ? ServerWindow::tr("Yours") : owner.label;
 }
