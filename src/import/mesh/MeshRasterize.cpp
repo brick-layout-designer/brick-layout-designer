@@ -1,12 +1,14 @@
 #include "MeshRasterize.h"
 
 #include <QColor>
+#include <QMargins>
 #include <QPainter>
 #include <QPen>
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <map>
 #include <vector>
 
 namespace bld::import {
@@ -46,6 +48,61 @@ inline quint32 packPremul(QColor c) {
 
 }  // namespace
 
+std::optional<QRectF> baseLattice(const geom::Mesh& mesh, double studsPerLdu) {
+    // The bottom layer: the lowest level of flat (horizontal) faces that
+    // covers a real share of the model, with the sizeable ones up to a few
+    // LDU above it (a plate is 8 LDU; its underside, tubes and walls'
+    // bottom edges sit there). A part hanging below the base (a chain, a
+    // lamp) covers too little to count, at its height or in the band.
+    constexpr double kBandLdu = 4.0;
+    constexpr double kMinShare = 0.05;
+    // LDD shapes are 0.1 mm short of the stud on every side (0.025 stud).
+    constexpr double kWholeSlackStuds = 0.06;
+    struct Level {
+        double area = 0;
+        QRectF box;  // studs
+    };
+    std::map<long long, Level> levels;  // by height, whole LDU
+    double bx0 = std::numeric_limits<double>::infinity(), bx1 = -bx0, bz0 = bx0, bz1 = -bx0;
+    for (const auto& t : mesh.tris) {
+        for (const auto& v : t.v) {
+            bx0 = std::min(bx0, v.x); bx1 = std::max(bx1, v.x);
+            bz0 = std::min(bz0, v.z); bz1 = std::max(bz1, v.z);
+        }
+        const double y = t.v[0].y;
+        if (std::abs(t.v[1].y - y) > 0.01 || std::abs(t.v[2].y - y) > 0.01) continue;
+        const double area = std::abs((t.v[1].x - t.v[0].x) * (t.v[2].z - t.v[0].z)
+                                     - (t.v[2].x - t.v[0].x) * (t.v[1].z - t.v[0].z)) / 2.0;
+        if (area <= 0) continue;
+        double x0 = t.v[0].x, x1 = x0, z0 = t.v[0].z, z1 = z0;
+        for (const auto& v : t.v) {
+            x0 = std::min(x0, v.x); x1 = std::max(x1, v.x);
+            z0 = std::min(z0, v.z); z1 = std::max(z1, v.z);
+        }
+        Level& l = levels[std::llround(std::floor(y))];
+        l.area += area;
+        l.box |= QRectF(QPointF(x0 * studsPerLdu, z0 * studsPerLdu), QPointF(x1 * studsPerLdu, z1 * studsPerLdu));
+    }
+    const double total = (bx1 - bx0) * (bz1 - bz0);
+    if (!(total > 0)) return std::nullopt;
+    for (auto it = levels.cbegin(); it != levels.cend(); ++it) {
+        if (it->second.area < kMinShare * total) continue;
+        // With the faces just above it that are more than specks.
+        QRectF box;
+        for (auto band = it; band != levels.cend() && band->first <= it->first + kBandLdu; ++band)
+            if (band->second.area >= kMinShare / 5 * total) box |= band->second.box;
+        const double w = box.width(), h = box.height();
+        const double wr = std::round(w), hr = std::round(h);
+        // Not whole studs (a curve, a base turned at an angle): no lattice.
+        if (wr < 1 || hr < 1 || std::abs(w - wr) > kWholeSlackStuds || std::abs(h - hr) > kWholeSlackStuds)
+            return std::nullopt;
+        // Centred on the bottom layer, so LDD's shortfall splits evenly.
+        const QPointF c = box.center();
+        return QRectF(c.x() - wr / 2.0, c.y() - hr / 2.0, wr, hr);
+    }
+    return std::nullopt;
+}
+
 RasterizeResult rasterizeMeshTopDown(const geom::Mesh& mesh,
                                       const RasterizeOptions& opt) {
     RasterizeResult out;
@@ -75,10 +132,25 @@ RasterizeResult rasterizeMeshTopDown(const geom::Mesh& mesh,
     // against. Overhangs under kSnapSlackStuds are trimmed instead of
     // adding a whole stud of padding.
     constexpr double kSnapSlackStuds = 0.05;
-    const int wStud = std::max(1, static_cast<int>(std::ceil((xmax - xmin) - kSnapSlackStuds)));
-    const int hStud = std::max(1, static_cast<int>(std::ceil((zmax - zmin) - kSnapSlackStuds)));
-    const QPointF centre = out.meshBoundsXZ.center();
-    out.spriteStuds = QRectF(centre.x() - wStud / 2.0, centre.y() - hStud / 2.0, wStud, hStud);
+    if (const auto base = baseLattice(mesh, opt.studsPerLdu)) {
+        // The bottom layer is flat and whole studs: its studs go on the
+        // grid. Overhangs above it add whole studs around it.
+        const auto extra = [](double overhang) {
+            return std::max(0, static_cast<int>(std::ceil(overhang - kSnapSlackStuds)));
+        };
+        const int left = extra(base->left() - xmin), right = extra(xmax - base->right());
+        const int top = extra(base->top() - zmin), bottom = extra(zmax - base->bottom());
+        out.snapMargin = QMargins(left, top, right, bottom);
+        out.spriteStuds = QRectF(base->left() - left, base->top() - top,
+                                 qRound(base->width()) + left + right, qRound(base->height()) + top + bottom);
+    } else {
+        const int w = std::max(1, static_cast<int>(std::ceil((xmax - xmin) - kSnapSlackStuds)));
+        const int h = std::max(1, static_cast<int>(std::ceil((zmax - zmin) - kSnapSlackStuds)));
+        const QPointF centre = out.meshBoundsXZ.center();
+        out.spriteStuds = QRectF(centre.x() - w / 2.0, centre.y() - h / 2.0, w, h);
+    }
+    const int wStud = qRound(out.spriteStuds.width());
+    const int hStud = qRound(out.spriteStuds.height());
     const double canvasX0 = out.spriteStuds.left();
     const double canvasZ0 = out.spriteStuds.top();
 

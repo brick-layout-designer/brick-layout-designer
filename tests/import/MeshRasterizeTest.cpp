@@ -5,6 +5,7 @@
 
 #include <QColor>
 #include <QImage>
+#include <QMargins>
 
 using namespace bld;
 
@@ -64,4 +65,96 @@ TEST(MeshRasterize, HigherYTrianglePaintsOver) {
     // Sort puts high-Y last → blue should win.
     EXPECT_LT(px.green(), 50);
     EXPECT_GT(px.blue(), 150);
+}
+
+namespace {
+
+// A flat rectangle at height `y` (LDU, +Y up), split into two triangles.
+void addRect(geom::Mesh& m, double x0, double z0, double x1, double z1, double y, QColor c) {
+    geom::Triangle a, b;
+    a.v[0] = { x0, y, z0 }; a.v[1] = { x1, y, z0 }; a.v[2] = { x1, y, z1 };
+    b.v[0] = { x0, y, z0 }; b.v[1] = { x1, y, z1 }; b.v[2] = { x0, y, z1 };
+    a.color = b.color = c;
+    m.tris.push_back(a);
+    m.tris.push_back(b);
+}
+
+}  // namespace
+
+TEST(MeshRasterize, TheBottomLayersStudsStayOnTheGrid) {
+    // Aaron: a 16 x 16 baseplate with a roof overhanging it by half a stud
+    // on the left. The overhang adds a whole stud; the baseplate keeps its
+    // studs on the grid.
+    geom::Mesh m;
+    addRect(m, 0, 0, 320, 320, 0, Qt::green);       // baseplate, studs 0..16
+    addRect(m, -10, 40, 200, 200, 80, Qt::red);     // roof, half a stud past the left edge
+    import::RasterizeOptions opt;
+    opt.pxPerStud = 8;
+    opt.marginPx = 0;
+    opt.ssaa = 1;
+    const auto r = import::rasterizeMeshTopDown(m, opt);
+    ASSERT_FALSE(r.image.isNull());
+    EXPECT_EQ(r.spriteStuds, QRectF(-1, 0, 17, 16));
+    EXPECT_EQ(r.snapMargin, QMargins(1, 0, 0, 0));
+    EXPECT_EQ(r.image.size(), QSize(17 * 8, 16 * 8));
+    // The baseplate's left edge is pixel column 8 exactly: stud 1 of the sprite.
+    const QImage img = r.image.convertToFormat(QImage::Format_ARGB32);
+    EXPECT_EQ(img.pixelColor(7, 100).alpha(), 0);
+    EXPECT_GT(img.pixelColor(8, 100).alpha(), 200);
+    EXPECT_GT(img.pixelColor(4, 40).alpha(), 200) << "the roof's overhang is drawn";
+}
+
+TEST(MeshRasterize, WithoutAFlatWholeStudBottomTheBoundsAreCentred) {
+    // A base 3.5 studs wide isn't on a stud lattice: the old rule, the
+    // bounds padded to whole studs and centred.
+    geom::Mesh m;
+    addRect(m, 0, 0, 70, 40, 0, Qt::green);
+    const auto r = import::rasterizeMeshTopDown(m);
+    EXPECT_EQ(r.spriteStuds, QRectF(-0.25, 0, 4, 2));
+    EXPECT_EQ(r.snapMargin, QMargins());
+    EXPECT_FALSE(import::baseLattice(m));
+}
+
+TEST(MeshRasterize, LddsShortBricksStillFindTheirStuds) {
+    // LDD shapes stop 0.1 mm short of the stud on each side; the base of a
+    // 2 x 4 brick offset by half a stud still lands on a whole-stud lattice.
+    geom::Mesh m;
+    addRect(m, 10.25, 0.25, 89.75, 39.75, 0, Qt::red);
+    addRect(m, 10.25, 0.25, 89.75, 39.75, 24, Qt::red);
+    const auto base = import::baseLattice(m);
+    ASSERT_TRUE(base);
+    EXPECT_DOUBLE_EQ(base->left(), 0.5);
+    EXPECT_DOUBLE_EQ(base->top(), 0.0);
+    EXPECT_DOUBLE_EQ(base->width(), 4.0);
+    EXPECT_DOUBLE_EQ(base->height(), 2.0);
+    const auto r = import::rasterizeMeshTopDown(m);
+    EXPECT_EQ(r.spriteStuds, QRectF(0.5, 0, 4, 2));
+}
+
+TEST(MeshRasterize, ASmallPartHangingBelowIsntTheBottomLayer) {
+    // LEGO 70620's lowest piece is a small part turned 45° hanging below
+    // the baseplates; the baseplates are still the layer that goes on the grid.
+    geom::Mesh m;
+    addRect(m, 0, 0, 640, 640, 0, Qt::green);  // 32 x 32 baseplate
+    geom::Triangle t;                          // a small diamond 100 LDU below
+    t.v[0] = { 100, -100, 80 };
+    t.v[1] = { 120, -100, 100 };
+    t.v[2] = { 100, -100, 120 };
+    t.color = Qt::black;
+    m.tris.push_back(t);
+    const auto base = import::baseLattice(m);
+    ASSERT_TRUE(base);
+    EXPECT_EQ(*base, QRectF(0, 0, 32, 32));
+}
+
+TEST(MeshRasterize, SpecksJustBelowTheBaseDontWidenIt) {
+    // A small flat piece 2 LDU above the baseplate's underside (inside the
+    // band the bottom layer takes in), sticking out past its edge: the
+    // baseplate alone sets the lattice.
+    geom::Mesh m;
+    addRect(m, 0, 0, 640, 640, 0, Qt::green);
+    addRect(m, -15, 100, 5, 120, 2, Qt::black);
+    const auto base = import::baseLattice(m);
+    ASSERT_TRUE(base);
+    EXPECT_EQ(*base, QRectF(0, 0, 32, 32));
 }

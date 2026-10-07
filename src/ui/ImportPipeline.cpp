@@ -67,6 +67,7 @@ void fillFromRaster(PreparedPart& out, const import::RasterizeResult& rast) {
     out.sprite      = rast.image;
     out.widthStuds  = static_cast<int>(std::lround(rast.spriteStuds.width()));
     out.heightStuds = static_cast<int>(std::lround(rast.spriteStuds.height()));
+    out.snapMargin  = rast.snapMargin;
 }
 
 // Model -> BlueBrick placement -> free connection ends, relative to the
@@ -253,12 +254,15 @@ PreparedPart prepareImport(const QString& path, const ImportSettings& settings,
                                                              : assets.ldrawXmlPath();
         const bool haveMapping = !xml.isEmpty() && mapping.loadFromFile(xml);
         if (assets.isOpen()) {
-            return fromLDDGeometry(out, read, assets, haveMapping ? &mapping : nullptr,
+            // Even without an ldraw.xml the built-in track table finds snap points.
+            return fromLDDGeometry(out, read, assets, &mapping,
                                    settings, parts, runHeavy);
         }
-        // No brick database, but ldraw.xml: treat it as the LDraw model
-        // LDD itself would export.
-        if (haveMapping) read = mapping.toLDraw(read);
+        // No brick database: the LDraw model LDD itself would export, through
+        // ldraw.xml. Without one, only the built-in track table maps parts,
+        // so compose from the parts library (track then still snaps).
+        read = mapping.toLDraw(read);
+        if (!haveMapping) return fromBlueBrickParts(out, read, parts);
     }
 
     // Studio files use Studio's own LDraw library when one is set (it has
@@ -278,6 +282,11 @@ void rotatePart(PreparedPart& part, int quarterTurns) {
     if (turns == 0 || part.sprite.isNull()) return;
     part.sprite = part.sprite.transformed(QTransform().rotate(90.0 * turns));
     if (turns % 2) std::swap(part.widthStuds, part.heightStuds);
+    for (int i = 0; i < turns; ++i) {
+        // Clockwise: the bottom edge becomes the left one, the left the top.
+        const QMargins m = part.snapMargin;
+        part.snapMargin = QMargins(m.bottom(), m.left(), m.top(), m.right());
+    }
     for (auto& c : part.connections) {
         for (int i = 0; i < turns; ++i) {
             // Clockwise quarter turn in y-down coordinates.
@@ -316,7 +325,8 @@ QString writeImportedPart(const PreparedPart& part, const QString& name,
     source.droppedConnections = part.droppedConnections;
     return import::writeImportedModelAsLibraryPart(
         name, part.sprite, part.widthStuds, part.heightStuds, destDir, author,
-        part.connections, error, replaceExisting, part.source.isEmpty() ? nullptr : &source);
+        part.connections, error, replaceExisting, part.source.isEmpty() ? nullptr : &source,
+        part.snapMargin);
 }
 
 }  // namespace bld::ui

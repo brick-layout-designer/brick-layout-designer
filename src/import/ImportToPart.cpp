@@ -66,7 +66,8 @@ QString writeImportedModelAsLibraryPart(
     const QVector<ImportedConnection>& connections,
     QString*       error,
     bool           replaceExisting,
-    const ImportSource* source) {
+    const ImportSource* source,
+    QMargins       snapMargin) {
 
     if (renderedSprite.isNull() || widthStuds <= 0 || heightStuds <= 0) {
         if (error) *error = QStringLiteral("Empty sprite or zero dimensions");
@@ -183,6 +184,15 @@ QString writeImportedModelAsLibraryPart(
         }
         w.writeEndElement();  // ConnexionList
     }
+
+    // Whole studs between the sprite's edges and the model's bottom layer:
+    // BlueBrick snaps the rest of the part (the base) onto the grid.
+    w.writeStartElement(QStringLiteral("SnapMargin"));
+    w.writeTextElement(QStringLiteral("left"), QString::number(snapMargin.left()));
+    w.writeTextElement(QStringLiteral("right"), QString::number(snapMargin.right()));
+    w.writeTextElement(QStringLiteral("top"), QString::number(snapMargin.top()));
+    w.writeTextElement(QStringLiteral("bottom"), QString::number(snapMargin.bottom()));
+    w.writeEndElement();  // SnapMargin
 
     w.writeEndElement();  // part
     w.writeEndDocument();
