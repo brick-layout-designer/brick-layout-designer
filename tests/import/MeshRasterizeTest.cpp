@@ -158,3 +158,45 @@ TEST(MeshRasterize, SpecksJustBelowTheBaseDontWidenIt) {
     ASSERT_TRUE(base);
     EXPECT_EQ(*base, QRectF(0, 0, 32, 32));
 }
+
+TEST(MeshRasterize, SeeThroughPartsShowWhatIsBelow) {
+    // Aaron: a Trans-Clear plate over a red brick shows the red through it,
+    // tinted, instead of hiding it; where nothing is below, the sprite stays
+    // see-through too.
+    geom::Mesh m;
+    addRect(m, 0, 0, 40, 40, 0, QColor(200, 0, 0));                  // red brick, 2 x 2
+    addRect(m, 0, 0, 80, 40, 24, QColor(255, 255, 255, 128));         // Trans-Clear plate, 4 x 2
+    addRect(m, 40, 0, 80, 40, 30, QColor(0, 0, 255, 64));            // Trans-Blue over its right half
+    import::RasterizeOptions opt;
+    opt.pxPerStud = 8;
+    opt.marginPx = 0;
+    opt.ssaa = 1;
+    const auto r = import::rasterizeMeshTopDown(m, opt);
+    const QImage img = r.image.convertToFormat(QImage::Format_ARGB32);
+    const QColor overRed = img.pixelColor(8, 8);
+    EXPECT_EQ(overRed.alpha(), 255);
+    EXPECT_GT(overRed.red(), 200);  // red and white blended: pink
+    EXPECT_GT(overRed.green(), 100);
+    EXPECT_LT(overRed.green(), 160);
+    // Over nothing: half see-through white, then blue on top of that.
+    const QColor overNothing = img.pixelColor(24, 8);
+    EXPECT_GT(overNothing.alpha(), 128);
+    EXPECT_LT(overNothing.alpha(), 255);
+    EXPECT_GT(overNothing.blue(), overNothing.red());
+    // The see-through plate doesn't hide the red brick's edges either: the
+    // depth buffer keeps the brick.
+    EXPECT_EQ(r.spriteStuds.width(), 4);
+}
+
+TEST(MeshRasterize, OpaqueStillHidesWhatIsBelow) {
+    geom::Mesh m;
+    // The top one first: the depth buffer, not the order, decides.
+    addRect(m, 0, 0, 40, 40, 24, QColor(0, 200, 0));
+    addRect(m, 0, 0, 40, 40, 0, QColor(200, 0, 0));
+    import::RasterizeOptions opt;
+    opt.pxPerStud = 8;
+    opt.marginPx = 0;
+    opt.ssaa = 1;
+    const QImage img = import::rasterizeMeshTopDown(m, opt).image.convertToFormat(QImage::Format_ARGB32);
+    EXPECT_EQ(img.pixelColor(8, 8), QColor(0, 200, 0));
+}
