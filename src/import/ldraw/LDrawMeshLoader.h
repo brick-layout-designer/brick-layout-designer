@@ -8,6 +8,8 @@
 #include <QString>
 #include <QStringList>
 
+#include <memory>
+
 namespace bld::import {
 
 // Walk a .dat file's lines and recursively bake every subfile reference
@@ -43,6 +45,8 @@ public:
     // parts but valid) gets resolved; default code 16 leaves them as
     // light grey via the palette's bundled fallback.
     geom::Mesh loadPart(const QString& datRef, int topColor = 16);
+    // The same without the copy: the cached mesh, or null.
+    std::shared_ptr<const geom::Mesh> loadPartShared(const QString& datRef, int topColor = 16);
 
     // Errors / warnings collected while loading. Cleared by clearErrors().
     const QStringList& errors() const { return errors_; }
@@ -93,7 +97,7 @@ private:
     // Memoised final-mesh cache keyed by (absolute path, top colour
     // code). Same part in the same colour gets baked once even if a
     // model references it thousands of times.
-    QHash<QPair<QString, int>, geom::Mesh> bakedCache_;
+    QHash<QPair<QString, int>, std::shared_ptr<const geom::Mesh>> bakedCache_;
     QStringList errors_;
 };
 
