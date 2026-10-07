@@ -3,6 +3,7 @@
 #include "../core/GridSnap.h"
 
 #include <QHash>
+#include <QImage>
 #include <QPixmap>
 #include <QPointF>
 #include <QPolygonF>
@@ -125,6 +126,10 @@ struct PartMetadata {
         QString date;    // yyyy-MM-dd
     };
     std::optional<ImportedFrom> importedFrom;
+    // <PickShape>: an imported part's outline (holes included), in studs
+    // around the sprite centre, for picking and the selection outline.
+    // BlueBrick ignores it; the footprint still comes from the sprite.
+    QList<QPolygonF> pickShape;
 
     // Earlier part numbers (<OldNameList>); files using them load as this part.
     QStringList oldNames;
@@ -170,6 +175,10 @@ struct PartMetadata {
     // They are skipped when loading LDraw files and never listed.
     bool isIgnorable() const { return kind == PartKind::Leaf && gifFilePath.isEmpty(); }
 };
+
+// The outline of a sprite's visible area on a quarter-stud grid, holes
+// included, simplified, in studs around the sprite centre.
+QList<QPolygonF> traceOutlineStuds(const QImage& sprite, double pxPerStud);
 
 class PartsLibrary {
 public:
@@ -229,7 +238,7 @@ public:
     // frame as hullPolygonStuds: one polygon per edge (outer edges and the
     // edges of holes), on a quarter-stud grid, simplified. An L-shaped
     // model gets an L. Empty when the part has no picture.
-    QList<QPolygonF> outlineStuds(const QString& key);
+    QList<QPolygonF> outlineStuds(const QString& key);  // <PickShape>, else traced
 
     // Imported parts (<ImportedFrom> or <ImportSource>): clicks pass through
     // their empty and fully see-through areas.
