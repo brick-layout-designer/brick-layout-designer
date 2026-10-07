@@ -16,6 +16,8 @@
 #include <QPixmap>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QResizeEvent>
+#include <QShowEvent>
 #include <QSplitter>
 #include <QVBoxLayout>
 #include <QWheelEvent>
@@ -47,26 +49,37 @@ public:
         setBackgroundBrush(QBrush(checker));
     }
 
-    void scaleBy(double factor) {
+    // The user zooming: the view stops following its size.
+    void zoomBy(double factor) {
         const double next = currentScale_ * factor;
         if (next < 0.05 || next > 32.0) return;
+        autoFit_ = false;
         currentScale_ = next;
         scale(factor, factor);
     }
 
-    double currentScale() const { return currentScale_; }
-
-    void setCurrentScale(double s) {
-        if (s <= 0) return;
-        const double factor = s / currentScale_;
-        scaleBy(factor);
+    // Fit the whole model, centred, and keep it fitted as the view is
+    // resized until the user zooms. Fitting once in the constructor ran
+    // before the dialog had its size, so the model only fitted after a
+    // rotate.
+    void fitAll() {
+        autoFit_ = true;
+        refit();
     }
 
 protected:
+    void resizeEvent(QResizeEvent* e) override {
+        QGraphicsView::resizeEvent(e);
+        if (autoFit_) refit();
+    }
+    void showEvent(QShowEvent* e) override {
+        QGraphicsView::showEvent(e);
+        if (autoFit_) refit();
+    }
     void wheelEvent(QWheelEvent* e) override {
         if (e->modifiers().testFlag(Qt::ControlModifier)) {
             const int delta = e->angleDelta().y();
-            if (delta != 0) scaleBy(delta > 0 ? 1.15 : 1.0 / 1.15);
+            if (delta != 0) zoomBy(delta > 0 ? 1.15 : 1.0 / 1.15);
             e->accept();
             return;
         }
@@ -74,7 +87,15 @@ protected:
     }
 
 private:
+    void refit() {
+        if (!scene() || scene()->sceneRect().isEmpty()) return;
+        resetTransform();
+        fitInView(scene()->sceneRect(), Qt::KeepAspectRatio);
+        currentScale_ = transform().m11();
+    }
+
     double currentScale_ = 1.0;
+    bool autoFit_ = true;
 };
 
 }  // namespace bld::ui
@@ -138,14 +159,9 @@ ImportPreviewDialog::ImportPreviewDialog(PreparedPart part,
     leftCol->addLayout(tools);
     connect(rotL, &QPushButton::clicked, this, [this]{ rotate(-1); });
     connect(rotR, &QPushButton::clicked, this, [this]{ rotate(1); });
-    connect(zoomOut, &QPushButton::clicked, this, [this]{ view_->scaleBy(1.0 / 1.25); });
-    connect(zoomIn,  &QPushButton::clicked, this, [this]{ view_->scaleBy(1.25); });
-    connect(fitBtn,  &QPushButton::clicked, this, [this]{
-        view_->resetTransform();
-        view_->setCurrentScale(1.0);
-        view_->fitInView(scene_->sceneRect(), Qt::KeepAspectRatio);
-        view_->setCurrentScale(view_->transform().m11());
-    });
+    connect(zoomOut, &QPushButton::clicked, this, [this]{ view_->zoomBy(1.0 / 1.25); });
+    connect(zoomIn,  &QPushButton::clicked, this, [this]{ view_->zoomBy(1.25); });
+    connect(fitBtn,  &QPushButton::clicked, this, [this]{ view_->fitAll(); });
 
     // Right: connections, stats, warnings.
     auto* right = new QWidget(split);
@@ -216,15 +232,14 @@ ImportPreviewDialog::ImportPreviewDialog(PreparedPart part,
     refreshConnections();
     refreshSprite();
     validate();
-    QMetaObject::invokeMethod(fitBtn, &QPushButton::click, Qt::QueuedConnection);
+    view_->fitAll();
 }
 
 void ImportPreviewDialog::rotate(int quarterTurns) {
     rotatePart(part_, quarterTurns);
     refreshConnections();
     refreshSprite();
-    view_->fitInView(scene_->sceneRect(), Qt::KeepAspectRatio);
-    view_->setCurrentScale(view_->transform().m11());
+    view_->fitAll();
 }
 
 void ImportPreviewDialog::refreshConnections() {

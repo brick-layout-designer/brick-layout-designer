@@ -7,6 +7,8 @@
 #include "ImportPipeline.h"
 #include "ImportPreviewDialog.h"
 #include "MapView.h"
+#include "NoticeArea.h"
+#include "ServerLibrary.h"
 #include "../core/Map.h"
 #include "../parts/PartsLibrary.h"
 
@@ -107,6 +109,17 @@ void MainWindow::importModelFile(const QString& path) {
            result.connections.size())
             .arg(QFileInfo(path).fileName(), key)
             .arg(result.widthStuds).arg(result.heightStuds), 8000);
+    offerToSendImportedPart(key);
+}
+
+void MainWindow::offerToSendImportedPart(const QString& key) {
+    if (!notices_) return;
+    notices_->showNotice(QStringLiteral("imported-part"), tr("Part imported"),
+        tr("“%1” is in your parts library and on the map. Send it to your server so your club can use it too?").arg(key),
+        { NoticeAction{ tr("Send to server…"), [this, key] {
+              if (readyToSend()) uploadPartsTo(serverLibrary_->server(), serverLibrary_->token(), false, { key });
+          }, true },
+          NoticeAction{ tr("Not now"), {} } });
 }
 
 bool MainWindow::reimportPart(const QString& key, bool interactive) {

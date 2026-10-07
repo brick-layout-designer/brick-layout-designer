@@ -226,6 +226,9 @@ private:
     void showUpdateNotice(const struct ReleaseInfo& release);
 public:
     class NoticeArea* notices() const { return notices_; }
+    // After an import: a notice offering to send the new part `key` to
+    // the server, one click away.
+    void offerToSendImportedPart(const QString& key);
 private:
 
     QString currentFilePath_;
