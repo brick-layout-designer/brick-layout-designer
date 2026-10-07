@@ -333,6 +333,8 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
     connect(partsBrowser_, &PartsBrowser::browseCatalogRequested, this, [this] { openCatalogOnWeb(true); });
     addDockWidget(Qt::RightDockWidgetArea, moduleLibraryPanel_);
     venueLibraryPanel_ = new VenueLibraryPanel(this);
+    // Save to Server… in the Venue library and its designer.
+    venueLibraryPanel_->setSendToServer([this](const core::Venue& v) { saveVenueToServer(v); });
     addDockWidget(Qt::RightDockWidgetArea, venueLibraryPanel_);
     partUsagePanel_ = new PartUsagePanel(parts_, this);
     addDockWidget(Qt::RightDockWidgetArea, partUsagePanel_);

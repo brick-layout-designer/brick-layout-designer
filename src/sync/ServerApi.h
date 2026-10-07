@@ -88,6 +88,12 @@ struct VenueEntry {
     QString ownerOrgName;  // the club's name (servers before owner tags: empty)
     QString ownerOrgSlug;  // the club's slug (servers before owner tags: empty)
     Credit credit;         // who made it; Take back / Give back
+    bool canManage = true; // may rename, move or delete it (servers before this: true)
+    // When it was saved and its outline's size in studs (servers before
+    // layoutDownload: invalid and 0; 0 also when it has no outline yet).
+    QDateTime createdAt;
+    int widthStuds = 0;
+    int heightStuds = 0;
 };
 
 struct OrgEntry {
@@ -122,23 +128,17 @@ public:
 
     void fetchVersion();
     void fetchLayouts();
-    // The venue library (token scope venues:read): the list, then one
-    // venue as a .bld-venue file's bytes, ready to save into the local
-    // Venue Library folder.
     // Who the token belongs to (GET /api/tokens/current): id and display name.
     void fetchCurrentUser();
-    void fetchVenues();
     // Publish to Server (token scopes layouts:read for the orgs,
     // layouts:create to publish): the user's organisations, and a new
     // layout from a .bbm and its sidecar, personal or in an org.
     void fetchOrgs();
     void publishLayout(const QString& title, const QByteArray& bbm, const QByteArray& sidecarJson,
                        const QString& orgSlug);
-    void fetchVenue(const QString& id);
-    // Delete a layout (its owner) or a saved venue (whoever manages it):
-    // deleted(), or requestFailed("delete", …) with the server's reason.
+    // Delete a layout (its owner): deleted(), or requestFailed("delete", …)
+    // with the server's reason.
     void deleteLayout(const QString& id);
-    void deleteVenue(const QString& id);
     // A club's layout or venue (`kindPath` "layouts" / "venues") back to its
     // author: taken back by them, or given back (`give`) by the club's admins
     // and managers. The club keeps its own copy. returned(id), or
@@ -157,17 +157,19 @@ public:
     void startSignIn(const QString& clientName);
     void cancelSignIn();
 
+    // A layout or venue as the server lists it (GET /api/layouts, /api/venues).
+    static LayoutEntry layoutEntryFromJson(const QJsonObject& o);
+    static VenueEntry venueEntryFromJson(const QJsonObject& o);
+
     // Seconds between polls are multiplied by this (tests use a small one).
     void setPollIntervalScale(double msPerSecond) { msPerSecond_ = msPerSecond; }
 
 signals:
     void versionReady(const bld::sync::ServerInfo& info);
     void layoutsReady(const QList<bld::sync::LayoutEntry>& layouts);
-    void venuesReady(const QList<bld::sync::VenueEntry>& venues);
     void currentUserReady(const QString& userId, const QString& displayName);
     void orgsReady(const QList<bld::sync::OrgEntry>& orgs);
     void published(const QString& layoutId, const QString& title);
-    void venueReady(const QString& id, const QString& name, const QByteArray& venueFile);
     void deleted(const QString& id);
     void returned(const QString& id);
     void preferencesReady(const QJsonObject& prefs, const QDateTime& updatedAt);
@@ -176,8 +178,8 @@ signals:
     void signedIn(const QString& token);
     // access_denied, expired_token, or a network / server error.
     void signInFailed(const QString& reason);
-    // A request failed: `what` is "version", "layouts", "venues",
-    // "venue" or "preferences"; unauthorized is
+    // A request failed: `what` is "version", "layouts", "orgs", "delete",
+    // "return", "publish" or "preferences"; unauthorized is
     // true for a missing, revoked or expired token (sign in again).
     void requestFailed(const QString& what, const QString& message, bool unauthorized);
 

@@ -72,6 +72,12 @@ QPainterPath shape(const QString& name) {
         p.addRoundedRect(QRectF(3, 5, 18, 14), 2, 2);
         p.addEllipse(QPointF(9, 10), 1.6, 1.6);
         p.moveTo(21, 16); p.lineTo(16, 11); p.lineTo(8, 19);
+    } else if (name == QLatin1String("server")) {
+        // Two stacked server boxes, a light on each.
+        p.addRoundedRect(QRectF(4, 4, 16, 7), 2, 2);
+        p.addRoundedRect(QRectF(4, 13, 16, 7), 2, 2);
+        p.addEllipse(QPointF(8, 7.5), 0.8, 0.8);
+        p.addEllipse(QPointF(8, 16.5), 0.8, 0.8);
     } else if (name == QLatin1String("panels")) {
         // A window with a panel down each side.
         p.addRoundedRect(QRectF(3, 4, 18, 16), 2, 2);

@@ -28,6 +28,7 @@
 #include "ui/SaveModuleDialog.h"
 #include "ui/SheetChoiceDialog.h"
 #include "ui/ServerLibrary.h"
+#include "ui/ServerWindow.h"
 #include "ui/UpdateCheck.h"
 #include "ui/VenueLibraryPanel.h"
 
@@ -871,7 +872,7 @@ TEST_F(ServerModulesWindow, TheLibraryShowsTheServersModulesAsItsOwnTab) {
     EXPECT_EQ(lastRequest(http_, "GET", "/api/modules")->authorization, QByteArray("Bearer bld_pat_win"));
 }
 
-TEST_F(ServerModulesWindow, TheStatusBarSaysHowTheServerIsAndOpensServers) {
+TEST_F(ServerModulesWindow, TheStatusBarSaysHowTheServerIsAndOpensTheServerWindow) {
     auto* status = window_->findChild<QToolButton*>(QStringLiteral("serverStatus"));
     ASSERT_NE(status, nullptr);
     EXPECT_EQ(status->text(), QStringLiteral("Connected to Club server"));
@@ -891,22 +892,12 @@ TEST_F(ServerModulesWindow, TheStatusBarSaysHowTheServerIsAndOpensServers) {
     library_->setServer({}, {}, {});
     EXPECT_EQ(status->text(), QStringLiteral("No server"));
 
-    // A click opens Servers.
-    QString opened;
-    QTimer closer;
-    closer.setInterval(20);
-    QObject::connect(&closer, &QTimer::timeout, [&] {
-        if (QWidget* w = QApplication::activeModalWidget()) {
-            opened = QString::fromLatin1(w->metaObject()->className());
-            w->close();
-        }
-    });
-    closer.start();
-    status->click();
-    ASSERT_TRUE(waitFor([&] { return !opened.isEmpty(); }));
-    EXPECT_EQ(opened, QStringLiteral("bld::sync::ServersDialog"));
-    // Back from it: the window asks the list again, so the Main server is shown once more.
+    // A click opens the Server window, on the server it shows.
+    library_->setServer(http_.base(), QStringLiteral("Club server"), QStringLiteral("bld_pat_win"));
     ASSERT_TRUE(waitFor([&] { return status->text() == QStringLiteral("Connected to Club server"); }));
+    status->click();
+    ASSERT_TRUE(waitFor([&] { return window_->serverWindow() && window_->serverWindow()->isVisible(); }));
+    window_->serverWindow()->close();
 }
 
 TEST_F(ServerModulesWindow, UseThisVenueKeepsTheCopyAndStartsALayoutInIt) {

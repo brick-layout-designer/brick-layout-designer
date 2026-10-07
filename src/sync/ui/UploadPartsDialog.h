@@ -8,6 +8,8 @@
 
 #include <QDialog>
 
+#include <functional>
+
 class QComboBox;
 class QLabel;
 class QListWidget;
@@ -26,6 +28,8 @@ public:
     // The same as clicking Upload.
     void uploadChecked();
     int uploadedCount() const { return uploaded_; }
+    // Asked before parts go to a club (tests answer instead).
+    std::function<bool(const QString& club)> confirmClub;
 
 private:
     ServerApi& api_;

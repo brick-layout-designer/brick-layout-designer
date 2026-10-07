@@ -113,6 +113,12 @@ VenueLibraryPanel::VenueLibraryPanel(QWidget* parent)
     auto* designRow = new QHBoxLayout();
     designRow->addWidget(newBtn_);
     designRow->addWidget(designBtn_);
+    // The other way from the Server window's Venues: this venue onto a server.
+    sendBtn_ = new QPushButton(tr("Save to Server…"), host);
+    sendBtn_->setObjectName(QStringLiteral("venueSaveToServer"));
+    sendBtn_->setToolTip(tr("Put a copy of this venue on your server, yours or a club's"));
+    sendBtn_->setVisible(false);
+    designRow->addWidget(sendBtn_);
     col->addLayout(designRow);
 
     setWidget(host);
@@ -131,6 +137,14 @@ VenueLibraryPanel::VenueLibraryPanel(QWidget* parent)
     connect(saveBtn_,   &QPushButton::clicked, this, [this]{ emit venueSaveRequested(); });
     connect(deleteBtn_, &QPushButton::clicked, this, &VenueLibraryPanel::onDelete);
     connect(renameBtn_, &QPushButton::clicked, this, &VenueLibraryPanel::onRename);
+    connect(sendBtn_, &QPushButton::clicked, this, [this] {
+        if (!sendToServer_) return;
+        const QString p = selectedPath();
+        if (auto v = readSelected(tr("Save to Server"))) {
+            if (v->name.trimmed().isEmpty()) v->name = QFileInfo(p).completeBaseName();
+            sendToServer_(*v);
+        }
+    });
     connect(list_, &QListWidget::itemSelectionChanged, this, &VenueLibraryPanel::onSelectionChanged);
     connect(list_, &QListWidget::itemActivated, this, [this](QListWidgetItem*){ onLoad(); });
 }
@@ -285,6 +299,7 @@ void VenueLibraryPanel::design(core::Venue venue, QString path) {
             return QString();
         },
         this);
+    if (sendToServer_) dlg.setSendToServer(sendToServer_);
     dlg.exec();
 }
 
@@ -352,6 +367,12 @@ void VenueLibraryPanel::updateButtons() {
     designBtn_->setEnabled(has);
     deleteBtn_->setEnabled(has);
     renameBtn_->setEnabled(has);
+    sendBtn_->setEnabled(has);
+}
+
+void VenueLibraryPanel::setSendToServer(std::function<void(const core::Venue&)> send) {
+    sendToServer_ = std::move(send);
+    sendBtn_->setVisible(static_cast<bool>(sendToServer_));
 }
 
 QString VenueLibraryPanel::selectedPath() const {

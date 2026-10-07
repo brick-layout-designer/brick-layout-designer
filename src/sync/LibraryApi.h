@@ -59,11 +59,32 @@ struct ServerModule {
     QString thumbnailPath() const;
 };
 
+// One of your custom parts, or your clubs' (GET /api/custom-parts).
+struct ServerPart {
+    QString id;
+    QString partNumber;   // its number in a layout, and its file's name in the parts library
+    QString displayName;
+    QString role;         // owner / editor / viewer
+    OwnerTag owner;
+    QDateTime updatedAt;
+    Credit credit;
+    bool hasSprite = false;  // the server has its picture
+
+    QString name() const { return displayName.isEmpty() ? partNumber : displayName; }
+    // Its picture on the server, or empty.
+    QString spritePath() const;
+};
+
 struct CatalogSettings {
     bool modules = false;  // the module catalog is on
     bool parts = false;    // the parts catalog is on
     bool layouts = false;  // public layouts are on (servers before them: off)
     bool venues = false;   // public venues are on (servers before them: off)
+    bool review = true;    // a moderator looks at what's shared first
+    bool on(const QString& kind) const {
+        return kind == QLatin1String("module") ? modules : kind == QLatin1String("part") ? parts
+             : kind == QLatin1String("layout") ? layouts : kind == QLatin1String("venue") ? venues : false;
+    }
 };
 
 struct CatalogItem {
@@ -96,6 +117,29 @@ struct CatalogCollection {
     int modules = 0;
     int parts = 0;
     QString coverPath;  // empty: no picture
+};
+
+// Something of yours (or your club's) shared to the public catalog (GET /api/catalog/mine).
+struct MyCatalogItem {
+    QString id;
+    QString kind;      // module / part / layout / venue
+    QString sourceId;  // the module, part, layout or venue it was shared from
+    QString title;
+    QString status;    // in_review / public / declined / unpublished / withdrawn
+    QString reason;
+    int pendingVersion = 0;  // an update waiting for review; 0: none
+};
+
+// What a share to the catalog sends (the web's ShareToCatalogDialog).
+struct CatalogShare {
+    QString kind;
+    QString sourceId;
+    QString title;
+    QString description;   // empty and `update`: kept as it was
+    QStringList tags;
+    QString note;          // "What changed?" for an update
+    QByteArray thumbnailPng;  // a layout's picture for its card; empty: none
+    bool update = false;
 };
 
 struct CollectionAddResult {
@@ -172,6 +216,26 @@ public:
     void addCollection(const QString& id, const QString& orgSlug, std::function<void(const CollectionAddResult&)> done,
                        Fail failed);
 
+    // Yours and your clubs' layouts, venues and custom parts, as the web's
+    // Home page lists them (the desktop's Server window).
+    void layouts(std::function<void(const QList<LayoutEntry>&)> done, Fail failed);
+    void venues(std::function<void(const QList<VenueEntry>&)> done, Fail failed);
+    void customParts(std::function<void(const QList<ServerPart>&)> done, Fail failed);
+    // A copy of a layout as a file: the whole layout as a .bld-layout
+    // (`native`, servers with layoutDownload), else its .bbm.
+    void layoutFile(const QString& id, bool native, std::function<void(const QByteArray&)> done, Fail failed);
+    void deleteLayout(const QString& id, std::function<void()> done, Fail failed);
+    void deleteVenue(const QString& id, std::function<void()> done, Fail failed);
+
+    // Save a venue (its .bld-venue JSON without the schema tag) as yours
+    // (orgSlug empty) or a club's: its new id.
+    void createVenue(const QString& name, const QJsonObject& data, const QString& orgSlug,
+                     std::function<void(const QString& id)> done, Fail failed);
+    // Share to the public catalog (or publish an update): the catalog item's id and its status.
+    void shareToCatalog(const CatalogShare& share, std::function<void(const QString& itemId, const QString& status)> done,
+                        Fail failed);
+    void myCatalogItems(std::function<void(const QList<MyCatalogItem>&)> done, Fail failed);
+
     // Your clubs and your role in each (where you may save a module).
     void orgs(std::function<void(const QList<OrgEntry>&)> done, Fail failed);
 
@@ -184,6 +248,7 @@ public:
     static ServerModule moduleFromJson(const QJsonObject& o);
     static CatalogItem catalogItemFromJson(const QJsonObject& o);
     static Notice noticeFromJson(const QJsonObject& o);
+    static ServerPart partFromJson(const QJsonObject& o);
 
 private:
     // `ok` gets the reply when it is a 2xx; `failed` gets the refusal otherwise.

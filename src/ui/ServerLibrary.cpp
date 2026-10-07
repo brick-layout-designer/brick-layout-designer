@@ -29,11 +29,10 @@
 namespace bld::ui {
 
 namespace {
-
 constexpr int kRowPicture = 48;
+}  // namespace
 
-// A small picture for a row: the server's, else a plain placeholder.
-QLabel* pictureLabel(QWidget* parent) {
+QLabel* libraryRowPicture(QWidget* parent) {
     auto* l = new QLabel(parent);
     l->setObjectName(QStringLiteral("rowPicture"));
     l->setFixedSize(kRowPicture, kRowPicture);
@@ -42,7 +41,7 @@ QLabel* pictureLabel(QWidget* parent) {
     return l;
 }
 
-void showPicture(QLabel* label, const QImage& img) {
+void showLibraryPicture(QLabel* label, const QImage& img) {
     if (img.isNull()) return;
     const qreal dpr = label->devicePixelRatioF();
     QPixmap px = QPixmap::fromImage(img.scaled(QSize(kRowPicture, kRowPicture) * dpr, Qt::KeepAspectRatio,
@@ -51,26 +50,32 @@ void showPicture(QLabel* label, const QImage& img) {
     label->setPixmap(px);
 }
 
-QLabel* mutedLabel(const QString& text, QWidget* parent) {
+QLabel* libraryMutedLabel(const QString& text, QWidget* parent) {
     auto* l = new QLabel(text, parent);
     l->setProperty("muted", true);
     l->setWordWrap(true);
     return l;
 }
 
-QLabel* groupHeader(const QString& text, QWidget* parent) {
+QLabel* libraryGroupHeader(const QString& text, QWidget* parent) {
     auto* l = new QLabel(text, parent);
     l->setProperty("groupHeader", true);
     return l;
 }
 
-QFrame* rowFrame(QWidget* parent) {
+QFrame* libraryRowFrame(QWidget* parent) {
     auto* f = new QFrame(parent);
     f->setProperty("libraryRow", true);
     return f;
 }
 
-}  // namespace
+QString studsSizeText(int widthStuds, int heightStuds) {
+    if (widthStuds <= 0 || heightStuds <= 0) return {};
+    return QObject::tr("%1 × %2 studs (%3 × %4 m)")
+        .arg(widthStuds)
+        .arg(heightStuds)
+        .arg(QLocale().toString(widthStuds * 0.008, 'f', 1), QLocale().toString(heightStuds * 0.008, 'f', 1));
+}
 
 // ---------- ServerLibrary --------------------------------------------------
 
@@ -104,9 +109,9 @@ void ServerLibrary::setServer(const QUrl& url, const QString& label, const QStri
 QString ServerLibrary::stateText() const {
     switch (state_) {
     case State::NoServer:
-        return tr("Connect to a server to see the modules you and your clubs saved there, and the catalog.");
+        return tr("Add your club's server to see the layouts, venues, modules and parts you and your clubs keep there, and the catalog.");
     case State::SignedOut:
-        return tr("Sign in to %1 to see your modules, your clubs' modules and the catalog.").arg(label_);
+        return tr("Sign in to %1 to see your layouts, venues, modules and parts, your clubs' and the catalog.").arg(label_);
     case State::Loading:
         return tr("Loading…");
     case State::Offline:
@@ -387,7 +392,7 @@ void ServerModulesTab::rebuild() {
         if (f.isEmpty() || m.title.contains(f, Qt::CaseInsensitive)) shown << m;
     int at = 0;
     if (shown.isEmpty()) {
-        auto* empty = mutedLabel(f.isEmpty() ? tr("No saved modules yet. Make a module in a layout, then choose Save to Module library… from its menu.")
+        auto* empty = libraryMutedLabel(f.isEmpty() ? tr("No saved modules yet. Make a module in a layout, then choose Save to Module library… from its menu.")
                                              : tr("No modules match."),
                                  listHost_);
         empty->setObjectName(QStringLiteral("serverModulesEmpty"));
@@ -409,7 +414,7 @@ void ServerModulesTab::rebuild() {
         for (const auto& m : shown)
             if ((m.owner.isClub() ? m.owner.id : QStringLiteral("me")) == g) inGroup << m;
         if (inGroup.isEmpty()) continue;
-        list_->insertWidget(at++, groupHeader(g == QLatin1String("me") ? tr("Yours") : names.value(g), listHost_));
+        list_->insertWidget(at++, libraryGroupHeader(g == QLatin1String("me") ? tr("Yours") : names.value(g), listHost_));
         for (const auto& m : std::as_const(inGroup)) {
             QWidget* r = makeRow(m);
             rows_.insert(m.id, r);
@@ -420,16 +425,16 @@ void ServerModulesTab::rebuild() {
 
 QWidget* ServerModulesTab::makeRow(const sync::ServerModule& m) {
     // Narrow docks: the picture, then the words with the button under them.
-    QFrame* frame = rowFrame(listHost_);
+    QFrame* frame = libraryRowFrame(listHost_);
     frame->setObjectName(QStringLiteral("moduleRow:") + m.id);
     auto* h = new QHBoxLayout(frame);
     h->setContentsMargins(6, 6, 6, 6);
     h->setSpacing(8);
-    QLabel* pic = pictureLabel(frame);
+    QLabel* pic = libraryRowPicture(frame);
     h->addWidget(pic, 0, Qt::AlignTop);
     // List rows ask for the small picture (servers without one send the full one).
     if (const QString path = m.thumbnailPath(); !path.isEmpty())
-        library_.picture(path + QStringLiteral("&size=small"), pic, [pic](const QImage& img) { showPicture(pic, img); });
+        library_.picture(path + QStringLiteral("&size=small"), pic, [pic](const QImage& img) { showLibraryPicture(pic, img); });
 
     auto* text = new QVBoxLayout();
     text->setSpacing(2);
@@ -442,12 +447,12 @@ QWidget* ServerModulesTab::makeRow(const sync::ServerModule& m) {
     text->addLayout(top);
     QString sub = tr("v%1").arg(m.shownVersion());
     if (m.updatedAt.isValid()) sub += QStringLiteral(" · ") + QLocale().toString(m.updatedAt.date(), QLocale::ShortFormat);
-    auto* subtitle = mutedLabel(sub, frame);
+    auto* subtitle = libraryMutedLabel(sub, frame);
     subtitle->setObjectName(QStringLiteral("rowSubtitle"));
     text->addWidget(subtitle);
     // "by Sam · in ArkLUG · based on Yard by Sam".
     if (const QString credit = sync::creditLine(m.credit); !credit.isEmpty()) {
-        auto* by = mutedLabel(credit, frame);
+        auto* by = libraryMutedLabel(credit, frame);
         by->setObjectName(QStringLiteral("rowCredit"));
         text->addWidget(by);
     }
@@ -560,11 +565,7 @@ QString usesText(int n) { return n == 1 ? QObject::tr("1 use") : QObject::tr("%1
 // "960 × 480 studs (7.7 × 3.8 m) · 1,204 parts" for a layout or venue; empty when the server said nothing.
 QString sizeText(const sync::CatalogItem& it) {
     QStringList out;
-    if (it.widthStuds > 0 && it.heightStuds > 0)
-        out << QObject::tr("%1 × %2 studs (%3 × %4 m)")
-                   .arg(it.widthStuds)
-                   .arg(it.heightStuds)
-                   .arg(QLocale().toString(it.widthStuds * 0.008, 'f', 1), QLocale().toString(it.heightStuds * 0.008, 'f', 1));
+    if (const QString size = studsSizeText(it.widthStuds, it.heightStuds); !size.isEmpty()) out << size;
     if (it.partCount >= 0) out << (it.partCount == 1 ? QObject::tr("1 part") : QObject::tr("%1 parts").arg(QLocale().toString(it.partCount)));
     return out.join(QStringLiteral(" · "));
 }
@@ -577,7 +578,8 @@ QString collectionAddText(const sync::CollectionAddResult& r) {
     return parts.join(QStringLiteral(" · "));
 }
 
-CatalogTab::CatalogTab(ServerLibrary& library, QWidget* parent) : QWidget(parent), library_(library) {
+CatalogTab::CatalogTab(ServerLibrary& library, QWidget* parent, bool loadWhenShown)
+    : QWidget(parent), library_(library), loadWhenShown_(loadWhenShown) {
     setObjectName(QStringLiteral("catalogTab"));
     auto* col = new QVBoxLayout(this);
     col->setContentsMargins(2, 4, 2, 2);
@@ -618,7 +620,7 @@ CatalogTab::CatalogTab(ServerLibrary& library, QWidget* parent) : QWidget(parent
     back_->setFlat(true);
     back_->setVisible(false);
     col->addWidget(back_, 0, Qt::AlignLeft);
-    note_ = mutedLabel(QString(), this);
+    note_ = libraryMutedLabel(QString(), this);
     note_->setObjectName(QStringLiteral("catalogNote"));
     col->addWidget(note_);
 
@@ -677,7 +679,19 @@ void CatalogTab::setKind(Kind kind) {
     reload();
 }
 
+void CatalogTab::setKinds(const QList<Kind>& kinds) {
+    kinds_on_ = kinds;
+    if (!kinds_on_.isEmpty() && !kinds_on_.contains(kind_)) setKind(kinds_on_.front());
+    else reload();
+}
+
+void CatalogTab::showEvent(QShowEvent* e) {
+    QWidget::showEvent(e);
+    if (stale_) reload();
+}
+
 bool CatalogTab::kindOn(Kind k) const {
+    if (!kinds_on_.contains(k)) return false;
     const auto& on = library_.catalog();
     switch (k) {
     case Kind::Modules: return on.modules;
@@ -703,6 +717,8 @@ void CatalogTab::clearRows() {
 
 void CatalogTab::reload() {
     status_->showState();
+    stale_ = loadWhenShown_ && !isVisible();
+    if (stale_) return;
     const bool ready = library_.state() == ServerLibrary::State::Ready;
     // The same list again (a live change, back in the window, after an
     // Add): keep the rows and the place until the new one is in, rather
@@ -716,13 +732,19 @@ void CatalogTab::reload() {
         shown_.clear();
     }
     const int gen = ++generation_;
-    for (QPushButton* b : std::as_const(kindButtons_)) b->setVisible(kindOn(static_cast<Kind>(b->property("catalogKind").toInt())));
-    kinds_->setVisible(ready);
+    int kindsShown = 0;
+    for (QPushButton* b : std::as_const(kindButtons_)) {
+        const bool on = kindOn(static_cast<Kind>(b->property("catalogKind").toInt()));
+        b->setVisible(on);
+        kindsShown += on ? 1 : 0;
+    }
+    kinds_->setVisible(ready && kindsShown > 1);
     search_->setVisible(ready && kind_ != Kind::Collections);
     back_->setVisible(ready && !openCollection_.isEmpty());
     note_->clear();
     if (!ready) return;
-    if (!kindOn(Kind::Collections)) {
+    const sync::CatalogSettings& cat = library_.catalog();
+    if (!cat.modules && !cat.parts && !cat.layouts && !cat.venues) {
         note_->setText(tr("The catalog isn't turned on on this server. Its admins can turn it on."));
         return;
     }
@@ -803,22 +825,22 @@ void CatalogTab::showCollections(const QList<sync::CatalogCollection>& list) {
 }
 
 QWidget* CatalogTab::itemRow(const sync::CatalogItem& it) {
-    QFrame* frame = rowFrame(this);
+    QFrame* frame = libraryRowFrame(this);
     frame->setObjectName(QStringLiteral("catalogRow:") + it.id);
     auto* h = new QHBoxLayout(frame);
     h->setContentsMargins(6, 6, 6, 6);
     h->setSpacing(8);
-    QLabel* pic = pictureLabel(frame);
+    QLabel* pic = libraryRowPicture(frame);
     h->addWidget(pic, 0, Qt::AlignTop);
-    library_.picture(it.picturePath(), pic, [pic](const QImage& img) { showPicture(pic, img); });
+    library_.picture(it.picturePath(), pic, [pic](const QImage& img) { showLibraryPicture(pic, img); });
     auto* text = new QVBoxLayout();
     text->setSpacing(2);
     auto* title = new QLabel(it.title, frame);
     title->setProperty("rowTitle", true);
     title->setWordWrap(true);
     text->addWidget(title);
-    text->addWidget(mutedLabel(tr("by %1 · %2").arg(it.by, usesText(it.uses)), frame));
-    if (const QString size = sizeText(it); !size.isEmpty()) text->addWidget(mutedLabel(size, frame));
+    text->addWidget(libraryMutedLabel(tr("by %1 · %2").arg(it.by, usesText(it.uses)), frame));
+    if (const QString size = sizeText(it); !size.isEmpty()) text->addWidget(libraryMutedLabel(size, frame));
     if (!it.description.isEmpty()) {
         title->setToolTip(it.description);
         pic->setToolTip(it.description);
@@ -869,15 +891,15 @@ QWidget* CatalogTab::itemRow(const sync::CatalogItem& it) {
 }
 
 QWidget* CatalogTab::collectionRow(const sync::CatalogCollection& c) {
-    QFrame* frame = rowFrame(this);
+    QFrame* frame = libraryRowFrame(this);
     frame->setObjectName(QStringLiteral("collectionRow:") + c.id);
     auto* h = new QHBoxLayout(frame);
     h->setContentsMargins(6, 6, 6, 6);
     h->setSpacing(8);
-    QLabel* pic = pictureLabel(frame);
+    QLabel* pic = libraryRowPicture(frame);
     h->addWidget(pic, 0, Qt::AlignTop);
     if (!c.coverPath.isEmpty())
-        library_.picture(c.coverPath, pic, [pic](const QImage& img) { showPicture(pic, img); });
+        library_.picture(c.coverPath, pic, [pic](const QImage& img) { showLibraryPicture(pic, img); });
     auto* text = new QVBoxLayout();
     text->setSpacing(2);
     if (c.featured) {
@@ -889,8 +911,8 @@ QWidget* CatalogTab::collectionRow(const sync::CatalogCollection& c) {
     title->setProperty("rowTitle", true);
     title->setWordWrap(true);
     text->addWidget(title);
-    text->addWidget(mutedLabel(tr("by %1 · %2").arg(c.by, itemsText(c.itemCount)), frame));
-    if (!c.description.isEmpty()) text->addWidget(mutedLabel(c.description, frame));
+    text->addWidget(libraryMutedLabel(tr("by %1 · %2").arg(c.by, itemsText(c.itemCount)), frame));
+    if (!c.description.isEmpty()) text->addWidget(libraryMutedLabel(c.description, frame));
     auto* buttons = new QHBoxLayout();
     buttons->setSpacing(4);
     auto* addAllBtn = new QPushButton(tr("Add all"), frame);

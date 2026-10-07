@@ -174,9 +174,42 @@ README for self-hosting). On the desktop:
    your password never passes through the desktop. The token is kept in the
    system keychain (Windows Credential Manager, macOS Keychain, or the
    Secret Service / libsecret on Linux), one per server.
-3. **File › Connect to Server…** lists the layouts you may open. Pick one to
-   open it live. **File › Publish to Server…** puts the open layout on the
-   server and keeps editing it live.
+3. **File › Open from Server…** (Ctrl+Shift+O, the toolbar's **Server**
+   button, or a click on the status bar's server line) opens the Server
+   window: everything on the server in one place, laid out like the web's
+   Home page. Pick the server at the top and **Show** All, Mine or one club
+   (remembered for each server). Its tabs:
+   - **Layouts**: *Open live*, *Download a copy* (a `.bld-layout`, or a
+     `.bbm` for BlueBrick), *Delete…* (owners).
+   - **Venues**: *Use this venue* (a new layout in it), *Add to my venue
+     library*, *Delete…*.
+   - **Modules**: *Insert into this layout*, *Open to change it*, *Save a
+     copy locally*, *Delete…*.
+   - **Parts**: your own and your clubs' custom parts; *Add to my parts*
+     brings one into the Parts panel.
+   - **Catalog** and **Collections**: what people shared for everyone.
+
+   Each row shows its picture, who made it ("by Sam · in ArkLUG"), its size
+   and when it changed, and a club's thing can be taken back by its author
+   or given back to them. The window follows the server's live changes and
+   asks again when you come back to it.
+4. **Sending things the other way.** One model for everything, in the web's
+   words: you pick where it goes (**Save to: Me** or one of your clubs; a
+   club is asked about first, and you stay credited).
+   - **File › Save to Server…** puts the open layout on the server and keeps
+     editing it live; *Save a file to the server…* (Layouts tab, or the
+     welcome's *Save a file to a server…*) does it for a file.
+   - Modules: **Save to Module library…** on a placed module, or *Send…* on
+     a Module library file.
+   - Venues: **Save to Server…** in the Venue library and the Venue Designer.
+   - Parts: *Upload to server…* (Parts tab) for all your parts the server
+     lacks, or *Send…* on one.
+   - What exists only on this computer shows in each tab as *Not on the
+     server yet*, with *Send…*.
+   - **Share to the public catalog…** (or *Publish this update…*) on a
+     layout, venue, module or part you own sends a copy to the catalog, with
+     the same review as the web. Its card shows the drawn picture; a cover
+     photo of your own is chosen on the web.
 
 Several servers can be added; the one marked *Main* is used for the Module
 library and the catalog. **File › Disconnect** closes the live session; the

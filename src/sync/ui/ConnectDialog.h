@@ -1,16 +1,16 @@
 #pragma once
 
-// File › Connect to Server… (sync phase P4): pick one of your servers (or
+// Connecting to a server (sync phase P4): pick one of your servers (or
 // type a new address; recent layouts are listed under the server they're
 // on), a check that it speaks our protocol, device sign-in when there is no saved token
 // (the code is shown and the browser opened), then a layout picker. The
-// token goes to the TokenStore; the chosen layout is result().
+// token goes to the TokenStore; the chosen layout is result(). The app
+// opens it for "Open the live version" of a layout file from a server
+// (openRecent); browsing a server is the Server window's (ui/ServerWindow.h).
 //
-// The same steps serve File › Download Venues from Server…: then the list
-// is the server's venue library, several can be picked, and they are
-// downloaded as .bld-venue files (venues()). And File › Publish to
-// Server…: a title and where it's saved (you, or one of your clubs), and
-// the layout is created on the server; result() is then the new layout.
+// The same steps serve File › Save to Server…: a title and where it's
+// saved (you, or one of your clubs), and the layout is created on the
+// server; result() is then the new layout.
 //
 // Purpose::SignIn (from File › Servers…) only signs in to the address set
 // and hands back the token: result() then has no layout.
@@ -44,22 +44,16 @@ struct ConnectResult {
     ServerInfo info;       // what the server said about itself
 };
 
-struct DownloadedVenue {
-    QString name;
-    QByteArray file; // .bld-venue bytes
-};
-
 class ConnectDialog : public QDialog {
     Q_OBJECT
 public:
     // `openUrl` opens the sign-in page (QDesktopServices in the app).
-    enum class Purpose { OpenLayout, DownloadVenues, Publish, SignIn };
+    enum class Purpose { OpenLayout, Publish, SignIn };
 
     ConnectDialog(ServerApi& api, TokenStore& tokens, std::function<void(const QUrl&)> openUrl,
                   QWidget* parent = nullptr, Purpose purpose = Purpose::OpenLayout);
 
     std::optional<ConnectResult> result() const { return result_; }
-    QList<DownloadedVenue> venues() const { return venues_; }
 
     void setAddress(const QString& address);
     // Publish: what to publish (the .bbm and its sidecar JSON) and the title offered.
@@ -75,19 +69,19 @@ public:
     void openRecent(const QUrl& server, const QString& layoutId);
     // Fill the server list again (after File › Servers… changed it).
     void refreshServers();
-    // Ask the server for the listed layouts or venues again, keeping what
+    // Ask the server for the listed layouts again, keeping what
     // is picked (done when you come back to the window, see RefreshOnFocus).
     void refreshList();
     // How to open File › Servers… from here (the app's; tests replace it).
     void setManageServers(std::function<void()> manage) { manageServers_ = std::move(manage); }
 
-    // Delete the picked layout (you own it) or venue on the server, after
-    // asking. How it asks (tests answer instead): the name, and whether
-    // it's a layout.
+    // Delete the picked layout (you own it) on the server, after asking.
+    // How it asks (tests answer instead): the name, and whether it's a
+    // layout (always, now that venues are the Server window's).
     void deleteSelected();
     void setConfirmDelete(std::function<bool(const QString& name, bool layout)> f) { confirmDelete_ = std::move(f); }
 
-    // The picked club layout or venue back to its author (the ⋯ button):
+    // The picked club layout back to its author (the ⋯ button):
     // "Take Back to Mine" (its author) or "Give Back to ‹author›" (`give`,
     // the club's admins and managers), after asking. The club keeps a copy.
     void returnSelected(bool give);
@@ -109,7 +103,6 @@ private:
     void haveToken(const QString& token);
     void onFailed(const QString& what, const QString& message, bool unauthorized);
     void showLayouts(const QList<LayoutEntry>& layouts);
-    void showVenues(const QList<VenueEntry>& venues);
     void showOrgs(const QList<OrgEntry>& orgs);
     void signInAgain();
     void openSelected();
@@ -128,8 +121,6 @@ private:
     QString token_;
     std::optional<ConnectResult> result_;
     Purpose purpose_;
-    QList<DownloadedVenue> venues_;
-    int venuesPending_ = 0;
 
     QString pendingLayout_;  // a recent layout to open once listed
     std::function<void()> manageServers_;

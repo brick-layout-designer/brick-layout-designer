@@ -226,18 +226,6 @@ TEST(ConnectDialog, AnAppTooOldForTheServerIsAskedToUpdateBeforeSigningIn) {
     EXPECT_EQ(h.opened.first(), QUrl(QStringLiteral("https://example.org/get")));
 }
 
-TEST(ConnectDialog, VenuesFromAServerWithoutAVenueLibrarySaySo) {
-    Harness h(ConnectDialog::Purpose::DownloadVenues);
-    QJsonObject v = version();
-    v.insert(QStringLiteral("features"), QJsonArray{ QStringLiteral("liveSync"), QStringLiteral("signIn") });
-    h.http.clear("/api/version");
-    h.http.reply("/api/version", 200, v);
-    h.tokens.save(h.http.base(), QStringLiteral("bld_pat_saved"));
-    h.dialog.connectToServer();
-    ASSERT_TRUE(waitFor([&] { return h.message().contains(QStringLiteral("venue library")); }));
-    for (const auto& r : h.http.requests) EXPECT_EQ(r.path, QByteArray("/api/version"));
-}
-
 TEST(ConnectDialog, SignOutForgetsTheToken) {
     Harness h;
     h.tokens.save(h.http.base(), QStringLiteral("bld_pat_saved"));
@@ -271,78 +259,7 @@ TEST(ConnectDialog, FindAClubOpensTheServersClubsPage) {
     EXPECT_FALSE(h.tokens.tokens.isEmpty());
 }
 
-TEST(ConnectDialog, DownloadsThePickedVenuesAndSignsInAgainForTheVenueLibrary) {
-    Harness h(ConnectDialog::Purpose::DownloadVenues);
-    // Signed in before the venue library was reachable: the token lacks
-    // venues:read, so the list is refused and sign-in starts again.
-    h.tokens.save(h.http.base(), QStringLiteral("bld_pat_old"));
-    h.http.reply("/api/venues", 403, { { QStringLiteral("error"), QStringLiteral("insufficient_scope") } });
-    h.http.reply("/api/venues", 200,
-                 { { QStringLiteral("venues"),
-                     QJsonArray{ QJsonObject{ { QStringLiteral("id"), QStringLiteral("v1") },
-                                              { QStringLiteral("name"), QStringLiteral("Grand Lobby") },
-                                              { QStringLiteral("ownerOrgId"), QStringLiteral("org1") } },
-                                 QJsonObject{ { QStringLiteral("id"), QStringLiteral("v2") },
-                                              { QStringLiteral("name"), QStringLiteral("Garage") },
-                                              { QStringLiteral("ownerOrgId"), QJsonValue::Null } } } } });
-    h.http.reply("/api/auth/device/code", 200,
-                 { { QStringLiteral("device_code"), QStringLiteral("dev") },
-                   { QStringLiteral("user_code"), QStringLiteral("BCDF-GHJK") },
-                   { QStringLiteral("verification_uri"), QStringLiteral("https://x.org/device") },
-                   { QStringLiteral("expires_in"), 600 },
-                   { QStringLiteral("interval"), 1 } });
-    h.http.reply("/api/auth/device/token", 200,
-                 { { QStringLiteral("access_token"), QStringLiteral("bld_pat_new") } });
-    const QJsonObject hall{ { QStringLiteral("name"), QStringLiteral("Grand Lobby") },
-                            { QStringLiteral("edges"), QJsonArray{} } };
-    const QJsonObject garage{ { QStringLiteral("name"), QStringLiteral("Garage") },
-                              { QStringLiteral("edges"), QJsonArray{} } };
-    h.http.reply("/api/venues/v1", 200,
-                 { { QStringLiteral("id"), QStringLiteral("v1") },
-                   { QStringLiteral("name"), QStringLiteral("Grand Lobby") },
-                   { QStringLiteral("data"), hall } });
-    h.http.reply("/api/venues/v2", 200,
-                 { { QStringLiteral("id"), QStringLiteral("v2") },
-                   { QStringLiteral("name"), QStringLiteral("Garage") },
-                   { QStringLiteral("data"), garage } });
-
-    h.dialog.connectToServer();
-    ASSERT_TRUE(waitFor([&] { return !h.opened.isEmpty(); }));
-    ASSERT_TRUE(waitFor([&] { return h.listed(); }));
-    EXPECT_EQ(h.tokens.tokens.value(TokenStore::keyFor(h.http.base())), QStringLiteral("bld_pat_new"));
-    ASSERT_EQ(h.list()->topLevelItemCount(), 2);
-    auto* lobby = h.list()->findItems(QStringLiteral("Grand Lobby"), Qt::MatchExactly).value(0);
-    ASSERT_TRUE(lobby);
-    // A server from before owner tags names no club.
-    EXPECT_EQ(lobby->text(1), QStringLiteral("Club"));
-
-    // Both picked: both downloaded, then the dialog closes.
-    h.list()->selectAll();
-    h.dialog.findChild<QPushButton*>(QStringLiteral("open"))->click();
-    ASSERT_TRUE(waitFor([&] { return h.dialog.QDialog::result() == QDialog::Accepted; }));
-    const auto got = h.dialog.venues();
-    ASSERT_EQ(got.size(), 2);
-    QStringList names;
-    for (const auto& v : got) {
-        names << v.name;
-        EXPECT_EQ(QJsonDocument::fromJson(v.file).object().value(QLatin1String("schema")).toString(),
-                  QStringLiteral("bld-venue/1"));
-    }
-    names.sort();
-    EXPECT_EQ(names, (QStringList{ QStringLiteral("Garage"), QStringLiteral("Grand Lobby") }));
-    EXPECT_FALSE(h.dialog.ConnectDialog::result().has_value());
-}
-
 namespace {
-QJsonObject venue(const char* id, const char* name, const char* orgSlug = "", const char* orgName = "") {
-    const bool club = *orgSlug != 0;
-    return { { QStringLiteral("id"), QString::fromLatin1(id) },
-             { QStringLiteral("name"), QString::fromLatin1(name) },
-             { QStringLiteral("ownerOrgId"), club ? QJsonValue(QStringLiteral("id-") + QString::fromLatin1(orgSlug))
-                                                  : QJsonValue(QJsonValue::Null) },
-             { QStringLiteral("ownerOrgSlug"), club ? QJsonValue(QString::fromLatin1(orgSlug)) : QJsonValue() },
-             { QStringLiteral("ownerOrgName"), club ? QJsonValue(QString::fromUtf8(orgName)) : QJsonValue() } };
-}
 QStringList shown(QTreeWidget* list) {
     QStringList out;
     for (int i = 0; i < list->topLevelItemCount(); ++i)
@@ -352,63 +269,7 @@ QStringList shown(QTreeWidget* list) {
 }
 } // namespace
 
-// Yours and your clubs' things together: each venue says who owns it, and
-// Show narrows the list to Mine or one club; the choice is kept for next time.
-TEST(ConnectDialog, MarksEachVenuesOwnerAndShowsMineOrOneClub) {
-    {
-        Harness h(ConnectDialog::Purpose::DownloadVenues);
-        h.tokens.save(h.http.base(), QStringLiteral("bld_pat_saved"));
-        h.http.reply("/api/venues", 200,
-                     { { QStringLiteral("venues"),
-                         QJsonArray{ venue("v1", "Grand Lobby", "club", "Train Club"), venue("v2", "Garage"),
-                                     venue("v3", "Gym", "other", "Other Club") } } });
-        h.dialog.connectToServer();
-        ASSERT_TRUE(waitFor([&] { return h.listed(); }));
-        auto owner = [&](const char* name) {
-            return h.list()->findItems(QString::fromLatin1(name), Qt::MatchExactly).value(0)->text(1);
-        };
-        EXPECT_EQ(owner("Grand Lobby"), QStringLiteral("Train Club"));
-        EXPECT_EQ(owner("Garage"), QStringLiteral("Me"));
-
-        auto* show = h.dialog.findChild<QComboBox*>(QStringLiteral("ownerFilter"));
-        ASSERT_TRUE(show);
-        QStringList choices;
-        for (int i = 0; i < show->count(); ++i) choices << show->itemText(i);
-        EXPECT_EQ(choices, (QStringList{ QStringLiteral("All"), QStringLiteral("Mine"), QStringLiteral("Train Club"),
-                                         QStringLiteral("Other Club") }));
-        EXPECT_EQ(shown(h.list()).size(), 3);
-
-        show->setCurrentIndex(1);
-        emit show->activated(1);
-        EXPECT_EQ(shown(h.list()), QStringList{ QStringLiteral("Garage") });
-        show->setCurrentIndex(2);
-        emit show->activated(2);
-        EXPECT_EQ(shown(h.list()), QStringList{ QStringLiteral("Grand Lobby") });
-    }
-    // Kept for next time: the next list opens on the same club…
-    QSettings().setValue(QStringLiteral("sync/ownerFilter"), QStringLiteral("club"));
-    {
-        FakeHttp http;
-        ServerApi api;
-        MemoryTokenStore tokens;
-        ConnectDialog dialog(api, tokens, [](const QUrl&) {}, nullptr, ConnectDialog::Purpose::DownloadVenues);
-        api.setPollIntervalScale(5);
-        http.reply("/api/version", 200, version());
-        tokens.save(http.base(), QStringLiteral("bld_pat_saved"));
-        http.reply("/api/venues", 200,
-                   { { QStringLiteral("venues"),
-                       QJsonArray{ venue("v1", "Grand Lobby", "club", "Train Club"), venue("v2", "Garage") } } });
-        dialog.setAddress(http.base().toString());
-        dialog.connectToServer();
-        auto* list = dialog.findChild<QTreeWidget*>(QStringLiteral("layouts"));
-        ASSERT_TRUE(waitFor([&] { return list->topLevelItemCount() == 2; }));
-        EXPECT_EQ(dialog.findChild<QComboBox*>(QStringLiteral("ownerFilter"))->currentText(), QStringLiteral("Train Club"));
-        EXPECT_EQ(shown(list), QStringList{ QStringLiteral("Grand Lobby") });
-    }
-    QSettings().remove(QStringLiteral("sync/ownerFilter"));
-}
-
-// Layouts too, and Publish starts at the club the lists were showing.
+// Each layout says who owns it, Show narrows the list, and Publish starts at the club the lists were showing.
 TEST(ConnectDialog, MarksLayoutOwnersAndPublishStartsAtTheShownClub) {
     {
         Harness h;
@@ -770,30 +631,6 @@ TEST(ConnectDialog, DeletesALayoutYouOwnAfterAsking) {
     EXPECT_EQ(h.message(), QStringLiteral("Deleted “Show 2026”"));
 }
 
-TEST(ConnectDialog, DeletesAVenueAndSaysWhyNot) {
-    Harness h(ConnectDialog::Purpose::DownloadVenues);
-    h.tokens.save(h.http.base(), QStringLiteral("bld_pat_saved"));
-    const QJsonObject hall{ { QStringLiteral("id"), QStringLiteral("V1") }, { QStringLiteral("name"), QStringLiteral("Hall") } };
-    h.http.reply("/api/venues", 200, { { QStringLiteral("venues"), QJsonArray{ hall } } });
-    h.http.reply("/api/orgs", 200, { { QStringLiteral("orgs"), QJsonArray{} } });
-    h.http.reply("/api/venues/V1", 403, { { QStringLiteral("error"), QStringLiteral("forbidden") } });
-    h.dialog.setConfirmDelete([](const QString&, bool isLayout) { return !isLayout; });
-    h.dialog.connectToServer();
-    ASSERT_TRUE(waitFor([&] { return h.listed(); }));
-    h.list()->setCurrentItem(h.list()->topLevelItem(0));
-    auto* del = h.dialog.findChild<QPushButton*>(QStringLiteral("deleteItem"));
-    ASSERT_TRUE(del->isEnabled());
-    del->click();
-    ASSERT_TRUE(waitFor([&] { return h.message().startsWith(QStringLiteral("Could not delete it")); }));
-    EXPECT_EQ(h.http.requests.back().method, QByteArray("DELETE"));
-    EXPECT_EQ(h.http.requests.back().path, QByteArray("/api/venues/V1"));
-    EXPECT_TRUE(del->isEnabled());  // can try again
-    EXPECT_EQ(h.list()->topLevelItemCount(), 1);
-}
-
-// A club's layout or venue back to its author, from the ⋯ button: the
-// author takes it back, a club's runner gives it back; the Owner column
-// says who made it.
 namespace {
 QJsonObject credited(QJsonObject item, const char* by, bool take, bool give) {
     item.insert(QStringLiteral("credit"),
@@ -856,40 +693,4 @@ TEST(ConnectDialog, TakesALayoutBackAfterAskingAndShowsWhoMadeEach) {
     EXPECT_EQ(it->path, QByteArray("/api/layouts/L1/take-back"));
     EXPECT_EQ(it->authorization, QByteArray("Bearer bld_pat_saved"));
     EXPECT_TRUE(h.message().contains(QStringLiteral("the club kept its own copy")));
-}
-
-TEST(ConnectDialog, GivesAVenueBackToItsAuthorAndSaysWhyNot) {
-    Harness h(ConnectDialog::Purpose::DownloadVenues);
-    h.tokens.save(h.http.base(), QStringLiteral("bld_pat_saved"));
-    const QJsonObject hall =
-        credited(QJsonObject{ { QStringLiteral("id"), QStringLiteral("V1") },
-                              { QStringLiteral("name"), QStringLiteral("Hall") },
-                              { QStringLiteral("ownerOrgId"), QStringLiteral("o1") },
-                              { QStringLiteral("ownerOrgName"), QStringLiteral("Train Club") },
-                              { QStringLiteral("ownerOrgSlug"), QStringLiteral("club") } },
-                 "Sam", false, true);
-    h.http.reply("/api/venues", 200, { { QStringLiteral("venues"), QJsonArray{ hall } } });
-    h.http.reply("/api/orgs", 200, { { QStringLiteral("orgs"), QJsonArray{} } });
-    h.http.reply("/api/venues/V1/give-back", 409,
-                 { { QStringLiteral("error"), QStringLiteral("author_gone") },
-                   { QStringLiteral("message"),
-                     QStringLiteral("The person who made it no longer has an account here.") } });
-    bool gave = false;
-    h.dialog.setConfirmReturn([&](const QString&, const Credit& c, bool give) {
-        gave = give;
-        EXPECT_EQ(c.authorName, QStringLiteral("Sam"));
-        return true;
-    });
-    h.dialog.connectToServer();
-    ASSERT_TRUE(waitFor([&] { return h.listed(); }));
-    EXPECT_EQ(h.list()->topLevelItem(0)->text(1), QStringLiteral("by Sam · in Train Club"));
-    h.list()->setCurrentItem(h.list()->topLevelItem(0));
-    ASSERT_TRUE(h.dialog.moreButton()->isEnabled());
-    h.dialog.returnSelected(false); // not the author: no take back
-    EXPECT_FALSE(gave);
-    h.dialog.returnSelected(true);
-    EXPECT_TRUE(gave);
-    ASSERT_TRUE(waitFor([&] { return h.message().startsWith(QStringLiteral("Could not do that")); }));
-    EXPECT_EQ(h.http.requests.back().path, QByteArray("/api/venues/V1/give-back"));
-    EXPECT_TRUE(h.dialog.moreButton()->isEnabled()); // can try again
 }

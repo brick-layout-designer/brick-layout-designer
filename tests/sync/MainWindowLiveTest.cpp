@@ -426,7 +426,7 @@ TEST_F(MainWindowLiveMyPart, UploadSendsThePartToTheServer) {
     http_.reply("/api/custom-parts", 201, QJsonObject{ { QStringLiteral("id"), QStringLiteral("p1") } });
     waitForCatalog();
     Answers answers{ { box(QStringLiteral("MYPART.1 isn't on the server yet"), QStringLiteral("Upload...")),
-                       press(QStringLiteral("Upload")) } };
+                       press(QStringLiteral("Save to server")) } };
     answers.during([&] {
         place(400);
         ASSERT_TRUE(waitFor([&] { return answers.done() && customPartPosts() == 1; }));

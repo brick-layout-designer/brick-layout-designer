@@ -410,6 +410,29 @@ constexpr Raw kShared[] = {
 
 // Controls only the desktop app has.
 constexpr Raw kDesktopOnly[] = {
+    { "server.send", "/help#sharing",
+      QT_TRANSLATE_NOOP("HelpTexts", "Sending to the server"),
+      QT_TRANSLATE_NOOP("HelpTexts", "Put a copy of something from this computer on the server."),
+      QT_TRANSLATE_NOOP("HelpTexts", "Things marked Not on the server yet are only on this computer. Send… "
+                                     "asks whether it’s yours or a club’s, then puts a copy there; the one "
+                                     "here stays as it is. A club’s things belong to the club, and you stay "
+                                     "credited as the author.") },
+    { "catalog.share", "/help#sharing",
+      QT_TRANSLATE_NOOP("HelpTexts", "Share to the public catalog"),
+      QT_TRANSLATE_NOOP("HelpTexts", "Let anyone on this server copy it into their own layouts."),
+      QT_TRANSLATE_NOOP("HelpTexts", "A copy of it as it is now goes to the catalog; your own stays yours. "
+                                     "On most servers a moderator looks at it first. Later, Publish this "
+                                     "update sends your changes. Its card shows the drawn picture; you can "
+                                     "pick a photo of your own on the web.") },
+    // File › Open from Server… (the Server window)
+    { "server.window", "/help#sharing",
+      QT_TRANSLATE_NOOP("HelpTexts", "Open from Server"),
+      QT_TRANSLATE_NOOP("HelpTexts", "Everything you and your clubs keep on a server, in one place."),
+      QT_TRANSLATE_NOOP("HelpTexts", "Pick a server at the top, and Show to see only yours or one club’s. "
+                                     "Open a layout live to work on it with everyone, or download a copy. "
+                                     "Start a layout in a venue, put a module in the layout that’s open, or "
+                                     "bring a custom part into your parts. The Catalog and Collections tabs "
+                                     "have what people shared for everyone.") },
     // Preferences (Edit > Preferences...)
     { "prefs.budgetUnlimited", "",
       QT_TRANSLATE_NOOP("HelpTexts", "Parts without a budget"),

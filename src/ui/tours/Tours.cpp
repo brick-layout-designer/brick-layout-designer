@@ -542,7 +542,8 @@ WelcomeDialog::WelcomeDialog(QWidget* parent) : QDialog(parent) {
     };
     auto* fresh = way(QStringLiteral("WelcomeNewLayout"), tr("New layout"), Choice::NewLayout);
     way(QStringLiteral("WelcomeOpenFile"), tr("Open a file…"), Choice::OpenFile);
-    way(QStringLiteral("WelcomeServer"), tr("Connect to a server…"), Choice::Server);
+    way(QStringLiteral("WelcomeServer"), tr("Open from server…"), Choice::Server);
+    way(QStringLiteral("WelcomeSaveFile"), tr("Save a file to a server…"), Choice::SaveFile);
     waysRow->addStretch(1);
     ways->hide();
     row->addWidget(ways);

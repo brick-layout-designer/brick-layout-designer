@@ -146,8 +146,9 @@ target_link_libraries(bld_ui
         Qt6::PrintSupport
 )
 
-# Live layouts on a collaborative server (File › Connect to Server…).
+# Live layouts on a collaborative server, and File › Open from Server….
 target_sources(bld_ui PRIVATE LiveLayout.cpp LiveLayout.h MainWindowLive.cpp PrefsSync.cpp PrefsSync.h
     MainWindowModules.cpp ServerLibrary.cpp ServerLibrary.h SaveModuleDialog.cpp SaveModuleDialog.h
-    ModuleLibraryDialogs.cpp ModuleLibraryDialogs.h ModuleLibraryMenu.h MainWindowModuleLibrary.cpp)
+    ModuleLibraryDialogs.cpp ModuleLibraryDialogs.h ModuleLibraryMenu.h MainWindowModuleLibrary.cpp
+    ServerWindow.cpp ServerWindow.h SendToServerDialogs.cpp SendToServerDialogs.h MainWindowSend.cpp)
 target_link_libraries(bld_ui PUBLIC bld_sync_ui)

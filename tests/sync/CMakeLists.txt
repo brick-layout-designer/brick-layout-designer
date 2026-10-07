@@ -22,6 +22,7 @@ add_executable(bld_sync_tests
     LayoutSourceTest.cpp
     PrefsSyncTest.cpp
     ServerLibraryTest.cpp
+    ServerWindowTest.cpp
     SyncTestMain.cpp
 )
 target_compile_definitions(bld_sync_tests PRIVATE BLD_SOURCE_DIR="${CMAKE_SOURCE_DIR}" BLD_TEST_APP_VERSION="${PROJECT_VERSION}")

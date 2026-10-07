@@ -51,6 +51,8 @@ QString featureLabel(const QString& id) {
     if (id == QLatin1String("preferences")) return tr("Your settings on every computer");
     if (id == QLatin1String("ownerTags")) return tr("Showing whose layouts and venues they are");
     if (id == QLatin1String("limits")) return tr("Usage limits, with plain messages when one is reached");
+    if (id == QLatin1String("layoutDownload")) return tr("Downloading a copy of a layout, venue sizes in the list");
+    if (id == QLatin1String("catalogShare")) return tr("Sharing to the public catalog from the desktop app");
     return id;
 }
 

@@ -48,6 +48,8 @@ public:
     bool dirty() const;
     void dispatch(const edit::venue::Action& a);
     bool saveNow();
+    // "Save to Server…" in the header: a copy of the venue as it is now goes to a server.
+    void setSendToServer(std::function<void(const core::Venue&)> send);
 
 protected:
     void keyPressEvent(QKeyEvent* e) override;
@@ -72,6 +74,8 @@ private:
     QPushButton* undo_ = nullptr;
     QPushButton* redo_ = nullptr;
     QPushButton* saveBtn_ = nullptr;
+    QPushButton* sendBtn_ = nullptr;
+    std::function<void(const core::Venue&)> send_;
     QList<QToolButton*> toolButtons_;
     QWidget* inspector_ = nullptr;
     QVBoxLayout* inspectorLayout_ = nullptr;

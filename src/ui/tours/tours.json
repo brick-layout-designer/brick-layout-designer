@@ -45,6 +45,7 @@
       "devices": "all",
       "steps": [
         { "target": "servers.status", "apps": ["desktop"], "title": "Your server", "text": "This shows whether you are connected to your club's server. Click it to add a server or sign in." },
+        { "target": "server.window", "apps": ["desktop"], "title": "Everything on your server", "text": "Open from Server shows your layouts, venues, modules and parts, and your clubs', in one place." },
         { "target": "owners.filter", "title": "Mine and my clubs'", "text": "Pick All, Mine or a club to see just those layouts, venues and parts." },
         { "target": "publish.owner", "title": "Save to", "text": "When you make or publish a layout, Save to picks whether it is yours or your club's." },
         { "target": "clubs.page", "title": "Your club's page", "text": "The club page shows who is in the club. Admins invite people from there." },

@@ -1,6 +1,6 @@
 // Coming back to a window that lists server things asks the server again:
 // the helper itself (only after being away, at most once per gap), the
-// Download venues / Open layout list (refilled, keeping what you picked),
+// Open layout list (refilled, keeping what you picked),
 // File › Servers… (checks every server again), and the parts recheck rule.
 
 #include "RefreshOnFocus.h"
@@ -53,9 +53,10 @@ int requestsTo(const FakeHttp& http, const QByteArray& path) {
     return n;
 }
 
-QJsonObject venue(const char* id, const char* name) {
+QJsonObject layout(const char* id, const char* title) {
     return { { QStringLiteral("id"), QString::fromLatin1(id) },
-             { QStringLiteral("name"), QString::fromLatin1(name) },
+             { QStringLiteral("title"), QString::fromLatin1(title) },
+             { QStringLiteral("role"), QStringLiteral("owner") },
              { QStringLiteral("ownerOrgId"), QJsonValue::Null } };
 }
 
@@ -86,21 +87,21 @@ TEST(RefreshOnFocus, RefreshesOnlyAfterBeingAwayAndAtMostOncePerGap) {
     EXPECT_EQ(r->refreshCount(), 2);
 }
 
-TEST(RefreshOnFocus, TheVenueListIsAskedForAgainAndKeepsThePickedVenue) {
+TEST(RefreshOnFocus, TheLayoutListIsAskedForAgainAndKeepsThePickedLayout) {
     QSettings().setValue(QLatin1String(ServerList::kKey), QByteArray("[]"));
     QSettings().remove(QStringLiteral("sync/ownerFilter"));
     FakeHttp http;
     ServerApi api;
     MemoryTokenStore tokens;
-    ConnectDialog dialog(api, tokens, [](const QUrl&) {}, nullptr, ConnectDialog::Purpose::DownloadVenues);
+    ConnectDialog dialog(api, tokens, [](const QUrl&) {}, nullptr, ConnectDialog::Purpose::OpenLayout);
     http.reply("/api/version", 200, version());
     tokens.save(http.base(), QStringLiteral("bld_pat_saved"));
-    http.reply("/api/venues", 200,
-               { { QStringLiteral("venues"), QJsonArray{ venue("v1", "Grand Lobby") } } });
-    // Meanwhile, on the web, someone saves another venue.
+    http.reply("/api/layouts", 200,
+               { { QStringLiteral("layouts"), QJsonArray{ layout("l1", "Grand Lobby") } } });
+    // Meanwhile, on the web, someone saves another layout.
     http.reply(
-        "/api/venues", 200,
-        { { QStringLiteral("venues"), QJsonArray{ venue("v1", "Grand Lobby"), venue("v2", "Garage") } } });
+        "/api/layouts", 200,
+        { { QStringLiteral("layouts"), QJsonArray{ layout("l1", "Grand Lobby"), layout("l2", "Garage") } } });
     dialog.setAddress(http.base().toString());
     dialog.connectToServer();
     auto* list = dialog.findChild<QTreeWidget*>(QStringLiteral("layouts"));
@@ -110,7 +111,7 @@ TEST(RefreshOnFocus, TheVenueListIsAskedForAgainAndKeepsThePickedVenue) {
     dialog.findChild<RefreshOnFocus*>(QStringLiteral("refreshOnFocus"))->setMinGap(0);
     leaveAndComeBack(&dialog);
     ASSERT_TRUE(waitFor([&] { return list->topLevelItemCount() == 2; }));
-    EXPECT_EQ(requestsTo(http, "/api/venues"), 2);
+    EXPECT_EQ(requestsTo(http, "/api/layouts"), 2);
     // Grand Lobby is still the one picked.
     ASSERT_EQ(list->selectedItems().size(), 1);
     EXPECT_EQ(list->selectedItems().first()->text(0), QStringLiteral("Grand Lobby"));
@@ -122,11 +123,11 @@ TEST(RefreshOnFocus, AfterSigningOutNothingIsAskedFor) {
     FakeHttp http;
     ServerApi api;
     MemoryTokenStore tokens;
-    ConnectDialog dialog(api, tokens, [](const QUrl&) {}, nullptr, ConnectDialog::Purpose::DownloadVenues);
+    ConnectDialog dialog(api, tokens, [](const QUrl&) {}, nullptr, ConnectDialog::Purpose::OpenLayout);
     http.reply("/api/version", 200, version());
     tokens.save(http.base(), QStringLiteral("bld_pat_saved"));
-    http.reply("/api/venues", 200,
-               { { QStringLiteral("venues"), QJsonArray{ venue("v1", "Grand Lobby") } } });
+    http.reply("/api/layouts", 200,
+               { { QStringLiteral("layouts"), QJsonArray{ layout("l1", "Grand Lobby") } } });
     dialog.setAddress(http.base().toString());
     dialog.connectToServer();
     auto* list = dialog.findChild<QTreeWidget*>(QStringLiteral("layouts"));
@@ -135,8 +136,8 @@ TEST(RefreshOnFocus, AfterSigningOutNothingIsAskedFor) {
     dialog.findChild<RefreshOnFocus*>(QStringLiteral("refreshOnFocus"))->setMinGap(0);
     leaveAndComeBack(&dialog);
     // Give a stray request time to arrive.
-    waitFor([&] { return requestsTo(http, "/api/venues") > 1; }, 500);
-    EXPECT_EQ(requestsTo(http, "/api/venues"), 1);
+    waitFor([&] { return requestsTo(http, "/api/layouts") > 1; }, 500);
+    EXPECT_EQ(requestsTo(http, "/api/layouts"), 1);
 }
 
 TEST(RefreshOnFocus, TheServersWindowChecksEveryServerAgain) {

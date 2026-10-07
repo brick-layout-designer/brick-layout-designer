@@ -1,5 +1,7 @@
 #include "UploadPartsDialog.h"
 #include "ui/help/HelpButton.h"
+#include "ui/ConfirmDialog.h"
+#include "ui/ReturnWording.h"
 
 #include "ServerApi.h"
 
@@ -16,7 +18,7 @@ namespace bld::sync {
 UploadPartsDialog::UploadPartsDialog(ServerApi& api, PartsUpload& upload, const QList<LocalPart>& missing,
                                      QWidget* parent)
     : QDialog(parent), api_(api), upload_(upload), missing_(missing) {
-    setWindowTitle(tr("Upload Parts to Server"));
+    setWindowTitle(tr("Upload to Server"));
     resize(520, 440);
     auto* col = new QVBoxLayout(this);
     auto* intro = new QLabel(
@@ -35,20 +37,23 @@ UploadPartsDialog::UploadPartsDialog(ServerApi& api, PartsUpload& upload, const 
     auto* form = new QFormLayout();
     owner_ = new QComboBox(this);
     owner_->setObjectName(QStringLiteral("owner"));
-    owner_->addItem(tr("You (personal)"), QString());
-    form->addRow(tr("Owner"), bld::ui::help::withHelp(owner_, QStringLiteral("publish.owner"), this));
+    owner_->addItem(tr("Me"), QString());
+    form->addRow(tr("Save to"), bld::ui::help::withHelp(owner_, QStringLiteral("publish.owner"), this));
     col->addLayout(form);
     message_ = new QLabel(this);
     message_->setObjectName(QStringLiteral("message"));
     message_->setWordWrap(true);
     col->addWidget(message_);
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Cancel, this);
-    uploadBtn_ = buttons->addButton(tr("Upload"), QDialogButtonBox::AcceptRole);
+    uploadBtn_ = buttons->addButton(tr("Save to server"), QDialogButtonBox::AcceptRole);
     uploadBtn_->setObjectName(QStringLiteral("upload"));
     col->addWidget(buttons);
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
     connect(uploadBtn_, &QPushButton::clicked, this, &UploadPartsDialog::uploadChecked);
 
+    confirmClub = [this](const QString& club) {
+        return bld::ui::ConfirmDialog::ask(this, bld::ui::saveToClubOptions(club));
+    };
     connect(&api_, &ServerApi::orgsReady, this, [this](const QList<OrgEntry>& orgs) {
         for (const auto& o : orgs)
             if (o.canAdd) owner_->addItem(o.name, o.slug);
@@ -74,6 +79,8 @@ void UploadPartsDialog::uploadChecked() {
         reject();
         return;
     }
+    // Into a club: say what that means first (the club owns them, you stay their author).
+    if (!owner_->currentData().toString().isEmpty() && confirmClub && !confirmClub(owner_->currentText())) return;
     uploadBtn_->setEnabled(false);
     message_->setText(tr("Uploading %n part(s)…", nullptr, static_cast<int>(chosen.size())));
     upload_.upload(chosen, owner_->currentData().toString());

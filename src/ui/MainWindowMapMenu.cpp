@@ -177,6 +177,7 @@ void MainWindow::setupMapMenu() {
                 return QString();
             },
             this);
+        dlg.setSendToServer([this](const core::Venue& v) { saveVenueToServer(v); });
         dlg.exec();
     });
     venueMenu->addSeparator();
