@@ -16,6 +16,7 @@
 #include "../rendering/MapText.h"
 #include "../rendering/SceneBuilder.h"
 #include "MapViewInternal.h"
+#include "../parts/PartsLibrary.h"
 #include "SelectionOverlay.h"
 #include "SelectionStyle.h"
 #include "TouchMode.h"
@@ -319,6 +320,21 @@ void MapView::refreshSelectionOverlay() {
                 break;
             }
             continue;
+        }
+        if (detail::isBrickItem(it)) {
+            // Imported parts: their real outline, not the picture's box.
+            const QString part = it->data(rendering::SceneBuilder::kBrickPartRole).toString();
+            if (!part.isEmpty() && parts_.isImported(part)) {
+                const auto meta = parts_.metadata(part);
+                const double px = meta && meta->pxPerStud > 0 ? meta->pxPerStud : 8;
+                const auto rings = parts_.outlineStuds(part);
+                for (const QPolygonF& ring : rings) {
+                    QPolygonF local;
+                    for (const QPointF& p : ring) local << p * px;
+                    polys.append(it->mapToScene(local));
+                }
+                if (!rings.isEmpty()) continue;
+            }
         }
         const QRectF local = it->boundingRect();
         const bool localThin = (local.width() < 1.0 || local.height() < 1.0);

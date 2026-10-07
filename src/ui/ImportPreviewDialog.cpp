@@ -204,7 +204,12 @@ ImportPreviewDialog::ImportPreviewDialog(PreparedPart part,
 
     // Where it goes.
     auto* form = new QFormLayout();
-    nameEdit_ = new QLineEdit(QFileInfo(part_.source).completeBaseName(), this);
+    // The model's own name, else its file's: what the part will be called.
+    QString suggested = part_.title;
+    if (suggested.isEmpty() || suggested.compare(QStringLiteral("Untitled Model"), Qt::CaseInsensitive) == 0
+        || suggested.size() > 80)
+        suggested = QFileInfo(part_.source).completeBaseName();
+    nameEdit_ = new QLineEdit(suggested, this);
     form->addRow(tr("Save as:"), nameEdit_);
     categoryBox_ = new QComboBox(this);
     categoryBox_->setEditable(true);

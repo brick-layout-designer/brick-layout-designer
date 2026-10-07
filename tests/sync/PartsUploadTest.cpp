@@ -465,3 +465,21 @@ TEST(PartsUpload, APartTooBigIsSentAtALowerResolutionTheSameSize) {
     EXPECT_EQ(QSizeF(sent.width() / double(smaller.pxPerStud), sent.height() / double(smaller.pxPerStud)), studs);
     EXPECT_EQ(studsAfterDownload(smaller), studs);
 }
+
+TEST(PartsUpload, TheLocalPathOfAnImportStaysOnThisComputer) {
+    QTemporaryDir dir;
+    QFile xml(dir.filePath(QStringLiteral("p.xml")));
+    ASSERT_TRUE(xml.open(QIODevice::WriteOnly));
+    xml.write("<part><Description><en>Station</en></Description>\n"
+              "  <ImportedFrom file=\"station.lxf\" format=\"ldd\" date=\"2026-10-07\"/>\n"
+              "  <ImportSource>\n    <SourcePath>/home/aaron/secret/station.lxf</SourcePath>\n  </ImportSource>\n</part>");
+    xml.close();
+    QImage(16, 16, QImage::Format_ARGB32).save(dir.filePath(QStringLiteral("p.png")));
+    const auto parts = PartsUpload::scanFolder(dir.path());
+    ASSERT_EQ(parts.size(), 1);
+    EXPECT_EQ(parts.front().displayName, QStringLiteral("Station"));
+    const auto payload = PartsUpload::payloadFor(parts.front(), 1 << 20);
+    EXPECT_FALSE(payload.xml.contains("/home/aaron")) << payload.xml.toStdString();
+    EXPECT_FALSE(payload.xml.contains("ImportSource"));
+    EXPECT_TRUE(payload.xml.contains("<ImportedFrom file=\"station.lxf\""));
+}

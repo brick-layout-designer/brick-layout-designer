@@ -2,6 +2,7 @@
 
 #include "GifWriter.h"
 
+#include <QDate>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -36,6 +37,13 @@ QString sanitizeKey(const QString& sourcePath) {
 }
 
 }  // namespace
+
+QString importFormatOf(const QString& modelPath) {
+    const QString ext = QFileInfo(modelPath).suffix().toLower();
+    if (ext == QLatin1String("io")) return QStringLiteral("studio");
+    if (ext == QLatin1String("lxf") || ext == QLatin1String("lxfml")) return QStringLiteral("ldd");
+    return QStringLiteral("ldraw");
+}
 
 QString importedPartKey(const QString& sourceFilePathOrName) {
     return sanitizeKey(sourceFilePathOrName);
@@ -132,11 +140,16 @@ QString writeImportedModelAsLibraryPart(
     w.writeTextElement(QStringLiteral("Author"),
         authorName.isEmpty() ? QStringLiteral("Brick Layout Designer import")
                               : authorName);
+    // The name people see: exactly what was typed in the import dialog.
+    QString shownName = source ? source->displayName.trimmed() : QString();
+    if (shownName.isEmpty()) {
+        shownName = QFileInfo(sourceFilePath).fileName();
+        static const QRegularExpression modelExt(QStringLiteral("\\.(ldr|dat|mpd|io|lxf|lxfml)$"),
+                                                 QRegularExpression::CaseInsensitiveOption);
+        shownName.remove(modelExt);
+    }
     w.writeStartElement(QStringLiteral("Description"));
-    w.writeTextElement(QStringLiteral("en"),
-        QStringLiteral("Imported from %1 (%2 × %3 studs)")
-            .arg(QFileInfo(sourceFilePath).fileName())
-            .arg(widthStuds).arg(heightStuds));
+    w.writeTextElement(QStringLiteral("en"), shownName);
     w.writeEndElement();
 
     // Resolution of the .png. The library scanner loads the .png when
@@ -145,6 +158,16 @@ QString writeImportedModelAsLibraryPart(
     if (pxPerStud != 8) {
         w.writeTextElement(QStringLiteral("PixelsPerStud"),
                             QString::number(pxPerStud));
+    }
+
+    // Where it came from, without the local path: shown in Properties.
+    // BlueBrick and the web skip elements they don't know.
+    if (source && !source->path.isEmpty()) {
+        w.writeEmptyElement(QStringLiteral("ImportedFrom"));
+        w.writeAttribute(QStringLiteral("file"), QFileInfo(source->path).fileName());
+        w.writeAttribute(QStringLiteral("format"),
+                         source->format.isEmpty() ? importFormatOf(source->path) : source->format);
+        w.writeAttribute(QStringLiteral("date"), QDate::currentDate().toString(Qt::ISODate));
     }
 
     // Provenance for Re-import from Source. Element names avoid the ones

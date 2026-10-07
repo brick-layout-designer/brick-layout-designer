@@ -117,6 +117,14 @@ struct PartMetadata {
         QList<QPointF> droppedConnections;
     };
     std::optional<ImportSource> importSource;
+    // <ImportedFrom file format date>: the model an imported part was made
+    // from (file name only), shown in its Properties.
+    struct ImportedFrom {
+        QString file;
+        QString format;  // "studio", "ldd", "ldraw"
+        QString date;    // yyyy-MM-dd
+    };
+    std::optional<ImportedFrom> importedFrom;
 
     // Earlier part numbers (<OldNameList>); files using them load as this part.
     QStringList oldNames;
@@ -217,6 +225,16 @@ public:
     // their real silhouette rather than a loose bounding rect.
     QPolygonF hullPolygonStuds(const QString& key);
 
+    // The real outline of an imported part's opaque area, in the same
+    // frame as hullPolygonStuds: one polygon per edge (outer edges and the
+    // edges of holes), on a quarter-stud grid, simplified. An L-shaped
+    // model gets an L. Empty when the part has no picture.
+    QList<QPolygonF> outlineStuds(const QString& key);
+
+    // Imported parts (<ImportedFrom> or <ImportSource>): clicks pass through
+    // their empty and fully see-through areas.
+    bool isImported(const QString& key);
+
     // BlueBrick's footprint of a part at an orientation: a brick's
     // displayArea is the box around its rotated hull (<hull> from the XML,
     // else the sprite's bounds), and the sprite is drawn `imageOffset`
@@ -248,6 +266,7 @@ private:
     QHash<QString, QString>      fourDBrixNames_;    // 4DBrix name -> key
     QHash<QString, QPixmap>      pixmapCache_;
     QHash<QString, QPolygonF>    hullCache_;
+    QHash<QString, QList<QPolygonF>> outlineCache_;
 };
 
 }

@@ -43,7 +43,14 @@ struct ImportSource {
     QDateTime modified;                     // its modification time when imported
     int       quarterTurns = 0;             // clockwise turns applied in the preview
     QVector<QPointF> droppedConnections;    // connection points the user removed (final frame)
+    // The part's name as people see it (its <Description>): what was typed
+    // in the import dialog. Empty: the file name without its extension.
+    QString   displayName;
+    QString   format;                       // "studio", "ldd" or "ldraw", for <ImportedFrom>
 };
+
+// "studio", "ldd" or "ldraw" from a model file's extension.
+QString importFormatOf(const QString& modelPath);
 
 // The part key (file stem) writeImportedModelAsLibraryPart derives from a
 // source path or user-entered name, before any -2/-3 suffix.

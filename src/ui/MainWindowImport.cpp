@@ -156,7 +156,11 @@ bool MainWindow::reimportPart(const QString& key, bool interactive) {
     }
     const QString author = mapView_->currentMap() ? mapView_->currentMap()->author : QString();
     QString err;
-    const QString written = writeImportedPart(part, name, dir, author, /*replaceExisting=*/true, &err);
+    QString shown;
+    for (const auto& d : meta->descriptions)
+        if (d.language == QLatin1String("en")) shown = d.text;
+    if (shown.isEmpty() || shown.startsWith(QLatin1String("Imported from "))) shown = name;
+    const QString written = writeImportedPart(part, shown, dir, author, /*replaceExisting=*/true, &err, name);
     if (written.isEmpty()) {
         if (interactive) QMessageBox::warning(this, part.kindLabel, tr("Could not save the custom part: %1").arg(err));
         return false;
