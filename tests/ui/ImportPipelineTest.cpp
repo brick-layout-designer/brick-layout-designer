@@ -4,6 +4,9 @@
 #include "ui/ImportPipeline.h"
 #include "ui/ImportPreviewDialog.h"
 #include "ui/BackgroundTask.h"
+#include "ui/MainWindow.h"
+#include "ui/NoticeArea.h"
+#include "ui/ServerWindow.h"
 #include "parts/PartsLibrary.h"
 
 #include <gtest/gtest.h>
@@ -14,7 +17,14 @@
 #include <QImage>
 #include <QListWidget>
 #include <QPushButton>
+#include <QElapsedTimer>
+#include <QGraphicsView>
+#include <QLabel>
+#include <QStandardPaths>
+#include <QTest>
 #include <QTemporaryDir>
+
+#include <iostream>
 
 using namespace bld;
 
@@ -214,4 +224,169 @@ TEST(ImportPipeline, ApplyImportEditsRepeatsRotationAndDrops) {
     auto q = samplePart();
     ui::applyImportEdits(q, 0, { QPointF(5, 5) });
     EXPECT_EQ(q.connections.size(), 2);
+}
+
+TEST(ImportPipeline, StudioFileWithItsOwnCustomParts) {
+    // fixtures/studio/zipcrypto-small.io (scripts/make-zipcrypto-io.py): encrypted like
+    // Studio's, a submodel, and a custom part that only the file itself has.
+    TrackLibrary track;
+    QTemporaryDir ldraw;
+    writeFile(ldraw.filePath(QStringLiteral("LDConfig.ldr")), "0 stub\n");
+    writeFile(ldraw.filePath(QStringLiteral("parts/3001.dat")), "4 16 -40 0 -20 40 0 -20 40 0 20 -40 0 20\n");
+    writeFile(ldraw.filePath(QStringLiteral("parts/3023.dat")), "4 16 -20 0 -10 20 0 -10 20 0 10 -20 0 10\n");
+    ui::ImportSettings settings;
+    settings.studioLibrary = ldraw.path();
+    const auto part = ui::prepareImport(QStringLiteral(BLD_SOURCE_DIR "/fixtures/studio/zipcrypto-small.io"),
+                                        settings, track.lib, kInline);
+    ASSERT_TRUE(part.ok()) << part.error.toStdString();
+    EXPECT_EQ(part.kindLabel, QStringLiteral("Studio import"));
+    EXPECT_EQ(part.stats.ldrawResolved, 4) << part.warnings.join(QLatin1Char('\n')).toStdString();
+    EXPECT_EQ(part.stats.unresolved, 0);
+}
+
+TEST(ImportPipeline, StudioErrorsReachTheUser) {
+    TrackLibrary track;
+    QTemporaryDir models;
+    const QString path = models.filePath(QStringLiteral("x.io"));
+    writeFile(path, "not a zip");
+    const auto part = ui::prepareImport(path, {}, track.lib, kInline);
+    EXPECT_FALSE(part.ok());
+    EXPECT_TRUE(part.error.contains(QStringLiteral("isn't a Studio model"))) << part.error.toStdString();
+}
+
+// Opt-in, with a real Studio file and library (never committed):
+//   BLD_STUDIO_IO=/path/to/set.io BLD_STUDIO_LDRAW=<Studio 2.0>/ldraw [BLD_LDRAW=<LDraw library>]
+TEST(ImportPipeline, RealStudioFile) {
+    const QString path = qEnvironmentVariable("BLD_STUDIO_IO");
+    if (path.isEmpty()) GTEST_SKIP() << "set BLD_STUDIO_IO (and BLD_STUDIO_LDRAW) to import a real Studio file";
+    TrackLibrary track;
+    ui::ImportSettings settings;
+    settings.studioLibrary = qEnvironmentVariable("BLD_STUDIO_LDRAW");
+    settings.ldrawLibrary = qEnvironmentVariable("BLD_LDRAW");
+    QElapsedTimer t;
+    t.start();
+    const auto part = ui::prepareImport(path, settings, track.lib, kInline);
+    ASSERT_TRUE(part.ok()) << part.error.toStdString();
+    std::cout << "[ import ] " << part.widthStuds << " x " << part.heightStuds << " studs, sprite "
+              << part.sprite.width() << " x " << part.sprite.height() << ", " << part.stats.ldrawResolved
+              << " parts drawn, " << part.stats.unresolved << " missing, " << part.warnings.size()
+              << " warning(s), " << part.connections.size() << " connection(s) in " << t.elapsed() << " ms\n";
+    for (int i = 0; i < std::min<qsizetype>(part.warnings.size(), 15); ++i)
+        std::cout << "[ warn ] " << part.warnings[i].toStdString() << '\n';
+}
+
+namespace {
+
+// How much of the view the whole sprite fills, in the tighter direction
+// (1 = fitted edge to edge), and whether it is all in view.
+struct Fit {
+    double fill = 0;
+    bool inside = false;
+};
+Fit fitOf(QGraphicsView* view) {
+    const QRectF shown = view->mapFromScene(view->scene()->sceneRect()).boundingRect();
+    const QRectF port = view->viewport()->rect();
+    return { std::max(shown.width() / port.width(), shown.height() / port.height()),
+             port.adjusted(-2, -2, 2, 2).contains(shown) };
+}
+
+}  // namespace
+
+TEST(ImportPreviewDialog, ModelIsFittedAsSoonAsItShowsAndOnResize) {
+    // Aaron: the model only fitted after a rotate. A wide model (40 x 4 studs) in the dialog.
+    ui::PreparedPart wide = samplePart();
+    wide.sprite = QImage(40 * 32, 4 * 32, QImage::Format_ARGB32);
+    wide.sprite.fill(Qt::red);
+    wide.widthStuds = 40;
+    wide.heightStuds = 4;
+    wide.connections.clear();
+    ui::ImportPreviewDialog dlg(wide, { QStringLiteral("imports") }, QStringLiteral("imports"), {});
+    auto* view = dlg.findChild<QGraphicsView*>();
+    ASSERT_TRUE(view);
+    dlg.show();
+    ASSERT_TRUE(QTest::qWaitForWindowExposed(&dlg));
+    QCoreApplication::processEvents();
+    Fit fit = fitOf(view);
+    EXPECT_TRUE(fit.inside);
+    EXPECT_GT(fit.fill, 0.9) << "not fitted on first show";
+    // Centred.
+    const QPointF centre = view->mapFromScene(view->scene()->sceneRect().center());
+    EXPECT_NEAR(centre.x(), view->viewport()->width() / 2.0, 3.0);
+    EXPECT_NEAR(centre.y(), view->viewport()->height() / 2.0, 3.0);
+
+    // A bigger window: still fitted.
+    dlg.resize(dlg.width() + 400, dlg.height() + 200);
+    QCoreApplication::processEvents();
+    fit = fitOf(view);
+    EXPECT_TRUE(fit.inside);
+    EXPECT_GT(fit.fill, 0.9) << "not refitted on resize";
+
+    // Zoomed in by hand: a resize leaves the zoom alone.
+    for (auto* b : dlg.findChildren<QPushButton*>())
+        if (b->text() == QStringLiteral("+")) b->click();
+    const double zoomed = view->transform().m11();
+    dlg.resize(dlg.width() - 200, dlg.height() - 100);
+    QCoreApplication::processEvents();
+    EXPECT_DOUBLE_EQ(view->transform().m11(), zoomed);
+    // Fit brings it back.
+    for (auto* b : dlg.findChildren<QPushButton*>())
+        if (b->text() == ui::ImportPreviewDialog::tr("Fit")) b->click();
+    fit = fitOf(view);
+    EXPECT_TRUE(fit.inside);
+    EXPECT_GT(fit.fill, 0.9);
+}
+
+TEST(ImportPipeline, AfterAnImportSendingToTheServerIsOneClick) {
+    QStandardPaths::setTestModeEnabled(true);
+    parts::PartsLibrary lib;
+    ui::MainWindow window(lib);
+    window.resize(1200, 800);
+    window.show();
+    window.offerToSendImportedPart(QStringLiteral("ninjago-city"));
+    QFrame* card = window.notices()->card(QStringLiteral("imported-part"));
+    ASSERT_NE(card, nullptr);
+    EXPECT_TRUE(card->isVisible());
+    QPushButton* send = nullptr;
+    for (auto* b : card->findChildren<QPushButton*>())
+        if (b->text() == QStringLiteral("Send to server…")) send = b;
+    ASSERT_NE(send, nullptr);
+    bool mentionsPart = false;
+    for (auto* l : card->findChildren<QLabel*>()) mentionsPart |= l->text().contains(QStringLiteral("ninjago-city"));
+    EXPECT_TRUE(mentionsPart);
+    // Not signed in: the click opens the Server window, which shows how.
+    send->click();
+    for (int i = 0; i < 100 && !(window.serverWindow() && window.serverWindow()->isVisible()); ++i) QTest::qWait(10);
+    ASSERT_NE(window.serverWindow(), nullptr);
+    EXPECT_TRUE(window.serverWindow()->isVisible());
+}
+
+// Opt-in, with a real LDD model and LDD install (never committed):
+//   BLD_LDD_IMPORT=/path/to/model.lxf[:more.lxfml...] BLD_LDD_ROOT=<LDD data folder with db.lif>
+//   [BLD_LDRAW=<LDraw library>] [BLD_LDD_LDRAW_XML=<newer ldraw.xml>] [BLD_PARTS=<BlueBrickParts/parts>]
+TEST(ImportPipeline, RealLddFiles) {
+    const QStringList paths = qEnvironmentVariable("BLD_LDD_IMPORT").split(QLatin1Char(':'), Qt::SkipEmptyParts);
+    if (paths.isEmpty()) GTEST_SKIP() << "set BLD_LDD_IMPORT (and BLD_LDD_ROOT) to import real LDD models";
+    TrackLibrary track;
+    // The real parts library, for snap points on track: BLD_PARTS=<BlueBrickParts/parts>.
+    if (const QString real = qEnvironmentVariable("BLD_PARTS"); !real.isEmpty()) {
+        track.lib.addSearchPath(real);
+        track.lib.scan();
+    }
+    ui::ImportSettings settings;
+    settings.lddPath = qEnvironmentVariable("BLD_LDD_ROOT");
+    settings.lddLdrawXml = qEnvironmentVariable("BLD_LDD_LDRAW_XML");
+    settings.ldrawLibrary = qEnvironmentVariable("BLD_LDRAW");
+    for (const QString& path : paths) {
+        SCOPED_TRACE(path.toStdString());
+        QElapsedTimer t;
+        t.start();
+        const auto part = ui::prepareImport(path, settings, track.lib, kInline);
+        ASSERT_TRUE(part.ok()) << part.error.toStdString();
+        std::cout << "[ import ] " << QFileInfo(path).fileName().toStdString() << ": " << part.widthStuds << " x "
+                  << part.heightStuds << " studs, " << part.stats.lddRendered << " LDD parts drawn, "
+                  << part.stats.unresolved << " missing, " << part.connections.size() << " connection(s) in "
+                  << t.elapsed() << " ms\n";
+        for (int i = 0; i < std::min<qsizetype>(part.warnings.size(), 5); ++i)
+            std::cout << "[ warn ] " << part.warnings[i].toStdString() << '\n';
+    }
 }

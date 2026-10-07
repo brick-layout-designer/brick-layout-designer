@@ -154,7 +154,8 @@ void LDrawMeshLoader::appendBaked(geom::Mesh& out,
     };
 
     // Bake each primitive: parent transform applied, colour resolved.
-    out.tris.reserve(out.tris.size() + dat.primitives.size());
+    // No exact reserve() here: this runs once per subfile, and growing
+    // the vector to exactly its new size every time is quadratic.
     for (const auto& prim : dat.primitives) {
         geom::Triangle t;
         t.v[0]  = parentXform.transform(prim.v[0]);
@@ -167,7 +168,6 @@ void LDrawMeshLoader::appendBaked(geom::Mesh& out,
     // Same for type-2 edges. Code 24 = "edge colour", which the LDraw
     // palette resolves to a darker companion of the parent colour —
     // exactly what we want for visible-but-not-overpowering wireframe.
-    out.edges.reserve(out.edges.size() + dat.edges.size());
     for (const auto& e : dat.edges) {
         geom::Edge ge;
         ge.v[0]  = parentXform.transform(e.v[0]);
@@ -196,6 +196,11 @@ void LDrawMeshLoader::appendBaked(geom::Mesh& out,
 }
 
 geom::Mesh LDrawMeshLoader::loadPart(const QString& datRef, int topColor) {
+    const auto mesh = loadPartShared(datRef, topColor);
+    return mesh ? *mesh : geom::Mesh();
+}
+
+std::shared_ptr<const geom::Mesh> LDrawMeshLoader::loadPartShared(const QString& datRef, int topColor) {
     const QString abs = lib_.resolve(datRef);
     if (abs.isEmpty()) {
         errors_.append(QStringLiteral("Unresolved part %1").arg(datRef));
@@ -203,15 +208,15 @@ geom::Mesh LDrawMeshLoader::loadPart(const QString& datRef, int topColor) {
     }
     // Per-(file, colour) bake cache. A model that places the same
     // brick in the same colour 200 times would otherwise recurse
-    // through hundreds of subfiles each time. Bake once, copy after.
+    // through hundreds of subfiles each time. Bake once, share after.
     const auto cacheKey = qMakePair(abs, topColor);
     if (auto it = bakedCache_.constFind(cacheKey); it != bakedCache_.constEnd()) {
         return it.value();
     }
     const ParsedDat* dat = parse(abs);
     if (!dat) return {};
-    geom::Mesh out;
-    appendBaked(out, *dat, geom::Mat4::identity(), topColor);
+    auto out = std::make_shared<geom::Mesh>();
+    appendBaked(*out, *dat, geom::Mat4::identity(), topColor);
     bakedCache_.insert(cacheKey, out);
     return out;
 }

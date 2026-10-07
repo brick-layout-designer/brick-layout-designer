@@ -83,7 +83,15 @@ RasterizeResult rasterizeMeshTopDown(const geom::Mesh& mesh,
     const double canvasZ0 = out.spriteStuds.top();
 
     // Render at supersampled px/stud, then downscale by exactly `ssaa`.
-    const int ssaa = std::max(1, opt.ssaa);
+    // Big models supersample less: at 4x a 50 x 50 stud set needed a
+    // 40-megapixel buffer (over 300 MB) for no visible gain.
+    constexpr qint64 kMaxSuperPixels = 16'000'000;
+    const auto superSize = [&](int s) {
+        return qint64(wStud * opt.pxPerStud * s + 2 * opt.marginPx * s)
+             * qint64(hStud * opt.pxPerStud * s + 2 * opt.marginPx * s);
+    };
+    int ssaa = std::max(1, opt.ssaa);
+    while (ssaa > 1 && superSize(ssaa) > kMaxSuperPixels) --ssaa;
     const int superPxPerStud = opt.pxPerStud * ssaa;
     const int superMarginPx  = opt.marginPx  * ssaa;
 

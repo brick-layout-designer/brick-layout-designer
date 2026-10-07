@@ -22,12 +22,33 @@ bool LDrawLibrary::looksValid() const {
     return true;
 }
 
+void LDrawLibrary::setOverlayDirs(QStringList dirs) {
+    overlays_ = std::move(dirs);
+    resolveCache_.clear();
+}
+
+const QString& LDrawLibrary::unofficialDir() const {
+    if (!unofficial_) {
+        unofficial_ = QString();
+        const QStringList dirs = QDir(root_).entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+        for (const QString& d : dirs)
+            if (d.compare(QStringLiteral("unofficial"), Qt::CaseInsensitive) == 0) { unofficial_ = d; break; }
+    }
+    return *unofficial_;
+}
+
 const LDrawLibrary::FileIndex& LDrawLibrary::indexForSubdir(const QString& subdir) const {
-    auto it = indexBySubdir_.constFind(subdir);
+    return indexFor(QString(), subdir);
+}
+
+const LDrawLibrary::FileIndex& LDrawLibrary::indexFor(const QString& base, const QString& subdir) const {
+    const QString key = base + QLatin1Char('|') + subdir;
+    auto it = indexBySubdir_.constFind(key);
     if (it != indexBySubdir_.constEnd()) return it.value();
 
     FileIndex index;
-    QDir d(subdir.isEmpty() ? root_ : QDir(root_).absoluteFilePath(subdir));
+    const QString top = base.isEmpty() ? root_ : base;
+    QDir d(subdir.isEmpty() ? top : QDir(top).absoluteFilePath(subdir));
     if (d.exists()) {
         // entryInfoList returns FileInfos for every file in this
         // directory once. We bucket them by lowercased filename so
@@ -41,11 +62,11 @@ const LDrawLibrary::FileIndex& LDrawLibrary::indexForSubdir(const QString& subdi
             index.insert(fi.fileName().toLower(), fi.absoluteFilePath());
         }
     }
-    return *indexBySubdir_.insert(subdir, std::move(index));
+    return *indexBySubdir_.insert(key, std::move(index));
 }
 
 QString LDrawLibrary::resolve(const QString& filename) const {
-    if (root_.isEmpty() || filename.isEmpty()) return {};
+    if ((root_.isEmpty() && overlays_.isEmpty()) || filename.isEmpty()) return {};
 
     // Memoised result cache. Hits cover the "stud.dat referenced
     // 50 000 times" case at O(1) per call.
@@ -67,6 +88,15 @@ QString LDrawLibrary::resolve(const QString& filename) const {
         return v;
     };
 
+    // 0) Parts that came with the model win over the library's.
+    for (const QString& dir : overlays_) {
+        const auto& idx = indexFor(dir, QString());
+        const auto hit = idx.constFind(rel.section(QChar('/'), -1).toLower());
+        if (hit != idx.constEnd()) return saveAndReturn(hit.value());
+    }
+    if (root_.isEmpty()) return saveAndReturn(QString());
+    const QString unofficial = unofficialDir();
+
     // 1) If the filename already specifies a subdir prefix, resolve
     //    that exact relative path against root, parts/, and p/. The
     //    subdir-rooted variant uses the per-directory index so it's
@@ -74,11 +104,15 @@ QString LDrawLibrary::resolve(const QString& filename) const {
     if (rel.contains(QChar('/'))) {
         const QString tail = rel.section(QChar('/'), -1);
         const QString head = rel.section(QChar('/'), 0, -2);
-        const QStringList prefixes = {
+        QStringList prefixes = {
             QStringLiteral("parts/") + head,
             QStringLiteral("p/") + head,
-            head,
         };
+        if (!unofficial.isEmpty()) {
+            prefixes << unofficial + QStringLiteral("/parts/") + head
+                     << unofficial + QStringLiteral("/p/") + head;
+        }
+        prefixes << head;
         for (const QString& p : prefixes) {
             const auto& idx = indexForSubdir(p);
             const auto hit = idx.constFind(tail.toLower());
@@ -102,7 +136,14 @@ QString LDrawLibrary::resolve(const QString& filename) const {
         QStringLiteral(""),  // root itself, last
     };
     const QString needle = rel.toLower();
-    for (const QString& sub : kDirs) {
+    const QStringList official = kDirs.mid(0, kDirs.size() - 1);
+    QStringList dirs = official;
+    // The unofficial parts (Studio keeps thousands there), after the
+    // official ones.
+    if (!unofficial.isEmpty())
+        for (const QString& sub : official) dirs << unofficial + QLatin1Char('/') + sub;
+    dirs << kDirs.last();
+    for (const QString& sub : dirs) {
         const auto& idx = indexForSubdir(sub);
         const auto it = idx.constFind(needle);
         if (it != idx.constEnd()) return saveAndReturn(it.value());

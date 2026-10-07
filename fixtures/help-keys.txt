@@ -30,6 +30,8 @@ module.edit
 module.make
 module.library
 module.sheets
+open.formats
+open.desktop
 download.formats
 download.layout
 download.bbm

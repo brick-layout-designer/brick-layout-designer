@@ -45,21 +45,32 @@ BakedModel bakeMeshFromLDraw(const LDrawReadResult& src,
     // part-local coords; we transform it into model coords by walking
     // every triangle through the ref's 4x4. The mesh-loader caches the
     // per-part bake, so a model that uses the same brick a hundred
-    // times only parses the .dat once.
-    // Rough capacity hint — assume ~500 triangles per part on average
-    // (reasonable for LDraw library content) so we avoid the
-    // geometric-growth realloc cost across thousands of refs.
-    out.mesh.tris.reserve(out.mesh.tris.size() + src.parts.size() * 500);
+    // times only parses the .dat once. Every part is looked up first so
+    // the output is allocated once at its final size: growing it part by
+    // part copied the whole mesh thousands of times on a big set.
+    std::vector<std::shared_ptr<const geom::Mesh>> meshes;
+    meshes.reserve(src.parts.size());
+    std::size_t tris = 0, edges = 0;
     for (const auto& ref : src.parts) {
-        const geom::Mesh partMesh = loader.loadPart(ref.filename, ref.colorCode);
-        if (partMesh.tris.empty()) {
+        auto mesh = loader.loadPartShared(ref.filename, ref.colorCode);
+        if (mesh && mesh->tris.empty()) mesh.reset();
+        if (mesh) {
+            tris += mesh->tris.size();
+            edges += mesh->edges.size();
+        }
+        meshes.push_back(std::move(mesh));
+    }
+    out.mesh.tris.reserve(tris + src.primitives.size() * 2);
+    out.mesh.edges.reserve(edges);
+    for (std::size_t i = 0; i < src.parts.size(); ++i) {
+        const auto& ref = src.parts[i];
+        if (!meshes[i]) {
             out.unresolvedRefs++;
             continue;
         }
+        const geom::Mesh& partMesh = *meshes[i];
         out.resolvedRefs++;
         const geom::Mat4 xform = refTransform(ref);
-        // Pre-grow once per part rather than per triangle.
-        out.mesh.tris.reserve(out.mesh.tris.size() + partMesh.tris.size());
         for (const auto& t : partMesh.tris) {
             geom::Triangle world;
             world.v[0] = xform.transform(t.v[0]);
@@ -81,7 +92,6 @@ BakedModel bakeMeshFromLDraw(const LDrawReadResult& src,
             world.color = t.color;
             out.mesh.tris.push_back(world);
         }
-        out.mesh.edges.reserve(out.mesh.edges.size() + partMesh.edges.size());
         for (const auto& e : partMesh.edges) {
             geom::Edge world;
             world.v[0] = xform.transform(e.v[0]);

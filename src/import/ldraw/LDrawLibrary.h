@@ -4,6 +4,8 @@
 #include <QString>
 #include <QStringList>
 
+#include <optional>
+
 namespace bld::import {
 
 // Locates and resolves files inside a user-pointed LDraw library.
@@ -24,7 +26,8 @@ namespace bld::import {
 //
 // `resolve()` returns the absolute on-disk path for a given `.dat`
 // reference following LDraw's stock search order (parts/, p/, p/48/,
-// p/8/, parts/s/, root). When nothing matches, returns an empty string
+// p/8/, parts/s/, then the same under Unofficial/ when the library has
+// it, as Studio's does, then root). When nothing matches, returns an empty string
 // and the caller treats the reference as "unknown — skip".
 //
 // Studio (.io) uses an LDraw library too — typically the bundled one
@@ -37,6 +40,10 @@ public:
     explicit LDrawLibrary(QString root);
 
     const QString& root() const { return root_; }
+
+    // Folders searched before the library, for parts that come with the
+    // model (a Studio file's CustomParts). Clears the resolve cache.
+    void setOverlayDirs(QStringList dirs);
 
     // True when the root looks like a real LDraw install — has
     // LDConfig.ldr at top level AND a parts/ subdirectory. Good enough
@@ -70,8 +77,17 @@ private:
     using FileIndex = QHash<QString, QString>;
     const FileIndex& indexForSubdir(const QString& subdir) const;
 
+    // `subdir` under `base` (root_ when empty), the lower-case file name
+    // index of that directory.
+    const FileIndex& indexFor(const QString& base, const QString& subdir) const;
+    // The library's unofficial-parts folder ("Unofficial", Studio's
+    // "UnOfficial"), relative to the root; empty without one.
+    const QString& unofficialDir() const;
+
     QString root_;
+    QStringList overlays_;
     mutable QHash<QString, FileIndex> indexBySubdir_;
+    mutable std::optional<QString> unofficial_;
     // Resolved-result cache so e.g. "stud.dat" referenced 50 000 times
     // only walks the search dirs once.
     mutable QHash<QString, QString> resolveCache_;

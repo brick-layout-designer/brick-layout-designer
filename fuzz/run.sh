@@ -32,7 +32,7 @@ corpus tdl "$oracle"/*.tdl
 corpus ncp "$oracle"/*.ncp
 corpus ldraw_import "$oracle"/*.ldr "$oracle"/*.mpd
 corpus lxfml "$seeds"/lxfml/*
-corpus studio "$seeds"/studio/*
+corpus studio "$seeds"/studio/* "$src"/fixtures/studio/*.io
 corpus ydoc "$src"/fixtures/sync/*.ydoc "$src"/fixtures/fuzz-regressions/ydoc-*
 # Server messages: sync step 1 (an empty state vector), step 2 (a whole
 # layout), an update and a presence update, in the y-websocket framing.

@@ -15,6 +15,7 @@
 #include <QtMath>
 
 #include <algorithm>
+#include <map>
 #include <cmath>
 #include <optional>
 
@@ -48,6 +49,86 @@ QString partNumberFromFilename(const QString& f) {
 
 }
 
+namespace {
+
+// One "0 FILE" block of a multi-part file (or the whole file).
+struct LDrawBlock {
+    std::vector<LDrawPartRef>   parts;
+    std::vector<LDrawPrimitive> primitives;
+};
+
+// Caps for flattening submodels: a file that nests a submodel many times at
+// every level would otherwise multiply out without bound.
+constexpr int kMaxSubmodelDepth = 32;
+constexpr std::size_t kMaxFlattenedItems = 1'000'000;
+
+struct Placement {
+    double m[9] = { 1, 0, 0, 0, 1, 0, 0, 0, 1 };
+    double t[3] = { 0, 0, 0 };
+    int color = 16;
+
+    void apply(const double v[3], double out[3]) const {
+        for (std::size_t r = 0; r < 3; ++r) out[r] = t[r] + m[r * 3] * v[0] + m[r * 3 + 1] * v[1] + m[r * 3 + 2] * v[2];
+    }
+    int colorOf(int c) const { return c == 16 ? color : c; }
+    // This placement followed by a reference inside the placed block.
+    Placement then(const LDrawPartRef& ref) const {
+        Placement p;
+        const double local[3] = { ref.x, ref.y, ref.z };
+        apply(local, p.t);
+        for (std::size_t r = 0; r < 3; ++r)
+            for (std::size_t c = 0; c < 3; ++c)
+                p.m[r * 3 + c] = m[r * 3] * ref.m[c] + m[r * 3 + 1] * ref.m[3 + c] + m[r * 3 + 2] * ref.m[6 + c];
+        p.color = colorOf(ref.colorCode);
+        return p;
+    }
+};
+
+class Flattener {
+public:
+    Flattener(const std::map<QString, LDrawBlock>& blocks, LDrawReadResult& out) : blocks_(blocks), out_(out) {}
+
+    // False when the model is too big or nests too deep.
+    bool add(const LDrawBlock& block, const Placement& at, int depth, QStringList& stack) {
+        for (const LDrawPartRef& ref : block.parts) {
+            const QString key = ref.filename.trimmed().toLower();
+            const auto sub = blocks_.find(key);
+            if (sub != blocks_.end() && !stack.contains(key)) {
+                if (depth >= kMaxSubmodelDepth) return false;
+                stack << key;
+                const bool ok = add(sub->second, at.then(ref), depth + 1, stack);
+                stack.removeLast();
+                if (!ok) return false;
+                continue;
+            }
+            if (++items_ > kMaxFlattenedItems) return false;
+            const Placement p = at.then(ref);
+            LDrawPartRef placed = ref;
+            placed.colorCode = p.color;
+            placed.x = p.t[0];
+            placed.y = p.t[1];
+            placed.z = p.t[2];
+            std::copy(std::begin(p.m), std::end(p.m), std::begin(placed.m));
+            out_.parts.push_back(std::move(placed));
+        }
+        for (const LDrawPrimitive& prim : block.primitives) {
+            if (++items_ > kMaxFlattenedItems) return false;
+            LDrawPrimitive placed = prim;
+            placed.colorCode = at.colorOf(prim.colorCode);
+            for (int i = 0; i < prim.kind; ++i) at.apply(prim.v[i], placed.v[i]);
+            out_.primitives.push_back(placed);
+        }
+        return true;
+    }
+
+private:
+    const std::map<QString, LDrawBlock>& blocks_;
+    LDrawReadResult& out_;
+    std::size_t items_ = 0;
+};
+
+}  // namespace
+
 LDrawReadResult readLDraw(const QString& path) {
     LDrawReadResult r;
     QFile f(path);
@@ -57,6 +138,14 @@ LDrawReadResult readLDraw(const QString& path) {
     }
     QTextStream in(&f);
 
+    // Multi-part files (.mpd, Studio's model.ldr) hold "0 FILE <name>"
+    // blocks: the first is the model, the others are submodels it places.
+    // std::map: pointers to its blocks stay valid as more are added.
+    std::map<QString, LDrawBlock> blocks;
+    LDrawBlock single, ignored;
+    LDrawBlock* current = &single;
+    LDrawBlock* main = nullptr;
+    QString mainKey;
     bool firstComment = true;
     QString line;
     static const QRegularExpression kWs(QStringLiteral("\\s+"));
@@ -72,6 +161,28 @@ LDrawReadResult readLDraw(const QString& path) {
         const int code = parts[0].toInt(&ok);
         if (!ok) continue;
 
+        if (code == 0 && parts.size() > 2 && parts[1] == QLatin1String("FILE")) {
+            const QString name = trimmed.mid(trimmed.indexOf(QLatin1String("FILE")) + 4).trimmed();
+            if (firstComment) {
+                // "0 FILE Ninjago City.io" names the model: drop the extension.
+                QString title = name;
+                for (const char* ext : { ".io", ".ldr", ".mpd", ".dat" })
+                    if (title.endsWith(QLatin1String(ext), Qt::CaseInsensitive)) title.chop(int(qstrlen(ext)));
+                r.title = title;
+                firstComment = false;
+            }
+            const QString key = name.toLower();
+            if (blocks.count(key)) {
+                current = &ignored;  // a repeated name: the first one counts
+                continue;
+            }
+            current = &blocks[key];
+            if (!main) {
+                main = current;
+                mainKey = key;
+            }
+            continue;
+        }
         if (code == 0 && firstComment) {
             // Line-0 comments start with "0" followed by text.
             if (parts.size() > 1) {
@@ -94,7 +205,7 @@ LDrawReadResult readLDraw(const QString& path) {
             }
             // Filename is the rest of the line (can contain spaces).
             p.filename = parts.mid(14).join(QLatin1Char(' '));
-            r.parts.push_back(std::move(p));
+            current->parts.push_back(std::move(p));
             continue;
         }
         // Primitive: 2 = line (2 verts), 3 = tri (3 verts), 4 = quad (4 verts).
@@ -112,10 +223,30 @@ LDrawReadResult readLDraw(const QString& path) {
                 p.v[i][1] = parts[2 + i * 3 + 1].toDouble();
                 p.v[i][2] = parts[2 + i * 3 + 2].toDouble();
             }
-            r.primitives.push_back(p);
+            current->primitives.push_back(p);
         }
     }
 
+    if (!main) {
+        r.parts = std::move(single.parts);
+        r.primitives = std::move(single.primitives);
+        r.ok = true;
+        return r;
+    }
+    // Lines before the first "0 FILE" belong to the model too.
+    QStringList stack;
+    Flattener flat(blocks, r);
+    if (!flat.add(single, Placement(), 0, stack)) {
+        r.error = QStringLiteral("The model is too large or its submodels nest too deeply.");
+        return r;
+    }
+    stack << mainKey;
+    if (!flat.add(*main, Placement(), 0, stack)) {
+        r.parts.clear();
+        r.primitives.clear();
+        r.error = QStringLiteral("The model is too large or its submodels nest too deeply.");
+        return r;
+    }
     r.ok = true;
     return r;
 }

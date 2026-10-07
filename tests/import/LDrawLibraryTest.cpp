@@ -94,3 +94,37 @@ TEST(LDrawLibrary, ReturnsEmptyForUnknown) {
     import::LDrawLibrary lib(tree.root);
     EXPECT_TRUE(lib.resolve(QStringLiteral("does-not-exist.dat")).isEmpty());
 }
+
+TEST(LDrawLibrary, ResolvesUnofficialPartsAfterOfficialOnes) {
+    // Studio's library keeps ~24 000 parts under "UnOfficial/".
+    LDrawTree t;
+    QDir(t.root).mkpath(QStringLiteral("UnOfficial/parts/s"));
+    QDir(t.root).mkpath(QStringLiteral("UnOfficial/p"));
+    t.write(QStringLiteral("UnOfficial/parts/973tex.dat"), "0 textured torso\n");
+    t.write(QStringLiteral("UnOfficial/parts/s/973texs01.dat"), "0 sub\n");
+    t.write(QStringLiteral("UnOfficial/parts/3001.dat"), "0 shadowed\n");
+    import::LDrawLibrary lib(t.root);
+    EXPECT_TRUE(lib.resolve(QStringLiteral("973TEX.DAT")).endsWith(QStringLiteral("UnOfficial/parts/973tex.dat")));
+    EXPECT_TRUE(lib.resolve(QStringLiteral("s\\973texs01.dat")).endsWith(QStringLiteral("UnOfficial/parts/s/973texs01.dat")));
+    EXPECT_TRUE(lib.resolve(QStringLiteral("3001.dat")).endsWith(QStringLiteral("/parts/3001.dat")));
+    EXPECT_FALSE(lib.resolve(QStringLiteral("3001.dat")).contains(QStringLiteral("UnOfficial")));
+}
+
+TEST(LDrawLibrary, OverlayDirsWinOverTheLibrary) {
+    LDrawTree t;
+    QTemporaryDir overlay;
+    QFile f(overlay.filePath(QStringLiteral("3001.dat")));
+    ASSERT_TRUE(f.open(QIODevice::WriteOnly));
+    f.write("0 the model's own\n");
+    f.close();
+    import::LDrawLibrary lib(t.root);
+    EXPECT_FALSE(lib.resolve(QStringLiteral("3001.dat")).startsWith(overlay.path()));
+    lib.setOverlayDirs({ overlay.path() });
+    EXPECT_EQ(lib.resolve(QStringLiteral("3001.DAT")), overlay.filePath(QStringLiteral("3001.dat")));
+    EXPECT_TRUE(lib.resolve(QStringLiteral("box.dat")).endsWith(QStringLiteral("p/box.dat")));
+    // Overlays alone, no library.
+    import::LDrawLibrary bare;
+    bare.setOverlayDirs({ overlay.path() });
+    EXPECT_EQ(bare.resolve(QStringLiteral("3001.dat")), overlay.filePath(QStringLiteral("3001.dat")));
+    EXPECT_TRUE(bare.resolve(QStringLiteral("box.dat")).isEmpty());
+}

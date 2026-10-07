@@ -83,6 +83,8 @@ PreparedPart fromLDrawGeometry(PreparedPart out, const import::LDrawReadResult& 
                                const ImportSettings& settings, parts::PartsLibrary& parts,
                                const HeavyRunner& runHeavy) {
     import::LDrawLibrary lib(settings.ldrawLibrary);
+    // Parts that came with the model (a Studio file's CustomParts).
+    lib.setOverlayDirs(read.extraPartDirs);
     import::LDrawPalette palette;
     palette.loadFromLDConfig(QDir(settings.ldrawLibrary).absoluteFilePath(QStringLiteral("LDConfig.ldr")));
     import::LDrawMeshLoader loader(lib, palette);
@@ -95,7 +97,7 @@ PreparedPart fromLDrawGeometry(PreparedPart out, const import::LDrawReadResult& 
             rast = import::rasterizeMeshTopDown(baked.mesh, geometryRasterOptions(settings.pxPerStud));
         });
     if (!finished) { out.cancelled = true; out.error = Text::tr("Import cancelled."); return out; }
-    out.warnings = baked.errors;
+    out.warnings = read.warnings + baked.errors;
     out.stats.ldrawResolved = baked.resolvedRefs;
     out.stats.unresolved    = baked.unresolvedRefs;
     if (baked.mesh.tris.empty() || rast.image.isNull()) {

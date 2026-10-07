@@ -47,13 +47,21 @@ struct LDrawReadResult {
     // Set by readLDD: refs keep LDD's native axes (+Y up) rather than
     // LDraw's, so toBlueBrickMap must not apply LDraw's y = -z mapping.
     bool lddAxes = false;
+    // Folders searched before the LDraw library, e.g. a Studio file's own
+    // CustomParts, extracted for this import. `extracted` keeps them alive.
+    QStringList extraPartDirs;
+    // Problems that didn't stop the read (a custom part that couldn't be
+    // unpacked, ...), in words for the user.
+    QStringList warnings;
+    std::shared_ptr<const void> extracted;
 };
 
-// Parse an LDraw text file. Only handles top-level line-1 references and
-// line-0 comments; geometry primitives (line 2/3/4/5) are skipped. Subfile
-// references are NOT resolved — callers map .dat names to part numbers
-// separately. Understands .ldr, .dat, and .mpd (takes the first 0 FILE block
-// only for .mpd; further blocks will need a more complete parser later).
+// Parse an LDraw text file: line-1 references, line-2/3/4 geometry and the
+// title (first line-0 comment). Library parts are NOT resolved — callers map
+// .dat names to part numbers separately. Multi-part files (.mpd, Studio's
+// model.ldr) are flattened: the first "0 FILE" block is the model, and its
+// references to the other blocks are replaced by those blocks' contents,
+// placed and coloured. Unreferenced blocks are dropped.
 LDrawReadResult readLDraw(const QString& path);
 
 class LDrawLibrary;
