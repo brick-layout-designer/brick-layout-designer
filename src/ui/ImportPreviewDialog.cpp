@@ -189,9 +189,9 @@ ImportPreviewDialog::ImportPreviewDialog(PreparedPart part,
     alignBox_ = new QComboBox(left);
     alignBox_->setObjectName(QStringLiteral("alignTo"));
     alignBox_->addItem(tr("Automatic"), static_cast<int>(ImportAlign::Automatic));
-    alignBox_->addItem(tr("Bottom layer"), static_cast<int>(ImportAlign::BottomLayer));
+    alignBox_->addItem(tr("Bottom plates"), static_cast<int>(ImportAlign::BottomLayer));
     alignBox_->addItem(tr("Bounding box"), static_cast<int>(ImportAlign::BoundingBox));
-    alignBox_->setToolTip(tr("Which studs go on the grid: Automatic puts a flat bottom layer on it, "
+    alignBox_->setToolTip(tr("Which studs go on the grid: Automatic puts the flat bottom plates on it, "
                              "else centres the model. Arrow keys in the picture move it a quarter stud."));
     align->addWidget(alignBox_);
     for (const auto& [text, d, name] : { std::tuple{ QStringLiteral("←"), QPointF(-0.25, 0), "nudgeLeft" },
