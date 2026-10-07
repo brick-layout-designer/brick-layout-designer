@@ -18,6 +18,8 @@
 
 #include <gtest/gtest.h>
 
+#include <QComboBox>
+#include <QWheelEvent>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -340,7 +342,7 @@ TEST(ImportPreviewDialog, ModelIsFittedAsSoonAsItShowsAndOnResize) {
 
     // Zoomed in by hand: a resize leaves the zoom alone.
     for (auto* b : dlg.findChildren<QPushButton*>())
-        if (b->text() == QStringLiteral("+")) b->click();
+        if (b->text() == ui::ImportPreviewDialog::tr("Zoom in")) b->click();
     const double zoomed = view->transform().m11();
     dlg.resize(dlg.width() - 200, dlg.height() - 100);
     QCoreApplication::processEvents();
@@ -351,6 +353,19 @@ TEST(ImportPreviewDialog, ModelIsFittedAsSoonAsItShowsAndOnResize) {
     fit = fitOf(view);
     EXPECT_TRUE(fit.inside);
     EXPECT_GT(fit.fill, 0.9);
+
+    // The scroll wheel zooms in and out, with no modifier key.
+    const double before = view->transform().m11();
+    const QPointF at(view->viewport()->width() / 2.0, view->viewport()->height() / 2.0);
+    QWheelEvent up(at, view->viewport()->mapToGlobal(at.toPoint()), QPoint(), QPoint(0, 120), Qt::NoButton,
+                   Qt::NoModifier, Qt::NoScrollPhase, false);
+    QCoreApplication::sendEvent(view->viewport(), &up);
+    EXPECT_GT(view->transform().m11(), before) << "scrolling up should zoom in";
+    QWheelEvent down(at, view->viewport()->mapToGlobal(at.toPoint()), QPoint(), QPoint(0, -120), Qt::NoButton,
+                     Qt::NoModifier, Qt::NoScrollPhase, false);
+    QCoreApplication::sendEvent(view->viewport(), &down);
+    QCoreApplication::sendEvent(view->viewport(), &down);
+    EXPECT_LT(view->transform().m11(), before) << "scrolling down should zoom out";
 }
 
 TEST(ImportPipeline, AfterAnImportSendingToTheServerIsOneClick) {
@@ -795,4 +810,108 @@ TEST(ImportPipeline, ClicksPassThroughTheHolesOfAnImport) {
     EXPECT_EQ(topBrick({ 0.5, 0.5 }), QStringLiteral("inside")) << "a click in the hole reaches the part inside";
     EXPECT_EQ(topBrick({ -5, -5 }), QStringLiteral("around"));
     EXPECT_EQ(topBrick({ 0, -2 }), QString()) << "nothing in the hole but empty map";
+}
+
+// ---- Manual stud alignment ----
+
+namespace {
+
+// A 4 x 2 stud part whose model fills it exactly, a connection at each end.
+ui::PreparedPart fullPart() {
+    ui::PreparedPart p = samplePart();
+    p.contentStuds = QRectF(0, 0, 4, 2);
+    p.baseOnGrid = true;
+    p.snapMargin = QMargins();
+    return p;
+}
+
+}  // namespace
+
+TEST(ImportAlign, AQuarterStudNudgeMovesEverythingByExactlyThat) {
+    const ui::PreparedPart p = fullPart();
+    const auto moved = ui::alignPart(p, ui::ImportAlign::Automatic, { 0.25, 0 });
+    // The model now starts a quarter stud into a 5-stud sprite.
+    EXPECT_EQ(moved.widthStuds, 5);
+    EXPECT_EQ(moved.heightStuds, 2);
+    EXPECT_EQ(moved.sprite.size(), QSize(5 * 8, 2 * 8));
+    EXPECT_EQ(moved.contentStuds, QRectF(0.25, 0, 4, 2));
+    // Connections keep their place on the model: the sprite centre moved
+    // from 2 to 2.5 studs, the model 0.25 studs.
+    ASSERT_EQ(moved.connections.size(), 2);
+    EXPECT_DOUBLE_EQ(moved.connections[0].xStuds, -2 - 0.25);
+    EXPECT_DOUBLE_EQ(moved.connections[1].xStuds, 2 - 0.25);
+    EXPECT_DOUBLE_EQ(moved.connections[1].yStuds, 0);
+    // The picture moved with them: column 2 (a quarter stud in) is the old column 0.
+    EXPECT_EQ(moved.sprite.pixelColor(1, 8).alpha(), 0);
+    EXPECT_EQ(moved.sprite.pixelColor(2, 8).rgba(), p.sprite.pixelColor(0, 8).rgba());
+    // A whole-stud nudge changes nothing: the grid is the same.
+    const auto whole = ui::alignPart(p, ui::ImportAlign::Automatic, { 1, -1 });
+    EXPECT_EQ(whole.widthStuds, 4);
+    EXPECT_DOUBLE_EQ(whole.connections[0].xStuds, -2);
+}
+
+TEST(ImportAlign, BoundingBoxCentresTheModelAndTheMarginFollowsTheBase) {
+    // A 3.5-stud model laid out with its base on the grid at the left.
+    ui::PreparedPart p = fullPart();
+    p.contentStuds = QRectF(0, 0, 3.5, 2);
+    p.snapMargin = QMargins(0, 0, 0, 0);
+    const auto box = ui::alignPart(p, ui::ImportAlign::BoundingBox, {});
+    EXPECT_EQ(box.widthStuds, 4);
+    EXPECT_DOUBLE_EQ(box.contentStuds.left(), 0.25);
+    EXPECT_DOUBLE_EQ(box.connections[0].xStuds, -2 + 0.25);
+
+    // A roof overhanging the base by a stud on the left: nudged a whole
+    // stud left, the margin is still that stud.
+    ui::PreparedPart roof = fullPart();
+    roof.widthStuds = 5;
+    roof.sprite = QImage(5 * 8, 2 * 8, QImage::Format_ARGB32);
+    roof.sprite.fill(Qt::red);
+    roof.contentStuds = QRectF(0, 0, 5, 2);
+    roof.snapMargin = QMargins(1, 0, 0, 0);
+    const auto half = ui::alignPart(roof, ui::ImportAlign::Automatic, { 0.5, 0 });
+    EXPECT_EQ(half.widthStuds, 6);
+    EXPECT_EQ(half.snapMargin, QMargins(1, 0, 0, 0)) << "the base starts 1.5 studs in: whole studs only";
+}
+
+TEST(ImportPreviewDialog, TheNudgeStepGoesDownToASixteenthOfAStud) {
+    ui::ImportPreviewDialog dlg(fullPart(), { QStringLiteral("imports") }, QStringLiteral("imports"), {});
+    auto* step = dlg.findChild<QComboBox*>(QStringLiteral("nudgeStep"));
+    ASSERT_TRUE(step);
+    step->setCurrentIndex(step->findData(0.0625));
+    auto* view = dlg.findChild<QGraphicsView*>();
+    ASSERT_TRUE(view);
+    QTest::keyClick(view, Qt::Key_Right);
+    EXPECT_EQ(dlg.nudgeStuds(), QPointF(0.0625, 0));
+    dlg.findChild<QPushButton*>(QStringLiteral("nudgeDown"))->click();
+    EXPECT_EQ(dlg.nudgeStuds(), QPointF(0.0625, 0.0625));
+    step->setCurrentIndex(step->findData(0.5));
+    dlg.findChild<QPushButton*>(QStringLiteral("nudgeLeft"))->click();
+    EXPECT_EQ(dlg.nudgeStuds(), QPointF(-0.4375, 0.0625));
+    // The next import remembers the step; put it back for the other tests.
+    {
+        ui::ImportPreviewDialog next(fullPart(), { QStringLiteral("imports") }, QStringLiteral("imports"), {});
+        EXPECT_DOUBLE_EQ(next.nudgeStep(), 0.5);
+    }
+    step->setCurrentIndex(step->findData(0.25));
+}
+
+TEST(ImportPreviewDialog, ArrowKeysNudgeAndTheSizeShowsLive) {
+    ui::ImportPreviewDialog dlg(fullPart(), { QStringLiteral("imports") }, QStringLiteral("imports"), {});
+    auto* view = dlg.findChild<QGraphicsView*>();
+    ASSERT_TRUE(view);
+    QTest::keyClick(view, Qt::Key_Right);
+    EXPECT_EQ(dlg.nudgeStuds(), QPointF(0.25, 0));
+    EXPECT_EQ(dlg.result().widthStuds, 5);
+    EXPECT_DOUBLE_EQ(dlg.result().connections[0].xStuds, -2.25);
+    bool sizeShown = false;
+    for (auto* l : dlg.findChildren<QLabel*>()) sizeShown |= l->text().contains(QStringLiteral("5 × 2 studs"));
+    EXPECT_TRUE(sizeShown);
+    // The grid is drawn over the picture: 6 + 3 lines.
+    int lines = 0;
+    for (auto* it : view->scene()->items()) lines += it->data(0).toString() == QStringLiteral("grid");
+    EXPECT_EQ(lines, 9);
+    // Back to automatic.
+    for (auto* b : dlg.findChildren<QPushButton*>())
+        if (b->text() == ui::ImportPreviewDialog::tr("Reset")) b->click();
+    EXPECT_EQ(dlg.result().widthStuds, 4);
 }

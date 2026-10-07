@@ -70,6 +70,7 @@ struct RasterizeResult {
     // footprint (overhangs), for the part's <SnapMargin>; zero when the
     // bottom isn't on a stud lattice.
     QMargins snapMargin;
+    bool     baseOnGrid = false;  // spriteStuds was laid out around baseLattice()
 };
 
 // The footprint of the mesh's bottom layer, in studs, when it is flat

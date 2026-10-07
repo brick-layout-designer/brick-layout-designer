@@ -5,6 +5,7 @@
 #include <QImage>
 #include <QMargins>
 #include <QPointF>
+#include <QRectF>
 #include <QString>
 #include <QStringList>
 #include <QVector>
@@ -36,6 +37,11 @@ struct PreparedPart {
     // Whole studs between the sprite's edges and the model's bottom layer
     // (its overhangs), written as the part's <SnapMargin>.
     QMargins snapMargin;
+    // The model's own bounds, in studs from the sprite's top-left, and
+    // whether the automatic layout put its bottom layer on the stud grid:
+    // what alignPart() works from.
+    QRectF  contentStuds;
+    bool    baseOnGrid = false;
     QVector<import::ImportedConnection> connections;  // relative to sprite centre
     int quarterTurns = 0;                           // clockwise turns applied (rotatePart)
     QVector<QPointF> droppedConnections;            // removed in the preview (current frame)
@@ -69,6 +75,17 @@ using HeavyRunner = std::function<bool(const QString& label,
 // Snap points come from pieces BlueBrickParts knows (track, road, ...).
 PreparedPart prepareImport(const QString& path, const ImportSettings& settings,
                            parts::PartsLibrary& parts, const HeavyRunner& runHeavy);
+
+// How the import dialog lines the model up with the stud grid.
+enum class ImportAlign { Automatic, BottomLayer, BoundingBox };
+
+// The part laid out again over the stud grid: `align` picks the starting
+// place (Automatic: as prepared, which puts a flat whole-stud bottom layer
+// on the grid; BoundingBox: the model's bounds centred in whole studs),
+// then the model moves `nudgeStuds` (quarter studs) against the grid. The
+// sprite is re-cut to whole studs around it; connection points and the
+// <SnapMargin> move with it.
+PreparedPart alignPart(const PreparedPart& part, ImportAlign align, QPointF nudgeStuds);
 
 // Rotate the part clockwise by quarterTurns x 90°: sprite, footprint and
 // connection points together.
