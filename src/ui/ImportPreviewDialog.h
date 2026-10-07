@@ -52,11 +52,12 @@ private:
     // Lay the part out again from base_ with the chosen alignment and nudge.
     void realign();
 public:
-    // Move the model a quarter stud at a time against the stud grid (arrow
-    // keys in the preview do the same). Tests use these directly.
+    // Move the model against the stud grid (the buttons and arrow keys move
+    // it by nudgeStep(), ½ to 1/16 stud). Tests use these directly.
     void nudge(QPointF studs);
     void setAlign(ImportAlign align);
     QPointF nudgeStuds() const { return nudge_; }
+    double nudgeStep() const;
 private:
     void refreshSprite();
     void refreshConnections();
@@ -67,6 +68,7 @@ private:
     ImportAlign  align_ = ImportAlign::Automatic;
     QPointF      nudge_;
     class QComboBox* alignBox_ = nullptr;
+    class QComboBox* stepBox_ = nullptr;
     std::function<bool(const QString&, const QString&)> partExists_;
     QGraphicsScene*      scene_       = nullptr;
     PreviewView*         view_        = nullptr;

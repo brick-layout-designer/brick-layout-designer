@@ -18,6 +18,8 @@
 
 #include <gtest/gtest.h>
 
+#include <QComboBox>
+#include <QWheelEvent>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -340,7 +342,7 @@ TEST(ImportPreviewDialog, ModelIsFittedAsSoonAsItShowsAndOnResize) {
 
     // Zoomed in by hand: a resize leaves the zoom alone.
     for (auto* b : dlg.findChildren<QPushButton*>())
-        if (b->text() == QStringLiteral("+")) b->click();
+        if (b->text() == ui::ImportPreviewDialog::tr("Zoom in")) b->click();
     const double zoomed = view->transform().m11();
     dlg.resize(dlg.width() - 200, dlg.height() - 100);
     QCoreApplication::processEvents();
@@ -351,6 +353,19 @@ TEST(ImportPreviewDialog, ModelIsFittedAsSoonAsItShowsAndOnResize) {
     fit = fitOf(view);
     EXPECT_TRUE(fit.inside);
     EXPECT_GT(fit.fill, 0.9);
+
+    // The scroll wheel zooms in and out, with no modifier key.
+    const double before = view->transform().m11();
+    const QPointF at(view->viewport()->width() / 2.0, view->viewport()->height() / 2.0);
+    QWheelEvent up(at, view->viewport()->mapToGlobal(at.toPoint()), QPoint(), QPoint(0, 120), Qt::NoButton,
+                   Qt::NoModifier, Qt::NoScrollPhase, false);
+    QCoreApplication::sendEvent(view->viewport(), &up);
+    EXPECT_GT(view->transform().m11(), before) << "scrolling up should zoom in";
+    QWheelEvent down(at, view->viewport()->mapToGlobal(at.toPoint()), QPoint(), QPoint(0, -120), Qt::NoButton,
+                     Qt::NoModifier, Qt::NoScrollPhase, false);
+    QCoreApplication::sendEvent(view->viewport(), &down);
+    QCoreApplication::sendEvent(view->viewport(), &down);
+    EXPECT_LT(view->transform().m11(), before) << "scrolling down should zoom out";
 }
 
 TEST(ImportPipeline, AfterAnImportSendingToTheServerIsOneClick) {
@@ -856,6 +871,28 @@ TEST(ImportAlign, BoundingBoxCentresTheModelAndTheMarginFollowsTheBase) {
     const auto half = ui::alignPart(roof, ui::ImportAlign::Automatic, { 0.5, 0 });
     EXPECT_EQ(half.widthStuds, 6);
     EXPECT_EQ(half.snapMargin, QMargins(1, 0, 0, 0)) << "the base starts 1.5 studs in: whole studs only";
+}
+
+TEST(ImportPreviewDialog, TheNudgeStepGoesDownToASixteenthOfAStud) {
+    ui::ImportPreviewDialog dlg(fullPart(), { QStringLiteral("imports") }, QStringLiteral("imports"), {});
+    auto* step = dlg.findChild<QComboBox*>(QStringLiteral("nudgeStep"));
+    ASSERT_TRUE(step);
+    step->setCurrentIndex(step->findData(0.0625));
+    auto* view = dlg.findChild<QGraphicsView*>();
+    ASSERT_TRUE(view);
+    QTest::keyClick(view, Qt::Key_Right);
+    EXPECT_EQ(dlg.nudgeStuds(), QPointF(0.0625, 0));
+    dlg.findChild<QPushButton*>(QStringLiteral("nudgeDown"))->click();
+    EXPECT_EQ(dlg.nudgeStuds(), QPointF(0.0625, 0.0625));
+    step->setCurrentIndex(step->findData(0.5));
+    dlg.findChild<QPushButton*>(QStringLiteral("nudgeLeft"))->click();
+    EXPECT_EQ(dlg.nudgeStuds(), QPointF(-0.4375, 0.0625));
+    // The next import remembers the step; put it back for the other tests.
+    {
+        ui::ImportPreviewDialog next(fullPart(), { QStringLiteral("imports") }, QStringLiteral("imports"), {});
+        EXPECT_DOUBLE_EQ(next.nudgeStep(), 0.5);
+    }
+    step->setCurrentIndex(step->findData(0.25));
 }
 
 TEST(ImportPreviewDialog, ArrowKeysNudgeAndTheSizeShowsLive) {

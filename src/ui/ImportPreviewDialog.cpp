@@ -36,8 +36,9 @@ namespace bld::ui {
 // wheel scrolls, zoom anchored under the cursor.
 class PreviewView : public QGraphicsView {
 public:
-    // Arrow keys: move the model a quarter stud against the grid.
+    // Arrow keys: move the model one nudge step against the grid.
     std::function<void(QPointF)> onNudge;
+    std::function<double()> nudgeStep;
     PreviewView(QGraphicsScene* scene, QWidget* parent)
         : QGraphicsView(scene, parent) {
         setRenderHint(QPainter::SmoothPixmapTransform);
@@ -84,7 +85,7 @@ protected:
         if (autoFit_) refit();
     }
     void keyPressEvent(QKeyEvent* e) override {
-        const double q = 0.25;
+        const double q = nudgeStep ? nudgeStep() : 0.25;
         QPointF d;
         switch (e->key()) {
         case Qt::Key_Left: d = { -q, 0 }; break;
@@ -96,14 +97,17 @@ protected:
         if (onNudge) onNudge(d);
         e->accept();
     }
+    // The scroll wheel zooms, towards the point under the pointer (the
+    // preview has nothing else to scroll).
     void wheelEvent(QWheelEvent* e) override {
-        if (e->modifiers().testFlag(Qt::ControlModifier)) {
-            const int delta = e->angleDelta().y();
-            if (delta != 0) zoomBy(delta > 0 ? 1.15 : 1.0 / 1.15);
-            e->accept();
-            return;
+        const int delta = e->angleDelta().y();
+        if (delta != 0) {
+            const ViewportAnchor before = transformationAnchor();
+            setTransformationAnchor(QGraphicsView::AnchorUnderMouse);
+            zoomBy(delta > 0 ? 1.15 : 1.0 / 1.15);
+            setTransformationAnchor(before);
         }
-        QGraphicsView::wheelEvent(e);
+        e->accept();
     }
 
 private:
@@ -139,6 +143,8 @@ QString connectionTypeName(const QString& type) {
 namespace {
 // The last alignment chosen, for this session only.
 ImportAlign gLastAlign = ImportAlign::Automatic;
+// The nudge step chosen last time, so a run of imports keeps it.
+double gLastNudgeStep = 0.25;
 }  // namespace
 
 ImportPreviewDialog::ImportPreviewDialog(PreparedPart part,
@@ -171,10 +177,12 @@ ImportPreviewDialog::ImportPreviewDialog(PreparedPart part,
     auto* rotR = new QPushButton(tr("Rotate ⟳"), left);
     rotL->setToolTip(tr("Rotate the part 90° counter-clockwise"));
     rotR->setToolTip(tr("Rotate the part 90° clockwise"));
-    auto* zoomOut = new QPushButton(tr("−"), left);
-    auto* zoomIn  = new QPushButton(tr("+"), left);
+    auto* zoomOut = new QPushButton(tr("Zoom out"), left);
+    auto* zoomIn  = new QPushButton(tr("Zoom in"), left);
     auto* fitBtn  = new QPushButton(tr("Fit"), left);
-    for (auto* b : { zoomOut, zoomIn }) b->setMaximumWidth(32);
+    zoomOut->setToolTip(tr("Zoom out (or scroll down over the picture)"));
+    zoomIn->setToolTip(tr("Zoom in (or scroll up over the picture)"));
+    fitBtn->setToolTip(tr("Show the whole model"));
     tools->addWidget(rotL);
     tools->addWidget(rotR);
     tools->addStretch();
@@ -192,21 +200,36 @@ ImportPreviewDialog::ImportPreviewDialog(PreparedPart part,
     alignBox_->addItem(tr("Bottom plates"), static_cast<int>(ImportAlign::BottomLayer));
     alignBox_->addItem(tr("Bounding box"), static_cast<int>(ImportAlign::BoundingBox));
     alignBox_->setToolTip(tr("Which studs go on the grid: Automatic puts the flat bottom plates on it, "
-                             "else centres the model. Arrow keys in the picture move it a quarter stud."));
+                             "else centres the model. Arrow keys in the picture move it by the step you pick."));
     align->addWidget(alignBox_);
-    for (const auto& [text, d, name] : { std::tuple{ QStringLiteral("←"), QPointF(-0.25, 0), "nudgeLeft" },
-                                         std::tuple{ QStringLiteral("→"), QPointF(0.25, 0), "nudgeRight" },
-                                         std::tuple{ QStringLiteral("↑"), QPointF(0, -0.25), "nudgeUp" },
-                                         std::tuple{ QStringLiteral("↓"), QPointF(0, 0.25), "nudgeDown" } }) {
+    auto* nudgeLabel = new QLabel(tr("Move by"), left);
+    nudgeLabel->setToolTip(tr("Shift the model against the stud grid by this much per click. "
+                              "The arrow keys do the same while the picture has focus."));
+    align->addWidget(nudgeLabel);
+    stepBox_ = new QComboBox(left);
+    stepBox_->setObjectName(QStringLiteral("nudgeStep"));
+    stepBox_->addItem(tr("½ stud"), 0.5);
+    stepBox_->addItem(tr("¼ stud"), 0.25);
+    stepBox_->addItem(tr("⅛ stud"), 0.125);
+    stepBox_->addItem(tr("1/16 stud"), 0.0625);
+    stepBox_->setToolTip(nudgeLabel->toolTip());
+    stepBox_->setCurrentIndex(std::max(0, stepBox_->findData(gLastNudgeStep)));
+    connect(stepBox_, &QComboBox::currentIndexChanged, this,
+            [this] { gLastNudgeStep = stepBox_->currentData().toDouble(); });
+    align->addWidget(stepBox_);
+    for (const auto& [text, d, name] : { std::tuple{ tr("Left"), QPointF(-1, 0), "nudgeLeft" },
+                                         std::tuple{ tr("Right"), QPointF(1, 0), "nudgeRight" },
+                                         std::tuple{ tr("Up"), QPointF(0, -1), "nudgeUp" },
+                                         std::tuple{ tr("Down"), QPointF(0, 1), "nudgeDown" } }) {
         auto* b = new QPushButton(text, left);
         b->setObjectName(QLatin1String(name));
-        b->setMaximumWidth(32);
-        b->setToolTip(tr("Move the model a quarter stud against the grid"));
-        const QPointF step = d;
-        connect(b, &QPushButton::clicked, this, [this, step] { nudge(step); });
+        b->setToolTip(tr("Move the model %1 against the grid").arg(text.toLower()));
+        const QPointF dir = d;
+        connect(b, &QPushButton::clicked, this, [this, dir] { nudge(dir * nudgeStep()); });
         align->addWidget(b);
     }
     auto* reset = new QPushButton(tr("Reset"), left);
+    reset->setToolTip(tr("Back to Automatic, with no nudge"));
     connect(reset, &QPushButton::clicked, this, [this] { nudge_ = {}; setAlign(ImportAlign::Automatic); });
     align->addWidget(reset);
     align->addStretch();
@@ -215,6 +238,7 @@ ImportPreviewDialog::ImportPreviewDialog(PreparedPart part,
         setAlign(static_cast<ImportAlign>(alignBox_->currentData().toInt()));
     });
     view_->onNudge = [this](QPointF d) { nudge(d); };
+    view_->nudgeStep = [this] { return nudgeStep(); };
     connect(rotL, &QPushButton::clicked, this, [this]{ rotate(-1); });
     connect(rotR, &QPushButton::clicked, this, [this]{ rotate(1); });
     connect(zoomOut, &QPushButton::clicked, this, [this]{ view_->zoomBy(1.0 / 1.25); });
@@ -311,6 +335,10 @@ void ImportPreviewDialog::realign() {
     part_ = alignPart(base_, align_, nudge_);
     refreshConnections();
     refreshSprite();
+}
+
+double ImportPreviewDialog::nudgeStep() const {
+    return stepBox_ ? stepBox_->currentData().toDouble() : 0.25;
 }
 
 void ImportPreviewDialog::nudge(QPointF studs) {
