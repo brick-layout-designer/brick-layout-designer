@@ -1,0 +1,5 @@
+{
+  "about": "One imported part both apps size the same: a hi-res SCALE.1.png (32 px a stud, as its XML declares) beside the 8 px a stud SCALE.1.gif vanilla BlueBrick loads. Same files in both repos: desktop fixtures/part-scale, web packages/parts-catalog/fixtures/part-scale. Desktop's parts library, the web catalog scan and a server upload round trip must all give the part this footprint in studs.",
+  "key": "SCALE.1",
+  "studs": { "w": 3, "h": 2 }
+}

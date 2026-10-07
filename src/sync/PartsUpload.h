@@ -26,13 +26,34 @@ struct LocalPart {
     QString spritePath; // .gif or .png beside the XML
 };
 
+// What goes to the server for one part: its XML and a sprite that agree on
+// the part's size in studs. The XML's <PixelsPerStud> always describes the
+// sprite sent with it, so the web, the server and any desktop that
+// downloads the part draw it at the same size as here.
+struct PartPayload {
+    QByteArray xml;
+    QByteArray sprite;
+    QString mime; // image/png or image/gif
+    int pxPerStud = 8;
+};
+
+// The server's cap on one part's XML + sprite (MAX_PART_BLOB_BYTES).
+inline constexpr qint64 kMaxPartBytes = qint64{ 4 } * 1024 * 1024;
+
 class PartsUpload : public QObject {
     Q_OBJECT
 public:
     PartsUpload(QUrl server, QString token, QObject* parent = nullptr);
 
-    // Parts in `dir` (and below) with a sprite beside them.
+    // Parts in `dir` (and below) with a sprite beside them: the sprite the
+    // parts library draws (the .png for a hi-res part, else the .gif).
     static QList<LocalPart> scanFolder(const QString& dir);
+
+    // The XML and sprite to upload for `part`. A hi-res part sends its
+    // .png; one too big for `maxBytes` is sent at a lower resolution, its
+    // <PixelsPerStud> lowered to match. A .gif is 8 px a stud whatever the
+    // XML says, so its XML is sent without <PixelsPerStud>.
+    static PartPayload payloadFor(const LocalPart& part, qint64 maxBytes = kMaxPartBytes);
 
     // Which of `local` the server's catalog (GET /api/parts/catalog) lacks.
     void findMissing(const QList<LocalPart>& local);

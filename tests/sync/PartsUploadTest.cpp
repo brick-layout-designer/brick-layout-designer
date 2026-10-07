@@ -9,6 +9,7 @@
 
 #include "core/LayerBrick.h"
 #include "core/Map.h"
+#include "parts/PartsLibrary.h"
 
 #include <gtest/gtest.h>
 
@@ -18,6 +19,8 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QImage>
+#include <QJsonObject>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QListWidget>
@@ -343,4 +346,122 @@ TEST(PartsUpload, AFileTooBigOnItsOwnOnlyFailsThatFile) {
     EXPECT_EQ(count, 1);
     ASSERT_EQ(failures.size(), 1);
     EXPECT_TRUE(failures.value(0).contains(QStringLiteral("the most you can send at once is 50 MB")));
+}
+
+// The same part keeps the same size in studs on the server: the shared
+// fixture (fixtures/part-scale, also in the web repo) is an import's hi-res
+// .png beside its 8 px a stud .gif.
+namespace {
+const QString kScaleFixture = QStringLiteral(BLD_SOURCE_DIR "/fixtures/part-scale");
+
+QSizeF expectedStuds() {
+    QFile f(kScaleFixture + QStringLiteral("/expected.json"));
+    if (!f.open(QIODevice::ReadOnly)) return {};
+    const QJsonObject studs = QJsonDocument::fromJson(f.readAll()).object().value(QLatin1String("studs")).toObject();
+    return { studs.value(QLatin1String("w")).toDouble(), studs.value(QLatin1String("h")).toDouble() };
+}
+
+// The fixture's part copied into `dir`, as the imports folder holds it.
+void copyFixture(const QString& dir, bool withPng = true) {
+    for (const char* ext : { ".xml", ".png", ".gif" }) {
+        if (!withPng && QLatin1String(ext) == QLatin1String(".png")) continue;
+        QFile::copy(kScaleFixture + QStringLiteral("/SCALE.1") + QLatin1String(ext),
+                    dir + QStringLiteral("/SCALE.1") + QLatin1String(ext));
+    }
+}
+
+// The part's footprint in studs on a desktop that downloads `payload` from
+// the server (PartsSync writes the XML and the sprite named by its type).
+QSizeF studsAfterDownload(const PartPayload& payload) {
+    QTemporaryDir cache;
+    QFile xml(cache.filePath(QStringLiteral("SCALE.1.xml")));
+    if (!xml.open(QIODevice::WriteOnly)) return {};
+    xml.write(payload.xml);
+    xml.close();
+    QFile sprite(cache.filePath(payload.mime == QLatin1String("image/png") ? QStringLiteral("SCALE.1.png")
+                                                                            : QStringLiteral("SCALE.1.gif")));
+    if (!sprite.open(QIODevice::WriteOnly)) return {};
+    sprite.write(payload.sprite);
+    sprite.close();
+    bld::parts::PartsLibrary lib;
+    const QString key = lib.scanFile(xml.fileName());
+    const auto fp = lib.footprint(key, 0.0);
+    return fp ? fp->size : QSizeF();
+}
+} // namespace
+
+TEST(PartsUpload, AnImportedPartKeepsItsSizeInStudsOnTheServer) {
+    const QSizeF studs = expectedStuds();
+    ASSERT_FALSE(studs.isEmpty());
+    QTemporaryDir dir;
+    copyFixture(dir.path());
+    // Here: the parts library draws the .png at the XML's 32 px a stud.
+    {
+        bld::parts::PartsLibrary lib;
+        const auto fp = lib.footprint(lib.scanFile(dir.filePath(QStringLiteral("SCALE.1.xml"))), 0.0);
+        ASSERT_TRUE(fp);
+        EXPECT_EQ(fp->size, studs);
+    }
+    // Sent: the .png, not the vanilla .gif, with the XML that describes it.
+    const auto local = PartsUpload::scanFolder(dir.path());
+    ASSERT_EQ(local.size(), 1);
+    EXPECT_TRUE(local[0].spritePath.endsWith(QLatin1String("SCALE.1.png")));
+    const PartPayload payload = PartsUpload::payloadFor(local[0]);
+    EXPECT_EQ(payload.mime, QStringLiteral("image/png"));
+    EXPECT_EQ(payload.pxPerStud, 32);
+    const QImage sent = QImage::fromData(payload.sprite);
+    EXPECT_EQ(QSizeF(sent.width() / 32.0, sent.height() / 32.0), studs); // as the web sizes it
+    EXPECT_EQ(studsAfterDownload(payload), studs);
+
+    // What actually goes over the wire.
+    FakeHttp http;
+    http.reply("/api/custom-parts", 201, { { QStringLiteral("id"), QStringLiteral("p1") } });
+    PartsUpload upload(http.base(), QStringLiteral("t"));
+    int count = -1;
+    QObject::connect(&upload, &PartsUpload::uploaded, [&](int c, const QStringList&) { count = c; });
+    upload.upload(local, {});
+    ASSERT_TRUE(waitFor([&] { return count >= 0; }));
+    ASSERT_EQ(count, 1);
+    for (const auto& r : http.requests) {
+        if (r.path != "/api/custom-parts") continue;
+        const auto body = QJsonDocument::fromJson(r.body).object();
+        EXPECT_EQ(body.value(QLatin1String("spriteMime")).toString(), QStringLiteral("image/png"));
+        EXPECT_EQ(QByteArray::fromBase64(body.value(QLatin1String("spriteBase64")).toString().toLatin1()),
+                  payload.sprite);
+        EXPECT_TRUE(QByteArray::fromBase64(body.value(QLatin1String("xmlBase64")).toString().toLatin1())
+                        .contains("<PixelsPerStud>32</PixelsPerStud>"));
+    }
+}
+
+TEST(PartsUpload, AGifIsSentAsEightPixelsAStud) {
+    // Only the vanilla .gif beside an XML that says 32: the XML sent says 8.
+    const QSizeF studs = expectedStuds();
+    QTemporaryDir dir;
+    copyFixture(dir.path(), false);
+    const auto local = PartsUpload::scanFolder(dir.path());
+    ASSERT_EQ(local.size(), 1);
+    const PartPayload payload = PartsUpload::payloadFor(local[0]);
+    EXPECT_EQ(payload.mime, QStringLiteral("image/gif"));
+    EXPECT_EQ(payload.pxPerStud, 8);
+    EXPECT_FALSE(payload.xml.contains("PixelsPerStud"));
+    EXPECT_TRUE(payload.xml.contains("<Description>")); // the rest kept
+    const QImage sent = QImage::fromData(payload.sprite);
+    EXPECT_EQ(QSizeF(sent.width() / 8.0, sent.height() / 8.0), studs);
+    EXPECT_EQ(studsAfterDownload(payload), studs);
+}
+
+TEST(PartsUpload, APartTooBigIsSentAtALowerResolutionTheSameSize) {
+    const QSizeF studs = expectedStuds();
+    QTemporaryDir dir;
+    copyFixture(dir.path());
+    const auto local = PartsUpload::scanFolder(dir.path());
+    ASSERT_EQ(local.size(), 1);
+    const PartPayload full = PartsUpload::payloadFor(local[0]);
+    const PartPayload smaller = PartsUpload::payloadFor(local[0], full.xml.size() + full.sprite.size() - 1);
+    EXPECT_EQ(smaller.mime, QStringLiteral("image/png"));
+    EXPECT_LT(smaller.pxPerStud, 32);
+    EXPECT_LT(smaller.xml.size() + smaller.sprite.size(), full.xml.size() + full.sprite.size());
+    const QImage sent = QImage::fromData(smaller.sprite);
+    EXPECT_EQ(QSizeF(sent.width() / double(smaller.pxPerStud), sent.height() / double(smaller.pxPerStud)), studs);
+    EXPECT_EQ(studsAfterDownload(smaller), studs);
 }
