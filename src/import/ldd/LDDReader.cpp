@@ -6,6 +6,8 @@
 #include <QTextStream>
 #include <QXmlStreamReader>
 
+#include <algorithm>
+
 #include "../zip/SafeZip.h"
 
 namespace bld::import {
@@ -112,44 +114,69 @@ LDrawReadResult readLDD(const QString& path) {
         }
         if (name == QStringLiteral("Brick")) {
             const QString designID = r.attributes().value(QStringLiteral("designID")).toString();
-            int matId = 0;
-            // Walk Part → Bone to find transform + material. We take the
-            // FIRST transform we encounter — sufficient for top-down
-            // sprites since LDD rarely multi-bones a simple brick.
-            LddTransform xform;
+            // Each Part with its material and FIRST Bone transform — enough
+            // for top-down sprites since LDD rarely multi-bones a simple brick.
+            struct LddPart {
+                QString designID;
+                int matId = 0;
+                LddTransform xform;
+            };
+            QList<LddPart> brickParts;
             while (!r.atEnd()) {
                 const auto inner = r.readNext();
                 if (inner == QXmlStreamReader::EndElement
                     && r.name() == QStringLiteral("Brick")) break;
                 if (inner != QXmlStreamReader::StartElement) continue;
-                if (r.name() == QStringLiteral("Part") && matId == 0) {
-                    matId = r.attributes().value(QStringLiteral("materials")).toString()
-                            .split(QLatin1Char(',')).value(0).toInt();
+                if (r.name() == QStringLiteral("Part")) {
+                    LddPart part;
+                    part.designID = r.attributes().value(QStringLiteral("designID")).toString();
+                    part.matId = r.attributes().value(QStringLiteral("materials")).toString()
+                                     .split(QLatin1Char(',')).value(0).toInt();
+                    brickParts << part;
                 }
-                if (r.name() == QStringLiteral("Bone") && !xform.ok) {
-                    xform = parseTransform(r.attributes().value(QStringLiteral("transformation")));
+                if (r.name() == QStringLiteral("Bone")) {
+                    if (brickParts.isEmpty()) brickParts << LddPart{};  // a Bone outside any Part
+                    if (!brickParts.last().xform.ok)
+                        brickParts.last().xform = parseTransform(r.attributes().value(QStringLiteral("transformation")));
                 }
             }
-            if (!xform.ok) continue;
-            LDrawPartRef ref;
-            ref.colorCode = matId > 0 ? matId : 1;  // default to light-gray
-            // LDD ↔ LDraw 1:1 unit mapping; we kept LDD's native axes
-            // (Y up, Z toward viewer). MeshRasterize projects (X,Z)
-            // for the top-down sprite.
-            ref.x = xform.tx * kLddToLdu;
-            ref.y = xform.ty * kLddToLdu;
-            ref.z = xform.tz * kLddToLdu;
-            for (int i = 0; i < 9; ++i) ref.m[i] = xform.m[i];
-            // Part filename: try "<designID>.<matId>.dat" so the
-            // existing LDraw → BlueBrick mapping strips the .dat and
-            // leaves a `<designID>.<matId>` key that matches our
-            // library's naming when available.
-            if (matId > 0) {
-                ref.filename = QStringLiteral("%1.%2.dat").arg(designID).arg(matId);
-            } else {
-                ref.filename = designID + QStringLiteral(".dat");
+            // An assembly (a minifigure's torso with its arms and hands, legs
+            // with hips): LDD has no shape for the assembly's own designID,
+            // only for its parts, so each part is placed on its own. A plain
+            // brick keeps its own designID, its first part's material and the
+            // first transform.
+            const bool assembly = brickParts.size() > 1
+                && std::all_of(brickParts.cbegin(), brickParts.cend(),
+                               [](const LddPart& p) { return !p.designID.isEmpty(); });
+            if (!assembly && !brickParts.isEmpty()) {
+                LddPart single = brickParts.first();
+                single.designID = designID;
+                for (const LddPart& p : std::as_const(brickParts))
+                    if (p.xform.ok) { single.xform = p.xform; break; }
+                brickParts = { single };
             }
-            out.parts.push_back(ref);
+            for (const LddPart& part : std::as_const(brickParts)) {
+                if (!part.xform.ok || part.designID.isEmpty()) continue;
+                LDrawPartRef ref;
+                ref.colorCode = part.matId > 0 ? part.matId : 1;  // default to light-gray
+                // LDD ↔ LDraw 1:1 unit mapping; we kept LDD's native axes
+                // (Y up, Z toward viewer). MeshRasterize projects (X,Z)
+                // for the top-down sprite.
+                ref.x = part.xform.tx * kLddToLdu;
+                ref.y = part.xform.ty * kLddToLdu;
+                ref.z = part.xform.tz * kLddToLdu;
+                for (int i = 0; i < 9; ++i) ref.m[i] = part.xform.m[i];
+                // Part filename: try "<designID>.<matId>.dat" so the
+                // existing LDraw → BlueBrick mapping strips the .dat and
+                // leaves a `<designID>.<matId>` key that matches our
+                // library's naming when available.
+                if (part.matId > 0) {
+                    ref.filename = QStringLiteral("%1.%2.dat").arg(part.designID).arg(part.matId);
+                } else {
+                    ref.filename = part.designID + QStringLiteral(".dat");
+                }
+                out.parts.push_back(ref);
+            }
         }
     }
 

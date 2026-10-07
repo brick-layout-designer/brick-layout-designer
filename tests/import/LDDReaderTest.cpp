@@ -158,3 +158,33 @@ TEST(LDDReader, MissingLxfmlEntryFails) {
     auto r = import::readLDD(path);
     EXPECT_FALSE(r.ok);
 }
+
+TEST(LDDReader, AssembliesArePlacedPartByPart) {
+    // A minifigure torso (76382) is an assembly: LDD has shapes for its
+    // torso, arms and hands, not for 76382 itself.
+    const QByteArray body = QByteArray(R"xml(<?xml version="1.0" encoding="UTF-8"?>
+<LXFML name="fig">
+  <Bricks>
+    <Brick designID="76382">
+      <Part designID="3814" materials="102,0,0"><Bone transformation="1,0,0,0,1,0,0,0,1,1,2,3"/></Part>
+      <Part designID="3818" materials="102"><Bone transformation="1,0,0,0,1,0,0,0,1,4,5,6"/></Part>
+      <Part designID="3820" materials="24"><Bone transformation="1,0,0,0,1,0,0,0,1,7,8,9"/></Part>
+    </Brick>
+    <Brick designID="3001">
+      <Part designID="3001" materials="21"><Bone transformation="1,0,0,0,1,0,0,0,1,0,0,0"/></Part>
+    </Brick>
+  </Bricks>
+</LXFML>
+)xml");
+    QTemporaryDir dir;
+    const QString path = writeLxfml(dir, "fig.lxfml", body);
+    auto r = import::readLDD(path);
+    ASSERT_TRUE(r.ok) << r.error.toStdString();
+    ASSERT_EQ(r.parts.size(), 4u);
+    EXPECT_EQ(r.parts[0].filename, QStringLiteral("3814.102.dat"));
+    EXPECT_EQ(r.parts[1].filename, QStringLiteral("3818.102.dat"));
+    EXPECT_EQ(r.parts[2].filename, QStringLiteral("3820.24.dat"));
+    EXPECT_DOUBLE_EQ(r.parts[1].x, 4 * 25.0);
+    EXPECT_DOUBLE_EQ(r.parts[2].z, 9 * 25.0);
+    EXPECT_EQ(r.parts[3].filename, QStringLiteral("3001.21.dat"));
+}
