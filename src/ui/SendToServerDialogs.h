@@ -34,7 +34,7 @@ class SaveToServerDialog : public QDialog {
 public:
     // `what`: "venue", "module", "part". `server`: what you call it.
     // `initialOwner`: a club's slug to start at (the Show filter's), or empty for Me.
-    SaveToServerDialog(const QString& what, const QString& name, const QString& server,
+    SaveToServerDialog(const QString& what, const QString& initialName, const QString& server,
                        const QList<sync::OrgEntry>& orgs, const QString& initialOwner, QWidget* parent = nullptr);
 
     QString name() const;
@@ -58,10 +58,10 @@ private:
 class ShareToCatalogDialog : public QDialog {
     Q_OBJECT
 public:
-    // `share`: its kind, source and the name offered. `update`: it's in the
+    // `what`: its kind, source and the name offered. `isUpdate`: it's in the
     // catalog already. `review`: a moderator looks first. `clubReview`: a
     // trusted club's name when its own admins and managers review it.
-    ShareToCatalogDialog(sync::LibraryApi& api, const sync::CatalogShare& share, bool update, bool review,
+    ShareToCatalogDialog(sync::LibraryApi& api, const sync::CatalogShare& what, bool isUpdate, bool review,
                          const QString& clubReview, QWidget* parent = nullptr);
 
     // A layout's picture for its card, made when Share is pressed (empty: none).

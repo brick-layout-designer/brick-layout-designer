@@ -239,8 +239,8 @@ ServerWindow::ServerWindow(ServerLibrary& library, QWidget* parent) : QWidget(pa
             emit serverPicked(library_.server());
         }
     });
-    auto* close = new QShortcut(QKeySequence(Qt::Key_Escape), this);
-    connect(close, &QShortcut::activated, this, &QWidget::close);
+    auto* escape = new QShortcut(QKeySequence(Qt::Key_Escape), this);
+    connect(escape, &QShortcut::activated, this, &QWidget::close);
 
     shownServer_ = library_.server();
     refreshServers();
@@ -356,18 +356,18 @@ ServerWindow::Page ServerWindow::makePage(const QString& name, const QList<QPush
     return p;
 }
 
-void ServerWindow::clearPage(Page& page) {
+void ServerWindow::clearPage(Page& pg) {
     // Rows may be rebuilt from one of their own buttons: let them go later.
-    for (QWidget* w : std::as_const(page.rows)) {
-        page.list->removeWidget(w);
+    for (QWidget* w : std::as_const(pg.rows)) {
+        pg.list->removeWidget(w);
         w->hide();
         w->deleteLater();
     }
-    page.rows.clear();
+    pg.rows.clear();
 }
 
-QWidget* ServerWindow::makeRow(Page& page, const RowSpec& spec) {
-    QFrame* frame = libraryRowFrame(page.host);
+QWidget* ServerWindow::makeRow(Page& pg, const RowSpec& spec) {
+    QFrame* frame = libraryRowFrame(pg.host);
     frame->setObjectName(spec.objectName);
     auto* h = new QHBoxLayout(frame);
     h->setContentsMargins(8, 8, 8, 8);
@@ -435,9 +435,9 @@ QWidget* ServerWindow::makeRow(Page& page, const RowSpec& spec) {
         more->setMenu(menu);
         h->addWidget(more, 0, Qt::AlignVCenter);
     }
-    page.rows.insert(spec.objectName, frame);
+    pg.rows.insert(spec.objectName, frame);
     // Before the empty line and the stretch.
-    page.list->insertWidget(page.list->count() - 2, frame);
+    pg.list->insertWidget(pg.list->count() - 2, frame);
     return frame;
 }
 
@@ -525,8 +525,8 @@ void ServerWindow::reload() {
     loadLists();
 }
 
-void ServerWindow::hint(const QJsonObject& hint) {
-    const QString kind = hint.value(QLatin1String("kind")).toString();
+void ServerWindow::hint(const QJsonObject& h) {
+    const QString kind = h.value(QLatin1String("kind")).toString();
     if (kind == QLatin1String("layout")) hintLayouts_ = true;
     else if (kind == QLatin1String("venue")) hintVenues_ = true;
     else if (kind == QLatin1String("custom-part")) hintParts_ = true;
@@ -895,13 +895,13 @@ void ServerWindow::addShareAction(RowSpec& r, const QString& kind, const QString
     const QString line = catalogLine(kind, sourceId);
     if (!line.isEmpty()) r.lines << line;
     if (!mayShare || !hasFeature(QStringLiteral("catalogShare")) || !library_.catalog().on(kind)) return;
-    const bool update = !line.isEmpty();
+    const bool isUpdate = !line.isEmpty();
     sync::CatalogShare share;
     share.kind = kind;
     share.sourceId = sourceId;
     share.title = title;
-    r.more << Action{ update ? tr("Publish this update…") : tr("Share to the public catalog…"), QStringLiteral("shareToCatalog"),
-                      [this, share, update] { emit shareRequested(share, update, QString()); }, true,
+    r.more << Action{ isUpdate ? tr("Publish this update…") : tr("Share to the public catalog…"), QStringLiteral("shareToCatalog"),
+                      [this, share, isUpdate] { emit shareRequested(share, isUpdate, QString()); }, true,
                       tr("A copy goes to the public catalog, for anyone to add to their layouts") };
 }
 

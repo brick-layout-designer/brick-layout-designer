@@ -22,7 +22,7 @@ namespace bld::ui {
 
 // ---------- SaveToServerDialog ------------------------------------------------
 
-SaveToServerDialog::SaveToServerDialog(const QString& what, const QString& name, const QString& server,
+SaveToServerDialog::SaveToServerDialog(const QString& what, const QString& initialName, const QString& server,
                                        const QList<sync::OrgEntry>& orgs, const QString& initialOwner, QWidget* parent)
     : QDialog(parent) {
     setObjectName(QStringLiteral("SaveToServerDialog"));
@@ -34,7 +34,7 @@ SaveToServerDialog::SaveToServerDialog(const QString& what, const QString& name,
                                     this);
     col->addWidget(help::withHelp(intro, QStringLiteral("server.send"), this));
     auto* form = new QFormLayout();
-    name_ = new QLineEdit(name, this);
+    name_ = new QLineEdit(initialName, this);
     name_->setObjectName(QStringLiteral("saveName"));
     name_->setMaxLength(80);
     owner_ = new QComboBox(this);
@@ -81,11 +81,11 @@ void SaveToServerDialog::save() {
 
 // ---------- ShareToCatalogDialog ----------------------------------------------
 
-ShareToCatalogDialog::ShareToCatalogDialog(sync::LibraryApi& api, const sync::CatalogShare& share, bool update, bool review,
+ShareToCatalogDialog::ShareToCatalogDialog(sync::LibraryApi& api, const sync::CatalogShare& what, bool isUpdate, bool review,
                                            const QString& clubReview, QWidget* parent)
-    : QDialog(parent), api_(api), base_(share), update_(update), clubReview_(clubReview) {
+    : QDialog(parent), api_(api), base_(what), update_(isUpdate), clubReview_(clubReview) {
     setObjectName(QStringLiteral("ShareToCatalogDialog"));
-    setWindowTitle(update ? tr("Publish this update") : tr("Share to the public catalog"));
+    setWindowTitle(isUpdate ? tr("Publish this update") : tr("Share to the public catalog"));
     setMinimumWidth(460);
     openUrl = [](const QUrl& u) { QDesktopServices::openUrl(u); };
     auto* col = new QVBoxLayout(this);
@@ -97,15 +97,15 @@ ShareToCatalogDialog::ShareToCatalogDialog(sync::LibraryApi& api, const sync::Ca
     auto* f = new QVBoxLayout(formPage);
     f->setContentsMargins(0, 0, 0, 0);
     QString about = tr("A copy of it as it is now goes to the catalog. Later changes stay yours until you publish an update.");
-    if (share.kind == QLatin1String("layout"))
+    if (what.kind == QLatin1String("layout"))
         about += QLatin1Char(' ') + tr("Collaborators, comments, chat, file paths, the background picture and the venue’s notes stay private.");
-    if (share.kind == QLatin1String("venue")) about += QLatin1Char(' ') + tr("Notes on the plan stay private.");
+    if (what.kind == QLatin1String("venue")) about += QLatin1Char(' ') + tr("Notes on the plan stay private.");
     if (review) about += QLatin1Char(' ') + tr("A moderator reviews it first.");
     auto* intro = libraryMutedLabel(about, formPage);
     intro->setObjectName(QStringLiteral("shareAbout"));
     f->addWidget(help::withHelp(intro, QStringLiteral("catalog.share"), formPage));
     auto* form = new QFormLayout();
-    name_ = new QLineEdit(share.title, formPage);
+    name_ = new QLineEdit(what.title, formPage);
     name_->setObjectName(QStringLiteral("shareName"));
     name_->setMaxLength(80);
     description_ = new QPlainTextEdit(formPage);
@@ -120,7 +120,7 @@ ShareToCatalogDialog::ShareToCatalogDialog(sync::LibraryApi& api, const sync::Ca
     form->addRow(tr("Name"), name_);
     form->addRow(tr("Description (optional)"), description_);
     form->addRow(tr("Tags, separated by commas (optional)"), tags_);
-    if (update) form->addRow(tr("What changed? (optional)"), note_);
+    if (isUpdate) form->addRow(tr("What changed? (optional)"), note_);
     else note_->hide();
     f->addLayout(form);
     consent_ = new QCheckBox(tr("Anyone can copy this into their own layouts."), formPage);
@@ -133,7 +133,7 @@ ShareToCatalogDialog::ShareToCatalogDialog(sync::LibraryApi& api, const sync::Ca
     error_->hide();
     f->addWidget(error_);
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Cancel, formPage);
-    shareBtn_ = buttons->addButton(update ? tr("Publish update") : tr("Share"), QDialogButtonBox::AcceptRole);
+    shareBtn_ = buttons->addButton(isUpdate ? tr("Publish update") : tr("Share"), QDialogButtonBox::AcceptRole);
     shareBtn_->setObjectName(QStringLiteral("share"));
     shareBtn_->setProperty("accent", true);
     f->addWidget(buttons);

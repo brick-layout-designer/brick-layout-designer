@@ -175,8 +175,8 @@ private:
     void addShareAction(RowSpec& r, const QString& kind, const QString& sourceId, const QString& title, bool mayShare);
     QString catalogLine(const QString& kind, const QString& sourceId) const;
     bool hasFeature(const QString& feature) const;
-    QWidget* makeRow(Page& page, const RowSpec& spec);
-    void clearPage(Page& page);
+    QWidget* makeRow(Page& pg, const RowSpec& spec);
+    void clearPage(Page& pg);
     void showState();
     // Fetches the lists a hint (or reload) asked for.
     void loadLists();

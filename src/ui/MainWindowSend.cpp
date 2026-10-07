@@ -277,13 +277,13 @@ void MainWindow::saveVenueToServer(const core::Venue& venue) {
         if (dialog.exec() == QDialog::Accepted) where = std::make_pair(dialog.name(), dialog.orgSlug());
     }
     if (!where) return;
-    const QJsonObject data = venueJson(venue);
-    if (data.isEmpty()) {
+    const QJsonObject venueData = venueJson(venue);
+    if (venueData.isEmpty()) {
         QMessageBox::warning(this, tr("Save to Server"), tr("The venue couldn't be written out to send it."));
         return;
     }
     const QString name = where->first;
-    serverLibrary_->api().createVenue(name, data, where->second, [this, name](const QString&) {
+    serverLibrary_->api().createVenue(name, venueData, where->second, [this, name](const QString&) {
         statusBar()->showMessage(tr("Saved “%1” on %2").arg(name, serverLibrary_->label()), 6000);
         if (serverWindow_) serverWindow_->hint(QJsonObject{ { QStringLiteral("kind"), QStringLiteral("venue") } });
     }, [this](const sync::ServerRefusal& r) {
@@ -310,9 +310,9 @@ void MainWindow::saveModuleFileToServer(const QString& bbmPath) {
     uploadModule(serverLibrary_->api(), module, QString(), where->first, where->second, QString(), {});
 }
 
-void MainWindow::shareToCatalog(const sync::CatalogShare& share, bool update, const QString& clubReview) {
+void MainWindow::shareToCatalog(const sync::CatalogShare& share, bool isUpdate, const QString& clubReview) {
     if (!readyToSend()) return;
-    ShareToCatalogDialog dialog(serverLibrary_->api(), share, update, serverLibrary_->catalog().review, clubReview, this);
+    ShareToCatalogDialog dialog(serverLibrary_->api(), share, isUpdate, serverLibrary_->catalog().review, clubReview, this);
     if (share.kind == QLatin1String("layout")) {
         // A layout's card shows its picture, drawn here from the server's copy.
         const sync::ServerList list = sync::ServerList::load();
