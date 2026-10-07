@@ -141,6 +141,7 @@ RasterizeResult rasterizeMeshTopDown(const geom::Mesh& mesh,
         const int left = extra(base->left() - xmin), right = extra(xmax - base->right());
         const int top = extra(base->top() - zmin), bottom = extra(zmax - base->bottom());
         out.snapMargin = QMargins(left, top, right, bottom);
+        out.baseOnGrid = true;
         out.spriteStuds = QRectF(base->left() - left, base->top() - top,
                                  qRound(base->width()) + left + right, qRound(base->height()) + top + bottom);
     } else {

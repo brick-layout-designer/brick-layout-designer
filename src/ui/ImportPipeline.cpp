@@ -29,6 +29,7 @@
 #include <QLineF>
 #include <QRegularExpression>
 #include <QPainter>
+#include <QSizeF>
 #include <QTransform>
 
 #include <algorithm>
@@ -69,6 +70,8 @@ void fillFromRaster(PreparedPart& out, const import::RasterizeResult& rast) {
     out.widthStuds  = static_cast<int>(std::lround(rast.spriteStuds.width()));
     out.heightStuds = static_cast<int>(std::lround(rast.spriteStuds.height()));
     out.snapMargin  = rast.snapMargin;
+    out.contentStuds = rast.meshBoundsXZ.translated(-rast.spriteStuds.topLeft());
+    out.baseOnGrid  = rast.baseOnGrid;
 }
 
 // Model -> BlueBrick placement -> free connection ends, relative to the
@@ -164,6 +167,8 @@ PreparedPart fromBlueBrickParts(PreparedPart out, const import::LDrawReadResult&
     const QPointF c = bounds.center();
     out.widthStuds  = std::max(1, static_cast<int>(std::ceil(bounds.width()  / kPx - 0.05)));
     out.heightStuds = std::max(1, static_cast<int>(std::ceil(bounds.height() / kPx - 0.05)));
+    out.contentStuds = QRectF((out.widthStuds - bounds.width() / kPx) / 2.0, (out.heightStuds - bounds.height() / kPx) / 2.0,
+                              bounds.width() / kPx, bounds.height() / kPx);
     const QRectF canvas(c.x() - out.widthStuds * kPx / 2.0, c.y() - out.heightStuds * kPx / 2.0,
                         out.widthStuds * kPx, out.heightStuds * kPx);
     out.sprite = QImage(static_cast<int>(canvas.width()), static_cast<int>(canvas.height()),
@@ -279,10 +284,70 @@ PreparedPart prepareImport(const QString& path, const ImportSettings& settings,
     return fromBlueBrickParts(out, read, parts);
 }
 
+PreparedPart alignPart(const PreparedPart& part, ImportAlign align, QPointF nudgeStuds) {
+    PreparedPart out = part;
+    if (part.sprite.isNull() || part.widthStuds <= 0 || part.heightStuds <= 0 || part.contentStuds.isEmpty()) return out;
+    // Where the model's bounds start, before the nudge.
+    QPointF shift;
+    constexpr double kSlack = 0.05;
+    if (align == ImportAlign::BoundingBox || (align == ImportAlign::BottomLayer && !part.baseOnGrid)) {
+        const QSizeF c = part.contentStuds.size();
+        const QPointF centred((std::max(1.0, std::ceil(c.width() - kSlack)) - c.width()) / 2.0,
+                              (std::max(1.0, std::ceil(c.height() - kSlack)) - c.height()) / 2.0);
+        shift = centred - part.contentStuds.topLeft();
+    }
+    shift += nudgeStuds;
+    if (shift.isNull()) return out;
+
+    // The old sprite, moved by `shift`, re-cut to whole studs around what it
+    // shows. Whole-stud moves change nothing: the grid is the same.
+    const QRectF content = part.contentStuds.translated(shift);
+    const QPointF origin(std::floor(content.left() + kSlack), std::floor(content.top() + kSlack));  // new top-left
+    out.widthStuds = std::max(1, static_cast<int>(std::ceil(content.right() - kSlack) - origin.x()));
+    out.heightStuds = std::max(1, static_cast<int>(std::ceil(content.bottom() - kSlack) - origin.y()));
+    const double px = static_cast<double>(part.sprite.width()) / part.widthStuds;
+    QImage img(qRound(out.widthStuds * px), qRound(out.heightStuds * px), QImage::Format_ARGB32_Premultiplied);
+    img.fill(Qt::transparent);
+    {
+        QPainter p(&img);
+        p.setRenderHint(QPainter::SmoothPixmapTransform);
+        p.drawImage(QPointF((shift.x() - origin.x()) * px, (shift.y() - origin.y()) * px), part.sprite);
+    }
+    out.sprite = img;
+    out.contentStuds = content.translated(-origin);
+    // Connections are relative to the sprite centre.
+    const QPointF oldCentre(part.widthStuds / 2.0, part.heightStuds / 2.0);
+    const QPointF newCentre = origin + QPointF(out.widthStuds / 2.0, out.heightStuds / 2.0);
+    const QPointF d = oldCentre + shift - newCentre;
+    for (auto& c : out.connections) {
+        c.xStuds += d.x();
+        c.yStuds += d.y();
+    }
+    for (auto& p : out.droppedConnections) p += d;
+    // The base (inside the old margin) moves too; the margin stays whole studs.
+    if (!part.snapMargin.isNull()) {
+        const QRectF base = QRectF(part.snapMargin.left(), part.snapMargin.top(),
+                                   part.widthStuds - part.snapMargin.left() - part.snapMargin.right(),
+                                   part.heightStuds - part.snapMargin.top() - part.snapMargin.bottom())
+                                .translated(shift - origin);
+        out.snapMargin = QMargins(std::max(0, static_cast<int>(std::floor(base.left() + kSlack))),
+                                  std::max(0, static_cast<int>(std::floor(base.top() + kSlack))),
+                                  std::max(0, static_cast<int>(std::floor(out.widthStuds - base.right() + kSlack))),
+                                  std::max(0, static_cast<int>(std::floor(out.heightStuds - base.bottom() + kSlack))));
+    }
+    return out;
+}
+
 void rotatePart(PreparedPart& part, int quarterTurns) {
     const int turns = ((quarterTurns % 4) + 4) % 4;
     if (turns == 0 || part.sprite.isNull()) return;
     part.sprite = part.sprite.transformed(QTransform().rotate(90.0 * turns));
+    for (int i = 0; i < turns; ++i) {
+        // Clockwise in y-down stud coords: (x, y) -> (H - y, x).
+        const QRectF c = part.contentStuds;
+        const double h = (i % 2 == 0) ? part.heightStuds : part.widthStuds;
+        part.contentStuds = QRectF(h - c.bottom(), c.left(), c.height(), c.width());
+    }
     if (turns % 2) std::swap(part.widthStuds, part.heightStuds);
     for (int i = 0; i < turns; ++i) {
         // Clockwise: the bottom edge becomes the left one, the left the top.

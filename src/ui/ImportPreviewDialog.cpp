@@ -21,6 +21,11 @@
 #include <QSplitter>
 #include <QVBoxLayout>
 #include <QWheelEvent>
+#include <QKeyEvent>
+#include <QSignalBlocker>
+
+#include <functional>
+#include <tuple>
 #include <QtMath>
 
 #include <cmath>
@@ -31,6 +36,8 @@ namespace bld::ui {
 // wheel scrolls, zoom anchored under the cursor.
 class PreviewView : public QGraphicsView {
 public:
+    // Arrow keys: move the model a quarter stud against the grid.
+    std::function<void(QPointF)> onNudge;
     PreviewView(QGraphicsScene* scene, QWidget* parent)
         : QGraphicsView(scene, parent) {
         setRenderHint(QPainter::SmoothPixmapTransform);
@@ -76,6 +83,19 @@ protected:
         QGraphicsView::showEvent(e);
         if (autoFit_) refit();
     }
+    void keyPressEvent(QKeyEvent* e) override {
+        const double q = 0.25;
+        QPointF d;
+        switch (e->key()) {
+        case Qt::Key_Left: d = { -q, 0 }; break;
+        case Qt::Key_Right: d = { q, 0 }; break;
+        case Qt::Key_Up: d = { 0, -q }; break;
+        case Qt::Key_Down: d = { 0, q }; break;
+        default: QGraphicsView::keyPressEvent(e); return;
+        }
+        if (onNudge) onNudge(d);
+        e->accept();
+    }
     void wheelEvent(QWheelEvent* e) override {
         if (e->modifiers().testFlag(Qt::ControlModifier)) {
             const int delta = e->angleDelta().y();
@@ -114,6 +134,11 @@ QString connectionTypeName(const QString& type) {
     return ok && n > 0 && n < names.size() ? names[n] : ImportPreviewDialog::tr("Type %1").arg(type);
 }
 
+}  // namespace
+
+namespace {
+// The last alignment chosen, for this session only.
+ImportAlign gLastAlign = ImportAlign::Automatic;
 }  // namespace
 
 ImportPreviewDialog::ImportPreviewDialog(PreparedPart part,
@@ -157,6 +182,39 @@ ImportPreviewDialog::ImportPreviewDialog(PreparedPart part,
     tools->addWidget(zoomIn);
     tools->addWidget(fitBtn);
     leftCol->addLayout(tools);
+
+    // Stud alignment: where the stud grid falls on the model.
+    auto* align = new QHBoxLayout();
+    align->addWidget(new QLabel(tr("Align to:"), left));
+    alignBox_ = new QComboBox(left);
+    alignBox_->setObjectName(QStringLiteral("alignTo"));
+    alignBox_->addItem(tr("Automatic"), static_cast<int>(ImportAlign::Automatic));
+    alignBox_->addItem(tr("Bottom layer"), static_cast<int>(ImportAlign::BottomLayer));
+    alignBox_->addItem(tr("Bounding box"), static_cast<int>(ImportAlign::BoundingBox));
+    alignBox_->setToolTip(tr("Which studs go on the grid: Automatic puts a flat bottom layer on it, "
+                             "else centres the model. Arrow keys in the picture move it a quarter stud."));
+    align->addWidget(alignBox_);
+    for (const auto& [text, d, name] : { std::tuple{ QStringLiteral("←"), QPointF(-0.25, 0), "nudgeLeft" },
+                                         std::tuple{ QStringLiteral("→"), QPointF(0.25, 0), "nudgeRight" },
+                                         std::tuple{ QStringLiteral("↑"), QPointF(0, -0.25), "nudgeUp" },
+                                         std::tuple{ QStringLiteral("↓"), QPointF(0, 0.25), "nudgeDown" } }) {
+        auto* b = new QPushButton(text, left);
+        b->setObjectName(QLatin1String(name));
+        b->setMaximumWidth(32);
+        b->setToolTip(tr("Move the model a quarter stud against the grid"));
+        const QPointF step = d;
+        connect(b, &QPushButton::clicked, this, [this, step] { nudge(step); });
+        align->addWidget(b);
+    }
+    auto* reset = new QPushButton(tr("Reset"), left);
+    connect(reset, &QPushButton::clicked, this, [this] { nudge_ = {}; setAlign(ImportAlign::Automatic); });
+    align->addWidget(reset);
+    align->addStretch();
+    leftCol->addLayout(align);
+    connect(alignBox_, &QComboBox::currentIndexChanged, this, [this] {
+        setAlign(static_cast<ImportAlign>(alignBox_->currentData().toInt()));
+    });
+    view_->onNudge = [this](QPointF d) { nudge(d); };
     connect(rotL, &QPushButton::clicked, this, [this]{ rotate(-1); });
     connect(rotR, &QPushButton::clicked, this, [this]{ rotate(1); });
     connect(zoomOut, &QPushButton::clicked, this, [this]{ view_->zoomBy(1.0 / 1.25); });
@@ -234,6 +292,8 @@ ImportPreviewDialog::ImportPreviewDialog(PreparedPart part,
     connect(categoryBox_, &QComboBox::currentTextChanged, this, validate);
     root->addWidget(bb);
 
+    base_ = part_;
+    if (gLastAlign != ImportAlign::Automatic) setAlign(gLastAlign);
     refreshConnections();
     refreshSprite();
     validate();
@@ -241,10 +301,31 @@ ImportPreviewDialog::ImportPreviewDialog(PreparedPart part,
 }
 
 void ImportPreviewDialog::rotate(int quarterTurns) {
-    rotatePart(part_, quarterTurns);
+    // The checkboxes stay by index: turning keeps the connections' order.
+    rotatePart(base_, quarterTurns);
+    realign();
+    view_->fitAll();
+}
+
+void ImportPreviewDialog::realign() {
+    part_ = alignPart(base_, align_, nudge_);
     refreshConnections();
     refreshSprite();
-    view_->fitAll();
+}
+
+void ImportPreviewDialog::nudge(QPointF studs) {
+    nudge_ += studs;
+    realign();
+}
+
+void ImportPreviewDialog::setAlign(ImportAlign align) {
+    align_ = align;
+    gLastAlign = align;
+    if (alignBox_) {
+        const QSignalBlocker block(alignBox_);
+        alignBox_->setCurrentIndex(alignBox_->findData(static_cast<int>(align)));
+    }
+    realign();
 }
 
 void ImportPreviewDialog::refreshConnections() {
@@ -266,6 +347,17 @@ void ImportPreviewDialog::refreshSprite() {
     scene_->clear();
     pixmapItem_ = scene_->addPixmap(QPixmap::fromImage(part_.sprite));
     scene_->setSceneRect(pixmapItem_->boundingRect());
+    {
+        // The stud grid, so you see which studs line up.
+        const double gx = part_.widthStuds > 0 ? part_.sprite.width() / double(part_.widthStuds) : 8.0;
+        const double gy = part_.heightStuds > 0 ? part_.sprite.height() / double(part_.heightStuds) : 8.0;
+        QPen grid(QColor(0, 120, 255, 90));
+        grid.setCosmetic(true);
+        for (int i = 0; i <= part_.widthStuds; ++i)
+            scene_->addLine(i * gx, 0, i * gx, part_.sprite.height(), grid)->setData(0, QStringLiteral("grid"));
+        for (int j = 0; j <= part_.heightStuds; ++j)
+            scene_->addLine(0, j * gy, part_.sprite.width(), j * gy, grid)->setData(0, QStringLiteral("grid"));
+    }
     const double pxX = part_.widthStuds  > 0 ? part_.sprite.width()  / double(part_.widthStuds)  : 8.0;
     const double pxY = part_.heightStuds > 0 ? part_.sprite.height() / double(part_.heightStuds) : 8.0;
     for (int i = 0; i < part_.connections.size(); ++i) {
