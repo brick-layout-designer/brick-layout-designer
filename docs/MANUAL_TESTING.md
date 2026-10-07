@@ -584,8 +584,13 @@ folder with `db.lif`), and an optional newer LDD `ldraw.xml`
 
 ### 14.2 Studio (.io)
 - [ ] Tools → Import → Studio... pick a `.io` file. Same flow as LDraw;
-      uses the Studio library root when set.
-- [ ] An archive without a `model.ldr` entry surfaces a clear error.
+      uses the Studio library root when set (its `UnOfficial/` parts too).
+- [ ] A file saved by current Studio (every entry encrypted) imports; a
+      big set (e.g. 70620 Ninjago City, 83 MB) shows progress and takes
+      seconds, with its submodels and `CustomParts/` drawn.
+- [ ] An archive without a `model.ldr` entry, an AES-protected file and
+      a file that isn't a ZIP each surface a clear error.
+- [ ] After saving, a notice offers "Send to server…" for the new part.
 
 ### 14.3 LDD (.lxf / .lxfml)
 - [ ] With the LDD install set, the sprite comes from LDD's own
@@ -596,6 +601,8 @@ folder with `db.lif`), and an optional newer LDD `ldraw.xml`
 - [ ] With only `ldraw.xml` (no LDD database) plus an LDraw library, the
       model renders from LDraw geometry instead.
 - [ ] .lxfml (raw XML without the surrounding ZIP) also works.
+- [ ] Minifigures (assemblies such as torso 76382) are drawn, not
+      reported missing.
 
 ### 14.4 Preview edits
 - [ ] Rotate ⟲ / ⟳ turns sprite, footprint and connection rings.

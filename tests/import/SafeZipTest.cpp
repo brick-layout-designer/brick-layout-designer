@@ -2,6 +2,8 @@
 
 #include "import/zip/SafeZip.h"
 
+#include "ZipCryptoTestZip.h"
+
 #include <gtest/gtest.h>
 
 #include <QBuffer>
@@ -75,4 +77,111 @@ TEST(SafeZip, TruncatedDeflateStreamFromFuzzing) {
     const SafeZip zip(f.readAll());
     for (const auto& e : zip.entries()) zip.read(e);
     EXPECT_LT(t.elapsed(), 2000);
+}
+
+// ---- ZipCrypto (BrickLink Studio .io) ----
+
+namespace {
+
+const QList<QByteArray> kStudio = { QByteArrayLiteral("soho0909"), QByteArray() };
+const QByteArray kModel = QByteArray("0 model\n1 4 0 0 0 1 0 0 0 1 0 0 0 1 3001.dat\n").repeated(40);
+
+}  // namespace
+
+TEST(SafeZip, ReadsZipCryptoEntries) {
+    for (bool deflate : { false, true }) {
+        for (bool descriptor : { false, true }) {
+            SCOPED_TRACE(std::string(deflate ? "deflated" : "stored") + (descriptor ? ", data descriptor" : ""));
+            bld::test::CryptEntry e{ QStringLiteral("model.ldr"), kModel, deflate };
+            e.dataDescriptor = descriptor;
+            const SafeZip zip(bld::test::buildZip({ e }), kStudio);
+            ASSERT_TRUE(zip.isValid());
+            ASSERT_TRUE(zip.entries()[0].encrypted);
+            SafeZip::ReadError why = SafeZip::ReadError::Damaged;
+            EXPECT_EQ(zip.read(zip.entries()[0], qint64(1) << 30, &why).value_or("x"), kModel);
+            EXPECT_EQ(why, SafeZip::ReadError::None);
+        }
+    }
+}
+
+TEST(SafeZip, TriesEachPassword) {
+    bld::test::CryptEntry empty{ QStringLiteral("a.ldr"), kModel };
+    empty.password = QByteArray();
+    const QByteArray bytes = bld::test::buildZip({ empty });
+    EXPECT_EQ(SafeZip(bytes, kStudio).read(SafeZip(bytes).entries()[0]).value_or("x"), kModel);
+    const QByteArray studio = bld::test::buildZip({ { QStringLiteral("a.ldr"), kModel } });
+    const SafeZip later(studio, { QByteArrayLiteral("nope"), QByteArrayLiteral("soho0909") });
+    EXPECT_EQ(later.read(later.entries()[0]).value_or("x"), kModel);
+}
+
+TEST(SafeZip, WrongPasswordIsRefused) {
+    const QByteArray bytes = bld::test::buildZip({ { QStringLiteral("a.ldr"), kModel } });
+    for (const QList<QByteArray>& passwords : { QList<QByteArray>{}, QList<QByteArray>{ "wrong", "" } }) {
+        const SafeZip zip(bytes, passwords);
+        ASSERT_TRUE(zip.isValid());
+        SafeZip::ReadError why = SafeZip::ReadError::None;
+        EXPECT_FALSE(zip.read(zip.entries()[0], qint64(1) << 30, &why));
+        EXPECT_TRUE(why == SafeZip::ReadError::WrongPassword || why == SafeZip::ReadError::Damaged);
+    }
+    // "wrong" fails the header check byte outright.
+    SafeZip::ReadError why = SafeZip::ReadError::None;
+    const SafeZip zip(bytes, { QByteArrayLiteral("wrong") });
+    EXPECT_FALSE(zip.read(zip.entries()[0], qint64(1) << 30, &why));
+    EXPECT_EQ(why, SafeZip::ReadError::WrongPassword);
+}
+
+TEST(SafeZip, AesIsRefused) {
+    bld::test::CryptEntry e{ QStringLiteral("model.ldr"), kModel, false };
+    e.aes = true;
+    const SafeZip zip(bld::test::buildZip({ e }), kStudio);
+    ASSERT_TRUE(zip.isValid());
+    EXPECT_TRUE(zip.entries()[0].aes);
+    SafeZip::ReadError why = SafeZip::ReadError::None;
+    EXPECT_FALSE(zip.read(zip.entries()[0], qint64(1) << 30, &why));
+    EXPECT_EQ(why, SafeZip::ReadError::AesEncrypted);
+}
+
+TEST(SafeZip, EncryptedDamageAndBombsAreRefused) {
+    QByteArray bytes = bld::test::buildZip({ { QStringLiteral("model.ldr"), kModel } });
+    // A flipped byte after the encryption header: decrypts to garbage, fails inflation or the CRC.
+    bytes[30 + 9 + 20] = static_cast<char>(bytes[30 + 9 + 20] ^ 0x21);
+    SafeZip::ReadError why = SafeZip::ReadError::None;
+    const SafeZip damaged(bytes, kStudio);
+    EXPECT_FALSE(damaged.read(damaged.entries()[0], qint64(1) << 30, &why));
+    EXPECT_EQ(why, SafeZip::ReadError::Damaged);
+
+    // A real bomb: 64 MB of zeros in a few KB, encrypted. Over the caller's cap: refused before inflating.
+    const QByteArray zeros(64 << 20, '\0');
+    const SafeZip bomb(bld::test::buildZip({ { QStringLiteral("model.ldr"), zeros } }), kStudio);
+    ASSERT_TRUE(bomb.isValid());
+    QElapsedTimer t;
+    t.start();
+    EXPECT_FALSE(bomb.read(bomb.entries()[0], qint64(16) << 20, &why));
+    EXPECT_EQ(why, SafeZip::ReadError::TooBig);
+    EXPECT_LT(t.elapsed(), 200);
+
+    // Claiming more than 1100x the archive: the whole archive is refused.
+    bld::test::CryptEntry huge{ QStringLiteral("model.ldr"), kModel };
+    huge.claimedSize = 0xFFFFFF00u;
+    EXPECT_FALSE(SafeZip(bld::test::buildZip({ huge }), kStudio).isValid());
+
+    // Claiming less than the stream holds: inflation stops at the claim and fails.
+    bld::test::CryptEntry shortClaim{ QStringLiteral("model.ldr"), kModel };
+    shortClaim.claimedSize = 100;
+    const SafeZip lying(bld::test::buildZip({ shortClaim }), kStudio);
+    EXPECT_FALSE(lying.read(lying.entries()[0], qint64(1) << 30, &why));
+    EXPECT_EQ(why, SafeZip::ReadError::Damaged);
+}
+
+TEST(SafeZip, ReadsTheGeneratedStudioFixture) {
+    // fixtures/studio/zipcrypto-small.io, written by scripts/make-zipcrypto-io.py.
+    const auto zip = SafeZip::open(QStringLiteral(BLD_SOURCE_DIR "/fixtures/studio/zipcrypto-small.io"), kStudio);
+    ASSERT_TRUE(zip);
+    ASSERT_EQ(zip->entries().size(), 9);
+    for (const auto& e : zip->entries()) {
+        SCOPED_TRACE(e.name.toStdString());
+        EXPECT_TRUE(e.encrypted);
+        EXPECT_TRUE(zip->read(e));
+    }
+    EXPECT_TRUE(zip->read(*zip->find(QStringLiteral("model.ldr")))->contains("3001.dat"));
 }
