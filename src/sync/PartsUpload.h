@@ -38,7 +38,7 @@ struct PartPayload {
 };
 
 // The server's cap on one part's XML + sprite (MAX_PART_BLOB_BYTES).
-inline constexpr qint64 kMaxPartBytes = 4 * 1024 * 1024;
+inline constexpr qint64 kMaxPartBytes = qint64{ 4 } * 1024 * 1024;
 
 class PartsUpload : public QObject {
     Q_OBJECT

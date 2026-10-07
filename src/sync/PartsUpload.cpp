@@ -6,11 +6,11 @@
 #include "core/LayerBrick.h"
 #include "core/Map.h"
 
+#include <QBuffer>
 #include <QDir>
 #include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
-#include <QBuffer>
 #include <QImage>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -20,6 +20,8 @@
 #include <QRegularExpression>
 #include <QSet>
 #include <QXmlStreamReader>
+
+#include <array>
 
 namespace bld::sync {
 
@@ -147,10 +149,10 @@ QList<LocalPart> PartsUpload::scanFolder(const QString& dir) {
         // .png (declared by <PixelsPerStud>) beside an 8 px a stud .gif for
         // vanilla BlueBrick. Sending the .gif with an XML that says 32 made
         // the part four times too small on the web.
-        const bool hiRes = declaredPxPerStud(xmlBytes) != 8;
+        static constexpr std::array<const char*, 2> kHiRes{ ".png", ".gif" }, kVanilla{ ".gif", ".png" };
+        const auto& exts = declaredPxPerStud(xmlBytes) != 8 ? kHiRes : kVanilla;
         QString sprite;
-        for (const char* ext : hiRes ? std::initializer_list<const char*>{ ".png", ".gif" }
-                                     : std::initializer_list<const char*>{ ".gif", ".png" })
+        for (const char* ext : exts)
             if (QFile::exists(base + QLatin1String(ext))) {
                 sprite = base + QLatin1String(ext);
                 break;
