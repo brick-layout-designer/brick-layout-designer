@@ -193,6 +193,21 @@ constexpr Raw kShared[] = {
                                      "the same name. If the layout has no sheet by that name, you choose where they "
                                      "go: the picked sheet, or a new sheet with that name. Put everything on one "
                                      "sheet saves the module with a single sheet instead.") },
+    // Opening
+    { "open.formats", "/help#opening",
+      QT_TRANSLATE_NOOP("HelpTexts", "Opening a file"),
+      QT_TRANSLATE_NOOP("HelpTexts", "Open a layout file from this app, BlueBrick, TrackDesigner or 4DBrix."),
+      QT_TRANSLATE_NOOP("HelpTexts", "A layout file (.bld-layout) or a BlueBrick map (.bbm) opens with everything in "
+                                     "it. TrackDesigner (.tdl) and 4DBrix (.ncp) parts are matched to parts in the "
+                                     "library, and any that have no match are listed after opening. LDraw, BrickLink "
+                                     "Studio and LDD models are imported in the desktop app.") },
+    { "open.desktop", "/help#opening",
+      QT_TRANSLATE_NOOP("HelpTexts", "Models from other programs"),
+      QT_TRANSLATE_NOOP("HelpTexts", "LDraw, BrickLink Studio and LDD files are imported in the desktop app, then "
+                                     "saved here."),
+      QT_TRANSLATE_NOOP("HelpTexts", "The desktop app reads them, matches their parts to the library and lists the "
+                                     "ones it can’t match. It can also turn a model into a custom part. Then choose "
+                                     "File › Save to Server… and it shows up here.") },
     // Downloading
     { "download.formats", "/help#files",
       QT_TRANSLATE_NOOP("HelpTexts", "Download as"),
