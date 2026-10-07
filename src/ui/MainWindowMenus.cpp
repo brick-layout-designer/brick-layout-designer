@@ -491,7 +491,7 @@ void MainWindow::setupMenus() {
             offsetStuds = QPointF(2.0, -2.0);
         } else {
             const QPointF scenePos = mapView_->mapToScene(mapView_->viewport()->rect().center());
-            offsetStuds = QPointF(scenePos.x() / 8.0, scenePos.y() / 8.0);
+            offsetStuds = mapView_->gridPoint(QPointF(scenePos.x() / 8.0, scenePos.y() / 8.0));
         }
         bool ok = false;
         const QString text = QInputDialog::getText(

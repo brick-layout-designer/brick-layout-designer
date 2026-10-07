@@ -155,6 +155,7 @@ void MapView::cancelTouchPress() {
     dragStart_.clear();
     rulerDragStart_.clear();
     labelDragStart_.clear();
+    annoItemsAtPress_.clear();
     clearGrabAnchor();
     liveSnapActive_ = false; liveSnapMovingScene_.reset();
     if (draggingRulerEndpoint_) {

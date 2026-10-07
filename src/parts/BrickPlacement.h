@@ -8,6 +8,8 @@
 // around it.
 
 #include "../core/Brick.h"
+#include "../core/GridSnap.h"
+#include "../core/Groups.h"
 #include "../core/LayerBrick.h"
 #include "../core/Map.h"
 #include "PartsLibrary.h"
@@ -99,6 +101,41 @@ inline int fixStaleAreas(core::Map& map, parts::PartsLibrary& lib) {
             fixed += fixStaleAreas(static_cast<core::LayerBrick&>(*layer).bricks, lib);
     }
     return fixed;
+}
+
+// The corner a brick snaps to the grid by: its display area's top-left
+// plus its <SnapMargin> offset (BlueBrick's Position + SnapToGridOffset).
+inline QPointF snapCorner(const core::Brick& b, parts::PartsLibrary& lib) {
+    const auto meta = lib.metadata(b.partNumber);
+    return b.displayArea.topLeft()
+           + (meta ? gridsnap::snapOffset(meta->snapMargin, b.orientation) : QPointF());
+}
+
+// The corner a grab on `b` snaps by. As in BlueBrick, a brick whose
+// outermost group is a set from the library snaps by the set: the box
+// around all its parts plus the set's <SnapMargin> at the set's turn (a
+// part of it, less the turn it has in the set). Otherwise, the brick's own.
+inline QPointF grabSnapCorner(const core::LayerBrick& layer, const core::Brick& b, parts::PartsLibrary& lib) {
+    const QString top = core::topGroup(layer, b.myGroupId);
+    const core::Group* set = core::findGroup(layer, top);
+    if (!set || set->partNumber.isEmpty()) return snapCorner(b, lib);
+    const auto meta = lib.metadata(set->partNumber);
+    QRectF box;
+    const QSet<QString> members = core::bricksUnder(layer, top);
+    double turn = 0.0;
+    bool turned = false;
+    for (const auto& m : layer.bricks) {
+        if (!members.contains(m.guid)) continue;
+        box = box.isNull() ? m.displayArea : box.united(m.displayArea);
+        if (turned || !meta || m.myGroupId != top) continue;
+        for (const auto& sp : meta->subparts) {
+            if (sp.subKey.compare(m.partNumber, Qt::CaseInsensitive) != 0) continue;
+            turn = m.orientation - sp.angleDegrees;
+            turned = true;
+            break;
+        }
+    }
+    return box.topLeft() + (meta ? gridsnap::snapOffset(meta->snapMargin, turn) : QPointF());
 }
 
 }  // namespace bld::parts::placement

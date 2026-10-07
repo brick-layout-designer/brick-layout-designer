@@ -58,17 +58,6 @@ public:
         venueHandleHalfPx_ = handleHalfPx;
     }
 
-    // Configure live drag-snap. `snapStepStuds` of 0 disables snapping.
-    // Applied by the per-item ItemPositionChange override so the brick snaps
-    // under the cursor during drag, not only on release.
-    static void setLiveSnapStepStuds(double snapStepStuds);
-
-    // Set to true for the span of programmatic setPos calls that should not
-    // be re-snapped by the per-item grid-snap logic. MapView turns this on
-    // while applying a group connection-snap shift so its shifted positions
-    // survive the itemChange callback.
-    static void setSuppressItemSnap(bool suppress);
-
     // While parts are dragged: draw again what is drawn from the layout but
     // follows parts (module frames and names, electric circuits, and the
     // rulers fixed to `moving` parts), from `posed`, the layout with the

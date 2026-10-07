@@ -29,6 +29,20 @@ xvfb-run -a wine bbflex.exe in.bbm out.bbm <brick id> <grab x> <grab y> <x1> <y1
 `flex-a/b/c.bbm` were made from `flex-in.bbm` this way (see
 `tests/ui/FlexMoveTest.cpp` for the arguments).
 
+`bbsnap.cs` (built like `bbflex.cs`) asks BlueBrick where a grid snap puts
+a dragged part, with nothing to connect to. Each line of the cases file is
+`<part> <orientation> <grid> <centre x> <centre y> <grab x> <grab y> <mouse x> <mouse y>`;
+it prints the part's display area, its `<SnapMargin>` offset and the centre
+the drag gives it:
+
+```sh
+xvfb-run -a wine bbsnap.exe "$(winepath -w cases.txt)"
+```
+
+`fixtures/grid-snap-vectors.json` was made this way (part numbers as the
+library spells them: `3438-1.CAR`, not `3438-1.car`, or BlueBrick drops in
+its 32-stud stand-in).
+
 ## Compatibility check
 
 `compat.sh` runs on every pull request (the *Vanilla BlueBrick compatibility*

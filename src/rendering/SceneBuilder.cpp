@@ -49,17 +49,6 @@ using detail::kBrickDataKind;
 
 namespace {
 
-// Live snap during drag: when set to >0, QGraphicsPixmapItem / QGraphicsRectItem
-// subclasses round their pos() to multiples of this scene-pixel value on every
-// ItemPositionChange. SceneBuilder exposes a setter (called from MainWindow
-// whenever the snap toolbar changes); the per-item override reads the static.
-double gSnapPx = 0.0;
-// When true, SnappingPixmap / SnappingRect itemChange skips grid snap. Set
-// by MapView for the span of programmatic setPos calls in its live
-// connection-snap shift, so a group-drag translation doesn't get
-// immediately re-snapped back to the grid.
-bool gSuppressItemSnap = false;
-
 // Selection is now painted from MapView::drawForeground so every item kind
 // (pixmap, rect, line, ellipse) gets a consistent, unmistakable highlight
 // regardless of subclass-specific paint overrides. This helper stays only
@@ -88,50 +77,17 @@ void setConnectionDotsVisible(QGraphicsItem* parent, bool visible) {
     }
 }
 
-// Grid-snap base for any movable scene item. Connection snap no longer runs
-// here — MapView now drives it globally for the whole drag group so siblings
-// and anchor always translate together. Grid snap stays as a single-item
-// fallback for Qt's built-in per-item drag delta.
+// A part's picture: its connection dots show while it is picked. MapView
+// moves and snaps the parts it drags (MapViewDrag.cpp).
 class SnappingPixmap : public QGraphicsPixmapItem {
 public:
     using QGraphicsPixmapItem::QGraphicsPixmapItem;
 protected:
     QVariant itemChange(GraphicsItemChange c, const QVariant& v) override {
-        if (c == ItemPositionChange && !gSuppressItemSnap
-            && gSnapPx > 0.0 && (flags() & ItemIsMovable)) {
-            // Multi-select groups translate rigidly; drop-time commit
-            // snaps the group as a unit, and MapView's live connection
-            // snap handles the "during-drag" group shift.
-            const bool multi = scene() && scene()->selectedItems().size() > 1;
-            if (!multi) {
-                QPointF p = v.toPointF();
-                p.setX(std::round(p.x() / gSnapPx) * gSnapPx);
-                p.setY(std::round(p.y() / gSnapPx) * gSnapPx);
-                return p;
-            }
-        }
         if (c == ItemSelectedChange) {
             setConnectionDotsVisible(this, v.toBool());
         }
         return QGraphicsPixmapItem::itemChange(c, v);
-    }
-};
-
-class SnappingRect : public QGraphicsRectItem {
-public:
-    using QGraphicsRectItem::QGraphicsRectItem;
-protected:
-    QVariant itemChange(GraphicsItemChange c, const QVariant& v) override {
-        if (c == ItemPositionChange && !gSuppressItemSnap
-            && gSnapPx > 0.0 && (flags() & ItemIsMovable)) {
-            const bool multi = scene() && scene()->selectedItems().size() > 1;
-            if (multi) return QGraphicsRectItem::itemChange(c, v);
-            QPointF p = v.toPointF();
-            p.setX(std::round(p.x() / gSnapPx) * gSnapPx);
-            p.setY(std::round(p.y() / gSnapPx) * gSnapPx);
-            return p;
-        }
-        return QGraphicsRectItem::itemChange(c, v);
     }
 };
 
@@ -234,7 +190,8 @@ void addBrickLayer(const core::LayerBrick& L, LayerSink& sink, parts::PartsLibra
             // takes the clicks and moves like a part.
             const UnknownPartLook look = unknownPartLook(brick.partNumber, brick.displayArea.width(),
                                                          brick.displayArea.height());
-            auto* r = new SnappingRect(QRectF(-look.width / 2.0, -look.height / 2.0, look.width, look.height));
+            auto* r =
+                new QGraphicsRectItem(QRectF(-look.width / 2.0, -look.height / 2.0, look.width, look.height));
             r->setFlag(QGraphicsItem::ItemSendsGeometryChanges, true);
             r->setPos(centerPx);
             r->setRotation(brick.orientation);
@@ -716,14 +673,6 @@ void addRulerLayer(const core::LayerRuler& L, LayerSink& sink, int layerIndex,
     }
 }
 
-}
-
-void SceneBuilder::setLiveSnapStepStuds(double snapStepStuds) {
-    gSnapPx = snapStepStuds * kPixelsPerStud;
-}
-
-void SceneBuilder::setSuppressItemSnap(bool suppress) {
-    gSuppressItemSnap = suppress;
 }
 
 SceneBuilder::SceneBuilder(QGraphicsScene& scene, parts::PartsLibrary& parts)

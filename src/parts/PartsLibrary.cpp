@@ -117,6 +117,17 @@ void readHull(QXmlStreamReader& r, QList<QPointF>& out) {
     }
 }
 
+void readSnapMargin(QXmlStreamReader& r, gridsnap::Margin& m) {
+    while (r.readNextStartElement()) {
+        const auto n = r.name();
+        if      (n == QStringLiteral("left"))   m.left = r.readElementText().trimmed().toDouble();
+        else if (n == QStringLiteral("right"))  m.right = r.readElementText().trimmed().toDouble();
+        else if (n == QStringLiteral("top"))    m.top = r.readElementText().trimmed().toDouble();
+        else if (n == QStringLiteral("bottom")) m.bottom = r.readElementText().trimmed().toDouble();
+        else r.skipCurrentElement();
+    }
+}
+
 void readTrackDesigner(QXmlStreamReader& r, PartMetadata::TrackDesigner& td) {
     const auto readId = [&]() {
         const QString registry = r.attributes().value(QStringLiteral("registry")).toString();
@@ -226,6 +237,7 @@ bool parsePartXml(const QString& xmlPath, PartMetadata& out) {
             else if (n == QStringLiteral("LDraw"))         readLDrawRemap(r, out);
             else if (n == QStringLiteral("OldNameList"))   readOldNames(r, out.oldNames);
             else if (n == QStringLiteral("hull"))          readHull(r, out.xmlHullPx);
+            else if (n == QStringLiteral("SnapMargin"))    readSnapMargin(r, out.snapMargin);
             else if (n == QStringLiteral("TrackDesigner")) {
                 PartMetadata::TrackDesigner td;
                 readTrackDesigner(r, td);
