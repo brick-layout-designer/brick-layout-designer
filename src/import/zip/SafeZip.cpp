@@ -5,7 +5,6 @@ extern "C" {
 }
 
 #include <QFile>
-#include <QtEndian>
 
 #include <array>
 
@@ -62,6 +61,17 @@ private:
 
 constexpr qint64 kZipCryptoHeader = 12;
 
+// A little-endian field of `bytes` bytes at `at`, or 0 past the end. Not
+// inlined: GCC's -Warray-bounds otherwise follows QByteArray's shared empty
+// buffer into the reads and can't see the bounds check.
+Q_NEVER_INLINE quint32 littleEndian(const QByteArray& data, qint64 at, int bytes) {
+    if (at < 0 || at + bytes > data.size()) return 0;
+    const auto* p = reinterpret_cast<const uchar*>(data.constData()) + at;
+    quint32 v = 0;
+    for (int i = bytes - 1; i >= 0; --i) v = (v << 8) | p[i];
+    return v;
+}
+
 }  // namespace
 
 quint32 zipCrc32(const QByteArray& data) { return crc32Of(data); }
@@ -77,8 +87,8 @@ std::optional<SafeZip> SafeZip::open(const QString& path, QList<QByteArray> pass
 SafeZip::SafeZip(QByteArray archive, QList<QByteArray> passwords)
     : data_(std::move(archive)), passwords_(std::move(passwords)) {
     const qint64 n = data_.size();
-    const auto u16 = [&](qint64 at) -> quint32 { return at >= 0 && at + 2 <= n ? qFromLittleEndian<quint16>(data_.constData() + at) : 0; };
-    const auto u32 = [&](qint64 at) -> quint32 { return at >= 0 && at + 4 <= n ? qFromLittleEndian<quint32>(data_.constData() + at) : 0; };
+    const auto u16 = [&](qint64 at) { return littleEndian(data_, at, 2); };
+    const auto u32 = [&](qint64 at) { return littleEndian(data_, at, 4); };
     // End of central directory record: the last one within 64 KiB + 22 bytes of the end.
     const qint64 eocd = data_.lastIndexOf(QByteArrayLiteral("PK\x05\x06"));
     if (eocd < 0 || eocd + 22 > n || eocd < n - 65557) return;
@@ -131,9 +141,10 @@ std::optional<QByteArray> SafeZip::read(const Entry& e, qint64 maxSize, ReadErro
     if (e.method != 0 && e.method != 8) return fail(ReadError::Unsupported);
     const qint64 n = data_.size();
     const qint64 lh = e.localHeaderOffset;
-    if (lh + 30 > n || qFromLittleEndian<quint32>(data_.constData() + lh) != 0x04034b50u) return fail(ReadError::Damaged);
-    const qint64 start = lh + 30 + qFromLittleEndian<quint16>(data_.constData() + lh + 26)
-                                 + qFromLittleEndian<quint16>(data_.constData() + lh + 28);
+    const auto u16 = [&](qint64 at) { return littleEndian(data_, at, 2); };
+    const auto u32 = [&](qint64 at) { return littleEndian(data_, at, 4); };
+    if (lh + 30 > n || u32(lh) != 0x04034b50u) return fail(ReadError::Damaged);
+    const qint64 start = lh + 30 + u16(lh + 26) + u16(lh + 28);
     if (start > n || e.compressedSize > n - start) return fail(ReadError::Damaged);
     const auto* raw = reinterpret_cast<const unsigned char*>(data_.constData() + start);
 
