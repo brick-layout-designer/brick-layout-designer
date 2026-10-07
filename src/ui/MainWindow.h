@@ -10,6 +10,8 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
+#include <utility>
 
 #include "LibraryApi.h"
 #include "PartsUpload.h"
@@ -18,6 +20,7 @@
 #include <QSet>
 
 class QAction;
+class QFileSystemWatcher;
 class QLabel;
 class QToolButton;
 class QMenu;
@@ -262,9 +265,7 @@ private:
 
     // Live layouts on a collaborative server (MainWindowLive.cpp).
     void setupLiveMenu(QMenu* file);
-    void onConnectToServer();
     void onDisconnect();
-    void onDownloadVenues();
     void onPublishToServer();
     // File › Servers…: your servers (add, rename, remove, sign in, Main).
     void onManageServers();
@@ -299,7 +300,6 @@ private:
     void showServerNotices(const bld::sync::ServerInfo& info);
     // Settings sync with the connected server's account.
     class PrefsSync* prefsSync_ = nullptr;
-    QAction* uploadPartsAct_ = nullptr;
     // Your own parts you place while live that the server lacks: each is
     // offered for upload once per session. The catalog is fetched on open
     // and after uploads, not per edit.
@@ -386,6 +386,42 @@ private:
     void showNextNotice(const QList<bld::sync::Notice>& notices);
     class ServerLibrary* serverLibrary_ = nullptr;
     bld::sync::EventStream* serverEvents_ = nullptr;
+    // File › Open from Server… (ServerWindow.h): made the first time it opens.
+    class ServerWindow* serverWindow_ = nullptr;
+    // The server picked in the Server window, shown until another is picked
+    // there or a layout goes live (else the live server, else the last used).
+    QUrl browseServer_;
+    // The Server window's rows: open a layout live (after checking the
+    // server takes this app), start a layout in a venue (kept in the Venue
+    // library too), keep a venue or a module on this computer, and bring a
+    // custom part into the parts library.
+    void openServerLayout(const bld::sync::LayoutEntry& layout);
+    void useServerVenue(const QString& venueId);
+    void addServerVenue(const QString& venueId, const QString& name);
+    void saveServerModuleCopy(const QString& moduleId);
+    void addServerPart(const QString& partNumber);
+    void showPartInBrowser(const QString& partNumber);
+    // Sending to the server (MainWindowSend.cpp): what's on this computer
+    // only, for the Server window's "Not on the server yet" rows; sending one
+    // of them (Send…); a layout file; your parts the server lacks (all, or
+    // `only` these); a venue; a Module library file; sharing a server thing
+    // to the public catalog. Each asks where it goes (Me or a club) first.
+    void refreshServerLocal();
+    void checkMissingParts();
+    void sendLocalToServer(int tab, const QString& localId);
+    void saveLayoutFileToServer();
+    void uploadPartsTo(const QUrl& server, const QString& token, bool quiet, const QStringList& only = {});
+    void saveVenueToServer(const core::Venue& venue);
+    void saveModuleFileToServer(const QString& bbmPath);
+    void shareToCatalog(const bld::sync::CatalogShare& share, bool update, const QString& clubReview);
+    // Signed in to a server, or (false) the Server window says how to get there.
+    bool readyToSend();
+    // The club the Server window shows (new things start there), or empty for Me.
+    QString defaultSaveOwner() const;
+    class QTimer* localRefresh_ = nullptr;
+    QFileSystemWatcher* localWatch_ = nullptr;
+    QList<bld::sync::LocalPart> missingParts_;  // your parts the library server lacks, last checked
+    bool checkingParts_ = false;
     class QTimer* libraryRefresh_ = nullptr;
     struct EditingModule {
         QUrl server;
@@ -397,8 +433,15 @@ private:
     // Keychain answers may come after the window is gone: they check this first.
     std::shared_ptr<int> alive_ = std::make_shared<int>(0);
 public:
+    // File › Open from Server…: the Server window on that tab (ServerWindow::Tab), in front.
+    void showServerWindow(int tab = 0);
+    // How Send… asks where things go and which file (tests answer instead):
+    // the dialog's name and owner (nullopt: cancelled), and the layout file to send.
+    std::function<std::optional<std::pair<QString, QString>>(const QString& what, const QString& name)> askSaveToServer;
+    std::function<QString()> askLayoutFileToSend;
     // For tests.
     class ServerLibrary* serverLibrary() const { return serverLibrary_; }
+    class ServerWindow* serverWindow() const { return serverWindow_; }
     const EditingModule& editingModule() const { return editingModule_; }
     // How Update from library and Update library file ask first (tests answer instead).
     std::function<bool(const ConfirmOptions&)> confirmModuleLibrary_;

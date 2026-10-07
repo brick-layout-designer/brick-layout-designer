@@ -29,6 +29,7 @@
 #include <memory>
 
 class QComboBox;
+class QFrame;
 class QLabel;
 class QLineEdit;
 class QPushButton;
@@ -137,6 +138,17 @@ private:
     QSet<QString> missing_;
 };
 
+// The rows' look, shared by the Module library's tabs and the Server window:
+// a framed row, its picture (a placeholder until the server's comes),
+// muted lines and group headers.
+QFrame* libraryRowFrame(QWidget* parent);
+QLabel* libraryRowPicture(QWidget* parent);
+void showLibraryPicture(QLabel* label, const QImage& img);
+QLabel* libraryMutedLabel(const QString& text, QWidget* parent);
+QLabel* libraryGroupHeader(const QString& text, QWidget* parent);
+// "960 × 480 studs (7.7 × 3.8 m)"; empty when either is unknown.
+QString studsSizeText(int widthStuds, int heightStuds);
+
 // The friendly line over a tab: what's wrong and the one button that helps.
 class LibraryStatusLine : public QWidget {
     Q_OBJECT
@@ -189,7 +201,12 @@ class CatalogTab : public QWidget {
 public:
     // (Layouts and Venues came later: their numbers follow, so the older buttons keep their names.)
     enum class Kind { Modules, Parts, Collections, Layouts, Venues };
-    CatalogTab(ServerLibrary& library, QWidget* parent = nullptr);
+    // `loadWhenShown`: asks the server only while the tab is on screen; a
+    // change while it's hidden is fetched when it shows (the Server window's tabs).
+    CatalogTab(ServerLibrary& library, QWidget* parent = nullptr, bool loadWhenShown = false);
+    // Only these kinds (the Server window keeps Collections on a tab of its
+    // own); one kind hides the kind buttons. All of them by default.
+    void setKinds(const QList<Kind>& kinds);
     void setKind(Kind kind);
     Kind kind() const { return kind_; }
     void reload();
@@ -201,6 +218,9 @@ public:
     // Where an "Add" goes: "" for you, a club's slug, or nullopt when
     // cancelled. Asked only when you're in a club (tests replace it).
     std::function<std::optional<QString>(const QString& title)> chooseOwner;
+
+protected:
+    void showEvent(QShowEvent* e) override;
 
 private:
     void showItems(const QList<sync::CatalogItem>& items);
@@ -235,6 +255,9 @@ private:
     QString shown_;
     int keepScroll_ = -1;
     int generation_ = 0;
+    QList<Kind> kinds_on_{ Kind::Modules, Kind::Parts, Kind::Layouts, Kind::Venues, Kind::Collections };
+    bool loadWhenShown_ = false;
+    bool stale_ = false;  // a reload waits for the tab to show
 };
 
 // "Added 2 items · already had 1 · 1 couldn't be added", as the web says it.

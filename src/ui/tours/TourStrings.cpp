@@ -53,6 +53,8 @@ const char* const kStrings[] = {
     QT_TRANSLATE_NOOP("Tours", "Clubs"),
     QT_TRANSLATE_NOOP("Tours", "Your server"),
     QT_TRANSLATE_NOOP("Tours", "This shows whether you are connected to your club's server. Click it to add a server or sign in."),
+    QT_TRANSLATE_NOOP("Tours", "Everything on your server"),
+    QT_TRANSLATE_NOOP("Tours", "Open from Server shows your layouts, venues, modules and parts, and your clubs', in one place."),
     QT_TRANSLATE_NOOP("Tours", "Mine and my clubs'"),
     QT_TRANSLATE_NOOP("Tours", "Pick All, Mine or a club to see just those layouts, venues and parts."),
     QT_TRANSLATE_NOOP("Tours", "Save to"),

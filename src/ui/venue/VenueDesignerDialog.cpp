@@ -163,6 +163,15 @@ VenueDesignerDialog::VenueDesignerDialog(core::Venue initial, const QString& sub
     tours::tag(saveBtn_, QStringLiteral("roomDesigner.save"));
     connect(saveBtn_, &QPushButton::clicked, this, [this] { saveNow(); });
     header->addWidget(saveBtn_);
+    sendBtn_ = new QPushButton(tr("Save to Server…"), this);
+    sendBtn_->setObjectName(QStringLiteral("designerSaveToServer"));
+    sendBtn_->setAutoDefault(false);
+    sendBtn_->setToolTip(tr("Put a copy of this venue on your server, yours or a club's"));
+    sendBtn_->hide();
+    connect(sendBtn_, &QPushButton::clicked, this, [this] {
+        if (send_) send_(state_.venue());
+    });
+    header->addWidget(sendBtn_);
     auto* closeBtn = new QPushButton(tr("Close"), this);
     closeBtn->setAutoDefault(false);
     connect(closeBtn, &QPushButton::clicked, this, &QDialog::reject);
@@ -291,6 +300,11 @@ void VenueDesignerDialog::dispatch(const ev::Action& a) {
     // Pointer moves and typing don't change what the inspector shows.
     if (!std::holds_alternative<ev::act::Move>(a) && !std::holds_alternative<ev::act::Type>(a)) ++version_;
     refresh();
+}
+
+void VenueDesignerDialog::setSendToServer(std::function<void(const core::Venue&)> send) {
+    send_ = std::move(send);
+    sendBtn_->setVisible(static_cast<bool>(send_));
 }
 
 bool VenueDesignerDialog::saveNow() {

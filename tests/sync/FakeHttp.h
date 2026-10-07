@@ -42,6 +42,8 @@ public:
         replies_[path].push_back({ status, QJsonDocument(body).toJson(QJsonDocument::Compact),
                                    QByteArrayLiteral("application/json") });
     }
+    // Whether a reply is queued for the path (anything else gets a 404).
+    bool answers(const QByteArray& path) const { return replies_.contains(path) && !replies_.value(path).empty(); }
     // Forget the replies queued for a path (to answer differently from now on).
     void clear(const QByteArray& path) { replies_.remove(path); }
     // Any bytes, e.g. a part's sprite.

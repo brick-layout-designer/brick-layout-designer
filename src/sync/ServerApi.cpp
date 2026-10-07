@@ -112,10 +112,6 @@ void ServerApi::deleteLayout(const QString& id) {
     deleteAt(QStringLiteral("/api/layouts/") + QString::fromLatin1(QUrl::toPercentEncoding(id)), id);
 }
 
-void ServerApi::deleteVenue(const QString& id) {
-    deleteAt(QStringLiteral("/api/venues/") + QString::fromLatin1(QUrl::toPercentEncoding(id)), id);
-}
-
 void ServerApi::returnToAuthor(const QString& kindPath, const QString& id, bool give) {
     QNetworkReply* r = post(QStringLiteral("/api/%1/%2/%3")
                                 .arg(kindPath, QString::fromLatin1(QUrl::toPercentEncoding(id)),
@@ -181,6 +177,47 @@ void ServerApi::fetchVersion() {
     });
 }
 
+namespace {
+QDateTime timeOf(const QJsonValue& v) {
+    if (v.isDouble()) return QDateTime::fromMSecsSinceEpoch(static_cast<qint64>(v.toDouble()));
+    return QDateTime::fromString(v.toString(), Qt::ISODateWithMs);
+}
+}  // namespace
+
+LayoutEntry ServerApi::layoutEntryFromJson(const QJsonObject& l) {
+    LayoutEntry e;
+    e.id = l.value(QLatin1String("id")).toString();
+    e.title = l.value(QLatin1String("title")).toString();
+    e.ownerOrgName = l.value(QLatin1String("ownerOrgName")).toString();
+    e.ownerOrgSlug = l.value(QLatin1String("ownerOrgSlug")).toString();
+    // Newer servers tag every item with its owner, a club shared with you included.
+    const QJsonObject owner = l.value(QLatin1String("owner")).toObject();
+    if (owner.value(QLatin1String("kind")).toString() == QLatin1String("org")) {
+        e.ownerOrgName = owner.value(QLatin1String("name")).toString(e.ownerOrgName);
+        e.ownerOrgSlug = owner.value(QLatin1String("slug")).toString(e.ownerOrgSlug);
+    }
+    e.role = l.value(QLatin1String("role")).toString();
+    e.credit = creditFromJson(l);
+    e.updatedAt = timeOf(l.value(QLatin1String("updatedAt")));
+    return e;
+}
+
+VenueEntry ServerApi::venueEntryFromJson(const QJsonObject& e) {
+    VenueEntry v;
+    v.id = e.value(QLatin1String("id")).toString();
+    v.name = e.value(QLatin1String("name")).toString();
+    v.ownerOrgId = e.value(QLatin1String("ownerOrgId")).toString();
+    v.ownerOrgName = e.value(QLatin1String("ownerOrgName")).toString();
+    v.ownerOrgSlug = e.value(QLatin1String("ownerOrgSlug")).toString();
+    v.credit = creditFromJson(e);
+    // Servers before it let anyone who could see a venue try to delete it.
+    v.canManage = e.value(QLatin1String("canManage")).toBool(true);
+    if (e.contains(QLatin1String("createdAt"))) v.createdAt = timeOf(e.value(QLatin1String("createdAt")));
+    v.widthStuds = e.value(QLatin1String("widthStuds")).toInt();
+    v.heightStuds = e.value(QLatin1String("heightStuds")).toInt();
+    return v;
+}
+
 void ServerApi::fetchLayouts() {
     QNetworkReply* r = get(QStringLiteral("/api/layouts"));
     connect(r, &QNetworkReply::finished, this, [this, r] {
@@ -188,26 +225,7 @@ void ServerApi::fetchLayouts() {
         const auto o = okJson(r, QStringLiteral("layouts"));
         if (!o) return;
         QList<LayoutEntry> out;
-        for (const auto& v : o->value(QLatin1String("layouts")).toArray()) {
-            const QJsonObject l = v.toObject();
-            LayoutEntry e;
-            e.id = l.value(QLatin1String("id")).toString();
-            e.title = l.value(QLatin1String("title")).toString();
-            e.ownerOrgName = l.value(QLatin1String("ownerOrgName")).toString();
-            e.ownerOrgSlug = l.value(QLatin1String("ownerOrgSlug")).toString();
-            // Newer servers tag every item with its owner, a club shared with you included.
-            const QJsonObject owner = l.value(QLatin1String("owner")).toObject();
-            if (owner.value(QLatin1String("kind")).toString() == QLatin1String("org")) {
-                e.ownerOrgName = owner.value(QLatin1String("name")).toString(e.ownerOrgName);
-                e.ownerOrgSlug = owner.value(QLatin1String("slug")).toString(e.ownerOrgSlug);
-            }
-            e.role = l.value(QLatin1String("role")).toString();
-            e.credit = creditFromJson(l);
-            const QJsonValue updated = l.value(QLatin1String("updatedAt"));
-            e.updatedAt = updated.isDouble() ? QDateTime::fromMSecsSinceEpoch(static_cast<qint64>(updated.toDouble()))
-                                             : QDateTime::fromString(updated.toString(), Qt::ISODateWithMs);
-            out << e;
-        }
+        for (const auto& v : o->value(QLatin1String("layouts")).toArray()) out << layoutEntryFromJson(v.toObject());
         emit layoutsReady(out);
     });
 }
@@ -276,40 +294,6 @@ void ServerApi::publishLayout(const QString& title, const QByteArray& bbm, const
         }
         emit published(o.value(QLatin1String("id")).toString(),
                        o.value(QLatin1String("title")).toString(title));
-    });
-}
-
-void ServerApi::fetchVenues() {
-    QNetworkReply* r = get(QStringLiteral("/api/venues"));
-    connect(r, &QNetworkReply::finished, this, [this, r] {
-        r->deleteLater();
-        const auto o = okJson(r, QStringLiteral("venues"));
-        if (!o) return;
-        QList<VenueEntry> out;
-        for (const auto& v : o->value(QLatin1String("venues")).toArray()) {
-            const QJsonObject e = v.toObject();
-            out << VenueEntry{ e.value(QLatin1String("id")).toString(),
-                               e.value(QLatin1String("name")).toString(),
-                               e.value(QLatin1String("ownerOrgId")).toString(),
-                               e.value(QLatin1String("ownerOrgName")).toString(),
-                               e.value(QLatin1String("ownerOrgSlug")).toString(),
-                               creditFromJson(e) };
-        }
-        emit venuesReady(out);
-    });
-}
-
-void ServerApi::fetchVenue(const QString& id) {
-    QNetworkReply* r = get(QStringLiteral("/api/venues/") + QString::fromLatin1(QUrl::toPercentEncoding(id)));
-    connect(r, &QNetworkReply::finished, this, [this, r, id] {
-        r->deleteLater();
-        const auto o = okJson(r, QStringLiteral("venue"));
-        if (!o) return;
-        // The server keeps the venue as the web wrote it: a .bld-venue file
-        // without its schema tag (saveload/VenueIO.cpp reads either way).
-        QJsonObject file = o->value(QLatin1String("data")).toObject();
-        file.insert(QStringLiteral("schema"), QStringLiteral("bld-venue/1"));
-        emit venueReady(id, o->value(QLatin1String("name")).toString(), QJsonDocument(file).toJson(QJsonDocument::Indented));
     });
 }
 

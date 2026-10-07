@@ -149,11 +149,12 @@ void startTourOnNext(const char* className, const QString& id, theme::PrefsStore
 
 // The first-launch welcome: what the app is for, and three ways in.
 // "Start or open a layout" opens out into its own three: a new layout,
-// a file, or a layout on a server.
+// a file, "Open from server" (the Server window), or a file of yours onto
+// a server.
 class WelcomeDialog : public QDialog {
     Q_OBJECT
 public:
-    enum class Choice { None, NewLayout, OpenFile, Server, Club, Tour };
+    enum class Choice { None, NewLayout, OpenFile, Server, SaveFile, Club, Tour };
     explicit WelcomeDialog(QWidget* parent = nullptr);
     Choice choice() const { return choice_; }
     // "Connect to a server", a card of its own while no server is set up.

@@ -20,6 +20,22 @@ QDateTime timeOf(const QJsonValue& v) {
 
 int intOf(const QJsonValue& v) { return v.isDouble() ? static_cast<int>(v.toDouble()) : 0; }
 
+// Who owns it: newer servers tag it ({kind, id, name, slug}); older ones give a club's id only.
+OwnerTag ownerOf(const QJsonObject& o) {
+    OwnerTag t;
+    const QJsonObject owner = o.value(QLatin1String("owner")).toObject();
+    t.kind = owner.value(QLatin1String("kind")).toString();
+    t.id = owner.value(QLatin1String("id")).toString();
+    t.name = owner.value(QLatin1String("name")).toString();
+    t.slug = owner.value(QLatin1String("slug")).toString();
+    if (t.kind.isEmpty()) {
+        const QString org = o.value(QLatin1String("ownerOrgId")).toString();
+        t.kind = org.isEmpty() ? QStringLiteral("user") : QStringLiteral("org");
+        t.id = org.isEmpty() ? o.value(QLatin1String("ownerUserId")).toString() : org;
+    }
+    return t;
+}
+
 }  // namespace
 
 QString ServerModule::thumbnailPath() const {
@@ -82,18 +98,27 @@ ServerModule LibraryApi::moduleFromJson(const QJsonObject& o) {
     m.thumbnailAt = at.isDouble() ? static_cast<qint64>(at.toDouble()) : 0;
     m.updatedAt = timeOf(o.value(QLatin1String("updatedAt")));
     m.credit = creditFromJson(o);
-    const QJsonObject owner = o.value(QLatin1String("owner")).toObject();
-    m.owner.kind = owner.value(QLatin1String("kind")).toString();
-    m.owner.id = owner.value(QLatin1String("id")).toString();
-    m.owner.name = owner.value(QLatin1String("name")).toString();
-    m.owner.slug = owner.value(QLatin1String("slug")).toString();
-    if (m.owner.kind.isEmpty()) {
-        // Servers before owner tags: a club's id only.
-        const QString org = o.value(QLatin1String("ownerOrgId")).toString();
-        m.owner.kind = org.isEmpty() ? QStringLiteral("user") : QStringLiteral("org");
-        m.owner.id = org.isEmpty() ? o.value(QLatin1String("ownerUserId")).toString() : org;
-    }
+    m.owner = ownerOf(o);
     return m;
+}
+
+ServerPart LibraryApi::partFromJson(const QJsonObject& o) {
+    ServerPart p;
+    p.id = o.value(QLatin1String("id")).toString();
+    p.partNumber = o.value(QLatin1String("partNumber")).toString();
+    p.displayName = o.value(QLatin1String("displayName")).toString();
+    p.role = o.value(QLatin1String("role")).toString();
+    p.owner = ownerOf(o);
+    p.updatedAt = timeOf(o.value(QLatin1String("updatedAt")));
+    p.credit = creditFromJson(o);
+    p.hasSprite = !o.value(QLatin1String("spriteMime")).toString().isEmpty();
+    return p;
+}
+
+QString ServerPart::spritePath() const {
+    if (!hasSprite) return {};
+    // The date keeps the cached picture until the part changes.
+    return QStringLiteral("/api/custom-parts/%1/sprite?v=%2").arg(idPath(id)).arg(updatedAt.toMSecsSinceEpoch());
 }
 
 CatalogItem LibraryApi::catalogItemFromJson(const QJsonObject& o) {
@@ -232,6 +257,7 @@ void LibraryApi::catalogSettings(std::function<void(const CatalogSettings&)> don
         s.parts = o.value(QLatin1String("parts")).toBool();
         s.layouts = o.value(QLatin1String("layouts")).toBool();
         s.venues = o.value(QLatin1String("venues")).toBool();
+        s.review = o.value(QLatin1String("review")).toString() != QLatin1String("none");
         if (done) done(s);
     }, std::move(failed));
 }
@@ -268,6 +294,96 @@ void LibraryApi::venueFile(const QString& id, std::function<void(const QString&,
         QJsonObject file = o.value(QLatin1String("data")).toObject();
         file.insert(QStringLiteral("schema"), QStringLiteral("bld-venue/1"));
         if (done) done(o.value(QLatin1String("name")).toString(), QJsonDocument(file).toJson(QJsonDocument::Indented));
+    }, std::move(failed));
+}
+
+void LibraryApi::layouts(std::function<void(const QList<LayoutEntry>&)> done, Fail failed) {
+    sendJson("GET", QStringLiteral("/api/layouts"), {}, [done = std::move(done)](const QJsonObject& o) {
+        QList<LayoutEntry> out;
+        for (const auto& v : o.value(QLatin1String("layouts")).toArray()) out << ServerApi::layoutEntryFromJson(v.toObject());
+        if (done) done(out);
+    }, std::move(failed));
+}
+
+void LibraryApi::venues(std::function<void(const QList<VenueEntry>&)> done, Fail failed) {
+    sendJson("GET", QStringLiteral("/api/venues"), {}, [done = std::move(done)](const QJsonObject& o) {
+        QList<VenueEntry> out;
+        for (const auto& v : o.value(QLatin1String("venues")).toArray()) out << ServerApi::venueEntryFromJson(v.toObject());
+        if (done) done(out);
+    }, std::move(failed));
+}
+
+void LibraryApi::customParts(std::function<void(const QList<ServerPart>&)> done, Fail failed) {
+    sendJson("GET", QStringLiteral("/api/custom-parts"), {}, [done = std::move(done)](const QJsonObject& o) {
+        QList<ServerPart> out;
+        for (const auto& v : o.value(QLatin1String("parts")).toArray()) out << partFromJson(v.toObject());
+        if (done) done(out);
+    }, std::move(failed));
+}
+
+void LibraryApi::layoutFile(const QString& id, bool native, std::function<void(const QByteArray&)> done, Fail failed) {
+    send("GET", QStringLiteral("/api/layouts/%1/%2").arg(idPath(id), native ? QStringLiteral("export.bld-layout") : QStringLiteral("export.bbm")),
+         {}, {}, [done = std::move(done)](QNetworkReply* r) {
+             if (done) done(r->readAll());
+         },
+         std::move(failed));
+}
+
+void LibraryApi::deleteLayout(const QString& id, std::function<void()> done, Fail failed) {
+    send("DELETE", QStringLiteral("/api/layouts/%1").arg(idPath(id)), {}, {}, [done = std::move(done)](QNetworkReply*) {
+        if (done) done();
+    }, std::move(failed));
+}
+
+void LibraryApi::deleteVenue(const QString& id, std::function<void()> done, Fail failed) {
+    send("DELETE", QStringLiteral("/api/venues/%1").arg(idPath(id)), {}, {}, [done = std::move(done)](QNetworkReply*) {
+        if (done) done();
+    }, std::move(failed));
+}
+
+void LibraryApi::createVenue(const QString& name, const QJsonObject& data, const QString& orgSlug,
+                             std::function<void(const QString&)> done, Fail failed) {
+    QJsonObject body{ { QStringLiteral("name"), name }, { QStringLiteral("data"), data } };
+    if (!orgSlug.isEmpty()) body.insert(QStringLiteral("orgSlug"), orgSlug);
+    sendJson("POST", QStringLiteral("/api/venues"), body, [done = std::move(done)](const QJsonObject& o) {
+        if (done) done(o.value(QLatin1String("id")).toString());
+    }, std::move(failed));
+}
+
+void LibraryApi::shareToCatalog(const CatalogShare& share, std::function<void(const QString&, const QString&)> done,
+                                Fail failed) {
+    QJsonObject body{ { QStringLiteral("kind"), share.kind }, { QStringLiteral("sourceId"), share.sourceId },
+                      { QStringLiteral("title"), share.title.trimmed() } };
+    // An update keeps its description and tags unless new ones are given (as the web sends it).
+    if (!share.description.trimmed().isEmpty() || !share.update)
+        body.insert(QStringLiteral("description"), share.description.trimmed());
+    if (!share.tags.isEmpty() || !share.update) body.insert(QStringLiteral("tags"), QJsonArray::fromStringList(share.tags));
+    if (!share.note.trimmed().isEmpty()) body.insert(QStringLiteral("note"), share.note.trimmed());
+    if (!share.thumbnailPng.isEmpty())
+        body.insert(QStringLiteral("thumbnail"),
+                    QJsonObject{ { QStringLiteral("mime"), QStringLiteral("image/png") },
+                                 { QStringLiteral("data"), QString::fromLatin1(share.thumbnailPng.toBase64()) } });
+    sendJson("POST", QStringLiteral("/api/catalog/submissions"), body, [done = std::move(done)](const QJsonObject& o) {
+        if (done) done(o.value(QLatin1String("id")).toString(), o.value(QLatin1String("status")).toString());
+    }, std::move(failed));
+}
+
+void LibraryApi::myCatalogItems(std::function<void(const QList<MyCatalogItem>&)> done, Fail failed) {
+    sendJson("GET", QStringLiteral("/api/catalog/mine"), {}, [done = std::move(done)](const QJsonObject& o) {
+        QList<MyCatalogItem> out;
+        for (const auto& v : o.value(QLatin1String("items")).toArray()) {
+            const QJsonObject i = v.toObject();
+            MyCatalogItem m;
+            m.id = i.value(QLatin1String("id")).toString();
+            m.kind = i.value(QLatin1String("kind")).toString();
+            m.sourceId = i.value(QLatin1String("sourceId")).toString();
+            m.title = i.value(QLatin1String("title")).toString();
+            m.status = i.value(QLatin1String("status")).toString();
+            m.reason = i.value(QLatin1String("reason")).toString();
+            m.pendingVersion = intOf(i.value(QLatin1String("pendingVersion")));
+            out << m;
+        }
+        if (done) done(out);
     }, std::move(failed));
 }
 

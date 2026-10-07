@@ -42,6 +42,9 @@ public:
     // sees the new thumbnail immediately without a UI freeze.
     void addOne(const QString& key);
 
+    // Finds a part: every category, the search set to `text` (its number).
+    void showPart(const QString& text);
+
     // MIME type used when a thumbnail is dragged out of this panel. MapView
     // recognises the same string in its drop handler.
     static constexpr const char* kPartMimeType = "application/x-bld-part";

@@ -15,9 +15,12 @@
 #include "../rendering/ModuleLabels.h"
 #include "../edit/ModuleCommands.h"
 #include "NoticeArea.h"
+#include "PartsBrowser.h"
+#include "theme/PanelHeader.h"
 #include "SaveModuleDialog.h"
 #include "../edit/ModuleSheets.h"
 #include "ServerLibrary.h"
+#include "ServerWindow.h"
 #include "VenueLibraryPanel.h"
 #include "../import/LayoutSource.h"
 #include "../saveload/VenueIO.h"
@@ -35,6 +38,7 @@
 #include "ServerList.h"
 
 #include <QBuffer>
+#include <QCoreApplication>
 #include <QPainter>
 #include <QToolButton>
 #include <QDesktopServices>
@@ -100,7 +104,7 @@ void MainWindow::setupServerLibrary() {
     connect(serverLibrary_, &ServerLibrary::changed, this, relist);
     connect(serverLibrary_, &ServerLibrary::changed, this, retitle);
 
-    // The status bar says how the server is doing; a click opens Servers.
+    // The status bar says how the server is doing; a click opens the Server window.
     serverStatus_ = new QToolButton(this);
     serverStatus_->setObjectName(QStringLiteral("serverStatus"));
     serverStatus_->setAutoRaise(true);
@@ -110,7 +114,7 @@ void MainWindow::setupServerLibrary() {
     statusBar()->addPermanentWidget(serverStatus_);
     connect(serverStatus_, &QToolButton::clicked, this, [this] {
         // Not inside the button's own click.
-        QTimer::singleShot(0, this, &MainWindow::onManageServers);
+        QTimer::singleShot(0, this, [this] { showServerWindow(serverWindow_ ? static_cast<int>(serverWindow_->currentTab()) : 0); });
     });
     connect(serverLibrary_, &ServerLibrary::stateChanged, this, &MainWindow::updateServerStatus);
     connect(serverLibrary_, &ServerLibrary::changed, this, &MainWindow::updateServerStatus);
@@ -143,22 +147,8 @@ void MainWindow::setupServerLibrary() {
     });
     // The catalog's venues: "Use this venue" copied it to your venues; keep it in the
     // Venue library too, and start a new layout in it.
-    connect(serverLibrary_, &ServerLibrary::catalogVenueCopied, this, [this](const QString& id, const QString&) {
-        serverLibrary_->api().venueFile(id, [this](const QString& name, const QByteArray& file) {
-            const QString path = venueLibraryPanel_->addVenueFile(name, file);
-            QString error;
-            const auto venue = path.isEmpty() ? std::nullopt : saveload::readVenueFile(path, &error);
-            if (!venue) {
-                QMessageBox::warning(this, tr("Use this venue"),
-                                     tr("The venue “%1” couldn't be saved in the Venue library folder %2.")
-                                         .arg(name, venueLibraryPanel_->libraryPath()));
-                return;
-            }
-            startLayoutFromVenue(*venue);
-        }, [this](const sync::ServerRefusal& r) {
-            QMessageBox::warning(this, tr("Use this venue"), ServerLibrary::refusalText(r));
-        });
-    });
+    connect(serverLibrary_, &ServerLibrary::catalogVenueCopied, this,
+            [this](const QString& id, const QString&) { useServerVenue(id); });
     connect(serverLibrary_, &ServerLibrary::message, this, [this](const QString& text) {
         statusBar()->showMessage(text, 5000);
     });
@@ -249,7 +239,9 @@ void MainWindow::updateServerStatus() {
 void MainWindow::updateLibraryServer() {
     if (!serverLibrary_) return;
     const sync::ServerList servers = sync::ServerList::load();
-    const sync::ServerEntry* e = live_ && live_->active() ? servers.find(liveServer_) : nullptr;
+    // The one picked in the Server window, else the live layout's, else the one used last.
+    const sync::ServerEntry* e = browseServer_.isValid() ? servers.find(browseServer_) : nullptr;
+    if (!e && live_ && live_->active()) e = servers.find(liveServer_);
     if (!e) e = servers.lastUsed();
     if (!e) {
         serverLibrary_->setServer({}, {}, {});
@@ -291,6 +283,7 @@ void MainWindow::signInToLibraryServer() {
 }
 
 void MainWindow::onServerHint(const QJsonObject& hint) {
+    if (serverWindow_) serverWindow_->hint(hint);
     const QString kind = hint.value(QLatin1String("kind")).toString();
     if (kind == QLatin1String("warning")) {
         refreshNotices();
@@ -299,6 +292,161 @@ void MainWindow::onServerHint(const QJsonObject& hint) {
         libraryRefresh_->start();
         if (kind == QLatin1String("club") || kind == QLatin1String("me")) refreshNotices();
     }
+}
+
+// ---------- File › Open from Server… ------------------------------------------
+
+void MainWindow::showServerWindow(int tab) {
+    if (!serverWindow_) {
+        serverWindow_ = new ServerWindow(*serverLibrary_, this);
+        serverWindow_->hasPart = [this](const QString& number) { return parts_.metadata(number).has_value(); };
+        connect(serverWindow_, &ServerWindow::serverPicked, this, [this](const QUrl& url) {
+            browseServer_ = url;
+            sync::ServerList list = sync::ServerList::load();
+            list.touch(url);
+            list.save();
+            updateLibraryServer();
+        });
+        connect(serverWindow_, &ServerWindow::manageServersRequested, this, [this] {
+            onManageServers();
+            if (serverWindow_) serverWindow_->refreshServers();
+        });
+        connect(serverWindow_, &ServerWindow::openLayoutRequested, this, &MainWindow::openServerLayout);
+        connect(serverWindow_, &ServerWindow::useVenueRequested, this, [this](const QString& id, const QString&) { useServerVenue(id); });
+        connect(serverWindow_, &ServerWindow::addVenueRequested, this, &MainWindow::addServerVenue);
+        connect(serverWindow_, &ServerWindow::saveModuleCopyRequested, this, &MainWindow::saveServerModuleCopy);
+        connect(serverWindow_, &ServerWindow::addPartRequested, this, &MainWindow::addServerPart);
+        connect(serverWindow_, &ServerWindow::showPartRequested, this, &MainWindow::showPartInBrowser);
+        connect(serverWindow_, &ServerWindow::message, this, [this](const QString& text) { statusBar()->showMessage(text, 6000); });
+        // Sending to the server.
+        connect(serverWindow_, &ServerWindow::sendRequested, this,
+                [this](ServerWindow::Tab tab, const QString& id) { sendLocalToServer(static_cast<int>(tab), id); });
+        connect(serverWindow_, &ServerWindow::saveLayoutFileRequested, this, &MainWindow::saveLayoutFileToServer);
+        connect(serverWindow_, &ServerWindow::uploadPartsRequested, this, [this] {
+            if (readyToSend()) uploadPartsTo(serverLibrary_->server(), serverLibrary_->token(), false);
+        });
+        connect(serverWindow_, &ServerWindow::shareRequested, this, &MainWindow::shareToCatalog);
+        connect(serverWindow_, &ServerWindow::localRefreshWanted, this, [this] {
+            refreshServerLocal();
+            checkMissingParts();
+        });
+        // A module saved to the library (or the server changed): the "Not on the server yet" rows follow.
+        connect(serverLibrary_, &ServerLibrary::changed, this, [this] {
+            if (localRefresh_) localRefresh_->start();
+        });
+    }
+    serverWindow_->showTab(static_cast<ServerWindow::Tab>(tab));
+}
+
+void MainWindow::openServerLayout(const sync::LayoutEntry& layout) {
+    if (!maybeSave()) return;
+    const QUrl server = serverLibrary_->server();
+    const QString token = serverLibrary_->token();
+    if (!server.isValid() || token.isEmpty()) return;
+    // Only a server this app can work with (as Connect does): too old, or a
+    // newer document than this build reads, says so and stops.
+    auto* api = new sync::ServerApi(this);
+    api->setBase(server);
+    api->setToken(token);
+    statusBar()->showMessage(tr("Opening “%1”…").arg(layout.title));
+    connect(api, &sync::ServerApi::versionReady, this, [this, api, server, token, layout](const sync::ServerInfo& info) {
+        api->deleteLater();
+        const QString mine = QCoreApplication::applicationVersion();
+        if (info.standing(mine) == sync::Standing::UpdateRequired || !info.compatible()) {
+            QMessageBox::warning(this, tr("Open live"),
+                                 info.standing(mine) == sync::Standing::UpdateRequired
+                                     ? tr("This server needs Brick Layout Designer %1 or newer, and you have %2. Download "
+                                          "the new version, install it, then open the layout again.")
+                                           .arg(info.desktopMinimum, mine)
+                                     : tr("This server keeps its layouts in a newer form than this version of Brick Layout "
+                                          "Designer can read. Download the new version, then open the layout again."));
+            return;
+        }
+        sync::ServerList list = sync::ServerList::load();
+        list.remember(server, info);
+        list.save();
+        openLive(sync::ConnectResult{ server, token, layout.id, layout.title, layout.role == QLatin1String("viewer"), info });
+    });
+    connect(api, &sync::ServerApi::requestFailed, this, [this, api](const QString&, const QString& message, bool) {
+        api->deleteLater();
+        QMessageBox::warning(this, tr("Open live"), tr("Couldn't reach the server: %1").arg(message));
+    });
+    api->fetchVersion();
+}
+
+void MainWindow::useServerVenue(const QString& venueId) {
+    serverLibrary_->api().venueFile(venueId, [this](const QString& name, const QByteArray& file) {
+        const QString path = venueLibraryPanel_->addVenueFile(name, file);
+        QString error;
+        const auto venue = path.isEmpty() ? std::nullopt : saveload::readVenueFile(path, &error);
+        if (!venue) {
+            QMessageBox::warning(this, tr("Use this venue"),
+                                 tr("The venue “%1” couldn't be saved in the Venue library folder %2.")
+                                     .arg(name, venueLibraryPanel_->libraryPath()));
+            return;
+        }
+        startLayoutFromVenue(*venue);
+    }, [this](const sync::ServerRefusal& r) {
+        QMessageBox::warning(this, tr("Use this venue"), ServerLibrary::refusalText(r));
+    });
+}
+
+void MainWindow::addServerVenue(const QString& venueId, const QString& name) {
+    serverLibrary_->api().venueFile(venueId, [this](const QString& got, const QByteArray& file) {
+        if (venueLibraryPanel_->addVenueFile(got, file).isEmpty()) {
+            QMessageBox::warning(this, tr("Add to my venue library"),
+                                 tr("The venue “%1” couldn't be saved in the Venue library folder %2.")
+                                     .arg(got, venueLibraryPanel_->libraryPath()));
+            return;
+        }
+        theme::PanelHeader::setShown(venueLibraryPanel_, true);
+        venueLibraryPanel_->raise();
+        statusBar()->showMessage(tr("Added “%1” to your Venue library").arg(got), 5000);
+    }, [this, name](const sync::ServerRefusal& r) {
+        QMessageBox::warning(this, tr("Add to my venue library"), tr("Couldn't get “%1”: %2").arg(name, ServerLibrary::refusalText(r)));
+    });
+}
+
+void MainWindow::saveServerModuleCopy(const QString& moduleId) {
+    const sync::ServerModule* m = serverLibrary_->module(moduleId);
+    const QString title = m ? m->title : tr("Module");
+    serverLibrary_->api().moduleSnapshot(moduleId, [this, title](const QByteArray& bytes) {
+        QString error;
+        auto module = sync::mapFromModuleSnapshot(bytes, &error);
+        if (!module) {
+            QMessageBox::warning(this, tr("Save a copy locally"), tr("“%1” couldn't be read (%2).").arg(title, error));
+            return;
+        }
+        if (!saveModuleLocally(*module, sync::partCount(*module), title).isEmpty()) {
+            theme::PanelHeader::setShown(moduleLibraryPanel_, true);
+            moduleLibraryPanel_->raise();
+        }
+    }, [this, title](const sync::ServerRefusal& r) {
+        QMessageBox::warning(this, tr("Save a copy locally"), tr("Couldn't get “%1”: %2").arg(title, ServerLibrary::refusalText(r)));
+    });
+}
+
+void MainWindow::addServerPart(const QString& partNumber) {
+    const QUrl server = serverLibrary_->server();
+    const QString token = serverLibrary_->token();
+    if (!server.isValid() || token.isEmpty()) return;
+    statusBar()->showMessage(tr("Getting %1 from the server…").arg(partNumber));
+    // Your parts and your clubs' come down together, into this server's parts folder.
+    syncServerParts(server, token, [this, partNumber] {
+        if (serverWindow_) serverWindow_->partsChanged();
+        if (parts_.metadata(partNumber)) {
+            showPartInBrowser(partNumber);
+            statusBar()->showMessage(tr("%1 is in your parts").arg(partNumber), 5000);
+        } else {
+            statusBar()->showMessage(tr("%1 couldn't be downloaded. Try again in a moment.").arg(partNumber), 6000);
+        }
+    });
+}
+
+void MainWindow::showPartInBrowser(const QString& partNumber) {
+    theme::PanelHeader::setShown(partsBrowser_, true);
+    partsBrowser_->raise();
+    partsBrowser_->showPart(partNumber);
 }
 
 void MainWindow::insertServerModule(const QString& moduleId) {

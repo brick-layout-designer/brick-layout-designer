@@ -456,6 +456,12 @@ void PartsBrowser::loadSomeIcons() {
     }
 }
 
+void PartsBrowser::showPart(const QString& text) {
+    category_->setCurrentIndex(0);
+    filter_->setText(text);
+    applyFilter();
+}
+
 void PartsBrowser::addOne(const QString& key) {
     auto meta = lib_.metadata(key);
     if (!meta) return;

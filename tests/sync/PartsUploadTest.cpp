@@ -91,9 +91,22 @@ TEST(PartsUpload, ListsOnlyPartsTheServerLacksAndUploadsWhatWasChosen) {
     UploadPartsDialog dialog(api, upload, missing);
     auto* owner = dialog.findChild<QComboBox*>(QStringLiteral("owner"));
     ASSERT_TRUE(waitFor([&] { return owner->count() == 2; }));
+    EXPECT_EQ(owner->itemText(0), QStringLiteral("Me"));
     owner->setCurrentIndex(1);
     dialog.findChild<QListWidget*>(QStringLiteral("parts"))->item(1)->setCheckState(Qt::Unchecked);
+    // Into a club: asked first; no means nothing goes.
+    QStringList asked;
+    bool yes = false;
+    dialog.confirmClub = [&](const QString& club) {
+        asked << club;
+        return yes;
+    };
     dialog.uploadChecked();
+    EXPECT_EQ(asked.size(), 1);
+    EXPECT_NE(dialog.result(), QDialog::Accepted);
+    yes = true;
+    dialog.uploadChecked();
+    EXPECT_EQ(asked.size(), 2);
     ASSERT_TRUE(waitFor([&] { return dialog.result() == QDialog::Accepted; }));
     EXPECT_EQ(dialog.uploadedCount(), 1);
     int posts = 0;

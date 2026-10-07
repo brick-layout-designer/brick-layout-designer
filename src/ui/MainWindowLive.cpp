@@ -1,5 +1,6 @@
-// File › Connect to Server… and the live-layout state of the main window
-// (sync phase P4).
+// Live layouts on a server (sync phase P4): File › Open from Server…'s
+// way in, publishing, the live-layout state of the main window and the
+// server's parts.
 
 #include "MainWindow.h"
 
@@ -67,19 +68,21 @@ void MainWindow::setupLiveMenu(QMenu* file) {
     serversAct->setObjectName(QStringLiteral("manageServers"));
     serversAct->setToolTip(tr("Your servers: add one, sign in, or pick your Main one"));
     connect(serversAct, &QAction::triggered, this, &MainWindow::onManageServers);
-    auto* connectAct = file->addAction(tr("&Connect to Server..."));
-    connect(connectAct, &QAction::triggered, this, &MainWindow::onConnectToServer);
+    // Everything on the server in one window (it replaced Connect to Server…
+    // and Download Venues from Server…).
+    auto* openFromServer = file->addAction(tr("Open from &Server..."));
+    openFromServer->setObjectName(QStringLiteral("file.openFromServer"));
+    openFromServer->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_O));
+    openFromServer->setToolTip(tr("Your layouts, venues, modules and parts on the server, and your clubs'"));
+    connect(openFromServer, &QAction::triggered, this, [this] { showServerWindow(); });
+    // The other way: the open layout onto a server, yours or a club's (it replaced Publish to Server…).
+    auto* saveToServer = file->addAction(tr("Save &to Server..."));
+    saveToServer->setObjectName(QStringLiteral("file.saveToServer"));
+    saveToServer->setToolTip(tr("Put this layout on a server, yours or a club's, and keep editing it live"));
+    connect(saveToServer, &QAction::triggered, this, &MainWindow::onPublishToServer);
     disconnectAct_ = file->addAction(tr("&Disconnect"));
     disconnectAct_->setEnabled(false);
     connect(disconnectAct_, &QAction::triggered, this, &MainWindow::onDisconnect);
-    auto* publishAct = file->addAction(tr("&Publish to Server..."));
-    publishAct->setToolTip(
-        tr("Put this layout on a server, yours or a club's, and keep editing it live"));
-    connect(publishAct, &QAction::triggered, this, &MainWindow::onPublishToServer);
-    uploadPartsAct_ = file->addAction(tr("&Upload My Parts to Server..."));
-    uploadPartsAct_->setToolTip(tr("Offer your own parts that the live layout's server doesn't have yet"));
-    uploadPartsAct_->setEnabled(false);
-    connect(uploadPartsAct_, &QAction::triggered, this, [this] { offerPartsUpload(false); });
     downloadPartsAct_ = file->addAction(tr("&Download Server Parts Again"));
     downloadPartsAct_->setToolTip(tr("Fetch the live layout's server parts that are missing or changed"));
     downloadPartsAct_->setEnabled(false);
@@ -107,8 +110,6 @@ void MainWindow::setupLiveMenu(QMenu* file) {
     reviewOfflineAct_->setToolTip(tr("Compare what you changed offline with the server's layout"));
     reviewOfflineAct_->setEnabled(false);
     connect(reviewOfflineAct_, &QAction::triggered, this, &MainWindow::onReviewOfflineEdits);
-    auto* venuesAct = file->addAction(tr("Download &Venues from Server..."));
-    connect(venuesAct, &QAction::triggered, this, &MainWindow::onDownloadVenues);
 
     // While live, Undo / Redo revert this desktop's own edits on the server.
     liveUndoAct_ = new QAction(tr("&Undo"), this);
@@ -134,16 +135,6 @@ void MainWindow::setupLiveMenu(QMenu* file) {
             tr("The server ended the live session%1. The layout stays open here as an unsaved copy.")
                 .arg(reason.isEmpty() ? QString() : QStringLiteral(" (%1)").arg(reason)));
     });
-}
-
-void MainWindow::onConnectToServer() {
-    if (!maybeSave()) return;
-    sync::ServerApi api;
-    sync::ConnectDialog dialog(api, *tokens_, [](const QUrl& u) { QDesktopServices::openUrl(u); }, this);
-    if (dialog.exec() != QDialog::Accepted) return;
-    const auto chosen = dialog.result();
-    if (!chosen) return;
-    openLive(*chosen);
 }
 
 void MainWindow::offerLayoutSource(const import::LayoutSource& source) {
@@ -206,14 +197,14 @@ void MainWindow::onPublishToServer() {
     auto* m = mapView_->currentMap();
     if (!m) return;
     if (live_->active()) {
-        QMessageBox::information(this, tr("Publish to Server"),
+        QMessageBox::information(this, tr("Save to Server"),
                                  tr("This layout is already live on a server."));
         return;
     }
     QBuffer bbm;
     bbm.open(QIODevice::WriteOnly);
     if (!saveload::writeBbm(*m, bbm).ok) {
-        QMessageBox::warning(this, tr("Publish to Server"), tr("Could not write the layout to publish it."));
+        QMessageBox::warning(this, tr("Save to Server"), tr("Could not write the layout to send it."));
         return;
     }
     const QByteArray sidecar =
@@ -232,7 +223,7 @@ void MainWindow::onPublishToServer() {
     if (!published) return;
     // The published layout is now the live one; the local file stays as it was.
     openLive(*published);
-    statusBar()->showMessage(tr("Published \"%1\" to %2").arg(published->title, liveServerName()),
+    statusBar()->showMessage(tr("Saved “%1” on %2").arg(published->title, liveServerName()),
                              5000);
     // Parts of yours the server lacks would show as missing there: offer them.
     offerPartsUpload(true);
@@ -240,47 +231,7 @@ void MainWindow::onPublishToServer() {
 
 void MainWindow::offerPartsUpload(bool quiet) {
     if (!live_->active() || liveToken_.isEmpty()) return;
-    const QString root = importedPartsRoot();
-    const auto local = root.isEmpty() ? QList<sync::LocalPart>() : sync::PartsUpload::scanFolder(root);
-    if (local.isEmpty()) {
-        if (!quiet) statusBar()->showMessage(tr("You have no parts of your own to upload."), 4000);
-        return;
-    }
-    auto* upload = new sync::PartsUpload(liveServer_, liveToken_, this);
-    const auto checkFailed =
-        connect(upload, &sync::PartsUpload::failed, this, [this, upload, quiet](const QString& message, bool) {
-            if (!quiet)
-                statusBar()->showMessage(tr("Could not check the server's parts: %1").arg(message), 6000);
-            upload->deleteLater();
-        });
-    connect(upload, &sync::PartsUpload::missingReady, this,
-            [this, upload, quiet, checkFailed](const QList<sync::LocalPart>& missing) {
-                // The check is over: a refused upload later must not delete the
-                // PartsUpload under the dialog that is still using it.
-                disconnect(checkFailed);
-                if (missing.isEmpty()) {
-                    if (!quiet) statusBar()->showMessage(tr("The server already has all your parts."), 4000);
-                    upload->deleteLater();
-                    return;
-                }
-                // missingReady comes from inside a network reply's finished
-                // signal, and that reply is already deleteLater'd: open the
-                // dialog (and its event loop) once the signal has returned.
-                QTimer::singleShot(0, this, [this, upload = QPointer<sync::PartsUpload>(upload), missing] {
-                    if (!upload) return;
-                    sync::ServerApi api;
-                    api.setBase(liveServer_);
-                    api.setToken(liveToken_);
-                    sync::UploadPartsDialog dialog(api, *upload, missing, this);
-                    if (dialog.exec() == QDialog::Accepted) {
-                        statusBar()->showMessage(
-                            tr("Uploaded %n part(s) to the server", nullptr, dialog.uploadedCount()), 5000);
-                        loadLivePartsCatalog();
-                    }
-                    upload->deleteLater();
-                });
-            });
-    upload->findMissing(local);
+    uploadPartsTo(liveServer_, liveToken_, quiet);
 }
 
 void MainWindow::openLive(const sync::ConnectResult& r) {
@@ -350,6 +301,9 @@ void MainWindow::openLive(const sync::ConnectResult& r) {
     }
     startPrefsSync(r);
     showServerNotices(r.info);
+    // The Server window and the Module library show the live layout's server.
+    browseServer_ = r.server;
+    updateLibraryServer();
     updateLiveUi();
 }
 
@@ -424,7 +378,7 @@ void MainWindow::loadLivePartsCatalog() {
         liveServerParts_ = known;
         liveCatalogReady_ = true;
     });
-    // Without the catalog nothing is offered; File > Upload My Parts still works.
+    // Without the catalog nothing is offered; the Server window's Upload to server… still works.
     connect(catalog, &sync::PartsUpload::failed, catalog, &QObject::deleteLater);
     catalog->fetchCatalog();
 }
@@ -475,29 +429,6 @@ void MainWindow::offerPlacedParts() {
         });
     });
     box->open();
-}
-
-void MainWindow::onDownloadVenues() {
-    sync::ServerApi api;
-    sync::ConnectDialog dialog(
-        api, *tokens_, [](const QUrl& u) { QDesktopServices::openUrl(u); }, this,
-        sync::ConnectDialog::Purpose::DownloadVenues);
-    if (dialog.exec() != QDialog::Accepted) return;
-    QStringList saved, failed;
-    for (const auto& v : dialog.venues()) {
-        if (venueLibraryPanel_->addVenueFile(v.name, v.file).isEmpty()) failed << v.name;
-        else saved << v.name;
-    }
-    venueLibraryPanel_->show();
-    venueLibraryPanel_->raise();
-    if (!failed.isEmpty()) {
-        QMessageBox::warning(this, tr("Download venues"),
-                             tr("Could not save %1 in the venue library folder %2.")
-                                 .arg(failed.join(QStringLiteral(", ")), venueLibraryPanel_->libraryPath()));
-    }
-    if (!saved.isEmpty())
-        statusBar()->showMessage(
-            tr("Added %n venue(s) to the Venue library", nullptr, static_cast<int>(saved.size())), 5000);
 }
 
 void MainWindow::syncServerParts(const QUrl& server, const QString& token, const std::function<void()>& then) {
@@ -598,7 +529,6 @@ void MainWindow::updateLiveUi() {
     liveStatus_->setVisible(on);
     liveStatus_->setText(on ? tr("Live on %1: %2").arg(liveServerName(), live_->statusText()) : QString());
     disconnectAct_->setEnabled(on);
-    uploadPartsAct_->setEnabled(on);
     downloadPartsAct_->setEnabled(on && !partsSyncRunning_);
     if (!on) partsSyncFailed_->setVisible(false);
     undoAct_->setVisible(!on);

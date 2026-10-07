@@ -210,6 +210,9 @@ void MainWindow::setupShell() {
     // Share picture: File > Share Picture…, one click away.
     auto* picture = addTool(QStringLiteral("picture"), tr("Picture"), tr("Share a picture of the layout"), [this] { openSharePicture(); });
     tours::tag(toolbar->widgetForAction(picture), QStringLiteral("share.picture"));
+    // Everything on your server, one click away (File › Open from Server…).
+    addTool(QStringLiteral("server"), tr("Server"), tr("Open from Server: your layouts, venues, modules and parts, and your clubs'"),
+            [this] { showServerWindow(); });
     // Folded away in a narrow window: the toolbar, where its » button finds it.
     tours::tag(toolbar, QStringLiteral("share.picture"), true);
     // What the editor tour points at for the map and for saving.
@@ -483,8 +486,8 @@ void MainWindow::startTourNamed(const QString& id) {
         }
     }
     if (id == QLatin1String("clubs")) {
-        tours::startTourOnNext("bld::sync::ConnectDialog", id, store);
-        QTimer::singleShot(0, this, &MainWindow::onConnectToServer);
+        tours::startTourOnNext("bld::ui::ServerWindow", id, store);
+        QTimer::singleShot(0, this, [this] { showServerWindow(); });
         return;
     }
     tours::startTour(this, id, store);
@@ -508,7 +511,10 @@ void MainWindow::showWelcomeIfNew() {
         break;
     case tours::WelcomeDialog::Choice::Server:
     case tours::WelcomeDialog::Choice::Club:
-        QTimer::singleShot(0, this, &MainWindow::onConnectToServer);
+        QTimer::singleShot(0, this, [this] { showServerWindow(); });
+        break;
+    case tours::WelcomeDialog::Choice::SaveFile:
+        QTimer::singleShot(0, this, &MainWindow::saveLayoutFileToServer);
         break;
     case tours::WelcomeDialog::Choice::Tour:
         QTimer::singleShot(0, this, [this] { startTourNamed(QStringLiteral("editor")); });

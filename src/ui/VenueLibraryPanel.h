@@ -3,6 +3,8 @@
 #include "../core/Venue.h"
 
 #include <QDockWidget>
+
+#include <functional>
 #include <QString>
 
 #include <optional>
@@ -49,6 +51,9 @@ public:
     // existing one ("Hall (2)" instead). Returns the file written, or an
     // empty string on failure.
     QString addVenueFile(const QString& name, const QByteArray& bytes);
+    // "Save to Server…" for the picked venue (and in the Venue Designer):
+    // shown once the app can send venues; `send` does the rest.
+    void setSendToServer(std::function<void(const core::Venue&)> send);
 
 private slots:
     void onChooseFolder();
@@ -79,6 +84,8 @@ private:
     QPushButton* deleteBtn_  = nullptr;
     QPushButton* renameBtn_  = nullptr;
     QLabel*      detailLabel_ = nullptr;
+    QPushButton* sendBtn_ = nullptr;
+    std::function<void(const core::Venue&)> sendToServer_;
     QString      path_;
 };
 
