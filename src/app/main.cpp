@@ -12,6 +12,7 @@
 #include <QFileOpenEvent>
 #include <QLibraryInfo>
 #include <QLocale>
+#include <QLoggingCategory>
 #include <QSettings>
 #include <QTimer>
 #include <QTranslator>
@@ -58,6 +59,15 @@ private:
 }  // namespace
 
 int main(int argc, char** argv) {
+    // The desktop's own file dialogs (KDE's KIO on Plasma) and Qt's plugins
+    // log routine chatter, e.g. "kdirmodel: No node found for item that was
+    // just removed" for every file that changes in a folder the dialog has
+    // seen. Keep only their real errors; QT_LOGGING_RULES still overrides.
+    if (!qEnvironmentVariableIsSet("QT_LOGGING_RULES")) {
+        QLoggingCategory::setFilterRules(QStringLiteral(
+            "kf.*.debug=false\nkf.*.info=false\nkf.*.warning=false\n"
+            "qt.*.debug=false\nqt.*.info=false"));
+    }
     QApplication::setOrganizationName(QStringLiteral("BrickLayoutDesigner"));
     QApplication::setApplicationName(QStringLiteral("Brick Layout Designer"));
     QApplication::setApplicationVersion(QStringLiteral(BLD_VERSION));
