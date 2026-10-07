@@ -9,6 +9,7 @@
 #include "ui/ServerWindow.h"
 #include "../import/ZipCryptoTestZip.h"
 #include "parts/PartsLibrary.h"
+#include "rendering/SceneBuilder.h"
 #include "parts/BrickPlacement.h"
 #include "core/LayerBrick.h"
 #include "core/Map.h"
@@ -24,8 +25,11 @@
 #include <QListWidget>
 #include <QPushButton>
 #include <QElapsedTimer>
+#include <QGraphicsItem>
+#include <QGraphicsScene>
 #include <QGraphicsView>
 #include <QLabel>
+#include <QRegularExpression>
 #include <QLineF>
 #include <QMargins>
 #include <QStandardPaths>
@@ -643,4 +647,142 @@ TEST(ImportPipeline, PartsHiddenUnderOthersAreStillThere) {
     EXPECT_GT(middle.red(), middle.green() + 40) << "red under the clear plate";
     const QColor corner = img.pixelColor(3, 3);
     EXPECT_LT(corner.alpha(), 255) << "only the clear plate there";
+}
+
+// ---- Names, provenance, outline and picking of imported parts ----
+
+namespace {
+
+// An imported part written from `sprite` (8 px a stud) into `dir`.
+QString writeShape(const QString& dir, const QString& name, const QImage& sprite) {
+    ui::PreparedPart p;
+    p.source = QStringLiteral("/home/someone/models/") + name + QStringLiteral(".io");
+    p.sprite = sprite;
+    p.widthStuds = sprite.width() / 8;
+    p.heightStuds = sprite.height() / 8;
+    QString err;
+    return ui::writeImportedPart(p, name, dir, {}, false, &err);
+}
+
+QImage shape(int wStuds, int hStuds, const std::function<bool(int, int)>& opaqueStud) {
+    QImage img(wStuds * 8, hStuds * 8, QImage::Format_ARGB32);
+    img.fill(Qt::transparent);
+    for (int y = 0; y < img.height(); ++y)
+        for (int x = 0; x < img.width(); ++x)
+            if (opaqueStud(x / 8, y / 8)) img.setPixelColor(x, y, QColor(200, 30, 30));
+    return img;
+}
+
+}  // namespace
+
+TEST(ImportPipeline, ThePartIsCalledWhatYouTyped) {
+    // Aaron: never "Imported from …". The name typed in the dialog is the
+    // part's name everywhere; its part number is made from it; where it
+    // came from is kept apart, without the local path.
+    QTemporaryDir lib;
+    ui::PreparedPart p = samplePart();
+    p.source = QStringLiteral("/home/aaron/Downloads/70620_ninjago_city.io");
+    QString err;
+    const QString key = ui::writeImportedPart(p, QStringLiteral("Ninjago City (main)"), lib.path(), {}, false, &err);
+    EXPECT_EQ(key, QStringLiteral("Ninjago_City_main_"));
+    QFile f(QDir(lib.path()).filePath(key + QStringLiteral(".xml")));
+    ASSERT_TRUE(f.open(QIODevice::ReadOnly));
+    const QString xml = QString::fromUtf8(f.readAll());
+    EXPECT_TRUE(xml.contains(QStringLiteral("<en>Ninjago City (main)</en>"))) << xml.toStdString();
+    EXPECT_FALSE(xml.contains(QStringLiteral("Imported from")));
+    EXPECT_TRUE(xml.contains(QStringLiteral("<ImportedFrom file=\"70620_ninjago_city.io\" format=\"studio\" date=\"")))
+        << xml.toStdString();
+
+    parts::PartsLibrary parts;
+    parts.addSearchPath(lib.path());
+    parts.scan();
+    const auto meta = parts.metadata(key);
+    ASSERT_TRUE(meta && meta->importedFrom);
+    EXPECT_EQ(meta->importedFrom->file, QStringLiteral("70620_ninjago_city.io"));
+    EXPECT_EQ(meta->importedFrom->format, QStringLiteral("studio"));
+    ASSERT_FALSE(meta->descriptions.isEmpty());
+    EXPECT_EQ(meta->descriptions.front().text, QStringLiteral("Ninjago City (main)"));
+
+    // A batch import names the part after the file, without its extension.
+    const QString batch = ui::writeImportedPart(p, QStringLiteral("station.lxf"), lib.path(), {}, false, &err);
+    QFile b(QDir(lib.path()).filePath(batch + QStringLiteral(".xml")));
+    ASSERT_TRUE(b.open(QIODevice::ReadOnly));
+    const QString bx = QString::fromUtf8(b.readAll());
+    EXPECT_TRUE(bx.contains(QStringLiteral("<en>station</en>"))) << bx.toStdString();
+    EXPECT_TRUE(bx.contains(QStringLiteral("format=\"studio\"")));
+}
+
+TEST(ImportPreviewDialog, TheNameStartsAsTheModelsOwn) {
+    ui::PreparedPart p = samplePart();
+    p.source = QStringLiteral("/x/70620_ninjago_city.io");
+    p.title = QStringLiteral("Ninjago City");
+    ui::ImportPreviewDialog named(p, { QStringLiteral("imports") }, QStringLiteral("imports"), {});
+    EXPECT_EQ(named.partName(), QStringLiteral("Ninjago City"));
+    p.title = QStringLiteral("Untitled Model");
+    ui::ImportPreviewDialog untitled(p, { QStringLiteral("imports") }, QStringLiteral("imports"), {});
+    EXPECT_EQ(untitled.partName(), QStringLiteral("70620_ninjago_city"));
+}
+
+TEST(ImportPipeline, AnLShapedImportIsOutlinedAsAnL) {
+    QTemporaryDir lib;
+    // 8 x 8 studs, the top-right 4 x 4 empty.
+    const QString key = writeShape(lib.path(), QStringLiteral("ell"),
+                                   shape(8, 8, [](int x, int y) { return x < 4 || y >= 4; }));
+    parts::PartsLibrary parts;
+    parts.addSearchPath(lib.path());
+    parts.scan();
+    ASSERT_TRUE(parts.isImported(key));
+    const auto rings = parts.outlineStuds(key);
+    ASSERT_EQ(rings.size(), 1);
+    EXPECT_EQ(rings.front().size(), 6) << "an L has six corners";
+    EXPECT_FALSE(rings.front().containsPoint(QPointF(2, -2), Qt::OddEvenFill)) << "the empty corner";
+    EXPECT_TRUE(rings.front().containsPoint(QPointF(-2, -2), Qt::OddEvenFill));
+    EXPECT_TRUE(rings.front().containsPoint(QPointF(2, 2), Qt::OddEvenFill));
+}
+
+TEST(ImportPipeline, ClicksPassThroughTheHolesOfAnImport) {
+    // Aaron: a ring of track (or a courtyard) mustn't block what is inside it.
+    QTemporaryDir lib;
+    const QString ring = writeShape(lib.path(), QStringLiteral("ring"),
+        shape(12, 12, [](int x, int y) { return x < 3 || x >= 9 || y < 3 || y >= 9; }));
+    {
+        // As it comes back from the server: <ImportedFrom> but no local <ImportSource>.
+        QFile xml(QDir(lib.path()).filePath(ring + QStringLiteral(".xml")));
+        ASSERT_TRUE(xml.open(QIODevice::ReadWrite));
+        QString text = QString::fromUtf8(xml.readAll());
+        text.remove(QRegularExpression(QStringLiteral("<ImportSource>.*</ImportSource>"),
+                                       QRegularExpression::DotMatchesEverythingOption));
+        ASSERT_FALSE(text.contains(QStringLiteral("ImportSource")));
+        xml.resize(0);
+        xml.write(text.toUtf8());
+    }
+    TrackLibrary track;
+    track.lib.addSearchPath(lib.path());
+    track.lib.scan();
+    ASSERT_EQ(track.lib.outlineStuds(ring).size(), 2) << "the outer edge and the hole's";
+
+    core::Map map;
+    auto layer = std::make_unique<core::LayerBrick>();
+    core::Brick inside;
+    inside.guid = QStringLiteral("inside");
+    inside.partNumber = QStringLiteral("TT.7");
+    parts::placement::placeByImageCentre(inside, QPointF(0, 0), track.lib);
+    core::Brick around;
+    around.guid = QStringLiteral("around");
+    around.partNumber = ring;
+    parts::placement::placeByImageCentre(around, QPointF(0, 0), track.lib);
+    layer->bricks = { inside, around };  // the ring on top
+    map.layers().push_back(std::move(layer));
+
+    QGraphicsScene scene;
+    rendering::SceneBuilder renderer(scene, track.lib);
+    renderer.build(map);
+    const auto topBrick = [&](QPointF studs) -> QString {
+        for (QGraphicsItem* it : scene.items(studs * rendering::SceneBuilder::kPixelsPerStud))
+            if (it->data(2).toString() == QStringLiteral("brick")) return it->data(1).toString();
+        return {};
+    };
+    EXPECT_EQ(topBrick({ 0.5, 0.5 }), QStringLiteral("inside")) << "a click in the hole reaches the part inside";
+    EXPECT_EQ(topBrick({ -5, -5 }), QStringLiteral("around"));
+    EXPECT_EQ(topBrick({ 0, -2 }), QString()) << "nothing in the hole but empty map";
 }

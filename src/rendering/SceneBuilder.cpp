@@ -155,7 +155,11 @@ void addBrickLayer(const core::LayerBrick& L, LayerSink& sink, parts::PartsLibra
                 // can click on what looks like the brick and get no
                 // selection because the cursor landed on a transparent
                 // pixel of the sprite.
-                p->setShapeMode(QGraphicsPixmapItem::BoundingRectShape);
+                // Imported models are big and full of empty space
+                // (courtyards, the inside of a ring of track): clicks there
+                // reach what is underneath.
+                p->setShapeMode(lib.isImported(partKey) ? QGraphicsPixmapItem::MaskShape
+                                                        : QGraphicsPixmapItem::BoundingRectShape);
                 p->setOffset(-pm.width() / 2.0, -pm.height() / 2.0);
                 p->setTransformOriginPoint(0, 0);
                 // High-DPI imports: a part authored at e.g. 16 px/stud
@@ -207,6 +211,7 @@ void addBrickLayer(const core::LayerBrick& L, LayerSink& sink, parts::PartsLibra
         item->setData(kBrickDataLayerIndex, layerIndex);
         item->setData(kBrickDataGuid,       brick.guid);
         item->setData(kBrickDataKind,       QStringLiteral("brick"));
+        item->setData(SceneBuilder::kBrickPartRole, partKey);
 
         // Connection-point markers: child ellipses in the brick's local coord
         // system so they transform with the brick for free. Hidden by default;

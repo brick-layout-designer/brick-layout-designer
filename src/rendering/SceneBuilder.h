@@ -40,6 +40,8 @@ public:
     // or circle (QRectF) in scene px, and its line thickness, for the
     // selection band.
     static constexpr int kRulerBandRole = 10;
+    // A brick item's part key (the library key it was drawn from).
+    static constexpr int kBrickPartRole = 12;
     static constexpr int kRulerThicknessRole = 11;
 
     SceneBuilder(QGraphicsScene& scene, parts::PartsLibrary& parts);
