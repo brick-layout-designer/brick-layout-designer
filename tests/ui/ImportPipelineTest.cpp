@@ -732,6 +732,16 @@ TEST(ImportPipeline, AnLShapedImportIsOutlinedAsAnL) {
     parts.addSearchPath(lib.path());
     parts.scan();
     ASSERT_TRUE(parts.isImported(key));
+    // Written into the part as <PickShape> (for the web and the server too),
+    // never as a <hull>: the footprint stays the sprite's 8 x 8 studs.
+    const auto meta = parts.metadata(key);
+    ASSERT_TRUE(meta);
+    ASSERT_EQ(meta->pickShape.size(), 1);
+    EXPECT_EQ(meta->pickShape.front().size(), 6);
+    EXPECT_TRUE(meta->xmlHullPx.isEmpty());
+    const auto fp = parts.footprint(key, 0);
+    ASSERT_TRUE(fp);
+    EXPECT_EQ(fp->size, QSizeF(8, 8));
     const auto rings = parts.outlineStuds(key);
     ASSERT_EQ(rings.size(), 1);
     EXPECT_EQ(rings.front().size(), 6) << "an L has six corners";

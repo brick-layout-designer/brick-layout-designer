@@ -245,6 +245,25 @@ bool parsePartXml(const QString& xmlPath, PartMetadata& out) {
                 readTrackDesigner(r, td);
                 if (td.defaultId != 0 || !td.registryIds.isEmpty()) out.trackDesigner = td;
             }
+            else if (n == QStringLiteral("PickShape")) {
+                // <PickShape><ring><point><x/><y/></point>...</ring>...</PickShape>:
+                // the import's outline in studs around the sprite centre.
+                while (r.readNextStartElement()) {
+                    if (r.name() != QStringLiteral("ring")) { r.skipCurrentElement(); continue; }
+                    QPolygonF ring;
+                    while (r.readNextStartElement()) {
+                        if (r.name() != QStringLiteral("point")) { r.skipCurrentElement(); continue; }
+                        QPointF pt;
+                        while (r.readNextStartElement()) {
+                            if (r.name() == QStringLiteral("x")) pt.setX(r.readElementText().toDouble());
+                            else if (r.name() == QStringLiteral("y")) pt.setY(r.readElementText().toDouble());
+                            else r.skipCurrentElement();
+                        }
+                        if (ring.size() < 4096) ring << pt;
+                    }
+                    if (ring.size() >= 3 && out.pickShape.size() < 256) out.pickShape << ring;
+                }
+            }
             else if (n == QStringLiteral("ImportedFrom")) {
                 PartMetadata::ImportedFrom from;
                 from.file = r.attributes().value(QStringLiteral("file")).toString();
@@ -672,15 +691,10 @@ bool PartsLibrary::isImported(const QString& key) {
     return meta && (meta->importedFrom || meta->importSource);
 }
 
-QList<QPolygonF> PartsLibrary::outlineStuds(const QString& key) {
-    const QString lk = key.toLower();
-    if (auto it = outlineCache_.constFind(lk); it != outlineCache_.constEnd()) return it.value();
+QList<QPolygonF> traceOutlineStuds(const QImage& sprite, double pxPerStud) {
     QList<QPolygonF> out;
-    const QPixmap pm = pixmap(lk);
-    const auto meta = metadata(lk);
-    if (pm.isNull() || !meta) { outlineCache_.insert(lk, out); return out; }
-    const QImage img = pm.toImage().convertToFormat(QImage::Format_ARGB32);
-    const double pxPerStud = meta->pxPerStud > 0 ? meta->pxPerStud : 8;
+    if (sprite.isNull() || pxPerStud <= 0) return out;
+    const QImage img = sprite.convertToFormat(QImage::Format_ARGB32);
     // Quarter-stud cells: a cell is part of the shape when any of its
     // pixels shows something.
     const int cell = std::max(1, qRound(pxPerStud / 4.0));
@@ -716,6 +730,20 @@ QList<QPolygonF> PartsLibrary::outlineStuds(const QString& key) {
         // Up to a third of a stud off the staircase: at most a few dozen points.
         studs = simplifyRing(studs, 0.35);
         if (studs.size() >= 3) out << studs;
+    }
+    return out;
+}
+
+QList<QPolygonF> PartsLibrary::outlineStuds(const QString& key) {
+    const QString lk = key.toLower();
+    if (auto it = outlineCache_.constFind(lk); it != outlineCache_.constEnd()) return it.value();
+    const auto meta = metadata(lk);
+    QList<QPolygonF> out;
+    if (meta && !meta->pickShape.isEmpty()) {
+        out = meta->pickShape;  // written at import
+    } else if (meta) {
+        const QPixmap pm = pixmap(lk);
+        out = traceOutlineStuds(pm.toImage(), meta->pxPerStud > 0 ? meta->pxPerStud : 8);
     }
     outlineCache_.insert(lk, out);
     return out;

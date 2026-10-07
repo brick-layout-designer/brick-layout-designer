@@ -1,6 +1,7 @@
 #include "ImportToPart.h"
 
 #include "GifWriter.h"
+#include "../parts/PartsLibrary.h"
 
 #include <QDate>
 #include <QDir>
@@ -206,6 +207,24 @@ QString writeImportedModelAsLibraryPart(
             w.writeEndElement();  // connexion
         }
         w.writeEndElement();  // ConnexionList
+    }
+
+    // The model's real outline, for picking and the selection outline
+    // (BlueBrick ignores it; a <hull> would change the part's footprint).
+    const QList<QPolygonF> rings = parts::traceOutlineStuds(renderedSprite, pxPerStud);
+    if (!rings.isEmpty()) {
+        w.writeStartElement(QStringLiteral("PickShape"));
+        for (const QPolygonF& ring : rings) {
+            w.writeStartElement(QStringLiteral("ring"));
+            for (const QPointF& p : ring) {
+                w.writeStartElement(QStringLiteral("point"));
+                w.writeTextElement(QStringLiteral("x"), QString::number(p.x(), 'g', 6));
+                w.writeTextElement(QStringLiteral("y"), QString::number(p.y(), 'g', 6));
+                w.writeEndElement();
+            }
+            w.writeEndElement();
+        }
+        w.writeEndElement();  // PickShape
     }
 
     // Whole studs between the sprite's edges and the model's bottom layer:
