@@ -7,7 +7,12 @@
 #include "ui/MainWindow.h"
 #include "ui/NoticeArea.h"
 #include "ui/ServerWindow.h"
+#include "../import/ZipCryptoTestZip.h"
 #include "parts/PartsLibrary.h"
+#include "parts/BrickPlacement.h"
+#include "core/LayerBrick.h"
+#include "core/Map.h"
+#include "import/ImportConnections.h"
 
 #include <gtest/gtest.h>
 
@@ -20,6 +25,7 @@
 #include <QElapsedTimer>
 #include <QGraphicsView>
 #include <QLabel>
+#include <QMargins>
 #include <QStandardPaths>
 #include <QTest>
 #include <QTemporaryDir>
@@ -270,7 +276,9 @@ TEST(ImportPipeline, RealStudioFile) {
     std::cout << "[ import ] " << part.widthStuds << " x " << part.heightStuds << " studs, sprite "
               << part.sprite.width() << " x " << part.sprite.height() << ", " << part.stats.ldrawResolved
               << " parts drawn, " << part.stats.unresolved << " missing, " << part.warnings.size()
-              << " warning(s), " << part.connections.size() << " connection(s) in " << t.elapsed() << " ms\n";
+              << " warning(s), " << part.connections.size() << " connection(s), snap margin " << part.snapMargin.left()
+              << "/" << part.snapMargin.top() << "/" << part.snapMargin.right() << "/" << part.snapMargin.bottom() << " in "
+              << t.elapsed() << " ms\n";
     for (int i = 0; i < std::min<qsizetype>(part.warnings.size(), 15); ++i)
         std::cout << "[ warn ] " << part.warnings[i].toStdString() << '\n';
 }
@@ -386,7 +394,173 @@ TEST(ImportPipeline, RealLddFiles) {
                   << part.heightStuds << " studs, " << part.stats.lddRendered << " LDD parts drawn, "
                   << part.stats.unresolved << " missing, " << part.connections.size() << " connection(s) in "
                   << t.elapsed() << " ms\n";
+        for (const auto& c : part.connections)
+            std::cout << "[ conn ] type " << c.type.toStdString() << " at (" << c.xStuds << ", " << c.yStuds
+                      << ") facing " << c.angleDeg << "\n";
         for (int i = 0; i < std::min<qsizetype>(part.warnings.size(), 5); ++i)
             std::cout << "[ warn ] " << part.warnings[i].toStdString() << '\n';
     }
+}
+
+// ---- Track snap points from LDD, LDraw and Studio models ----
+
+namespace {
+
+// BlueBrick's own track parts (the submodule's Track folder).
+struct RealTrack {
+    parts::PartsLibrary lib;
+    RealTrack() {
+        lib.addSearchPath(QString::fromUtf8(BLD_PARTS_LIBRARY_ROOT) + QStringLiteral("/Track"));
+        lib.scan();
+    }
+};
+
+// Two RC straights and a curve, joined, as LDD saves them (LDD's axes,
+// 1 unit = 1.25 studs): the straights along +Z, the curve turned round.
+const QByteArray kLddTrack = R"xml(<?xml version="1.0" encoding="UTF-8"?>
+<LXFML versionMajor="5" versionMinor="0" name="track">
+  <Bricks>
+    <Brick designID="53401"><Part designID="53401" materials="194"><Bone transformation="1,0,0,0,1,0,0,0,1,0,0,0"/></Part></Brick>
+    <Brick designID="53401"><Part designID="53401" materials="194"><Bone transformation="1,0,0,0,1,0,0,0,1,0,0,12.8"/></Part></Brick>
+    <Brick designID="53400"><Part designID="53400" materials="194"><Bone transformation="-1,0,0,0,1,0,0,0,-1,5.5923,0,13.596172"/></Part></Brick>
+  </Bricks>
+</LXFML>
+)xml";
+
+// The same track as LDraw lines (current RC numbers).
+const QByteArray kLDrawTrack =
+    "0 track\n"
+    "1 71 70 -8 150 0 0 1 0 1 0 -1 0 0 53401.dat\n"
+    "1 71 70 -8 -170 0 0 1 0 1 0 -1 0 0 53401.dat\n"
+    "1 71 54.6499 -8 -486.1 -0.19509 0 0.980785 0 1 0 -0.980785 0 -0.19509 53400.dat\n";
+
+// The chain's two free ends: the first straight's start, facing back
+// (-90°), and the curve's end, 32 studs on and turned 22.5° (BlueBrick's
+// 2865 and 2867: 16 studs, and (15.3073, 3.0448) across the curve).
+void expectChainEnds(const ui::PreparedPart& part) {
+    ASSERT_TRUE(part.ok()) << part.error.toStdString();
+    ASSERT_EQ(part.connections.size(), 2) << "free ends only; the joints inside are taken";
+    const auto& a = std::abs(part.connections[0].angleDeg + 90.0) < 0.01 ? part.connections[0] : part.connections[1];
+    const auto& b = &a == &part.connections[0] ? part.connections[1] : part.connections[0];
+    EXPECT_NEAR(a.angleDeg, -90.0, 0.01);
+    EXPECT_NEAR(b.angleDeg, 112.5, 0.01);
+    EXPECT_EQ(a.type, QStringLiteral("1"));
+    EXPECT_NEAR(b.xStuds - a.xStuds, -3.0448, 0.01);
+    EXPECT_NEAR(b.yStuds - a.yStuds, 32.0 + 15.3073, 0.01);
+}
+
+}  // namespace
+
+TEST(ImportPipeline, LddTrackGetsItsFreeEndsWithoutAnLdrawXml) {
+    // Aaron: track from LDD got no connection points. LDD's own ldraw.xml
+    // has no track and BlueBrick draws RC track as its 9V parts.
+    RealTrack track;
+    QTemporaryDir dir;
+    const QString path = dir.filePath(QStringLiteral("track.lxfml"));
+    writeFile(path, kLddTrack);
+    expectChainEnds(ui::prepareImport(path, {}, track.lib, kInline));
+}
+
+TEST(ImportPipeline, LDrawAndStudioTrackGetTheirFreeEnds) {
+    RealTrack track;
+    QTemporaryDir dir;
+    const QString ldr = dir.filePath(QStringLiteral("track.ldr"));
+    writeFile(ldr, kLDrawTrack);
+    expectChainEnds(ui::prepareImport(ldr, {}, track.lib, kInline));
+
+    const QString io = dir.filePath(QStringLiteral("track.io"));
+    writeFile(io, test::buildZip({ { QStringLiteral("model.ldr"), kLDrawTrack } }));
+    expectChainEnds(ui::prepareImport(io, {}, track.lib, kInline));
+}
+
+TEST(ImportPipeline, AnImportedStraightSnapsLikeBlueBricksOwn) {
+    // With real geometry (a stub 16 x 8 stud straight under the current
+    // LDraw number), the imported part's ends are BlueBrick's 2865's.
+    RealTrack track;
+    QTemporaryDir ldraw;
+    writeFile(ldraw.filePath(QStringLiteral("LDConfig.ldr")), "0 stub\n");
+    writeFile(ldraw.filePath(QStringLiteral("parts/74746.dat")), "4 16 -160 0 -80 160 0 -80 160 0 80 -160 0 80\n");
+    QTemporaryDir models;
+    const QString path = models.filePath(QStringLiteral("straight.ldr"));
+    writeFile(path, "1 7 10 0 0 1 0 0 0 1 0 0 0 1 74746.dat\n");
+    ui::ImportSettings settings;
+    settings.ldrawLibrary = ldraw.path();
+    const auto part = ui::prepareImport(path, settings, track.lib, kInline);
+    ASSERT_TRUE(part.ok()) << part.error.toStdString();
+    EXPECT_EQ(part.widthStuds, 16);
+    EXPECT_EQ(part.heightStuds, 8);
+    const auto own = track.lib.metadata(QStringLiteral("2865.8"));
+    ASSERT_TRUE(own);
+    ASSERT_EQ(part.connections.size(), own->connections.size());
+    for (int i = 0; i < part.connections.size(); ++i) {
+        EXPECT_NEAR(part.connections[i].xStuds, own->connections[i].position.x(), 0.01);
+        EXPECT_NEAR(part.connections[i].yStuds, own->connections[i].position.y(), 0.01);
+        EXPECT_NEAR(std::remainder(part.connections[i].angleDeg - own->connections[i].angleDegrees, 360.0), 0.0, 0.01);
+    }
+}
+
+TEST(ImportPipeline, ImportedPartsSitOnTheStudGrid) {
+    // A 2 x 4 brick half a stud off the LDraw origin, with a roof sticking
+    // out half a stud past its left side. The sprite is whole studs and the
+    // brick starts exactly a whole stud into it, so with the sprite's
+    // top-left on the grid (grid snap) the brick's studs are too; the roof
+    // adds a whole stud of <SnapMargin>.
+    TrackLibrary track;
+    QTemporaryDir ldraw;
+    writeFile(ldraw.filePath(QStringLiteral("LDConfig.ldr")), "0 stub\n");
+    writeFile(ldraw.filePath(QStringLiteral("parts/brick.dat")),
+              "4 16 -40 24 -20 40 24 -20 40 24 20 -40 24 20\n"
+              "4 16 -40 0 -20 40 0 -20 40 0 20 -40 0 20\n");
+    writeFile(ldraw.filePath(QStringLiteral("parts/roof.dat")), "4 16 -40 -40 -10 0 -40 -10 0 -40 10 -40 -40 10\n");
+    QTemporaryDir models;
+    const QString path = models.filePath(QStringLiteral("house.ldr"));
+    writeFile(path, "1 4 10 0 0 1 0 0 0 1 0 0 0 1 brick.dat\n"
+                    "1 1 0 0 0 1 0 0 0 1 0 0 0 1 roof.dat\n");
+    ui::ImportSettings settings;
+    settings.ldrawLibrary = ldraw.path();
+    settings.pxPerStud = 8;
+    auto part = ui::prepareImport(path, settings, track.lib, kInline);
+    ASSERT_TRUE(part.ok()) << part.error.toStdString();
+    EXPECT_EQ(part.widthStuds, 5);
+    EXPECT_EQ(part.heightStuds, 2);
+    EXPECT_EQ(part.snapMargin, QMargins(1, 0, 0, 0));
+    // The brick starts exactly one stud into the sprite.
+    const QImage img = part.sprite.convertToFormat(QImage::Format_ARGB32);
+    EXPECT_GT(img.pixelColor(8, 15).alpha(), 200);
+    EXPECT_EQ(img.pixelColor(7, 15).alpha(), 0);
+
+    // Written as a part: vanilla BlueBrick reads the margin.
+    QTemporaryDir lib;
+    QString err;
+    const QString key = ui::writeImportedPart(part, QStringLiteral("house"), lib.path(), {}, false, &err);
+    ASSERT_FALSE(key.isEmpty()) << err.toStdString();
+    QFile xml(QDir(lib.path()).filePath(key + QStringLiteral(".xml")));
+    ASSERT_TRUE(xml.open(QIODevice::ReadOnly));
+    const QString text = QString::fromUtf8(xml.readAll()).simplified();
+    EXPECT_TRUE(text.contains(QStringLiteral("<SnapMargin> <left>1</left> <right>0</right> <top>0</top> <bottom>0</bottom> </SnapMargin>")))
+        << text.toStdString();
+    // And in the preview: a quarter turn moves it to the top.
+    ui::rotatePart(part, 1);
+    EXPECT_EQ(part.snapMargin, QMargins(0, 1, 0, 0));
+}
+
+TEST(ImportPipeline, ConnectionPointsLoseTheModelsRoundingNoise) {
+    // LDD's coordinates (0.99999988, a bottom layer a hair short) left the
+    // ends a hundredth of a stud off: they're BlueBrick's exact values.
+    RealTrack track;
+    core::Map map;
+    auto layer = std::make_unique<core::LayerBrick>();
+    core::Brick b;
+    b.partNumber = QStringLiteral("2865.8");
+    b.orientation = 90.00004f;
+    parts::placement::placeByImageCentre(b, QPointF(0, 0), track.lib);
+    layer->bricks.push_back(b);
+    map.layers().push_back(std::move(layer));
+    const auto ends = import::externalConnections(map, track.lib, QPointF(0.012, -0.02));
+    ASSERT_EQ(ends.size(), 2);
+    EXPECT_EQ(ends[0].xStuds, 0.0);
+    EXPECT_EQ(ends[0].yStuds, -8.0);
+    EXPECT_EQ(ends[0].angleDeg, -90.0);
+    EXPECT_EQ(ends[1].yStuds, 8.0);
+    EXPECT_EQ(ends[1].angleDeg, 90.0);
 }

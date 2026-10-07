@@ -85,3 +85,25 @@ TEST(LDDLDrawMapping, RealLDDFileSmoke) {
     EXPECT_GT(m.materialCount(), 50);
     EXPECT_GT(m.transformCount(), 100);
 }
+
+TEST(LDDLDrawMapping, TrainTrackWithoutAnLdrawXml) {
+    // LDD's bundled ldraw.xml has no train track: the built-in table maps it.
+    const import::LDDLDrawMapping none;
+    EXPECT_EQ(none.partFor(QStringLiteral("64573")), QStringLiteral("88492.dat"));
+    EXPECT_EQ(none.partFor(QStringLiteral("53401")), QStringLiteral("53401.dat"));
+    EXPECT_TRUE(none.partFor(QStringLiteral("3001")).isEmpty());
+    const auto straight = none.transformFor(QStringLiteral("53401.dat"));
+    ASSERT_TRUE(straight.exists);
+    EXPECT_DOUBLE_EQ(straight.tx, 6.0);
+    EXPECT_DOUBLE_EQ(straight.angle, 1.570796);
+    EXPECT_FALSE(none.transformFor(QStringLiteral("3001.dat")).exists);
+
+    // A file's own entries win.
+    QTemporaryDir dir;
+    import::LDDLDrawMapping file;
+    ASSERT_TRUE(file.loadFromFile(writeXml(dir,
+        "<LDrawMapping><Brick ldraw=\"x.dat\" lego=\"53401\"/>"
+        "<Transformation ldraw=\"53401.dat\" tx=\"1\" ty=\"0\" tz=\"0\" ax=\"0\" ay=\"1\" az=\"0\" angle=\"0\"/></LDrawMapping>")));
+    EXPECT_EQ(file.partFor(QStringLiteral("53401")), QStringLiteral("x.dat"));
+    EXPECT_DOUBLE_EQ(file.transformFor(QStringLiteral("53401.dat")).tx, 1.0);
+}

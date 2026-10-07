@@ -2,6 +2,7 @@
 
 #include <QDateTime>
 #include <QImage>
+#include <QMargins>
 #include <QPointF>
 #include <QString>
 #include <QVector>
@@ -71,6 +72,7 @@ QString writeImportedModelAsLibraryPart(
     const QVector<ImportedConnection>& connections,
     QString*       error = nullptr,
     bool           replaceExisting = false,
-    const ImportSource* source = nullptr);
+    const ImportSource* source = nullptr,
+    QMargins       snapMargin = {});  // <SnapMargin>: whole studs around the base
 
 }  // namespace bld::import

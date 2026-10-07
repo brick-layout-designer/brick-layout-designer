@@ -8,6 +8,69 @@
 
 namespace bld::import {
 
+namespace {
+
+// Train track, from the community ldraw.xml (slswww.free.fr/ldraw.xml):
+// LDD's bundled ldraw.xml predates it, and without these LDD track
+// can't be matched to BlueBrick's track parts, so it gets no snap
+// points. Used only where the loaded file has no entry of its own.
+struct BuiltinTrack {
+    const char* lego;   // LDD design ID
+    const char* ldraw;  // LDraw file
+    double tx, ty, tz, angle;  // about +Y
+};
+constexpr BuiltinTrack kBuiltinTrack[] = {
+    { "53401", "53401.dat", 6, -0.32, 2.8, 1.570796 },          // RC straight
+    { "53400", "53400.dat", -6.4, -0.32, -2.2, -1.374447 },      // RC curve
+    { "74746", "74746.dat", 6, -0.32, 2.8, 1.570796 },          // 9V straight
+    { "2865", "2865.dat", 6, -0.32, 2.8, 1.570796 },
+    { "74747", "74747.dat", -6.4, -0.32, -2.24, -1.374447 },     // 9V curve
+    { "2867", "2867.dat", -6.4, -0.32, -2.24, -1.374447 },
+    { "75541", "75541.dat", -12.4, -0.32, -2.8, -1.570796 },     // 9V point right
+    { "75542", "75542.dat", -12.4, -0.32, -2.8, -1.570796 },     // 9V point left
+    { "64573", "88492.dat", 0, -0.32, 0, 1.570796 },            // flex, female half
+    { "64572", "88493.dat", 0, -0.32, 0, 1.570796 },            // flex, male half
+    { "85976", "85976.dat", -7.74, -0.32, -0.54, -1.178097 },    // 4-wide curve
+    { "85977", "85977.dat", -6, -5.12, -2, -1.570796 },          // 4-wide ramp
+};
+
+const BuiltinTrack* builtinByLego(const QString& id) {
+    for (const auto& t : kBuiltinTrack)
+        if (id == QLatin1String(t.lego)) return &t;
+    return nullptr;
+}
+
+const BuiltinTrack* builtinByLdraw(const QString& dat) {
+    for (const auto& t : kBuiltinTrack)
+        if (dat.compare(QLatin1String(t.ldraw), Qt::CaseInsensitive) == 0) return &t;
+    return nullptr;
+}
+
+}  // namespace
+
+QString LDDLDrawMapping::partFor(const QString& lddDesignId) const {
+    QString mapped = brickToLdraw_.value(lddDesignId);
+    if (!mapped.isEmpty()) return mapped;
+    const BuiltinTrack* t = builtinByLego(lddDesignId);
+    return t ? QString::fromLatin1(t->ldraw) : QString();
+}
+
+LDDLDrawMapping::Transformation LDDLDrawMapping::transformFor(const QString& ldrawDat) const {
+    if (const auto it = transformations_.constFind(ldrawDat); it != transformations_.constEnd()) return it.value();
+    Transformation out;
+    if (const BuiltinTrack* t = builtinByLdraw(ldrawDat)) {
+        out.exists = true;
+        out.tx = t->tx;
+        out.ty = t->ty;
+        out.tz = t->tz;
+        out.ax = 0;
+        out.ay = 1;
+        out.az = 0;
+        out.angle = t->angle;
+    }
+    return out;
+}
+
 bool LDDLDrawMapping::loadFromFile(const QString& path) {
     QFile f(path);
     if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) return false;

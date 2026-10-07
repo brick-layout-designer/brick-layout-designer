@@ -3,6 +3,7 @@
 #include "../import/ImportToPart.h"
 
 #include <QImage>
+#include <QMargins>
 #include <QPointF>
 #include <QString>
 #include <QStringList>
@@ -31,6 +32,9 @@ struct PreparedPart {
     QImage  sprite;
     int     widthStuds  = 0;
     int     heightStuds = 0;
+    // Whole studs between the sprite's edges and the model's bottom layer
+    // (its overhangs), written as the part's <SnapMargin>.
+    QMargins snapMargin;
     QVector<import::ImportedConnection> connections;  // relative to sprite centre
     int quarterTurns = 0;                           // clockwise turns applied (rotatePart)
     QVector<QPointF> droppedConnections;            // removed in the preview (current frame)
