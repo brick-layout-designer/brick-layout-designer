@@ -30,6 +30,8 @@ class BudgetSession;
 // it (an imported model's <Designer>), and which server it came from when
 // it's one of a server's parts (server-parts/<folder>; serverLabels maps
 // each folder to the server's name in "Your servers").
+// The server folder (server-parts/<folder>/...) a part came from, or empty.
+QString serverFolderOf(const parts::PartMetadata& meta);
 QString partTooltip(const parts::PartMetadata& meta, const QString& key, const QString& desc,
                     const QHash<QString, QString>& serverLabels);
 
@@ -42,6 +44,10 @@ public:
     explicit PartsBrowser(parts::PartsLibrary& lib, QWidget* parent = nullptr);
 
     void rebuild();   // re-read the library and repopulate
+    // While live on a server: its folder name (ServerList::folderName), so
+    // only its parts show of the servers' parts (unless the "parts/
+    // showAllServers" setting says to show every server's). Empty: all.
+    void setLiveServerFolder(const QString& folder);
 
     // Insert a single library entry into the grid without touching the
     // other thousands of items. Used by the importer right after a
@@ -158,6 +164,7 @@ private:
     QSlider* sizeSlider_ = nullptr;
     QTimer* saveSize_ = nullptr;
     theme::PrefsStore* prefs_ = nullptr;
+    QString liveServerFolder_;
 };
 
 }

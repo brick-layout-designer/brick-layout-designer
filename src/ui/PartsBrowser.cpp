@@ -9,6 +9,7 @@
 #include "theme/AppPrefs.h"
 #include "ServerList.h"
 
+#include <QSettings>
 #include <QApplication>
 #include <QClipboard>
 #include <QComboBox>
@@ -341,19 +342,23 @@ QString PartsBrowser::categoryForPath(const QString& absPath) const {
     return parent.isEmpty() ? tr("Other") : parent;
 }
 
+// The server folder (server-parts/<folder>/...) a part came from, or empty.
+QString serverFolderOf(const parts::PartMetadata& meta) {
+    const QString path = QDir::fromNativeSeparators(meta.xmlFilePath);
+    const QString marker = QStringLiteral("/server-parts/");
+    const qsizetype at = path.indexOf(marker);
+    if (at < 0) return {};
+    const qsizetype from = at + marker.size();
+    return path.mid(from, path.indexOf(QLatin1Char('/'), from) - from);
+}
+
 QString partTooltip(const parts::PartMetadata& meta, const QString& key, const QString& desc,
                     const QHash<QString, QString>& serverLabels) {
     QString tip = desc.isEmpty() ? key : QStringLiteral("%1\n(%2)").arg(desc, key);
     if (!meta.designer.isEmpty()) tip += QLatin1Char('\n') + PartsBrowser::tr("Designed by %1").arg(meta.designer);
     // .../server-parts/<folder>/...: that server's part.
-    const QString path = QDir::fromNativeSeparators(meta.xmlFilePath);
-    const QString marker = QStringLiteral("/server-parts/");
-    if (const qsizetype at = path.indexOf(marker); at >= 0) {
-        const qsizetype from = at + marker.size();
-        const QString folder = path.mid(from, path.indexOf(QLatin1Char('/'), from) - from);
-        if (!folder.isEmpty())
-            tip += QLatin1Char('\n') + PartsBrowser::tr("From the server %1").arg(serverLabels.value(folder, folder));
-    }
+    if (const QString folder = serverFolderOf(meta); !folder.isEmpty())
+        tip += QLatin1Char('\n') + PartsBrowser::tr("From the server %1").arg(serverLabels.value(folder, folder));
     return tip;
 }
 
@@ -417,6 +422,12 @@ QListWidgetItem* makePartItem(parts::PartsLibrary& lib,
 
 }  // namespace
 
+void PartsBrowser::setLiveServerFolder(const QString& folder) {
+    if (folder == liveServerFolder_) return;
+    liveServerFolder_ = folder;
+    rebuild();
+}
+
 void PartsBrowser::rebuild() {
     iconTimer_->stop();
     iconQueue_.clear();
@@ -433,9 +444,18 @@ void PartsBrowser::rebuild() {
 
     const auto keys = lib_.keys();
     const auto serverLabels = serverPartLabels();
+    // Live on a server: other servers' parts aren't offered (that server
+    // wouldn't have them), unless the setting says to show them all.
+    const QString onlyServer = QSettings().value(QStringLiteral("parts/showAllServers"), false).toBool()
+                                   ? QString()
+                                   : liveServerFolder_;
     for (const QString& key : keys) {
         auto meta = lib_.metadata(key);
         if (!meta) continue;
+        if (!onlyServer.isEmpty()) {
+            const QString folder = serverFolderOf(*meta);
+            if (!folder.isEmpty() && folder != onlyServer) continue;
+        }
         const QString cat = categoryForPath(meta->xmlFilePath);
         cats.insert(cat);
         if (auto* item = makePartItem(lib_, key, cat, serverLabels)) {
