@@ -24,6 +24,7 @@
 #include "PartsUpload.h"
 #include "PartsSync.h"
 #include "ServerApi.h"
+#include "PartsBrowser.h"
 #include "ServerList.h"
 #include "CatalogLink.h"
 #include "ServersDialog.h"
@@ -526,6 +527,8 @@ void MainWindow::onLiveReloaded() {
 
 void MainWindow::updateLiveUi() {
     const bool on = live_->active();
+    // Live: the parts list offers this server's parts, not other servers'.
+    if (partsBrowser_) partsBrowser_->setLiveServerFolder(on ? sync::ServerList::folderName(liveServer_) : QString());
     liveStatus_->setVisible(on);
     liveStatus_->setText(on ? tr("Live on %1: %2").arg(liveServerName(), live_->statusText()) : QString());
     disconnectAct_->setEnabled(on);

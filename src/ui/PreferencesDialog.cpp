@@ -73,6 +73,12 @@ QWidget* buildGeneralTab(QDialog* parent) {
     budgetInfiniteChk->setChecked(BudgetSession::defaultBudgetIsInfinite());
     form->addRow(help::withHelp(budgetInfiniteChk, QStringLiteral("prefs.budgetUnlimited"), w));
 
+    // Live on a server, other servers' parts are hidden (that server wouldn't have them).
+    auto* allServersChk = new QCheckBox(QObject::tr("While live on a server, also list other servers' parts"), w);
+    allServersChk->setObjectName(QStringLiteral("showAllServers"));
+    allServersChk->setChecked(s.value(QStringLiteral("parts/showAllServers"), false).toBool());
+    form->addRow(allServersChk);
+
     // Template file for File > New — vanilla "use default template" parity.
     auto* tplEdit = new QLineEdit(
         s.value(QStringLiteral("general/newMapTemplate")).toString(), w);
@@ -109,7 +115,7 @@ QWidget* buildGeneralTab(QDialog* parent) {
 
     // Save-on-accept: parent's accepted signal fires before exec() returns, so
     // we wire per-tab savers that the dialog's QDialogButtonBox can trigger.
-    QObject::connect(parent, &QDialog::accepted, w, [undoSpin, wheelSpin, reopenChk, splashChk, budgetInfiniteChk, updatesChk, tplEdit, langCombo]{
+    QObject::connect(parent, &QDialog::accepted, w, [undoSpin, wheelSpin, reopenChk, splashChk, budgetInfiniteChk, updatesChk, tplEdit, langCombo, allServersChk]{
         QSettings s;
         s.setValue(QStringLiteral("general/undoStackDepth"), undoSpin->value());
         s.setValue(QStringLiteral("general/wheelZoomFactor"), wheelSpin->value());
@@ -117,6 +123,7 @@ QWidget* buildGeneralTab(QDialog* parent) {
         s.setValue(QStringLiteral("general/showSplash"), splashChk->isChecked());
         BudgetSession::setDefaultBudgetIsInfinite(budgetInfiniteChk->isChecked());
         s.setValue(QStringLiteral("updates/checkAtStartup"), updatesChk->isChecked());
+        s.setValue(QStringLiteral("parts/showAllServers"), allServersChk->isChecked());
         s.setValue(QStringLiteral("general/newMapTemplate"), tplEdit->text());
         s.setValue(QStringLiteral("general/language"), langCombo->currentData().toString());
     });

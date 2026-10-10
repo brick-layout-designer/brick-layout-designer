@@ -64,6 +64,8 @@ namespace bld::ui {
 namespace {
 constexpr const char* kLastFileKey   = "recent/lastFile";
 constexpr const char* kRecentListKey = "recent/list";
+// Recent file → the server it came from (manifest source), for the menu.
+constexpr const char* kRecentServersKey = "recent/servers";
 constexpr int         kRecentMax     = 12;
 
 // 5-second throttle for the undo-stack-triggered autosave — near-realtime
@@ -733,8 +735,16 @@ void MainWindow::rebuildRecentMenu() {
     if (!recentMenu_) return;
     recentMenu_->clear();
     const QStringList list = QSettings().value(kRecentListKey).toStringList();
+    // Which server each one came from, when it came from one.
+    const QVariantMap servers = QSettings().value(QLatin1String(kRecentServersKey)).toMap();
+    const sync::ServerList known = sync::ServerList::load();
     for (const QString& p : list) {
-        QAction* act = recentMenu_->addAction(QFileInfo(p).fileName());
+        QString label = QFileInfo(p).fileName();
+        if (const QString server = servers.value(p).toString(); !server.isEmpty()) {
+            const sync::ServerEntry* e = known.find(QUrl(server));
+            label = tr("%1 — on %2").arg(label, e ? e->label() : QUrl(server).host());
+        }
+        QAction* act = recentMenu_->addAction(label);
         act->setToolTip(p);
         connect(act, &QAction::triggered, this, [this, p] {
             if (QFileInfo::exists(p)) {
@@ -762,6 +772,7 @@ void MainWindow::rebuildRecentMenu() {
         auto* clear = recentMenu_->addAction(tr("Clear Menu"));
         connect(clear, &QAction::triggered, this, [this]{
             QSettings().remove(QString::fromLatin1(kRecentListKey));
+            QSettings().remove(QString::fromLatin1(kRecentServersKey));
             rebuildRecentMenu();
         });
     }
@@ -774,6 +785,13 @@ void MainWindow::pushRecentFile(const QString& path) {
     list.prepend(path);
     while (list.size() > kRecentMax) list.removeLast();
     s.setValue(kRecentListKey, list);
+    // Remember the server it belongs to (none for a local layout).
+    QVariantMap servers = s.value(QLatin1String(kRecentServersKey)).toMap();
+    const auto source = manifestExtras().source;
+    if (source && !source->server.isEmpty()) servers.insert(path, source->server);
+    else servers.remove(path);
+    for (auto it = servers.begin(); it != servers.end();) it = list.contains(it.key()) ? std::next(it) : servers.erase(it);
+    s.setValue(QLatin1String(kRecentServersKey), servers);
     rebuildRecentMenu();
 }
 

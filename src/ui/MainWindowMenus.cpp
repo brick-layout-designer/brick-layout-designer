@@ -531,6 +531,7 @@ void MainWindow::setupMenus() {
             moduleLibraryPanel_->setLibraryPath(libDir);
         }
         mapView_->rebuildScene();
+        partsBrowser_->rebuild();  // "list other servers' parts" may have changed
     });
 
     auto* view = menuBar()->addMenu(tr("&View"));

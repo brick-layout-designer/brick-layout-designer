@@ -15,6 +15,7 @@
 #include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QTimer>
+#include <QVariantMap>
 
 using namespace bld;
 using namespace bld::ui;
@@ -60,5 +61,24 @@ TEST(RecentFiles, AFileThatIsGoneIsExplainedAndTakenOffTheList) {
         EXPECT_EQ(recentAction(w, QStringLiteral("gone.bld-layout")), nullptr);
     }
     QSettings().remove(QStringLiteral("recent/list"));
+    QStandardPaths::setTestModeEnabled(false);
+}
+
+TEST(RecentFiles, SaysWhichServerALayoutCameFrom) {
+    QStandardPaths::setTestModeEnabled(true);
+    UpdateCheck::setCheckAtStartupEnabled(false);
+    QTemporaryDir dir;
+    const QString fromServer = dir.filePath(QStringLiteral("city.bld-layout"));
+    const QString local = dir.filePath(QStringLiteral("home.bld-layout"));
+    QSettings().setValue(QStringLiteral("recent/list"), QStringList{ fromServer, local });
+    QSettings().setValue(QStringLiteral("recent/servers"), QVariantMap{ { fromServer, QStringLiteral("https://club.example") } });
+    {
+        parts::PartsLibrary lib;
+        MainWindow w(lib);
+        EXPECT_NE(recentAction(w, QStringLiteral("city.bld-layout — on club.example")), nullptr);
+        EXPECT_NE(recentAction(w, QStringLiteral("home.bld-layout")), nullptr);
+    }
+    QSettings().remove(QStringLiteral("recent/list"));
+    QSettings().remove(QStringLiteral("recent/servers"));
     QStandardPaths::setTestModeEnabled(false);
 }
