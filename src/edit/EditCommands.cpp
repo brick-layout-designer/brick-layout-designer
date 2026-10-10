@@ -370,10 +370,31 @@ void applyBrickState(core::Brick& b, const EditBrickCommand::State& s) {
 }
 
 void EditBrickCommand::redo() {
-    if (auto* b = findBrick(map_, ref_)) applyBrickState(*b, after_);
+    auto* b = findBrick(map_, ref_);
+    if (!b) return;
+    applyBrickState(*b, after_);
+    // Drawing follows the sheet's order (BlueBrick); a new altitude sorts the
+    // sheet so higher parts draw over lower ones (sortBricksByElevation).
+    if (after_.altitude == before_.altitude) return;
+    auto* L = brickLayer(map_, ref_.layerIndex);
+    if (!L) return;
+    orderBefore_.clear();
+    for (const auto& x : L->bricks) orderBefore_.push_back(x.guid);
+    std::stable_sort(L->bricks.begin(), L->bricks.end(),
+                     [](const core::Brick& a, const core::Brick& c) { return a.altitude < c.altitude; });
 }
 void EditBrickCommand::undo() {
     if (auto* b = findBrick(map_, ref_)) applyBrickState(*b, before_);
+    auto* L = brickLayer(map_, ref_.layerIndex);
+    if (!L || orderBefore_.empty()) return;
+    QHash<QString, core::Brick> byGuid;
+    for (auto& x : L->bricks) byGuid.insert(x.guid, std::move(x));
+    L->bricks.clear();
+    for (const QString& g : orderBefore_) {
+        auto found = byGuid.find(g);
+        if (found != byGuid.end()) L->bricks.push_back(std::move(*found));
+    }
+    orderBefore_.clear();
 }
 
 // ----- Grouping -----

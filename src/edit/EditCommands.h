@@ -197,6 +197,9 @@ public:
 private:
     core::Map& map_;
     BrickRef   ref_;
+    // A new altitude re-sorts the sheet by altitude, as BlueBrick does
+    // (LayerBrick.sortBricksByElevation); undo puts the old order back.
+    std::vector<QString> orderBefore_;
     State      before_;
     State      after_;
 };

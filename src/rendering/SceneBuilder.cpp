@@ -184,7 +184,9 @@ void addBrickLayer(const core::LayerBrick& L, LayerSink& sink, parts::PartsLibra
                 const QPointF offset = lib.imageOffset(partKey, brick.orientation);
                 if (!offset.isNull()) p->setTransform(QTransform::fromTranslate(offset.x() * kPx, offset.y() * kPx));
                 p->setPos(centerPx);
-                p->setZValue(brick.altitude);
+                // Drawn in the sheet's order, like BlueBrick: Bring to Front
+                // works whatever the altitude (an altitude edit sorts the
+                // sheet instead, EditBrickCommand).
                 item = p;
             }
         }
