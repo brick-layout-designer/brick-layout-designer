@@ -54,9 +54,9 @@ core::LayerText* textLayer(core::Map& map, int layerIndex) {
     return (L && L->kind() == core::LayerKind::Text) ? static_cast<core::LayerText*>(L) : nullptr;
 }
 
-// Small helper: a push-button that opens a colour picker, storing the picked
-// colour back to its caller-owned QColor. The button face is repainted with
-// the current colour so the user can see what they've chosen.
+// Small helper: a push-button that opens a color picker, storing the picked
+// color back to its caller-owned QColor. The button face is repainted with
+// the current color so the user can see what they've chosen.
 QPushButton* makeColorButton(QWidget* parent, QColor* target) {
     auto* btn = new QPushButton(parent);
     auto refresh = [btn, target]{
@@ -67,7 +67,7 @@ QPushButton* makeColorButton(QWidget* parent, QColor* target) {
     refresh();
     QObject::connect(btn, &QPushButton::clicked, btn, [btn, target, refresh]{
         const QColor c = QColorDialog::getColor(
-            *target, btn, QObject::tr("Pick colour"), QColorDialog::ShowAlphaChannel);
+            *target, btn, QObject::tr("Pick color"), QColorDialog::ShowAlphaChannel);
         if (!c.isValid()) return;
         *target = c;
         refresh();
@@ -184,7 +184,7 @@ bool editRulerDialog(QWidget* parent, core::Map& map, int layerIndex,
 
     QColor lineColor = base->color.color;
     auto* lineColorBtn = makeColorButton(&dlg, &lineColor);
-    form->addRow(QObject::tr("Line colour:"), lineColorBtn);
+    form->addRow(QObject::tr("Line color:"), lineColorBtn);
 
     auto* thickSpin = new QDoubleSpinBox(&dlg);
     thickSpin->setRange(0.1, 50.0); thickSpin->setDecimals(2);
@@ -210,7 +210,7 @@ bool editRulerDialog(QWidget* parent, core::Map& map, int layerIndex,
 
     QColor guideColor = base->guidelineColor.color;
     auto* guideColorBtn = makeColorButton(&dlg, &guideColor);
-    form->addRow(QObject::tr("Guideline colour:"), guideColorBtn);
+    form->addRow(QObject::tr("Guideline color:"), guideColorBtn);
     auto* guideThickSpin = new QDoubleSpinBox(&dlg);
     guideThickSpin->setRange(0.0, 50.0); guideThickSpin->setDecimals(2);
     guideThickSpin->setValue(base->guidelineThickness);
@@ -225,7 +225,7 @@ bool editRulerDialog(QWidget* parent, core::Map& map, int layerIndex,
 
     QColor measureColor = base->measureFontColor.color;
     auto* measureColorBtn = makeColorButton(&dlg, &measureColor);
-    form->addRow(QObject::tr("Label colour:"), measureColorBtn);
+    form->addRow(QObject::tr("Label color:"), measureColorBtn);
     auto* measureFont = new QFontComboBox(&dlg);
     measureFont->setCurrentFont(QFont(base->measureFont.familyName));
     form->addRow(QObject::tr("Label font:"), measureFont);
@@ -335,7 +335,7 @@ bool editTextDialog(QWidget* parent, core::Map& map, int layerIndex,
 
     QColor color = cell->fontColor.color;
     auto* colorBtn = makeColorButton(&dlg, &color);
-    form->addRow(QObject::tr("Colour:"), colorBtn);
+    form->addRow(QObject::tr("Color:"), colorBtn);
 
     auto* orientSpin = new QDoubleSpinBox(&dlg);
     orientSpin->setRange(-360.0, 360.0); orientSpin->setSuffix(QStringLiteral("°"));

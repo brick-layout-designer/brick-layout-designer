@@ -75,8 +75,8 @@ QPixmap themePreview(ThemeChoice t) {
     return pm;
 }
 
-// A colour swatch, ringed when chosen.
-QIcon swatch(const QColor& colour, const QColor& ringGap, bool chosen) {
+// A color swatch, ringed when chosen.
+QIcon swatch(const QColor& color, const QColor& ringGap, bool chosen) {
     const int s = 52;
     QPixmap pm(QSize(s, s) * 2);
     pm.setDevicePixelRatio(2);
@@ -85,12 +85,12 @@ QIcon swatch(const QColor& colour, const QColor& ringGap, bool chosen) {
     p.setRenderHint(QPainter::Antialiasing);
     p.setPen(Qt::NoPen);
     if (chosen) {
-        p.setBrush(colour);
+        p.setBrush(color);
         p.drawEllipse(QRectF(0.5, 0.5, s - 1, s - 1));
         p.setBrush(ringGap);
         p.drawEllipse(QRectF(3, 3, s - 6, s - 6));
     }
-    p.setBrush(colour);
+    p.setBrush(color);
     p.drawEllipse(QRectF(5.5, 5.5, s - 11, s - 11));
     return QIcon(pm);
 }
@@ -176,9 +176,9 @@ SettingsDialog::SettingsDialog(PrefsStore& store, const QString& syncedHost,
         v->addLayout(row);
     }
 
-    // Colour and bigger text.
+    // Color and bigger text.
     {
-        auto* v = card(tr("Colour"), QStringLiteral("settings.colour"));
+        auto* v = card(tr("Color"), QStringLiteral("settings.color"));
         auto* row = new QHBoxLayout;
         row->setSpacing(2 * kSpacing);
         auto* group = new QButtonGroup(this);

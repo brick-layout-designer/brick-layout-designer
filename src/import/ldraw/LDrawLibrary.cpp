@@ -13,8 +13,8 @@ bool LDrawLibrary::looksValid() const {
     if (root_.isEmpty()) return false;
     QDir d(root_);
     if (!d.exists()) return false;
-    // LDConfig.ldr is the colour palette and is present in every
-    // distribution we care about. Without it our colour resolution
+    // LDConfig.ldr is the color palette and is present in every
+    // distribution we care about. Without it our color resolution
     // would just hard-code the bundled palette table — pointing at a
     // root without it suggests the user picked the wrong directory.
     if (!QFileInfo::exists(d.absoluteFilePath(QStringLiteral("LDConfig.ldr")))) return false;

@@ -29,7 +29,7 @@ std::array<QPointF, 4> corners(const VenueLabel& r) {
 }
 }  // namespace
 
-VenueLabelColours venueLabelColours(bool dark) {
+VenueLabelColors venueLabelColors(bool dark) {
     if (dark)
         return { QColor::fromRgbF(30 / 255.0f, 41 / 255.0f, 59 / 255.0f, 0.92f), QColor::fromRgbF(1, 1, 1, 0.25f),
                  QColor(241, 245, 249) };

@@ -17,16 +17,16 @@ namespace bld::import {
 //
 // Behaviour:
 //   * Type-1 (subfile ref): looks up via LDrawLibrary, recurses with
-//     the composed transform and inherited colour.
+//     the composed transform and inherited color.
 //   * Type-3 (triangle): emits one triangle.
 //   * Type-4 (quad): emits two triangles split along v0..v2 diagonal.
 //   * Type-2 / 5 (lines / conditional lines): ignored.
 //   * Comments / BFC / META: ignored.
 //
-// Colour resolution mirrors the LDraw spec:
-//   * 16 = "use parent's current colour" — passed in by the caller
+// Color resolution mirrors the LDraw spec:
+//   * 16 = "use parent's current color" — passed in by the caller
 //     when recursing.
-//   * 24 = "use parent's edge colour" — irrelevant to filled tris.
+//   * 24 = "use parent's edge color" — irrelevant to filled tris.
 //   * Any other code = absolute lookup against the palette.
 //
 // Loaded files are cached by absolute path so a part that pulls in
@@ -41,7 +41,7 @@ public:
     // Load a top-level part by .dat reference (e.g. "3001.dat") into
     // a Mesh resolved to part-local coords. Returns an empty mesh if
     // the file cannot be resolved or is malformed beyond recovery.
-    // `topColor` controls how a top-level colour-16 (rare in real
+    // `topColor` controls how a top-level color-16 (rare in real
     // parts but valid) gets resolved; default code 16 leaves them as
     // light grey via the palette's bundled fallback.
     geom::Mesh loadPart(const QString& datRef, int topColor = 16);
@@ -57,9 +57,9 @@ public:
 
 private:
     // A `.dat` parsed into its raw line records (no transforms applied
-    // yet). Subfile refs carry their colour + 4x4 transform + filename;
-    // raw primitives carry the LDraw colour code + 3 vertices in part-
-    // local coords. Colour resolution against the live palette is
+    // yet). Subfile refs carry their color + 4x4 transform + filename;
+    // raw primitives carry the LDraw color code + 3 vertices in part-
+    // local coords. Color resolution against the live palette is
     // deferred to the bake pass since the inheritance chain depends on
     // who the parent caller is.
     struct ParsedDat {
@@ -94,8 +94,8 @@ private:
     const LDrawLibrary& lib_;
     const LDrawPalette& palette_;
     QHash<QString, ParsedDat> cache_;  // keyed on absolute path
-    // Memoised final-mesh cache keyed by (absolute path, top colour
-    // code). Same part in the same colour gets baked once even if a
+    // Memoised final-mesh cache keyed by (absolute path, top color
+    // code). Same part in the same color gets baked once even if a
     // model references it thousands of times.
     QHash<QPair<QString, int>, std::shared_ptr<const geom::Mesh>> bakedCache_;
     QStringList errors_;

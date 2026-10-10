@@ -59,8 +59,8 @@ namespace {
 // type" and never rendered.
 QColor colorForConnectionType(const QString& /*type*/) {
     // User prefers all connection markers in a single bright red so they
-    // stand out consistently against every brick colour (green baseplates,
-    // grey road, blue sky, etc.). Per-type colour palettes can come back
+    // stand out consistently against every brick color (green baseplates,
+    // grey road, blue sky, etc.). Per-type color palettes can come back
     // later if users ask for them.
     return QColor(230, 40, 40);
 }
@@ -217,8 +217,8 @@ void addBrickLayer(const core::LayerBrick& L, LayerSink& sink, parts::PartsLibra
         // system so they transform with the brick for free. Hidden by default;
         // shown on selection via the ItemSelectedChange hook above (or
         // unconditionally if view/connectionPoints is on). Radius bumped to
-        // 6px with a white ring + type-coloured fill so they stand out
-        // clearly on any brick colour — user asked for larger/more obvious
+        // 6px with a white ring + type-colored fill so they stand out
+        // clearly on any brick color — user asked for larger/more obvious
         // markers.
         if (meta && !meta->connections.isEmpty()) {
             // Only render markers for FREE connections — ones whose
@@ -261,7 +261,7 @@ void addBrickLayer(const core::LayerBrick& L, LayerSink& sink, parts::PartsLibra
                     localPx.x() - r, localPx.y() - r, r * 2, r * 2, item);
                 const QColor fill = isActive
                     ? QColor(255, 215, 0)              // gold for active
-                    : colorForConnectionType(c.type);   // type colour (red) for other free
+                    : colorForConnectionType(c.type);   // type color (red) for other free
                 QPen pen(isActive ? QColor(30, 30, 30) : QColor(255, 255, 255));
                 pen.setWidthF(isActive ? 3.0 : 2.5);
                 pen.setCosmetic(true);
@@ -399,7 +399,7 @@ QString formatDistance(double studs, int unit) {
 
 // Add an ephemeral text label (measurement readout) to the ruler group at
 // the given scene-pixel position, rotated to `rotationDeg`, in the chosen
-// font + colour.
+// font + color.
 void addRulerLabel(LayerSink& sink, const QString& text,
                    QPointF scenePosPx, double rotationDeg,
                    const core::FontSpec& fontSpec, const core::ColorSpec& colorSpec) {
@@ -622,7 +622,7 @@ void addRulerLayer(const core::LayerRuler& L, LayerSink& sink, int layerIndex,
 
                 // Small filled circles at the actual anchor points so the
                 // user can see where the ruler is anchored when it's been
-                // offset away from the visible measure line. Coloured to
+                // offset away from the visible measure line. Colored to
                 // match whatever the ruler is attached to: orange = free,
                 // green = attached to a brick.
                 constexpr double kAnchorRadiusPx = 4.0;
@@ -819,7 +819,7 @@ void SceneBuilder::addLayer(const core::Layer& L, int layerIndex) {
     }
 
     // Apply per-layer transparency by scaling each item's opacity (a
-    // painted area already has it in its colours).
+    // painted area already has it in its colors).
     if (opacity < 1.0 && L.kind() != core::LayerKind::Area) {
         for (auto* it : list) it->setOpacity(opacity);
     }

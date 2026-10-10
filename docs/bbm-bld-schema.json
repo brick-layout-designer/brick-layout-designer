@@ -124,9 +124,9 @@
           "description": "ISO-8601 timestamp of the import. Absent when the module was created from selection rather than imported."
         },
         "showName": { "type": "boolean", "default": true, "description": "The module's name shows on the map. Written only when false." },
-        "outlineColor": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "The module's outline colour; absent for the default light blue." },
-        "nameColor": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "The module's name colour; absent for the default light blue." },
-        "sameColor": { "type": "boolean", "default": true, "description": "The outline and name colours change together. Written only when false." },
+        "outlineColor": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "The module's outline color; absent for the default light blue." },
+        "nameColor": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "The module's name color; absent for the default light blue." },
+        "sameColor": { "type": "boolean", "default": true, "description": "The outline and name colors change together. Written only when false." },
         "pinned": { "type": "boolean", "default": false, "description": "Pinned in place: not moved or turned as a whole. Written only when true." }
       },
       "required": ["id", "name", "members", "transform"]

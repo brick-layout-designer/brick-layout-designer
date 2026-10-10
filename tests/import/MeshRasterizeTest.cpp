@@ -15,7 +15,7 @@ TEST(MeshRasterize, EmptyMeshReturnsNullImage) {
     EXPECT_TRUE(r.image.isNull());
 }
 
-TEST(MeshRasterize, SingleTriangleProducesColouredPixels) {
+TEST(MeshRasterize, SingleTriangleProducesColoredPixels) {
     geom::Mesh m;
     geom::Triangle t;
     // 1-stud (20 LDU) right triangle in the xz plane.

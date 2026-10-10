@@ -20,7 +20,7 @@ QString writeLDConfig(const QTemporaryDir& dir, const QByteArray& body) {
 
 }
 
-TEST(LDrawPalette, ParsesBasicColourLines) {
+TEST(LDrawPalette, ParsesBasicColorLines) {
     QTemporaryDir tmp;
     const QString cfg = writeLDConfig(tmp, QByteArray(
         "0 // LDraw config\n"
@@ -42,7 +42,7 @@ TEST(LDrawPalette, ParsesBasicColourLines) {
 TEST(LDrawPalette, IgnoresMalformedAndComments) {
     QTemporaryDir tmp;
     const QString cfg = writeLDConfig(tmp, QByteArray(
-        "0 // not a colour line\n"
+        "0 // not a color line\n"
         "0 !COLOUR BadHex CODE 99 VALUE not-hex EDGE #000000\n"
         "0 !COLOUR NoCode VALUE #ABCDEF\n"
         "0 !COLOUR Good CODE 7 VALUE #8A928D EDGE #4F4F4F\n"

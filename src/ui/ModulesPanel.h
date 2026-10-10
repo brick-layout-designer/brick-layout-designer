@@ -32,7 +32,7 @@ signals:
     void libraryActionRequested(const QString& moduleId, const QString& action);
     void cloneRequested(const QString& moduleId);
     void renameRequested(const QString& moduleId);
-    // The module's look: its colours (the Module look dialog), and its name on or off.
+    // The module's look: its colors (the Module look dialog), and its name on or off.
     void lookRequested(const QString& moduleId);
     void showNameRequested(const QString& moduleId, bool show);
     // Edit module (or Done editing: an empty id), and Pin in place / Unpin.

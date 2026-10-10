@@ -161,11 +161,11 @@ QWidget* buildEditionTab(QDialog* parent) {
     };
     refreshColor();
     QObject::connect(colorBtn, &QPushButton::clicked, colorBtn, [&paintColor, refreshColor, w]{
-        QColor c = QColorDialog::getColor(paintColor, w, QObject::tr("Default paint colour"),
+        QColor c = QColorDialog::getColor(paintColor, w, QObject::tr("Default paint color"),
                                           QColorDialog::ShowAlphaChannel);
         if (c.isValid()) { paintColor = c; refreshColor(); }
     });
-    form->addRow(QObject::tr("Default paint colour:"), help::withHelp(colorBtn, QStringLiteral("toolbar.paintColour"), w));
+    form->addRow(QObject::tr("Default paint color:"), help::withHelp(colorBtn, QStringLiteral("toolbar.paintColor"), w));
 
     s.endGroup();
 
@@ -192,7 +192,7 @@ QWidget* buildAppearanceTab(QDialog* parent) {
     connDotsChk->setChecked(s.value(QStringLiteral("appearance/alwaysShowConnections"), false).toBool());
     form->addRow(help::withHelp(connDotsChk, QStringLiteral("prefs.connectionPoints"), w));
 
-    auto* highlightChk = new QCheckBox(QObject::tr("Selection tint (clearly-coloured overlay)"), w);
+    auto* highlightChk = new QCheckBox(QObject::tr("Selection tint (clearly-colored overlay)"), w);
     highlightChk->setChecked(s.value(QStringLiteral("appearance/selectionTint"), true).toBool());
     form->addRow(highlightChk);
 

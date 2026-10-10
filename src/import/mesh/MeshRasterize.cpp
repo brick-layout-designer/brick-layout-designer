@@ -174,8 +174,8 @@ RasterizeResult rasterizeMeshTopDown(const geom::Mesh& mesh,
     out.imageOriginInStuds = QPointF(canvasX0 - opt.marginPx / static_cast<double>(opt.pxPerStud),
                                       canvasZ0 - opt.marginPx / static_cast<double>(opt.pxPerStud));
 
-    // Z-buffer + colour buffer. Initial depth is -inf so any valid
-    // fragment beats it; initial colour is transparent.
+    // Z-buffer + color buffer. Initial depth is -inf so any valid
+    // fragment beats it; initial color is transparent.
     std::vector<Frag> buf(static_cast<size_t>(W) * static_cast<size_t>(H));
     for (auto& f : buf) {
         f.yWorld = -std::numeric_limits<float>::infinity();
@@ -184,7 +184,7 @@ RasterizeResult rasterizeMeshTopDown(const geom::Mesh& mesh,
 
     // Directional light from straight up — top-down sprite, so the
     // light shares the camera direction. Heavy ambient so flat tile
-    // tops (e.g. hazard-stripe tiles laid flat) read as solid colour
+    // tops (e.g. hazard-stripe tiles laid flat) read as solid color
     // blocks instead of getting broken up by stud-cylinder shading
     // from neighbouring bricks.
     constexpr double kLx = 0.0, kLy = 1.0, kLz = 0.0;
@@ -240,7 +240,7 @@ RasterizeResult rasterizeMeshTopDown(const geom::Mesh& mesh,
             if (shade > 1.0) shade = 1.0;
         }
 
-        // Apply shading to the triangle's base colour.
+        // Apply shading to the triangle's base color.
         const QColor base = tri.color;
         const int alpha = base.alpha();
         if (alpha == 0) return;
@@ -271,7 +271,7 @@ RasterizeResult rasterizeMeshTopDown(const geom::Mesh& mesh,
                     f.argb   = argb;
                     continue;
                 }
-                // Premultiplied "over": this colour plus what is below,
+                // Premultiplied "over": this color plus what is below,
                 // dimmed by how much this one covers.
                 quint32 out = 0;
                 for (int shift = 0; shift < 32; shift += 8) {
@@ -292,7 +292,7 @@ RasterizeResult rasterizeMeshTopDown(const geom::Mesh& mesh,
                      [&](const geom::Triangle* a, const geom::Triangle* b) { return highest(a) < highest(b); });
     for (const geom::Triangle* tri : seeThrough) rasterize(*tri, true);
 
-    // Materialise the supersampled image from the colour buffer.
+    // Materialise the supersampled image from the color buffer.
     QImage img(W, H, QImage::Format_ARGB32_Premultiplied);
     img.fill(Qt::transparent);
     for (int yy = 0; yy < H; ++yy) {

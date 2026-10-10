@@ -59,8 +59,8 @@ public:
 
     sync::SyncSession& session() { return session_; }
 
-    // Who we are on this layout, for our cursor's name and colour (the
-    // colour is the web's, per user and layout).
+    // Who we are on this layout, for our cursor's name and color (the
+    // color is the web's, per user and layout).
     void setUser(const QString& userId, const QString& displayName, const QString& layoutId);
     // Other people's cursors and selections drawn on the map right now.
     int drawnPeers() const { return drawnPeers_; }

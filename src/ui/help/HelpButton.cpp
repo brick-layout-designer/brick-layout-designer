@@ -40,7 +40,7 @@ QColor mix(const QColor& a, const QColor& b, double amount) {
                             static_cast<float>(b.blueF() + (a.blueF() - b.blueF()) * amount));
 }
 
-// The dark "tour" bubble colours, from the app's palette (ThemeManager
+// The dark "tour" bubble colors, from the app's palette (ThemeManager
 // sets ToolTipBase / ToolTipText to the tokens' tourBg / tourInk).
 QColor bubbleBg() { return QApplication::palette().color(QPalette::ToolTipBase); }
 QColor bubbleInk() { return QApplication::palette().color(QPalette::ToolTipText); }

@@ -70,10 +70,10 @@ For each toggle: flip on, verify visible effect; flip off, verify gone.
       to have values).
 - [ ] Module Names — module label appears above each module frame.
 - [ ] Electric Circuits — colored lines between every pair of linked
-      9V rail connections, one colour per circuit component. Filled
+      9V rail connections, one color per circuit component. Filled
       dots mark every electric plug on every brick.
   - [ ] Each connected component of the electric graph gets a unique
-        colour (cycled through a 7-colour palette).
+        color (cycled through a 7-color palette).
   - [ ] Moving a brick disconnects its end of the circuit; the next
         render shows the now-open plug as an unattached dot.
 - [ ] Ruler Attach Points — attach markers on rulers render when on.
@@ -162,10 +162,10 @@ Set up: two rails linked end-to-end.
 - [ ] Verify the distance is correct for the two endpoints.
 
 ### 3.2 Ruler editing (double-click or context menu "Properties...")
-- [ ] Colour + thickness changes take effect after OK.
+- [ ] Color + thickness changes take effect after OK.
 - [ ] Distance/unit flag toggles the label visibility.
 - [ ] Unit combobox switches between studs, plates, bricks, cm, in, ft.
-- [ ] Font + font colour change takes effect.
+- [ ] Font + font color change takes effect.
 
 ### 3.3 Ruler attachment (detach path)
 - [ ] Select a ruler attached to a brick.
@@ -506,7 +506,7 @@ Text / Ruler layers have no kind-specific extras beyond the base fields.
 - [ ] General tab: language combobox persists across launches.
 - [ ] Editing tab: snap step / rotation step changes take effect
       immediately on next drag.
-- [ ] Appearance tab: accent colour updates affect selection outline.
+- [ ] Appearance tab: accent color updates affect selection outline.
 - [ ] Library tab: "Manage Parts Libraries..." opens the library paths
       dialog.
 - [ ] Closing Preferences rebuilds the scene so live settings apply

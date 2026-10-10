@@ -92,11 +92,11 @@ constexpr Raw kShared[] = {
       QT_TRANSLATE_NOOP("HelpTexts", "How far a piece turns each time you press R."),
       QT_TRANSLATE_NOOP("HelpTexts", "Pick 90° for square turns, or a smaller step for curves and angles. "
                                      "Shift+R turns the other way.") },
-    { "toolbar.paintColour", "",
-      QT_TRANSLATE_NOOP("HelpTexts", "Paint colour"),
-      QT_TRANSLATE_NOOP("HelpTexts", "The colour the Paint tool uses."),
-      QT_TRANSLATE_NOOP("HelpTexts", "Pick a colour here, then choose Paint and click on the map to "
-                                     "colour an area. It paints the ground, not the pieces.") },
+    { "toolbar.paintColor", "",
+      QT_TRANSLATE_NOOP("HelpTexts", "Paint color"),
+      QT_TRANSLATE_NOOP("HelpTexts", "The color the Paint tool uses."),
+      QT_TRANSLATE_NOOP("HelpTexts", "Pick a color here, then choose Paint and click on the map to "
+                                     "color an area. It paints the ground, not the pieces.") },
     { "toolbar.panels", "",
       QT_TRANSLATE_NOOP("HelpTexts", "Panels"),
       QT_TRANSLATE_NOOP("HelpTexts", "Show or hide the side panels."),
@@ -145,7 +145,7 @@ constexpr Raw kShared[] = {
       QT_TRANSLATE_NOOP("HelpTexts", "Measure"),
       QT_TRANSLATE_NOOP("HelpTexts", "A ruler on the map that shows a real distance."),
       QT_TRANSLATE_NOOP("HelpTexts", "Rulers stay on the map until you delete them, so others can see "
-                                     "them too. Change its colour, or show the length in studs, metres or "
+                                     "them too. Change its color, or show the length in studs, metres or "
                                      "feet.") },
     { "dialog.exportImage", "",
       QT_TRANSLATE_NOOP("HelpTexts", "Export or print"),
@@ -159,9 +159,9 @@ constexpr Raw kShared[] = {
                                      "spreadsheet.") },
     { "dialog.moduleLook", "",
       QT_TRANSLATE_NOOP("HelpTexts", "Module look"),
-      QT_TRANSLATE_NOOP("HelpTexts", "This module’s own outline and name colours, and whether its name "
+      QT_TRANSLATE_NOOP("HelpTexts", "This module’s own outline and name colors, and whether its name "
                                      "shows."),
-      QT_TRANSLATE_NOOP("HelpTexts", "With Same colour on, the outline and the name change together. Reset "
+      QT_TRANSLATE_NOOP("HelpTexts", "With Same color on, the outline and the name change together. Reset "
                                      "to default brings back the light blue. Long names wrap, get smaller, "
                                      "and are only cut short when nothing else fits.") },
     { "module.edit", "",
@@ -278,10 +278,10 @@ constexpr Raw kShared[] = {
       QT_TRANSLATE_NOOP("HelpTexts", "Signed in, your settings follow you to any computer."),
       QT_TRANSLATE_NOOP("HelpTexts", "They are kept with your account on this server. Signed out, they "
                                      "are kept in this browser only.") },
-    { "settings.colour", "",
-      QT_TRANSLATE_NOOP("HelpTexts", "Colour"),
-      QT_TRANSLATE_NOOP("HelpTexts", "The colour of buttons and highlights; your bricks keep their own "
-                                     "colours."),
+    { "settings.color", "",
+      QT_TRANSLATE_NOOP("HelpTexts", "Color"),
+      QT_TRANSLATE_NOOP("HelpTexts", "The color of buttons and highlights; your bricks keep their own "
+                                     "colors."),
       QT_TRANSLATE_NOOP("HelpTexts", "Pick the one you like best. It only changes how the app looks for "
                                      "you.") },
     { "settings.largeText", "",
@@ -502,7 +502,7 @@ constexpr Raw kDesktopOnly[] = {
     { "servers.main", "/help#sharing",
       QT_TRANSLATE_NOOP("HelpTexts", "Main server"),
       QT_TRANSLATE_NOOP("HelpTexts", "Your settings follow your account on the Main server."),
-      QT_TRANSLATE_NOOP("HelpTexts", "Theme, colours and the other settings are kept with your account "
+      QT_TRANSLATE_NOOP("HelpTexts", "Theme, colors and the other settings are kept with your account "
                                      "there, so they are the same on every computer, whichever server "
                                      "you are working on.") },
     { "publish.owner", "/help#sharing",

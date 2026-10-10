@@ -120,7 +120,7 @@ private slots:
     // Make a module: the picked parts become a module in this layout
     // (MainWindowModuleLibrary.cpp); "Also save to my library" saves it too.
     void onMakeModule();
-    // The Module look window for one placed module (its name, colours).
+    // The Module look window for one placed module (its name, colors).
     void editModuleLook(const QString& moduleId);
     void onImportBbmAsModule();
     // Writes `module` into the Module library folder: as `name`.bbm when

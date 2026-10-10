@@ -30,11 +30,11 @@ namespace bld::import {
 //     paints higher pieces last. Equivalent to a stable depth sort
 //     for orthographic top-down.
 //   * QPainter with antialiasing for smooth edges. Each tri is filled
-//     with its baked colour; transparent colours blend correctly via
+//     with its baked color; transparent colors blend correctly via
 //     QPainter's source-over composite.
 //   * We don't render LDraw type-2 / type-5 edge lines — fills are
 //     enough for top-down sprites and the line files reference
-//     non-fill primitives that don't affect colour mass.
+//     non-fill primitives that don't affect color mass.
 struct RasterizeOptions {
     int     pxPerStud = 8;
     double  studsPerLdu = 1.0 / 20.0;     // 20 LDU per stud
@@ -49,7 +49,7 @@ struct RasterizeOptions {
 
     // Stroke the mesh's `edges` (LDraw type-2 wireframe lines) over
     // the filled triangles. Without this, flat baseplates and plate
-    // tops render as featureless colour blobs — the stud outlines,
+    // tops render as featureless color blobs — the stud outlines,
     // brick seams, and embossed-print silhouettes all live in the
     // type-2 lines. With this on, the sprite reads as a real LEGO
     // top-down rather than a flat fill.

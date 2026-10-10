@@ -13,10 +13,10 @@ struct Entry {
     bool   transparent;
 };
 
-// Subset of LDraw's standard colours — covers every code used by
+// Subset of LDraw's standard colors — covers every code used by
 // mainstream parts authored in LDraw, Studio, and LDD exports. The
 // metallic / pearl / chrome variants all share their RGB with a
-// base colour and are best rendered as the base colour + a tint in
+// base color and are best rendered as the base color + a tint in
 // a more sophisticated pipeline, so we just collapse them here.
 constexpr Entry kColors[] = {
     {  0, qRgb( 27,  42,  52), false },  // Black
@@ -35,7 +35,7 @@ constexpr Entry kColors[] = {
     { 13, qRgb(253, 195, 175), false },  // Pink
     { 14, qRgb(245, 205,  47), false },  // Yellow
     { 15, qRgb(255, 255, 255), false },  // White
-    { 16, qRgb(180, 180, 180), false },  // "Main colour" — sentinel, we render as grey
+    { 16, qRgb(180, 180, 180), false },  // "Main color" — sentinel, we render as grey
     { 17, qRgb(197, 225, 204), false },  // Light green
     { 18, qRgb(253, 232, 158), false },  // Light yellow
     { 19, qRgb(215, 197, 153), false },  // Tan
@@ -51,7 +51,7 @@ constexpr Entry kColors[] = {
     { 31, qRgb(205, 164, 222), false },  // Lavender
 
     // Transparent variants. Standard LDraw uses 3x-4x code ranges for
-    // these; RGB is the paint colour, and the transparency flag hints
+    // these; RGB is the paint color, and the transparency flag hints
     // downstream (we blend with alpha when rasterizing).
     { 32, qRgb(  0,  0,   0),  true  },  // Trans-black (glass)
     { 33, qRgb(  0, 32, 160),  true  },  // Trans-dark-blue
@@ -71,7 +71,7 @@ constexpr Entry kColors[] = {
     { 54, qRgb(218, 176,  10),  true  },  // Trans-neon-yellow
     { 57, qRgb(247, 133,   0),  true  },  // Trans-neon-orange
 
-    // Metallic (treated as their base colour for rendering).
+    // Metallic (treated as their base color for rendering).
     { 70, qRgb(105,  64,  39), false },  // Reddish-brown
     { 71, qRgb(163, 162, 164), false },  // Light bluish grey
     { 72, qRgb( 99,  95,  98), false },  // Dark bluish grey

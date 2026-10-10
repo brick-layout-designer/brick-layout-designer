@@ -60,7 +60,7 @@ TEST(Awareness, KeepsPeersAsYProtocolsDoes) {
     EXPECT_FALSE(decode(QByteArrayLiteral("\x01\x07\x01\x10{}")));
 }
 
-TEST(Presence, ColoursMatchTheWebAndStatesUseItsShape) {
+TEST(Presence, ColorsMatchTheWebAndStatesUseItsShape) {
     namespace pr = bld::sync::presence;
     // Values from the web's deterministicColor.
     EXPECT_EQ(pr::colorFor(QStringLiteral("u-alice"), QStringLiteral("L1")), QStringLiteral("#f472b6"));

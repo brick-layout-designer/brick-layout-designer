@@ -13,13 +13,13 @@ namespace bld::import {
 namespace {
 
 constexpr int kTransparentIndex = 0;
-constexpr int kMaxColours = 255;  // index 0 is reserved for transparency
+constexpr int kMaxColors = 255;  // index 0 is reserved for transparency
 
 struct Box {
-    std::vector<std::pair<QRgb, int>> colours;  // colour, pixel count
+    std::vector<std::pair<QRgb, int>> colors;  // color, pixel count
     int range(int channel) const {
         int lo = 255, hi = 0;
-        for (const auto& [c, n] : colours) {
+        for (const auto& [c, n] : colors) {
             const int v = channel == 0 ? qRed(c) : channel == 1 ? qGreen(c) : qBlue(c);
             lo = std::min(lo, v);
             hi = std::max(hi, v);
@@ -28,29 +28,29 @@ struct Box {
     }
 };
 
-// Median-cut palette over the opaque colours' histogram.
+// Median-cut palette over the opaque colors' histogram.
 std::vector<QRgb> buildPalette(const QHash<QRgb, int>& histogram) {
     std::vector<QRgb> palette;
-    if (histogram.size() <= kMaxColours) {
+    if (histogram.size() <= kMaxColors) {
         for (auto it = histogram.cbegin(); it != histogram.cend(); ++it) palette.push_back(it.key());
         return palette;
     }
     std::vector<Box> boxes(1);
     for (auto it = histogram.cbegin(); it != histogram.cend(); ++it) {
-        boxes[0].colours.emplace_back(it.key(), it.value());
+        boxes[0].colors.emplace_back(it.key(), it.value());
     }
-    while (static_cast<int>(boxes.size()) < kMaxColours) {
+    while (static_cast<int>(boxes.size()) < kMaxColors) {
         // Split the box with the widest channel range.
         int best = -1, bestChannel = 0, bestRange = 0;
         for (int i = 0; i < static_cast<int>(boxes.size()); ++i) {
-            if (boxes[i].colours.size() < 2) continue;
+            if (boxes[i].colors.size() < 2) continue;
             for (int ch = 0; ch < 3; ++ch) {
                 const int r = boxes[i].range(ch);
                 if (r > bestRange) { bestRange = r; best = i; bestChannel = ch; }
             }
         }
         if (best < 0) break;
-        auto& cs = boxes[best].colours;
+        auto& cs = boxes[best].colors;
         std::sort(cs.begin(), cs.end(), [bestChannel](const auto& a, const auto& b) {
             const auto key = [bestChannel](QRgb c) {
                 return bestChannel == 0 ? qRed(c) : bestChannel == 1 ? qGreen(c) : qBlue(c);
@@ -67,13 +67,13 @@ std::vector<QRgb> buildPalette(const QHash<QRgb, int>& histogram) {
             split = i + 1;
         }
         Box upper;
-        upper.colours.assign(cs.begin() + static_cast<long>(split), cs.end());
+        upper.colors.assign(cs.begin() + static_cast<long>(split), cs.end());
         cs.resize(split);
         boxes.push_back(std::move(upper));
     }
     for (const Box& b : boxes) {
         long long r = 0, g = 0, bl = 0, n = 0;
-        for (const auto& [c, k] : b.colours) {
+        for (const auto& [c, k] : b.colors) {
             r += qRed(c) * k; g += qGreen(c) * k; bl += qBlue(c) * k; n += k;
         }
         palette.push_back(qRgb(int(r / n), int(g / n), int(bl / n)));
@@ -200,8 +200,8 @@ bool writeGif(const QImage& image, const QString& path, QString* error) {
     QByteArray out("GIF89a");
     appendU16(out, w);
     appendU16(out, h);
-    out.append(static_cast<char>(0xF7));  // global colour table, 8 bpp, 256 entries
-    out.append('\0');                      // background colour index
+    out.append(static_cast<char>(0xF7));  // global color table, 8 bpp, 256 entries
+    out.append('\0');                      // background color index
     out.append('\0');                      // pixel aspect ratio
     for (int i = 0; i < 256; ++i) {
         const QRgb c = (i >= 1 && i - 1 < static_cast<int>(palette.size())) ? palette[i - 1] : 0;
@@ -213,7 +213,7 @@ bool writeGif(const QImage& image, const QString& path, QString* error) {
     out.append("\x21\xF9\x04\x01\x00\x00", 6);
     out.append(static_cast<char>(kTransparentIndex));
     out.append('\0');
-    // Image descriptor covering the whole canvas, no local colour table.
+    // Image descriptor covering the whole canvas, no local color table.
     out.append(',');
     appendU16(out, 0);
     appendU16(out, 0);

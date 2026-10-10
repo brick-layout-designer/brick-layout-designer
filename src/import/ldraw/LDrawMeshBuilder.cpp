@@ -103,7 +103,7 @@ BakedModel bakeMeshFromLDraw(const LDrawReadResult& src,
 
     // Second pass: inline primitives (Studio exports + hand-authored
     // .ldr snippets sometimes carry geometry directly). Treat them as
-    // if they were under an identity transform. Colour 16 ("inherit")
+    // if they were under an identity transform. Color 16 ("inherit")
     // is meaningless at top level; treat it as code 7 (light grey)
     // for visibility — same convention LDView and most other tools
     // use when there's no parent ref to inherit from.

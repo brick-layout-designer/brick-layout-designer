@@ -1,6 +1,6 @@
 #pragma once
 
-// Edit > Settings...: light or dark, the colour, bigger text and the help
+// Edit > Settings...: light or dark, the color, bigger text and the help
 // buttons, as the web's Settings page has them. (The synced settings also
 // carry expertMode, kept so it round-trips with the server; the desktop
 // shows every feature, so it has no switch for it.) Every change

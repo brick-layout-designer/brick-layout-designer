@@ -10,7 +10,7 @@ namespace bld::import {
 
 namespace {
 
-// Parse a "#RRGGBB" or "#AARRGGBB" hex literal. Returns invalid colour
+// Parse a "#RRGGBB" or "#AARRGGBB" hex literal. Returns invalid color
 // on malformed input so the caller can skip the line.
 QColor parseHex(QString s) {
     s = s.trimmed();
@@ -52,7 +52,7 @@ bool LDrawPalette::loadFromLDConfig(const QString& ldconfigPath) {
 
         // Walk the rest of the line picking out CODE / VALUE / ALPHA
         // by name. Order isn't guaranteed across LDConfig revisions,
-        // and we need to skip the colour name (which can contain
+        // and we need to skip the color name (which can contain
         // spaces in older configs but is single-token in LDraw 2014+).
         int code = -1;
         QColor rgb;

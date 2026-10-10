@@ -21,7 +21,7 @@ class LDDAssets;
 // mapping (LDD-only decorations, exclusive prints) — the LDraw
 // pipeline can't render those because there's no .dat. With this
 // path we render LDD's own geometry and paint it with the LDD
-// material colour from Materials.xml.
+// material color from Materials.xml.
 //
 // .g bytes come from an LDDAssets (db.lif, nested or extracted).
 //

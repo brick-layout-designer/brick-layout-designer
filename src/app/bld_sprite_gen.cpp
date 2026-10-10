@@ -7,7 +7,7 @@
 //
 //   1. If the file references parts that resolve in BlueBrickParts,
 //      composite them via rendering::SceneBuilder (the full fidelity
-//      path — gets real GIFs, colours, orientations).
+//      path — gets real GIFs, colors, orientations).
 //
 //   2. Otherwise (or alongside), rasterize the file's inline
 //      LDraw primitives (type 2/3/4) with import::rasterizeTopDown

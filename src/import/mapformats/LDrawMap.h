@@ -31,7 +31,7 @@ MapReadResult readLDrawMap(const QString& path, parts::PartsLibrary& lib);
 // Write `map` as .ldr or .mpd (chosen by `path`'s extension) the way
 // BlueBrick does: remapped parts, sleepers under rails, groups, rulers.
 // Area, grid and text layers can't be expressed in LDraw and are written
-// as a comment only. Parts without a numeric colour (sets, logos) are
+// as a comment only. Parts without a numeric color (sets, logos) are
 // skipped, as in BlueBrick.
 bool writeLDrawMap(const core::Map& map, const QString& path,
                    parts::PartsLibrary& lib, QString* error = nullptr);

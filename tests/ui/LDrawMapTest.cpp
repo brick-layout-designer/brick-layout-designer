@@ -62,8 +62,8 @@ protected:
             if (out.isEmpty() && line.startsWith(QStringLiteral("0 ")) && !line.contains(QLatin1Char(':'))) continue;
             if (line.startsWith(QStringLiteral("1 "))) {
                 const QString part = line.section(QLatin1Char(' '), 14).chopped(4);
-                const QString colour = line.section(QLatin1Char(' '), 1, 1);
-                if (!lib_.metadata(part + QLatin1Char('.') + colour) && !lib_.metadata(part)) continue;
+                const QString color = line.section(QLatin1Char(' '), 1, 1);
+                if (!lib_.metadata(part + QLatin1Char('.') + color) && !lib_.metadata(part)) continue;
             }
             out << line;
         }
@@ -220,7 +220,7 @@ TEST_F(LDrawMapTest, RoundTripKeepsEveryBrick) {
     auto back = import::readLDrawMap(out, lib_);
     ASSERT_TRUE(back.ok());
     // Parts the library lacks come back with a placeholder size, and parts
-    // without a numeric colour aren't written (as in BlueBrick).
+    // without a numeric color aren't written (as in BlueBrick).
     const auto writable = [&](const QString& pn) {
         bool numeric = false;
         pn.section(QLatin1Char('.'), -1).toInt(&numeric);

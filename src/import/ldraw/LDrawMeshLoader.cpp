@@ -137,10 +137,10 @@ void LDrawMeshLoader::appendBaked(geom::Mesh& out,
                                    const ParsedDat& dat,
                                    const geom::Mat4& parentXform,
                                    int parentColor) {
-    // Resolve colour code -> final QColor. 16 = inherit parent. 24 is
+    // Resolve color code -> final QColor. 16 = inherit parent. 24 is
     // for edges (which we don't render here); fall through to grey.
     // Cache resolutions per call so a part with thousands of
-    // primitives sharing one colour code only hits the palette once.
+    // primitives sharing one color code only hits the palette once.
     QHash<int, QColor> colorCache;
     auto resolveColor = [&](int code) -> QColor {
         auto it = colorCache.constFind(code);
@@ -153,7 +153,7 @@ void LDrawMeshLoader::appendBaked(geom::Mesh& out,
         return result;
     };
 
-    // Bake each primitive: parent transform applied, colour resolved.
+    // Bake each primitive: parent transform applied, color resolved.
     // No exact reserve() here: this runs once per subfile, and growing
     // the vector to exactly its new size every time is quadratic.
     for (const auto& prim : dat.primitives) {
@@ -165,8 +165,8 @@ void LDrawMeshLoader::appendBaked(geom::Mesh& out,
         out.tris.push_back(t);
     }
 
-    // Same for type-2 edges. Code 24 = "edge colour", which the LDraw
-    // palette resolves to a darker companion of the parent colour —
+    // Same for type-2 edges. Code 24 = "edge color", which the LDraw
+    // palette resolves to a darker companion of the parent color —
     // exactly what we want for visible-but-not-overpowering wireframe.
     for (const auto& e : dat.edges) {
         geom::Edge ge;
@@ -186,8 +186,8 @@ void LDrawMeshLoader::appendBaked(geom::Mesh& out,
         }
         const ParsedDat* childDat = parse(absChild);
         if (!childDat) continue;
-        // Inherited colour: child's own ref colour 16 means "use my
-        // parent's colour", which here is `parentColor` after we
+        // Inherited color: child's own ref color 16 means "use my
+        // parent's color", which here is `parentColor` after we
         // resolve through ref.color.
         const int inherited = (ref.color == 16) ? parentColor : ref.color;
         const geom::Mat4 composed = parentXform * ref.transform;
@@ -206,8 +206,8 @@ std::shared_ptr<const geom::Mesh> LDrawMeshLoader::loadPartShared(const QString&
         errors_.append(QStringLiteral("Unresolved part %1").arg(datRef));
         return {};
     }
-    // Per-(file, colour) bake cache. A model that places the same
-    // brick in the same colour 200 times would otherwise recurse
+    // Per-(file, color) bake cache. A model that places the same
+    // brick in the same color 200 times would otherwise recurse
     // through hundreds of subfiles each time. Bake once, share after.
     const auto cacheKey = qMakePair(abs, topColor);
     if (auto it = bakedCache_.constFind(cacheKey); it != bakedCache_.constEnd()) {

@@ -1,7 +1,7 @@
 #pragma once
 
 // Simple line icons for the toolbar, drawn in code (no image files, no SVG
-// module) in the current palette's colours: muted normally, ink when
+// module) in the current palette's colors: muted normally, ink when
 // hovered or checked. Call again after a palette change.
 
 #include <QIcon>

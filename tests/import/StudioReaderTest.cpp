@@ -133,12 +133,12 @@ TEST(StudioReader, ReadsEncryptedStudioFile) {
     const auto r = import::readStudioIo(QStringLiteral(BLD_SOURCE_DIR "/fixtures/studio/zipcrypto-small.io"));
     ASSERT_TRUE(r.ok) << r.error.toStdString();
     EXPECT_EQ(r.title, QStringLiteral("zipcrypto-small"));
-    // model.ldr, not model2.ldr (BrickLink colours: 5 for 4) or modelv1.ldr.
+    // model.ldr, not model2.ldr (BrickLink colors: 5 for 4) or modelv1.ldr.
     ASSERT_EQ(r.parts.size(), 4u);
     EXPECT_EQ(r.parts[0].filename, QStringLiteral("3001.dat"));
     EXPECT_EQ(r.parts[0].colorCode, 4);
     EXPECT_EQ(r.parts[1].filename, QStringLiteral("testcustom.dat"));
-    // The submodel is placed: rotated a quarter turn, at z 100, its colour-16 brick in the submodel's colour 2.
+    // The submodel is placed: rotated a quarter turn, at z 100, its color-16 brick in the submodel's color 2.
     EXPECT_EQ(r.parts[2].filename, QStringLiteral("3023.dat"));
     EXPECT_EQ(r.parts[2].colorCode, 14);
     EXPECT_EQ(r.parts[3].colorCode, 2);

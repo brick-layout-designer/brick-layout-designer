@@ -61,7 +61,7 @@ struct LDrawReadResult {
 // .dat names to part numbers separately. Multi-part files (.mpd, Studio's
 // model.ldr) are flattened: the first "0 FILE" block is the model, and its
 // references to the other blocks are replaced by those blocks' contents,
-// placed and coloured. Unreferenced blocks are dropped.
+// placed and colored. Unreferenced blocks are dropped.
 LDrawReadResult readLDraw(const QString& path);
 
 class LDrawLibrary;
@@ -73,9 +73,9 @@ class LDrawMeshLoader;
 //   - Top-down view: x stays, y = -z (LDraw is -Y up).
 //   - Orientation = atan2(m[2], m[0]), the rotation around Y.
 //   - Part number = file name without directory / ".dat", upper-cased,
-//     suffixed with ".<colour>".
+//     suffixed with ".<color>".
 // With `lib`, each reference is resolved against the parts library
-// (exact colour, any colour, then LDraw's earlier numbers for renumbered
+// (exact color, any color, then LDraw's earlier numbers for renumbered
 // parts via `ldraw`), the brick takes the library's part number, and the
 // part's <LDraw> Angle/Translation remap is applied so the brick's
 // displayArea centre is the library image's centre.

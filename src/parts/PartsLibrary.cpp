@@ -106,7 +106,7 @@ void readLDrawRemap(QXmlStreamReader& r, PartMetadata& out) {
         else if (n == QStringLiteral("Alias"))           out.ldrawAlias = r.readElementText().trimmed().toUpper();
         else r.skipCurrentElement();
     }
-    // Vanilla: a sleeper without a colour is black.
+    // Vanilla: a sleeper without a color is black.
     if (!out.ldrawSleeper.isEmpty() && !out.ldrawSleeper.contains(QLatin1Char('.')))
         out.ldrawSleeper += QStringLiteral(".0");
 }

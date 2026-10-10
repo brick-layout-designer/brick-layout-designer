@@ -1,5 +1,5 @@
 // A placed module's look window (ModuleLookDialog): Show name, the two
-// colours with the "Same colour" link, and Reset to default, each written
+// colors with the "Same color" link, and Reset to default, each written
 // at once; and the ModulesPanel menu that opens it.
 
 #include "ui/ModuleLookDialog.h"
@@ -52,32 +52,32 @@ TEST(ModuleLookDialog, ShowNameIsWrittenAtOnce) {
     EXPECT_TRUE(h.mod.showName);
 }
 
-TEST(ModuleLookDialog, LinkedColoursMoveTogetherAndUnlinkedOnesDont) {
+TEST(ModuleLookDialog, LinkedColorsMoveTogetherAndUnlinkedOnesDont) {
     Harness h;
-    EXPECT_TRUE(h.dlg.sameColourBox()->isChecked());
+    EXPECT_TRUE(h.dlg.sameColorBox()->isChecked());
     EXPECT_FALSE(h.dlg.resetButton()->isEnabled());
-    h.dlg.pickColour(true, QColor(255, 136, 0));
+    h.dlg.pickColor(true, QColor(255, 136, 0));
     EXPECT_EQ(h.mod.outlineColor, QStringLiteral("#ff8800"));
     EXPECT_EQ(h.mod.nameColor, QStringLiteral("#ff8800"));
     EXPECT_TRUE(h.dlg.resetButton()->isEnabled());
     EXPECT_EQ(h.dlg.nameButton()->text(), QStringLiteral("#ff8800"));
 
-    h.dlg.sameColourBox()->setChecked(false);
+    h.dlg.sameColorBox()->setChecked(false);
     EXPECT_FALSE(h.mod.sameColor);
-    h.dlg.pickColour(false, QColor(0x11, 0x22, 0x33));
+    h.dlg.pickColor(false, QColor(0x11, 0x22, 0x33));
     EXPECT_EQ(h.mod.outlineColor, QStringLiteral("#ff8800"));
     EXPECT_EQ(h.mod.nameColor, QStringLiteral("#112233"));
 }
 
 TEST(ModuleLookDialog, ResetToDefaultBringsBackTheLightBlue) {
     Harness h;
-    h.dlg.sameColourBox()->setChecked(false);
-    h.dlg.pickColour(false, QColor(0x11, 0x22, 0x33));
+    h.dlg.sameColorBox()->setChecked(false);
+    h.dlg.pickColor(false, QColor(0x11, 0x22, 0x33));
     h.dlg.resetButton()->click();
     EXPECT_TRUE(h.mod.outlineColor.isEmpty());
     EXPECT_TRUE(h.mod.nameColor.isEmpty());
     EXPECT_TRUE(h.mod.sameColor);
-    EXPECT_TRUE(h.dlg.sameColourBox()->isChecked());
+    EXPECT_TRUE(h.dlg.sameColorBox()->isChecked());
     EXPECT_FALSE(h.dlg.resetButton()->isEnabled());
 }
 
@@ -119,7 +119,7 @@ TEST(ModulesPanel, TheMoreButtonOpensTheModuleMenuWithItsLook) {
         ASSERT_NE(menu, nullptr);
         for (QAction* a : menu->actions()) {
             if (a->text() == QStringLiteral("Show name")) checkedShown = a->isChecked();
-            if (a->text() == QStringLiteral("Colours...")) a->trigger();
+            if (a->text() == QStringLiteral("Colors...")) a->trigger();
         }
         menu->close();
     });

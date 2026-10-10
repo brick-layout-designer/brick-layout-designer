@@ -177,7 +177,7 @@ LDrawReadResult LDDLDrawMapping::toLDraw(const LDrawReadResult& ldd) const {
         const QString designId = ref.filename.section(QLatin1Char('.'), 0, 0);
         QString dat = partFor(designId);
         if (dat.isEmpty()) dat = designId + QStringLiteral(".dat");
-        const int colour = colourFor(ref.colorCode);
+        const int color = colorFor(ref.colorCode);
 
         const Mat3 L{ ref.m[0], ref.m[1], ref.m[2], ref.m[3], ref.m[4],
                       ref.m[5], ref.m[6], ref.m[7], ref.m[8] };
@@ -196,7 +196,7 @@ LDrawReadResult LDDLDrawMapping::toLDraw(const LDrawReadResult& ldd) const {
         const Mat3 m = mul(mul(F, rot), F);
 
         LDrawPartRef o;
-        o.colorCode = colour >= 0 ? colour : ref.colorCode;
+        o.colorCode = color >= 0 ? color : ref.colorCode;
         o.x = px;
         o.y = -py;
         o.z = -pz;

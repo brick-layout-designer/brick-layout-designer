@@ -133,7 +133,7 @@ public:
     PictureRenderer& operator=(const PictureRenderer&) = delete;
 
     // The picture at exactly `size` pixels: its sheets, its labels and
-    // (when on) the grid, over the layout's background colour.
+    // (when on) the grid, over the layout's background color.
     QImage render(const PictureSpec& spec, QSize size);
     // The scene the pictures are drawn from (fitRegionStuds' `drawn`).
     const rendering::SceneBuilder& builder() const;

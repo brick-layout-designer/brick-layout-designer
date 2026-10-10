@@ -29,7 +29,7 @@ class BbFlex {
         try {
             Assembly bb = Assembly.LoadFrom(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "BlueBrick.exe"));
             // Under Mono the settings can come back empty; BlueBrick then
-            // fails reading its colour names. Use its shipped default.
+            // fails reading its color names. Use its shipped default.
             Type settingsType = bb.GetType("BlueBrick.Properties.Settings");
             object settings = settingsType.GetProperty("Default", BindingFlags.Public | BindingFlags.Static).GetValue(null, null);
             PropertyInfo language = settingsType.GetProperty("Language");

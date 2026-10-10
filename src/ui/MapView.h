@@ -274,7 +274,7 @@ signals:
     void liveDragMoved();
     // Edit module was entered (an id) or left (empty).
     void editingModuleChanged(const QString& moduleId);
-    // The map's right-click menu: a module's Colours...
+    // The map's right-click menu: a module's Colors...
     void moduleLookRequested(const QString& moduleId);
     // A module's library entry (save, publish or pull), and Make a module for the picked parts.
     void moduleLibraryActionRequested(const QString& moduleId, const QString& action);
@@ -639,7 +639,7 @@ private:
 
     // Set by the live connection-snap hook when the dragged brick is
     // currently locked to a connection; read by the overlay so the
-    // selection outline renders in connection-snap colour to give the
+    // selection outline renders in connection-snap color to give the
     // user live feedback. Also stored in scene coords so the overlay can
     // draw a ring at the exact connection point.
     bool    liveSnapActive_ = false;

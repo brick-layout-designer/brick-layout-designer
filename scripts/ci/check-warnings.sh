@@ -8,7 +8,7 @@
 #   scripts/ci/check-warnings.sh <log>...
 set -uo pipefail
 [ $# -gt 0 ] || { echo "usage: $0 <log>..." >&2; exit 2; }
-# Colour codes off; "warning:" / "warning C4244:" / "warning LNK4098:",
+# Color codes off; "warning:" / "warning C4244:" / "warning LNK4098:",
 # "ld: warning:", and "CMake Warning". GitHub's own "##[warning]" notes and
 # "N warnings generated." summaries don't match.
 found=$(sed -E 's/\x1b\[[0-9;]*m//g' "$@" | grep -E '(^|[^[:alnum:]_\[])warning( [A-Z]+[0-9]+)?:|CMake Warning' | sort -u)

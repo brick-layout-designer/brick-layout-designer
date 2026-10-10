@@ -1101,7 +1101,7 @@ void MapView::mouseReleaseEvent(QMouseEvent* e) {
         checkPartsLeftModule();
         clearGrabAnchor();
         // Drag is done; clear the "live snap active" indicator so the
-        // selection outline returns to its normal yellow colour.
+        // selection outline returns to its normal yellow color.
         liveSnapActive_ = false; liveSnapMovingScene_.reset();
         refreshSelectionOverlay();
     }

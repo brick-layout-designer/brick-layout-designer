@@ -99,10 +99,10 @@ clubs that plan a layout together.
   end to bend the whole run, each joint within its hinge limit (joints at
   the limit show an amber ring). Double-click-drag still works, as in
   BlueBrick.
-- **Electric circuits** drawn along the rails, with polarity colours and
+- **Electric circuits** drawn along the rails, with polarity colors and
   short-circuit marks.
 - **Modules**: bundle parts from several sheets into a named module that moves
-  and turns as one piece; give it its own outline and name colours; *Pin in
+  and turns as one piece; give it its own outline and name colors; *Pin in
   place* so it can't be moved by accident, and *Edit module* to change its
   parts. Save modules to a library and drop them into other layouts.
 - **Anchored labels** that stay with a part, group or module when it moves.
@@ -140,7 +140,7 @@ clubs that plan a layout together.
 **Easy to use**
 - A welcome card and short guided tours, ⓘ help buttons beside settings,
   and Help › Contents (BlueBrick's manual, offline).
-- Light, dark and colour themes; touchscreen support (pinch, pan, long-press
+- Light, dark and color themes; touchscreen support (pinch, pan, long-press
   menus, a touch action bar); 10 languages besides English, seeded from
   BlueBrick's translations.
 - Autosave every few seconds with crash recovery, and a check for updates

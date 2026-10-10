@@ -1,11 +1,11 @@
 #pragma once
 
-// Design tokens: the one list of colours, type and shapes the desktop app
+// Design tokens: the one list of colors, type and shapes the desktop app
 // and the web app (apps/web/src/theme/tokens.ts in the web repo) share.
 // Keep the values identical in both; TokensTest spot-checks them.
 //
 // Only the app's chrome (panels, toolbars, docks, dialogs, the status
-// bar) uses these. The map canvas keeps the background and grid colours
+// bar) uses these. The map canvas keeps the background and grid colors
 // the layout file carries.
 
 #include <QColor>
@@ -29,7 +29,7 @@ struct Accent {
     QColor main;    // filled buttons, the selected tool, focus rings
     QColor onMain;  // text and icons drawn on `main`
     QColor softLight, softDark;
-    QColor textLight, textDark;  // accent-coloured text on panels
+    QColor textLight, textDark;  // accent-colored text on panels
 
     QColor soft(Mode m) const { return m == Mode::Dark ? softDark : softLight; }
     QColor text(Mode m) const { return m == Mode::Dark ? textDark : textLight; }

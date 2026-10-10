@@ -16,7 +16,7 @@ namespace bld::import {
 //     LDD designID 3001 → LDraw 3001.dat
 //
 //   <Material ldraw="14" lego="24" />
-//     LDD materialID 24 → LDraw colour code 14
+//     LDD materialID 24 → LDraw color code 14
 //
 //   <Transformation ldraw="3001.dat" tx="..." ty="..." tz="..."
 //                   ax="..." ay="..." az="..." angle="..." />
@@ -48,7 +48,7 @@ public:
     }
 
     // Look up an LDD material ID. Returns -1 when no mapping exists.
-    int colourFor(int lddMaterialId) const {
+    int colorFor(int lddMaterialId) const {
         return materialToLdraw_.value(lddMaterialId, -1);
     }
 
@@ -64,7 +64,7 @@ public:
     Transformation transformFor(const QString& ldrawDat) const;
 
     // Convert a readLDD() result (LDD axes, LDD design/material IDs) into
-    // the equivalent LDraw model: LDraw part files and colours, LDraw
+    // the equivalent LDraw model: LDraw part files and colors, LDraw
     // axes, and each part's <Transformation> correction applied, exactly
     // as the community lxf2ldr converter does. Design IDs without a
     // mapping keep "<designID>.dat"; unmapped materials keep their ID.

@@ -295,7 +295,7 @@ TEST_F(HelpInMainWindow, PanelsToolbarAndStatusBarHaveTheirHelp) {
         EXPECT_TRUE(helpEntry(b->key())) << b->key().toStdString();
     }
     for (const char* k : { "panel.parts", "panel.sheets", "panel.partsList", "panel.modules", "panel.moduleLibrary",
-                           "panel.roomLibrary", "toolbar.snap", "toolbar.rotateStep", "toolbar.paintColour",
+                           "panel.roomLibrary", "toolbar.snap", "toolbar.rotateStep", "toolbar.paintColor",
                            "dialog.measure", "topbar.tasks", "status.sheet", "status.room", "status.budget" })
         EXPECT_TRUE(keys.contains(QLatin1String(k))) << k;
 }

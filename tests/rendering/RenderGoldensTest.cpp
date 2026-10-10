@@ -43,7 +43,7 @@ constexpr int kGoldenHeight = 1200;
 // pixel-identical across platforms, and even Qt's antialiasing
 // shifts slightly with version bumps. 8 (out of 255) ≈ 3% per
 // channel — generous enough for font hinting drift, tight enough
-// to flag real regressions (missing brick, wrong colour, rotation
+// to flag real regressions (missing brick, wrong color, rotation
 // off by a degree).
 constexpr int kChannelTolerance = 8;
 

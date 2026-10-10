@@ -44,7 +44,7 @@ bool sameHex(const QString& a, const QString& b) {
 }
 
 bool sameObject(const QJsonObject& a, const QJsonObject& b) {
-    // Colours: { kind: 'known', name } | { kind: 'argb', argb }.
+    // Colors: { kind: 'known', name } | { kind: 'argb', argb }.
     if (a.contains(QLatin1String("kind")) && a.value(QLatin1String("kind")) == b.value(QLatin1String("kind"))
         && a.value(QLatin1String("kind")).toString() == QLatin1String("argb"))
         return sameHex(a.value(QLatin1String("argb")).toString(), b.value(QLatin1String("argb")).toString());
@@ -63,7 +63,7 @@ bool sameObject(const QJsonObject& a, const QJsonObject& b) {
 }
 
 // Equal for the layout: numbers equal once rounded to float (the desktop
-// keeps many as float), colours by value, a missing key equal to an empty
+// keeps many as float), colors by value, a missing key equal to an empty
 // string (optional group fields).
 bool same(const QJsonValue& a, const QJsonValue& b) {
     const auto empty = [](const QJsonValue& v) { return v.isUndefined() || v.isNull() || (v.isString() && v.toString().isEmpty()); };

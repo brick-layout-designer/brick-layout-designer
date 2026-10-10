@@ -19,7 +19,7 @@ QImage readBack(const QString& path) {
 
 }  // namespace
 
-TEST(GifWriter, RoundTripsTransparencyAndColoursExactly) {
+TEST(GifWriter, RoundTripsTransparencyAndColorsExactly) {
     if (!QImageReader::supportedImageFormats().contains("gif")) GTEST_SKIP() << "no Qt GIF reader";
     QTemporaryDir dir;
     QImage src(40, 24, QImage::Format_ARGB32);
@@ -41,7 +41,7 @@ TEST(GifWriter, RoundTripsTransparencyAndColoursExactly) {
 TEST(GifWriter, LargeImageSurvivesDictionaryResets) {
     if (!QImageReader::supportedImageFormats().contains("gif")) GTEST_SKIP() << "no Qt GIF reader";
     QTemporaryDir dir;
-    // 200 distinct colours in noise: exact palette, and enough distinct
+    // 200 distinct colors in noise: exact palette, and enough distinct
     // runs to fill the 4096-entry LZW table many times over.
     QImage src(300, 300, QImage::Format_ARGB32);
     QRandomGenerator rng(42);
@@ -60,7 +60,7 @@ TEST(GifWriter, LargeImageSurvivesDictionaryResets) {
             ASSERT_EQ(back.pixel(x, y), src.pixel(x, y)) << "at " << x << "," << y;
 }
 
-TEST(GifWriter, QuantizesManyColoursClosely) {
+TEST(GifWriter, QuantizesManyColorsClosely) {
     if (!QImageReader::supportedImageFormats().contains("gif")) GTEST_SKIP() << "no Qt GIF reader";
     QTemporaryDir dir;
     QImage src(128, 128, QImage::Format_ARGB32);

@@ -164,9 +164,9 @@ TEST(RenderParity, ADraggedModuleKeepsItsNamesPlace) {
     EXPECT_NEAR(kept.textPos.y() - settled.textPos.y(), -400 * 8, 1e-6);
 }
 
-// Each module's own default colour: from its id, neighbours apart.
-TEST(RenderParity, ModuleDefaultColoursMatchTheSharedDescription) {
-    const QJsonObject spec = readJson(kDir + QStringLiteral("/modules.json"))[QLatin1String("colours")].toObject();
+// Each module's own default color: from its id, neighbours apart.
+TEST(RenderParity, ModuleDefaultColorsMatchTheSharedDescription) {
+    const QJsonObject spec = readJson(kDir + QStringLiteral("/modules.json"))[QLatin1String("colors")].toObject();
     EXPECT_EQ(rendering::kModulePalette, stringsOf(spec[QLatin1String("palette")].toArray()));
     EXPECT_DOUBLE_EQ(rendering::kModuleNeighbourStuds, spec[QLatin1String("neighbourStuds")].toDouble());
     for (const QJsonValue& v : spec[QLatin1String("hashes")].toArray()) {
@@ -177,7 +177,7 @@ TEST(RenderParity, ModuleDefaultColoursMatchTheSharedDescription) {
     }
     for (const QJsonValue& v : spec[QLatin1String("cases")].toArray()) {
         const QJsonObject c = v.toObject();
-        std::vector<rendering::ModuleColourInput> in;
+        std::vector<rendering::ModuleColorInput> in;
         for (const QJsonValue& m : c[QLatin1String("modules")].toArray()) {
             const QJsonObject o = m.toObject();
             const QJsonObject r = o[QLatin1String("box")].toObject();
@@ -185,7 +185,7 @@ TEST(RenderParity, ModuleDefaultColoursMatchTheSharedDescription) {
                            r.isEmpty() ? QRectF() : QRectF(r[QLatin1String("x")].toDouble(), r[QLatin1String("y")].toDouble(),
                                                            r[QLatin1String("w")].toDouble(), r[QLatin1String("h")].toDouble()) });
         }
-        const auto got = rendering::moduleColours(in);
+        const auto got = rendering::moduleColors(in);
         const QJsonObject want = c[QLatin1String("expect")].toObject();
         for (auto it = want.begin(); it != want.end(); ++it)
             EXPECT_EQ(got.value(it.key()), it.value().toString()) << c[QLatin1String("name")].toString().toStdString() << " / " << it.key().toStdString();
@@ -194,7 +194,7 @@ TEST(RenderParity, ModuleDefaultColoursMatchTheSharedDescription) {
 
 // The palette is readable: light inside the dark outline, apart from the
 // map's default blue and from each other.
-TEST(RenderParity, ModuleDefaultColoursAreReadable) {
+TEST(RenderParity, ModuleDefaultColorsAreReadable) {
     const auto lum = [](const QColor& c) {
         const auto ch = [](double v) { return v <= 0.03928 ? v / 12.92 : std::pow((v + 0.055) / 1.055, 2.4); };
         return 0.2126 * ch(c.redF()) + 0.7152 * ch(c.greenF()) + 0.0722 * ch(c.blueF());
@@ -366,7 +366,7 @@ TEST(RenderParity, AreaCellsMatchTheSharedDescription) {
     }
 }
 
-// A painted sheet's alpha is in its cells' colours only, not faded again.
+// A painted sheet's alpha is in its cells' colors only, not faded again.
 TEST(RenderParity, SceneFadesAreaCellsOnce) {
     QTemporaryDir dir;
     auto read = import::readLayoutFile(kDir + QStringLiteral("/rulers-areas.bld-layout"), dir.path());
@@ -386,7 +386,7 @@ TEST(RenderParity, SceneFadesAreaCellsOnce) {
 }
 
 namespace {
-// "rgb(r,g,b)" / "rgba(r,g,b,a)" as a colour, alpha rounded to 0..255.
+// "rgb(r,g,b)" / "rgba(r,g,b,a)" as a color, alpha rounded to 0..255.
 QColor css(const QJsonValue& v) {
     const QString t = v.toString();
     const QStringList n = t.mid(t.indexOf(QLatin1Char('(')) + 1).chopped(1).split(QLatin1Char(','));
@@ -511,7 +511,7 @@ TEST(RenderParity, VenueWallLabelsMatchTheSharedDescription) {
     };
     for (const bool dark : { false, true }) {
         const QJsonObject t = spec[QLatin1String("theme")].toObject()[dark ? QLatin1String("dark") : QLatin1String("light")].toObject();
-        const auto c = rendering::venueLabelColours(dark);
+        const auto c = rendering::venueLabelColors(dark);
         EXPECT_EQ(rgba(c.fill), t[QLatin1String("fill")].toString());
         EXPECT_EQ(rgba(c.border), t[QLatin1String("border")].toString());
         EXPECT_EQ(rgba(c.text), t[QLatin1String("text")].toString());

@@ -90,14 +90,14 @@ QPainterPath shape(const QString& name) {
     return p;
 }
 
-QPixmap draw(const QPainterPath& path, const QColor& colour, int px, qreal dpr) {
+QPixmap draw(const QPainterPath& path, const QColor& color, int px, qreal dpr) {
     QPixmap pm(QSize(px, px) * dpr);
     pm.setDevicePixelRatio(dpr);
     pm.fill(Qt::transparent);
     QPainter g(&pm);
     g.setRenderHint(QPainter::Antialiasing);
     g.scale(px / 24.0, px / 24.0);
-    g.setPen(QPen(colour, 2.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    g.setPen(QPen(color, 2.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
     g.setBrush(Qt::NoBrush);
     g.drawPath(path);
     return pm;

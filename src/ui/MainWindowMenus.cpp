@@ -514,7 +514,7 @@ void MainWindow::setupMenus() {
     settingsAct->setObjectName(QStringLiteral("action.settings"));
     settingsAct->setShortcut(QKeySequence::Preferences);
     settingsAct->setMenuRole(QAction::PreferencesRole);
-    settingsAct->setToolTip(tr("Light or dark, colour, bigger text, Expert mode and help buttons"));
+    settingsAct->setToolTip(tr("Light or dark, color, bigger text, Expert mode and help buttons"));
     connect(settingsAct, &QAction::triggered, this, &MainWindow::openSettings);
     auto* prefsAct = edit->addAction(tr("&Preferences..."));
     prefsAct->setMenuRole(QAction::NoRole);

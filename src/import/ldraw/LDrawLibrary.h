@@ -14,7 +14,7 @@ namespace bld::import {
 // has this canonical layout:
 //
 //   <root>/
-//     LDConfig.ldr         - colour palette (mandatory for our renderer)
+//     LDConfig.ldr         - color palette (mandatory for our renderer)
 //     parts/
 //       <partid>.dat       - top-level parts (e.g. 3001.dat for a 2x4 brick)
 //       s/<partid>.dat     - sub-parts (vendor-internal split files)
