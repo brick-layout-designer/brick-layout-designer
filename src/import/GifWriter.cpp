@@ -76,6 +76,7 @@ std::vector<QRgb> buildPalette(const QHash<QRgb, int>& histogram) {
         for (const auto& [c, k] : b.colors) {
             r += qRed(c) * k; g += qGreen(c) * k; bl += qBlue(c) * k; n += k;
         }
+        if (n == 0) continue;  // an empty box has no average
         palette.push_back(qRgb(int(r / n), int(g / n), int(bl / n)));
     }
     return palette;

@@ -263,7 +263,7 @@ private:
         // Only parts; references to submodels (.ldr) are layers, not bricks.
         const QString file = t.mid(i + 13).join(QLatin1Char(' '));
         if (!file.endsWith(QStringLiteral(".dat"), Qt::CaseInsensitive)) return;
-        const QString color = t[i];
+        const QString& color = t[i];
         double x = t[i + 1].toDouble();
         const double y = t[i + 2].toDouble();
         double z = -t[i + 3].toDouble();
