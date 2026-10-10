@@ -23,7 +23,7 @@ struct ConfirmOptions {
     QString undo;          // whether it can be undone
     QString confirmLabel;  // the red button; empty = "Delete"
     QString typeName;      // when set, typed before the button turns on
-    bool danger = true;    // red; false = the accent colour (not a removal)
+    bool danger = true;    // red; false = the accent color (not a removal)
 };
 
 struct DeleteWording {

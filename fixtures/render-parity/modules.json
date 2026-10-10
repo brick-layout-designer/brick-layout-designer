@@ -1,5 +1,5 @@
 {
-  "about": "Module frames and names as both apps draw them (web moduleLabels.ts, desktop rendering/ModuleLabels.cpp). Scene px at 8 px per stud; a name is charWidth x font px wide per character so fonts do not matter. A name is never longer than the module's edge it sits on (its parts, the frame less 4 px each end): it wraps to two lines, then shrinks (not under minFontPx), then is cut short with an ellipsis. A module with some parts on a hidden sheet frames only the parts that show, dashed with partlyHiddenFrameDash. Same file in both repos. Names are placed together (placement): each in turn takes the lowest-scoring place around its module (scores in moduleLabels.ts MODULE_NAME_SCORE), keeping clear of parts and other names, on the outside edge of a ring, never upside down (left reads bottom to top, rotation -90; right top to bottom, rotation 90); parts are scene rectangles in studs, compare positions within 0.01 px. Each module's default colour (colours) comes from its id (FNV-1a over UTF-16 code units, modulo the palette), stepping on through the palette when a neighbour within neighbourStuds has it.",
+  "about": "Module frames and names as both apps draw them (web moduleLabels.ts, desktop rendering/ModuleLabels.cpp). Scene px at 8 px per stud; a name is charWidth x font px wide per character so fonts do not matter. A name is never longer than the module's edge it sits on (its parts, the frame less 4 px each end): it wraps to two lines, then shrinks (not under minFontPx), then is cut short with an ellipsis. A module with some parts on a hidden sheet frames only the parts that show, dashed with partlyHiddenFrameDash. Same file in both repos. Names are placed together (placement): each in turn takes the lowest-scoring place around its module (scores in moduleLabels.ts MODULE_NAME_SCORE), keeping clear of parts and other names, on the outside edge of a ring, never upside down (left reads bottom to top, rotation -90; right top to bottom, rotation 90); parts are scene rectangles in studs, compare positions within 0.01 px. Each module's default color (colors) comes from its id (FNV-1a over UTF-16 code units, modulo the palette), stepping on through the palette when a neighbour within neighbourStuds has it.",
   "charWidth": 0.6,
   "minFontPx": 16,
   "style": {
@@ -57,7 +57,7 @@
     },
     {
       "module": {
-        "outlineColor": "not a colour"
+        "outlineColor": "not a color"
       },
       "expect": {
         "frameStroke": "rgba(100,180,255,0.8)",
@@ -867,7 +867,7 @@
       ]
     }
   ],
-  "colours": {
+  "colors": {
     "palette": [
       "#FFE066",
       "#FFA94D",

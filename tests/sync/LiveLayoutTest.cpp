@@ -241,7 +241,7 @@ TEST(LiveLayout, ShowsOtherPeoplesCursorsAndSendsOurs) {
     EXPECT_TRUE(names.contains(QStringLiteral("Bob")));
     EXPECT_EQ(outlines, 1); // Bob's selected brick
 
-    // Our cursor and name reach them, in the web's shape and colour.
+    // Our cursor and name reach them, in the web's shape and color.
     h.live.setUser(QStringLiteral("u-alice"), QStringLiteral("Alice"), QStringLiteral("L1"));
     QMouseEvent move(QEvent::MouseMove, QPointF(30, 30), h.view.viewport()->mapToGlobal(QPointF(30, 30)),
                      Qt::NoButton, Qt::NoButton, Qt::NoModifier);

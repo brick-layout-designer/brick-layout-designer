@@ -14,7 +14,7 @@
 
 namespace bld::sync::presence {
 
-// The web's deterministicColor: the same colour for a user on a layout everywhere.
+// The web's deterministicColor: the same color for a user on a layout everywhere.
 QString colorFor(const QString& userId, const QString& layoutId);
 
 struct User {

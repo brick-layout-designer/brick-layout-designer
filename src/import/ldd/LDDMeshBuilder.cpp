@@ -75,7 +75,7 @@ LDDLDrawBakedModel LDDMeshBuilder::bake(const LDrawReadResult& read) {
             continue;
         }
 
-        // Resolve the part's colour: LDD materialID lives on the
+        // Resolve the part's color: LDD materialID lives on the
         // LDrawPartRef as colorCode (LDDReader copies it through).
         QColor partColor = QColor::fromRgb(220, 220, 220);  // grey fallback
         if (materials_) {

@@ -231,7 +231,7 @@ void SceneBuilder::addVenue(const core::Map& map) {
         opts.handles = venueHandles_;
         opts.handleHalfPx = venueHandleHalfPx_;
         const bool dark = QGuiApplication::palette().color(QPalette::Window).lightness() < 128;
-        const VenueLabelColours colours = venueLabelColours(dark);
+        const VenueLabelColors colors = venueLabelColors(dark);
         const QFont font = mapFont(QStringLiteral("Bold"), wallLabelPx);
         for (const VenueLabel& l : venueEdgeLabels(v.edges, opts)) {
             QTransform tr;
@@ -241,10 +241,10 @@ void SceneBuilder::addVenue(const core::Map& map) {
             const double r = VenueLabelPill::radius * wallLabelPx;
             pill.addRoundedRect(QRectF(-l.width / 2, -l.height / 2, l.width, l.height), r, r);
             auto* bg = new QGraphicsPathItem(pill);
-            QPen edgePen(colours.border, 1);
+            QPen edgePen(colors.border, 1);
             edgePen.setCosmetic(true);
             bg->setPen(edgePen);
-            bg->setBrush(colours.fill);
+            bg->setBrush(colors.fill);
             bg->setTransform(tr);
             bg->setAcceptedMouseButtons(Qt::NoButton);
             if (l.shortened) bg->setToolTip(l.full);
@@ -255,7 +255,7 @@ void SceneBuilder::addVenue(const core::Map& map) {
             const double tw = width(l.text, wallLabelPx);
             auto* caption = new QGraphicsPathItem(textPath(font, { { l.text, -tw / 2, -wallLabelPx / 2 } }, 1.0));
             caption->setPen(Qt::NoPen);
-            caption->setBrush(colours.text);
+            caption->setBrush(colors.text);
             caption->setTransform(tr);
             caption->setAcceptedMouseButtons(Qt::NoButton);
             if (l.shortened) caption->setToolTip(l.full);
@@ -323,14 +323,14 @@ void SceneBuilder::addModuleLabels(const core::Map& map, bool posed) {
     LayerSink sink{ scene_, moduleLabelItems_, 200000.0, true };
 
     // The web's look (ModuleOverlay.tsx): one dashed frame and an outlined
-    // bold name per module, in its own colours or the default light blue.
+    // bold name per module, in its own colors or the default light blue.
     const LineWidthAt lineWidth = mapLineWidth(QStringLiteral("Bold"));
     // Where each module's visible parts are, and every visible part (names
     // keep clear of them). Pieces on hidden sheets don't frame or name their
     // module; when some are hidden, the frame round the rest is dashed more sparsely.
     struct Placed { const core::Module* mod; QRectF studs; bool partlyHidden; };
     std::vector<Placed> shown;
-    std::vector<ModuleColourInput> colourInput;
+    std::vector<ModuleColorInput> colorInput;
     std::vector<QRectF> partsPx;
     const double k = kPixelsPerStud;
     for (const auto& L : map.layers()) {
@@ -349,11 +349,11 @@ void SceneBuilder::addModuleLabels(const core::Map& map, bool posed) {
                 else partlyHidden = true;
             }
         }
-        colourInput.push_back({ mod.id, studs });
+        colorInput.push_back({ mod.id, studs });
         if (!studs.isEmpty()) shown.push_back({ &mod, studs, partlyHidden });
     }
-    // Each module's own default colour; names placed together.
-    const QHash<QString, QString> colours = posed ? settledModuleColours_ : moduleColours(colourInput);
+    // Each module's own default color; names placed together.
+    const QHash<QString, QString> colors = posed ? settledModuleColors_ : moduleColors(colorInput);
     std::vector<ModuleNameInput> inputs;
     inputs.reserve(shown.size());
     for (const auto& p : shown)
@@ -361,7 +361,7 @@ void SceneBuilder::addModuleLabels(const core::Map& map, bool posed) {
     const std::vector<ModuleLabelLayout> placed =
         placeModuleNames(inputs, partsPx, labelPercent, lineWidth, posed ? settledNameSlots_ : QHash<QString, QString>{});
     if (!posed) {
-        settledModuleColours_ = colours;
+        settledModuleColors_ = colors;
         settledNameSlots_.clear();
         for (std::size_t i = 0; i < placed.size(); ++i) settledNameSlots_.insert(inputs[i].id, placed[i].slot);
     }
@@ -369,7 +369,7 @@ void SceneBuilder::addModuleLabels(const core::Map& map, bool posed) {
         const core::Module& mod = *shown[mi].mod;
         const bool partlyHidden = shown[mi].partlyHidden;
         const QString name = inputs[mi].name;
-        const ModuleLook look = moduleLook(mod, colours.value(mod.id));
+        const ModuleLook look = moduleLook(mod, colors.value(mod.id));
         const ModuleLabelLayout& at = placed[mi];
 
         auto* frame = new QGraphicsRectItem(at.frame);

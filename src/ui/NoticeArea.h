@@ -30,7 +30,7 @@ public:
     explicit NoticeArea(QWidget* over);
 
     // Show (or replace) notice `id`. `details`, when given, is shown under a
-    // "What's new" toggle. Important notices are marked and coloured.
+    // "What's new" toggle. Important notices are marked and colored.
     void showNotice(const QString& id, const QString& title, const QString& text,
                     const QList<NoticeAction>& actions, const QString& details = {}, bool important = false);
     void hideNotice(const QString& id);

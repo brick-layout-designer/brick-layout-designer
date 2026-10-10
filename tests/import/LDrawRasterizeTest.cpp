@@ -101,7 +101,7 @@ TEST(LDrawRasterize, EmptyInputReturnsNullImage) {
     EXPECT_TRUE(img.isNull());
 }
 
-TEST(LDrawRasterize, FilledTrianglePaintsPixelsAtItsColour) {
+TEST(LDrawRasterize, FilledTrianglePaintsPixelsAtItsColor) {
     // 20 LDU = 1 stud; this triangle spans 8 studs × 8 studs on
     // the XZ plane (160 LDU / 20). At 8 px/stud + 4 px margin on
     // each side the sprite is 8*8 + 8 = 72 px.

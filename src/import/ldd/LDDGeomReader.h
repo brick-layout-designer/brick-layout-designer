@@ -40,12 +40,12 @@ namespace bld::import {
 struct LDDGeomReadResult {
     bool       ok = false;
     QString    error;
-    geom::Mesh mesh;          // tris in LDU, white colour (caller paints)
+    geom::Mesh mesh;          // tris in LDU, white color (caller paints)
 };
 
 // Parse a `.g` file's bytes. Always returns; on failure ok=false and
-// error is set. Mesh tris carry an opaque white colour — callers must
-// repaint with the LDD material colour before rasterizing.
+// error is set. Mesh tris carry an opaque white color — callers must
+// repaint with the LDD material color before rasterizing.
 LDDGeomReadResult readLDDGeom(const QByteArray& bytes);
 
 }  // namespace bld::import

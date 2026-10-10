@@ -107,8 +107,8 @@ struct PartMetadata {
     double   ldrawAngle = 0.0;
     QPointF  ldrawTranslation;
     double   ldrawPreferredHeight = 0.0;  // LDU; used when saving at altitude 0
-    QString  ldrawSleeper;   // "<part>.<colour>" LDraw sleeper added under rails on save
-    QString  ldrawAlias;     // "<part>[.<colour>]" to write instead of this part
+    QString  ldrawSleeper;   // "<part>.<color>" LDraw sleeper added under rails on save
+    QString  ldrawAlias;     // "<part>[.<color>]" to write instead of this part
 
     // Where an imported part came from (<ImportSource>, fork-only).
     struct ImportSource {

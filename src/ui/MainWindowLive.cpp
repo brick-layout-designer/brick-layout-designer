@@ -260,7 +260,7 @@ void MainWindow::openLive(const sync::ConnectResult& r) {
     }
     mapView_->showOpening(tr("Getting the layout from the server."));
     live_->open(api.layoutSocketUrl(r.layoutId), r.token, r.readOnly, r.title, cacheDir);
-    // Name and colour our cursor as the web does, once we know who we are.
+    // Name and color our cursor as the web does, once we know who we are.
     auto* who = new sync::ServerApi(this);
     who->setBase(r.server);
     who->setToken(r.token);

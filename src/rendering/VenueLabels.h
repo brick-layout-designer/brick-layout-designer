@@ -38,11 +38,11 @@ struct VenueLabelPill {
 // QGraphicsItem data role holding a wall label's whole text on its pill.
 inline constexpr int kVenueLabelTextRole = 12;
 
-struct VenueLabelColours {
+struct VenueLabelColors {
     QColor fill, border, text;
 };
 // Light: white with a slate edge; dark: slate with a light edge.
-VenueLabelColours venueLabelColours(bool dark);
+VenueLabelColors venueLabelColors(bool dark);
 // Over the Venue Designer's grid inside the room, so the grid fades there.
 inline const QColor kVenueGridFade = QColor::fromRgbF(1.0f, 1.0f, 1.0f, 0.55f);
 

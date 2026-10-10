@@ -116,8 +116,8 @@ std::vector<PartListGroup> buildPartList(const core::Map& map, const parts::Part
             r.partNumber = id;
             const int dot = id.lastIndexOf(QLatin1Char('.'));
             r.part = dot > 0 ? id.left(dot) : id;
-            const QString colour = dot > 0 ? id.mid(dot + 1) : QString();
-            r.colorName = parts::colorName(colour, options.language);
+            const QString color = dot > 0 ? id.mid(dot + 1) : QString();
+            r.colorName = parts::colorName(color, options.language);
             if (const auto meta = lib.metadata(id)) r.description = descriptionOf(*meta, options.language);
             r.count = c.byPart.value(id);
             if (options.budget) {

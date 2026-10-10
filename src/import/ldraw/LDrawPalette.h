@@ -6,7 +6,7 @@
 
 namespace bld::import {
 
-// LDraw colour code → RGB(A) lookup, populated from LDConfig.ldr in a
+// LDraw color code → RGB(A) lookup, populated from LDConfig.ldr in a
 // real LDraw distribution.
 //
 // LDConfig.ldr lines look like:
@@ -36,7 +36,7 @@ public:
     // Resolve a code to an RGBA QColor. Falls back to the bundled
     // LDrawColors palette when the code isn't in the loaded LDConfig
     // (or when loadFromLDConfig was never called). Code 16 / 24 are
-    // sentinels for "inherit parent colour"; the renderer needs to
+    // sentinels for "inherit parent color"; the renderer needs to
     // resolve them earlier in the pipeline.
     QColor color(int code) const;
 

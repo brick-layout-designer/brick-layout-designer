@@ -10,21 +10,21 @@
 // grok without a translation table.
 //
 // We omit the exotic metallic / pearl / speckle modifiers — this
-// lookup gives the *diffuse* colour only, which is what a top-down
+// lookup gives the *diffuse* color only, which is what a top-down
 // sprite needs. Transparency is carried separately via alpha.
 
 #include <QColor>
 
 namespace bld::import {
 
-// Look up a standard LDraw colour. Returns the "main" diffuse RGB.
-// Unknown codes fall back to code 16 (main-colour slot) — vanilla
-// LDraw behaviour when a part references colour 16 is "use the
-// parent's current colour", but top-level we want something
+// Look up a standard LDraw color. Returns the "main" diffuse RGB.
+// Unknown codes fall back to code 16 (main-color slot) — vanilla
+// LDraw behaviour when a part references color 16 is "use the
+// parent's current color", but top-level we want something
 // visible, so we map 16 → light grey.
 QColor ldrawColor(int code);
 
-// True when the colour code denotes a transparent material. Used
+// True when the color code denotes a transparent material. Used
 // to set the sprite's alpha so see-through parts like windscreens
 // blend correctly when composited.
 bool   ldrawColorIsTransparent(int code);

@@ -470,7 +470,7 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
         modulesPanel_->setMap(map);
     });
 
-    // A module's look: its name on or off, and its colours (Module look).
+    // A module's look: its name on or off, and its colors (Module look).
     connect(modulesPanel_, &ModulesPanel::showNameRequested, this, [this](const QString& id, bool show) {
         auto* map = mapView_->currentMap();
         if (!map) return;

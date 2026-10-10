@@ -109,7 +109,7 @@ int main(int argc, char** argv) {
     }
 
     // The look (Edit > Settings...): light / dark / match my computer, the
-    // colour and bigger text, with the embedded fonts.
+    // color and bigger text, with the embedded fonts.
     bld::ui::theme::ThemeManager theme(bld::ui::theme::PrefsStore::instance());
     theme.apply();
 

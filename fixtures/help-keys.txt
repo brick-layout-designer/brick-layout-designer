@@ -13,7 +13,7 @@ topbar.tasks
 people.here
 toolbar.snap
 toolbar.rotateStep
-toolbar.paintColour
+toolbar.paintColor
 toolbar.panels
 tools.rail
 status.sheet
@@ -44,7 +44,7 @@ share.history
 share.picture
 share.exportAllViews
 settings.sync
-settings.colour
+settings.color
 settings.largeText
 settings.helpIcons
 settings.tours

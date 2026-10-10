@@ -49,10 +49,10 @@ MODEL_LDR = (
     "0 NOFILE\r\n"
 ).encode("utf-8")
 
-# Studio's legacy line format: "10 <colour> False 0 <x y z> <matrix> <file>".
+# Studio's legacy line format: "10 <color> False 0 <x y z> <matrix> <file>".
 MODELV1_LDR = MODEL_LDR.replace(b"\r\n1 ", b"\r\n10 ").replace(b"\r\n10 4 ", b"\r\n10 4 False 0 ")
 
-# model2.ldr: BrickLink colour numbers and every custom part inlined.
+# model2.ldr: BrickLink color numbers and every custom part inlined.
 MODEL2_LDR = MODEL_LDR.replace(b"1 4 0.000000", b"1 5 0.000000")
 
 CUSTOM_DAT = (

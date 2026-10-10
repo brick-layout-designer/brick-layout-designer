@@ -748,12 +748,12 @@ TEST_F(TouchTest, ModuleLibraryShowsEachModulesPicture) {
         ASSERT_TRUE(QTest::qWaitFor([&] { return panel.pendingThumbnails() == 0; }, 10000));
         const QIcon icon = panel.list()->item(0)->icon();
         ASSERT_FALSE(icon.isNull());
-        // A real picture: not one flat colour.
+        // A real picture: not one flat color.
         const QImage img = icon.pixmap(48, 48).toImage();
-        QSet<QRgb> colours;
+        QSet<QRgb> colors;
         for (int y = 0; y < img.height(); y += 2)
-            for (int x = 0; x < img.width(); x += 2) colours.insert(img.pixel(x, y));
-        EXPECT_GT(colours.size(), 3);
+            for (int x = 0; x < img.width(); x += 2) colors.insert(img.pixel(x, y));
+        EXPECT_GT(colors.size(), 3);
         // Cached for next time.
         EXPECT_EQ(QDir(cache.path()).entryList({ QStringLiteral("*.png") }, QDir::Files).size(), 1);
     }

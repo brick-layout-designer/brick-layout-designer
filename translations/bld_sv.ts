@@ -115,7 +115,7 @@
     </message>
     <message>
         <location filename="../src/edit/LayerCommands.cpp" line="167"/>
-        <source>Change background colour</source>
+        <source>Change background color</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -275,7 +275,7 @@
     </message>
     <message>
         <location filename="../src/ui/EditDialogs.cpp" line="68"/>
-        <source>Pick colour</source>
+        <source>Pick color</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -321,7 +321,7 @@
     </message>
     <message>
         <location filename="../src/ui/EditDialogs.cpp" line="176"/>
-        <source>Line colour:</source>
+        <source>Line color:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -346,7 +346,7 @@
     </message>
     <message>
         <location filename="../src/ui/EditDialogs.cpp" line="202"/>
-        <source>Guideline colour:</source>
+        <source>Guideline color:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -366,7 +366,7 @@
     </message>
     <message>
         <location filename="../src/ui/EditDialogs.cpp" line="217"/>
-        <source>Label colour:</source>
+        <source>Label color:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -443,7 +443,7 @@
     </message>
     <message>
         <location filename="../src/ui/EditDialogs.cpp" line="330"/>
-        <source>Colour:</source>
+        <source>Color:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -583,12 +583,12 @@
     </message>
     <message>
         <location filename="../src/ui/PreferencesDialog.cpp" line="156"/>
-        <source>Default paint colour</source>
+        <source>Default paint color</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/PreferencesDialog.cpp" line="160"/>
-        <source>Default paint colour:</source>
+        <source>Default paint color:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -603,7 +603,7 @@
     </message>
     <message>
         <location filename="../src/ui/PreferencesDialog.cpp" line="187"/>
-        <source>Selection tint (clearly-coloured overlay)</source>
+        <source>Selection tint (clearly-colored overlay)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1965,7 +1965,7 @@ Target path:
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="822"/>
         <location filename="../src/ui/MainWindow.cpp" line="844"/>
-        <source>Paint colour</source>
+        <source>Paint color</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2704,12 +2704,12 @@ Restore it?</source>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMapMenu.cpp" line="49"/>
-        <source>Background &amp;Colour...</source>
+        <source>Background &amp;Color...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMapMenu.cpp" line="54"/>
-        <source>Background colour</source>
+        <source>Background color</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

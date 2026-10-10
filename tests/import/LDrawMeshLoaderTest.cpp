@@ -91,7 +91,7 @@ TEST(LDrawMeshLoader, WalksSubfileRefAndAppliesTransform) {
     ASSERT_EQ(mesh.tris.size(), 1u);
     EXPECT_DOUBLE_EQ(mesh.tris[0].v[0].x, 100.0);
     EXPECT_DOUBLE_EQ(mesh.tris[0].v[1].x, 110.0);
-    // Inherited colour 16 → use parent (code 4 = red).
+    // Inherited color 16 → use parent (code 4 = red).
     EXPECT_GT(mesh.tris[0].color.red(), 150);
     EXPECT_LT(mesh.tris[0].color.green(), 80);
 }

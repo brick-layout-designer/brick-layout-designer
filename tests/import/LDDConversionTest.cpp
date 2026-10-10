@@ -54,7 +54,7 @@ const QByteArray kModel = R"XML(<?xml version="1.0" encoding="UTF-8"?>
 </LXFML>)XML";
 
 struct Expected {
-    int colour;
+    int color;
     double pos[3];
     double m[9];
     const char* file;
@@ -86,7 +86,7 @@ TEST(LDDConversion, MatchesLxf2ldr) {
         SCOPED_TRACE(i);
         const auto& p = ldraw.parts[i];
         EXPECT_EQ(p.filename, QString::fromLatin1(expected[i].file));
-        EXPECT_EQ(p.colorCode, expected[i].colour);
+        EXPECT_EQ(p.colorCode, expected[i].color);
         EXPECT_NEAR(p.x, expected[i].pos[0], 1e-3);
         EXPECT_NEAR(p.y, expected[i].pos[1], 1e-3);
         EXPECT_NEAR(p.z, expected[i].pos[2], 1e-3);

@@ -116,7 +116,7 @@ private:
 
 // Replace a module's sidecar entry with a changed copy (its look, pin, …)
 // in one undo step. The members are not touched. Undo puts the old entry
-// back. Steps on the same module with the same `mergeKey` (a colour being
+// back. Steps on the same module with the same `mergeKey` (a color being
 // dragged around a picker) merge into one.
 class UpdateModuleCommand : public QUndoCommand {
 public:

@@ -3,7 +3,7 @@
 // Applies the look from the tokens to the whole app: the Fusion style, a
 // QPalette, the embedded fonts and a small stylesheet (radii, spacing,
 // panel headers, buttons, tabs, the status bar), for light, dark or "match
-// my computer". Follows PrefsStore and the system colour scheme.
+// my computer". Follows PrefsStore and the system color scheme.
 
 #include "AppPrefs.h"
 #include "Tokens.h"

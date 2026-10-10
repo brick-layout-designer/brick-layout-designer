@@ -164,7 +164,7 @@ ChangeBackgroundColorCommand::ChangeBackgroundColorCommand(core::Map& map,
                                                             const core::ColorSpec& newColor,
                                                             QUndoCommand* parent)
     : QUndoCommand(parent), map_(map), oldColor_(map.backgroundColor), newColor_(newColor) {
-    setText(QObject::tr("Change background colour"));
+    setText(QObject::tr("Change background color"));
 }
 void ChangeBackgroundColorCommand::redo() { map_.backgroundColor = newColor_; }
 void ChangeBackgroundColorCommand::undo() { map_.backgroundColor = oldColor_; }

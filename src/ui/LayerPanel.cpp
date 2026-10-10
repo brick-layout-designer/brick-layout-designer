@@ -56,7 +56,7 @@ QString layerKindGlyph(core::LayerKind k) {
 
 constexpr int kKindRole = Qt::UserRole + 1;
 
-// The kind's symbol in the list's text colour, so it suits light and dark.
+// The kind's symbol in the list's text color, so it suits light and dark.
 QIcon kindIcon(core::LayerKind k, const QWidget* list) {
     const qreal dpr = list->devicePixelRatioF();
     const int side = 16;
@@ -256,7 +256,7 @@ LayerPanel::LayerPanel(QWidget* parent) : QDockWidget(tr("Sheets"), parent) {
 }
 
 bool LayerPanel::eventFilter(QObject* watched, QEvent* e) {
-    // Redraw the kind icons in the list's new text colour (light / dark).
+    // Redraw the kind icons in the list's new text color (light / dark).
     if (watched == list_ && e->type() == QEvent::PaletteChange) {
         for (int i = 0; i < list_->count(); ++i) {
             QListWidgetItem* item = list_->item(i);

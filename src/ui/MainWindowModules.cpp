@@ -746,11 +746,11 @@ void MainWindow::editModuleLook(const QString& moduleId) {
             modulesPanel_->setMap(map);
         },
         this);
-    // Its own default colour, as the map draws it when none is chosen.
-    dlg.defaultColour = [this, moduleId]() -> QString {
+    // Its own default color, as the map draws it when none is chosen.
+    dlg.defaultColor = [this, moduleId]() -> QString {
         const auto* map = mapView_->currentMap();
         if (!map) return {};
-        std::vector<rendering::ModuleColourInput> in;
+        std::vector<rendering::ModuleColorInput> in;
         for (const auto& m : map->sidecar.modules) {
             QRectF box;
             for (const auto& L : map->layers())
@@ -759,7 +759,7 @@ void MainWindow::editModuleLook(const QString& moduleId) {
                         if (m.memberIds.contains(b.guid)) box = box.united(b.displayArea);
             in.push_back({ m.id, box });
         }
-        return rendering::moduleColours(in).value(moduleId);
+        return rendering::moduleColors(in).value(moduleId);
     };
     dlg.refresh();
     // Someone else's change (or an undo) shows in the window too.

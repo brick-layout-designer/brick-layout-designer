@@ -21,7 +21,7 @@ const Neutrals& neutrals(Mode mode) {
 }
 
 // Contrast (WCAG 2.1), as the web's tokens.ts notes: onMain on main is at
-// least 4.5:1 for every colour. Sunny's #B8860B only reaches 3.25:1 with
+// least 4.5:1 for every color. Sunny's #B8860B only reaches 3.25:1 with
 // white, so sunny buttons use dark ink (4.97:1) instead.
 const QList<Accent>& accents() {
     static const QList<Accent> all{

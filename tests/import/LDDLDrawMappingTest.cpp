@@ -38,9 +38,9 @@ TEST(LDDLDrawMapping, ParsesAllThreeElementKinds) {
     EXPECT_EQ(m.materialCount(), 2);
     EXPECT_EQ(m.brickCount(), 2);
     EXPECT_EQ(m.transformCount(), 1);
-    EXPECT_EQ(m.colourFor(23), 1);
-    EXPECT_EQ(m.colourFor(24), 14);
-    EXPECT_EQ(m.colourFor(99), -1);
+    EXPECT_EQ(m.colorFor(23), 1);
+    EXPECT_EQ(m.colorFor(24), 14);
+    EXPECT_EQ(m.colorFor(99), -1);
     EXPECT_EQ(m.partFor(QStringLiteral("3001")),  QStringLiteral("3001.dat"));
     EXPECT_EQ(m.partFor(QStringLiteral("95820")), QStringLiteral("30237.dat"));
     EXPECT_TRUE(m.partFor(QStringLiteral("0000")).isEmpty());

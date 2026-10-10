@@ -105,7 +105,7 @@ TEST(ImportPipeline, FreeConnectionsOfJoinedTrack) {
     parts.scan();
 
     Tree m;
-    // Two straights end to end (4 studs = 80 LDU apart), in a colour the
+    // Two straights end to end (4 studs = 80 LDU apart), in a color the
     // library doesn't have (falls back to TT.7).
     const auto read = readModel(m,
         "1 8 0 0 0 1 0 0 0 1 0 0 0 1 tt.dat\n"

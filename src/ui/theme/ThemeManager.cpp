@@ -172,7 +172,7 @@ QComboBox, QLineEdit, QSpinBox, QDoubleSpinBox { min-height: 32px; }
         { "@muted", n.muted }, { "@soft", n.soft }, { "@tourBg", n.tourBg }, { "@tourInk", n.tourInk },
         { "@danger", n.danger }, { "@asoft", a.soft(mode) }, { "@atext", a.text(mode) }, { "@amain", a.main }, { "@aon", a.onMain },
     };
-    for (const auto& [name, colour] : vars) css.replace(QLatin1String(name), colour.name());
+    for (const auto& [name, color] : vars) css.replace(QLatin1String(name), color.name());
     css.replace(QLatin1String("@rcpx"), QStringLiteral("%1px").arg(Radius::control));
     css.replace(QLatin1String("@rcardpx"), QStringLiteral("%1px").arg(Radius::card));
     return css;

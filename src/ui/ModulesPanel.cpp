@@ -171,7 +171,7 @@ void ModulesPanel::fillMenu(QMenu& menu, const QString& id) {
     showName->setCheckable(true);
     showName->setChecked(!mod || mod->showName);
     connect(showName, &QAction::toggled, [this, id](bool on){ emit showNameRequested(id, on); });
-    auto* look = menu.addAction(tr("Colours..."));
+    auto* look = menu.addAction(tr("Colors..."));
     connect(look, &QAction::triggered, [this, id]{ emit lookRequested(id); });
     auto* cloneAct = menu.addAction(tr("Duplicate"));
     connect(cloneAct, &QAction::triggered, [this, id]{ emit cloneRequested(id); });

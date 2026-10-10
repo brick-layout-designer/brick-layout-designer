@@ -10,8 +10,8 @@
 // name is never longer than the module's edge: it wraps to two lines, then
 // shrinks, and only as a last resort is cut short with an ellipsis (the
 // whole name shows on hover or select). Each module has its own default
-// colour (moduleColours, from its id; neighbours differ), and can have its
-// own chosen outline and name colours and hide its name.
+// color (moduleColors, from its id; neighbours differ), and can have its
+// own chosen outline and name colors and hide its name.
 // fixtures/render-parity/modules.json holds the numbers both apps are
 // tested against.
 
@@ -33,7 +33,7 @@ namespace bld::rendering {
 inline const QColor kModuleFrameColor(100, 180, 255, 204);  // rgba(100,180,255,0.8)
 inline const QColor kModuleNameFill(100, 180, 255, 230);    // rgba(100,180,255,0.9)
 inline const QColor kModuleNameStroke(0, 0, 0, 153);        // rgba(0,0,0,0.6)
-// A chosen colour is drawn at the default look's opacity.
+// A chosen color is drawn at the default look's opacity.
 inline constexpr double kModuleFrameAlpha = 0.8;
 inline constexpr double kModuleNameAlpha = 0.9;
 // The pill behind a shortened name's whole name: rgba(0,0,0,0.75).
@@ -90,34 +90,34 @@ struct ModuleNameFit {
 // second.
 ModuleNameFit fitModuleName(const QString& text, const NameWidthAt& widthAt, double fontPx, double side);
 
-// How one placed module is drawn: its colours (the default look unless
+// How one placed module is drawn: its colors (the default look unless
 // chosen) and whether its name shows.
 struct ModuleLook {
     QColor frame = kModuleFrameColor;
     QColor nameFill = kModuleNameFill;
     bool showName = true;
 };
-// `defaultHex`: the module's own default colour (moduleColours); empty: the light blue.
+// `defaultHex`: the module's own default color (moduleColors); empty: the light blue.
 ModuleLook moduleLook(const core::Module& m, const QString& defaultHex = {});
 
-// Each module's own default colour comes from this palette (the web's
+// Each module's own default color comes from this palette (the web's
 // MODULE_PALETTE): distinct hues, light enough to read inside the name's
 // dark outline, apart from the map's default blue.
 inline const QStringList kModulePalette{ QStringLiteral("#FFE066"), QStringLiteral("#FFA94D"), QStringLiteral("#FCC2D7"),
                                          QStringLiteral("#E599F7"), QStringLiteral("#8CE99A"), QStringLiteral("#C0EB75"),
                                          QStringLiteral("#66D9E8"), QStringLiteral("#63E6BE") };
-// Modules this close (studs) count as neighbours, which get different colours.
+// Modules this close (studs) count as neighbours, which get different colors.
 inline constexpr double kModuleNeighbourStuds = 4.0;
 // FNV-1a over the id's UTF-16 code units: the same number in both apps.
 quint32 moduleIdHash(const QString& id);
-// Every module's default colour (a palette hex) from its id, stepping on
+// Every module's default color (a palette hex) from its id, stepping on
 // through the palette when a neighbour earlier in the list has it. `box`:
 // its visible parts' bounds in studs (empty: none show; no neighbours).
-struct ModuleColourInput {
+struct ModuleColorInput {
     QString id;
     QRectF box;
 };
-QHash<QString, QString> moduleColours(const std::vector<ModuleColourInput>& modules);
+QHash<QString, QString> moduleColors(const std::vector<ModuleColorInput>& modules);
 
 struct ModuleLabelLayout {
     QRectF frame;     // scene px

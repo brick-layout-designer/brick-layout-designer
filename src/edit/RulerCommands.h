@@ -100,7 +100,7 @@ private:
 };
 
 // Edit an existing ruler's base properties (color, line thickness, display
-// toggles, guideline color/thickness/dash, unit, measure font/colour). The
+// toggles, guideline color/thickness/dash, unit, measure font/color). The
 // ruler's geometry (endpoints / centre / radius / attachments) is not
 // touched.
 class EditRulerItemCommand : public QUndoCommand {

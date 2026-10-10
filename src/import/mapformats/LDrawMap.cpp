@@ -59,8 +59,8 @@ QPointF rotated(QPointF v, double degrees) {
     return { v.x() * c - v.y() * s, v.x() * s + v.y() * c };
 }
 
-// "<part>.<colour>" split at the last dot.
-std::pair<QString, QString> splitPartAndColour(const QString& partNumber) {
+// "<part>.<color>" split at the last dot.
+std::pair<QString, QString> splitPartAndColor(const QString& partNumber) {
     const int dot = partNumber.lastIndexOf(QLatin1Char('.'));
     if (dot < 0) return { partNumber, {} };
     return { partNumber.left(dot), partNumber.mid(dot + 1) };
@@ -68,7 +68,7 @@ std::pair<QString, QString> splitPartAndColour(const QString& partNumber) {
 
 // ------------------------------------------------------------------ reading
 
-core::ColorSpec readColour(const QString& token) {
+core::ColorSpec readColor(const QString& token) {
     if (token.startsWith(QStringLiteral("0x"), Qt::CaseInsensitive)) {
         return core::ColorSpec::fromArgb(QColor::fromRgba(token.mid(2).toUInt(nullptr, 16)));
     }
@@ -263,14 +263,14 @@ private:
         // Only parts; references to submodels (.ldr) are layers, not bricks.
         const QString file = t.mid(i + 13).join(QLatin1Char(' '));
         if (!file.endsWith(QStringLiteral(".dat"), Qt::CaseInsensitive)) return;
-        const QString colour = t[i];
+        const QString& color = t[i];
         double x = t[i + 1].toDouble();
         const double y = t[i + 2].toDouble();
         double z = -t[i + 3].toDouble();
         const double a = t[i + 4].toDouble();
         const double c = t[i + 6].toDouble();
         QString pn = QFileInfo(QString(file).replace(QLatin1Char('\\'), QLatin1Char('/'))).completeBaseName().toUpper();
-        QString partNumber = pn + QLatin1Char('.') + colour;
+        QString partNumber = pn + QLatin1Char('.') + color;
 
         const auto meta = lib_.metadata(partNumber);
         if (meta && meta->isIgnorable()) return;
@@ -304,7 +304,7 @@ private:
     }
 
     void parseRuler(const QStringList& t, int i) {
-        // <type> #id dist unit colour guideColour fontColour thick guideThick
+        // <type> #id dist unit color guideColor fontColor thick guideThick
         // [dash] unit "font" <geometry>. BlueBrick writes nothing at all for
         // an empty dash pattern, so detect that from the token count.
         const bool linear = t.value(i) == QLatin1String("LINEAR");
@@ -314,9 +314,9 @@ private:
         core::RulerItemBase common;
         common.displayDistance = t.value(k++) == QLatin1String("true");
         common.displayUnit = t.value(k++) == QLatin1String("true");
-        common.color = readColour(t.value(k++));
-        common.guidelineColor = readColour(t.value(k++));
-        common.measureFontColor = readColour(t.value(k++));
+        common.color = readColor(t.value(k++));
+        common.guidelineColor = readColor(t.value(k++));
+        common.measureFontColor = readColor(t.value(k++));
         common.lineThickness = t.value(k++).toFloat();
         common.guidelineThickness = t.value(k++).toFloat();
         if (hasDash) {
@@ -369,7 +369,7 @@ private:
 QString fmt(float v) { return saveload::xml::formatFloat(v); }
 QString fmt(double v) { return fmt(static_cast<float>(v)); }
 
-QString colourToken(const core::ColorSpec& c) {
+QString colorToken(const core::ColorSpec& c) {
     if (c.isKnown()) return QLatin1Char('"') + c.knownName + QStringLiteral("\" ");
     return QStringLiteral("\"0x%1\" ").arg(c.color.rgba(), 8, 16, QLatin1Char('0'));
 }
@@ -448,7 +448,7 @@ private:
 
     // Same arithmetic as BlueBrick's saveOneBrickInLDRAW, in 32-bit float,
     // so the written numbers match it digit for digit.
-    void oneBrick(const QString& partNumber, const QString& colour, float altitude, float orientation,
+    void oneBrick(const QString& partNumber, const QString& color, float altitude, float orientation,
                   float x, float z, const std::optional<parts::PartMetadata>& remap, bool hide) {
         x *= 20.0f;
         z *= 20.0f;
@@ -471,7 +471,7 @@ private:
         const float cosA = static_cast<float>(std::cos(static_cast<double>(angle)));
         const float sinA = static_cast<float>(std::sin(static_cast<double>(angle)));
         const QString cs = fmt(cosA), sn = fmt(sinA), msn = fmt(-sinA);
-        line((hide ? kHide : QString()) + QStringLiteral("1 ") + colour + QLatin1Char(' ')
+        line((hide ? kHide : QString()) + QStringLiteral("1 ") + color + QLatin1Char(' ')
              + fmt(x) + QLatin1Char(' ') + fmt(y) + QLatin1Char(' ') + fmt(z) + QLatin1Char(' ')
              + cs + QStringLiteral(" 0 ") + sn + QStringLiteral(" 0 1 0 ") + msn + QStringLiteral(" 0 ") + cs
              + QLatin1Char(' ') + partNumber + QStringLiteral(".DAT"));
@@ -485,25 +485,25 @@ private:
         std::vector<QString> members;
 
         for (const auto& b : layer.bricks) {
-            auto [pn, colour] = splitPartAndColour(b.partNumber);
+            auto [pn, color] = splitPartAndColor(b.partNumber);
             bool numeric = false;
-            colour.toInt(&numeric);
+            color.toInt(&numeric);
             if (!numeric) continue;  // sets, logos, custom parts
             const QPointF centre = parts::placement::imageCentre(b, lib_);
             const auto meta = lib_.metadata(b.partNumber);
             if (meta && !meta->ldrawAlias.isEmpty()) {
-                auto [aliasPn, aliasColour] = splitPartAndColour(meta->ldrawAlias);
+                auto [aliasPn, aliasColor] = splitPartAndColor(meta->ldrawAlias);
                 pn = aliasPn;
-                if (!aliasColour.isEmpty()) colour = aliasColour;
+                if (!aliasColor.isEmpty()) color = aliasColor;
             }
             belongsTo(b.myGroupId, layer.groups);
             members.push_back(b.myGroupId);
-            oneBrick(pn, colour, b.altitude, b.orientation, static_cast<float>(centre.x()),
+            oneBrick(pn, color, b.altitude, b.orientation, static_cast<float>(centre.x()),
                      static_cast<float>(-centre.y()), meta, hide);
             if (!meta || meta->ldrawSleeper.isEmpty() || meta->connections.isEmpty()) continue;
 
             // Rails get a sleeper at every end (once per joint).
-            const auto [sleeperPn, sleeperColour] = splitPartAndColour(meta->ldrawSleeper);
+            const auto [sleeperPn, sleeperColor] = splitPartAndColor(meta->ldrawSleeper);
             const auto sleeperMeta = lib_.metadata(meta->ldrawSleeper);
             float sleeperAltitude = b.altitude;
             if (sleeperMeta && sleeperAltitude != 0.0f)
@@ -520,13 +520,13 @@ private:
                         const core::Brick* other = byConnection.value(conn.linkedToId);
                         const auto otherMeta = other ? lib_.metadata(other->partNumber) : std::nullopt;
                         if (otherMeta && !otherMeta->ldrawSleeper.isEmpty())
-                            add = splitPartAndColour(otherMeta->ldrawSleeper).first == QLatin1String("767");
+                            add = splitPartAndColor(otherMeta->ldrawSleeper).first == QLatin1String("767");
                     }
                 }
                 if (!add) continue;
                 const auto& cm = meta->connections[i];
                 const QPointF at = parts::placement::connectionWorld(b, i, lib_);
-                oneBrick(sleeperPn, sleeperColour, sleeperAltitude,
+                oneBrick(sleeperPn, sleeperColor, sleeperAltitude,
                          b.orientation + static_cast<float>(cm.angleDegrees),
                          static_cast<float>(at.x()), static_cast<float>(-at.y()), sleeperMeta, hide);
                 sleepered.insert(conn.guid);
@@ -548,7 +548,7 @@ private:
             text += QLatin1Char('#') + r.guid + QLatin1Char(' ');
             text += (r.displayDistance ? QStringLiteral("true ") : QStringLiteral("false "));
             text += (r.displayUnit ? QStringLiteral("true ") : QStringLiteral("false "));
-            text += colourToken(r.color) + colourToken(r.guidelineColor) + colourToken(r.measureFontColor);
+            text += colorToken(r.color) + colorToken(r.guidelineColor) + colorToken(r.measureFontColor);
             text += fmt(r.lineThickness) + QLatin1Char(' ') + fmt(r.guidelineThickness) + QLatin1Char(' ');
             QStringList dash;
             for (float d : r.guidelineDashPattern) dash << fmt(d);

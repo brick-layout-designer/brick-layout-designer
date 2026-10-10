@@ -1,4 +1,4 @@
-// Map menu — background colour, general info, and the venue sub-menu
+// Map menu — background color, general info, and the venue sub-menu
 // (draw outline, draw-by-dimensions, add obstacle, edit properties,
 // clear, venue library panel, load from file).
 // Pulled out of MainWindowMenus.cpp so the remaining setupMenus()
@@ -49,12 +49,12 @@ namespace bld::ui {
 
 void MainWindow::setupMapMenu() {
     auto* mapMenu = menuBar()->addMenu(tr("&Map"));
-    auto* bgAct = mapMenu->addAction(tr("Background &Colour..."));
+    auto* bgAct = mapMenu->addAction(tr("Background &Color..."));
     connect(bgAct, &QAction::triggered, this, [this]{
         auto* m = mapView_->currentMap();
         if (!m) return;
         QColor init = m->backgroundColor.color;
-        const QColor c = QColorDialog::getColor(init, this, tr("Background colour"),
+        const QColor c = QColorDialog::getColor(init, this, tr("Background color"),
                                                  QColorDialog::ShowAlphaChannel);
         if (!c.isValid()) return;
         mapView_->undoStack()->push(new edit::ChangeBackgroundColorCommand(

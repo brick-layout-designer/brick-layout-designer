@@ -10,8 +10,8 @@ namespace bld::import {
 // writer; vanilla BlueBrick only loads part sprites from .gif files, so
 // imported parts also get an 8 px/stud .gif next to their hi-res .png.
 //
-// Pixels with alpha < 128 become the transparent colour; the rest are
-// reduced to at most 255 colours (exact when the image has that few,
+// Pixels with alpha < 128 become the transparent color; the rest are
+// reduced to at most 255 colors (exact when the image has that few,
 // median cut otherwise). Returns false and sets *error on failure.
 bool writeGif(const QImage& image, const QString& path, QString* error = nullptr);
 

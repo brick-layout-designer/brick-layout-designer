@@ -29,7 +29,7 @@ namespace bld::rendering {
 // hit-testing / selection never gets intercepted by a parent group. We
 // track per-layer items in a QHash<int, QList<QGraphicsItem*>> for
 // visibility toggling.
-// A painted area cell's colour: its RGB at the sheet's alpha, as vanilla
+// A painted area cell's color: its RGB at the sheet's alpha, as vanilla
 // BlueBrick and the web draw it (render-parity/areas.json).
 QColor areaCellColor(const QColor& cell, int transparency);
 
@@ -103,7 +103,7 @@ private:
     void addVenue(const core::Map& map);
     void addAnchoredLabels(const core::Map& map);
     // `posed`: parts are being dragged: names keep the places (and modules
-    // the colours) they had on the settled layout, so nothing jumps.
+    // the colors) they had on the settled layout, so nothing jumps.
     void addModuleLabels(const core::Map& map, bool posed = false);
     void addElectricCircuits(const core::Map& map);
 
@@ -124,7 +124,7 @@ private:
     QList<QPair<QString, QRectF>>     moduleAnnotationRects_;
     QList<ShortenedModuleName>        shortenedModuleNames_;
     QHash<QString, QString>           settledNameSlots_;    // module id → slot, from the last settled build
-    QHash<QString, QString>           settledModuleColours_; // module id → its default colour then
+    QHash<QString, QString>           settledModuleColors_; // module id → its default color then
 };
 
 }

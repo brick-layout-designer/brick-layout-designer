@@ -122,47 +122,47 @@ TEST(ModuleCommands, ImportBbmAsModuleInsertsAndUndo) {
     EXPECT_TRUE(m.sidecar.modules.empty());
 }
 
-// A module's look: colours stored per module, the "Same colour" link and
+// A module's look: colors stored per module, the "Same color" link and
 // Reset to default (core/ModuleLook.h), applied as one undo step each.
 #include "core/ModuleLook.h"
 
-TEST(ModuleLook, SameColourLinksTheTwoColours) {
+TEST(ModuleLook, SameColorLinksTheTwoColors) {
     core::Module m;
-    EXPECT_TRUE(core::coloursLinked(m));
-    EXPECT_FALSE(core::hasCustomColours(m));
-    EXPECT_EQ(core::moduleColour(m, core::ModuleColourPart::Outline), core::kModuleDefaultColour);
-    auto a = core::withColour(m, core::ModuleColourPart::Outline, QStringLiteral("#FF8800"));
+    EXPECT_TRUE(core::colorsLinked(m));
+    EXPECT_FALSE(core::hasCustomColors(m));
+    EXPECT_EQ(core::moduleColor(m, core::ModuleColorPart::Outline), core::kModuleDefaultColor);
+    auto a = core::withColor(m, core::ModuleColorPart::Outline, QStringLiteral("#FF8800"));
     EXPECT_EQ(a.outlineColor, QStringLiteral("#ff8800"));
     EXPECT_EQ(a.nameColor, QStringLiteral("#ff8800"));
-    a = core::withColour(a, core::ModuleColourPart::Name, QStringLiteral("#00aa00"));
+    a = core::withColor(a, core::ModuleColorPart::Name, QStringLiteral("#00aa00"));
     EXPECT_EQ(a.outlineColor, QStringLiteral("#00aa00"));
-    EXPECT_TRUE(core::hasCustomColours(a));
+    EXPECT_TRUE(core::hasCustomColors(a));
 }
 
-TEST(ModuleLook, UnlinkedColoursAreSetSeparately) {
-    auto m = core::withSameColour(core::withColour(core::Module{}, core::ModuleColourPart::Outline, QStringLiteral("#ff8800")), false);
+TEST(ModuleLook, UnlinkedColorsAreSetSeparately) {
+    auto m = core::withSameColor(core::withColor(core::Module{}, core::ModuleColorPart::Outline, QStringLiteral("#ff8800")), false);
     EXPECT_FALSE(m.sameColor);
-    m = core::withColour(m, core::ModuleColourPart::Name, QStringLiteral("#112233"));
+    m = core::withColor(m, core::ModuleColorPart::Name, QStringLiteral("#112233"));
     EXPECT_EQ(m.outlineColor, QStringLiteral("#ff8800"));
     EXPECT_EQ(m.nameColor, QStringLiteral("#112233"));
-    m = core::withColour(m, core::ModuleColourPart::Outline, QStringLiteral("#445566"));
+    m = core::withColor(m, core::ModuleColorPart::Outline, QStringLiteral("#445566"));
     EXPECT_EQ(m.outlineColor, QStringLiteral("#445566"));
     EXPECT_EQ(m.nameColor, QStringLiteral("#112233"));
-    // Linking again gives the name the outline's colour.
-    m = core::withSameColour(m, true);
+    // Linking again gives the name the outline's color.
+    m = core::withSameColor(m, true);
     EXPECT_TRUE(m.sameColor);
     EXPECT_EQ(m.nameColor, QStringLiteral("#445566"));
 }
 
-TEST(ModuleLook, ResetToDefaultClearsTheColoursAndTheLink) {
-    auto m = core::withColour(core::withSameColour(core::Module{}, false), core::ModuleColourPart::Name, QStringLiteral("#112233"));
-    EXPECT_TRUE(core::hasCustomColours(m));
-    m = core::withDefaultColours(m);
+TEST(ModuleLook, ResetToDefaultClearsTheColorsAndTheLink) {
+    auto m = core::withColor(core::withSameColor(core::Module{}, false), core::ModuleColorPart::Name, QStringLiteral("#112233"));
+    EXPECT_TRUE(core::hasCustomColors(m));
+    m = core::withDefaultColors(m);
     EXPECT_TRUE(m.outlineColor.isEmpty());
     EXPECT_TRUE(m.nameColor.isEmpty());
     EXPECT_TRUE(m.sameColor);
-    EXPECT_FALSE(core::hasCustomColours(m));
-    EXPECT_TRUE(core::hasCustomColours(core::withSameColour(core::Module{}, false)));
+    EXPECT_FALSE(core::hasCustomColors(m));
+    EXPECT_TRUE(core::hasCustomColors(core::withSameColor(core::Module{}, false)));
 }
 
 TEST(ModuleCommands, UpdateModuleChangesTheLookAndUndoes) {
@@ -173,7 +173,7 @@ TEST(ModuleCommands, UpdateModuleChangesTheLookAndUndoes) {
     m.memberIds = { QStringLiteral("a") };
     map.sidecar.modules.push_back(m);
     QUndoStack stack;
-    stack.push(new edit::UpdateModuleCommand(map, core::withShowName(core::withColour(m, core::ModuleColourPart::Outline, QStringLiteral("#ff8800")), false),
+    stack.push(new edit::UpdateModuleCommand(map, core::withShowName(core::withColor(m, core::ModuleColorPart::Outline, QStringLiteral("#ff8800")), false),
                                              QStringLiteral("look")));
     EXPECT_EQ(map.sidecar.modules[0].outlineColor, QStringLiteral("#ff8800"));
     EXPECT_FALSE(map.sidecar.modules[0].showName);

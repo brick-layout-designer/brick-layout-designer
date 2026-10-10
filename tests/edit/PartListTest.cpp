@@ -98,7 +98,7 @@ TEST_F(PartListTest, RowsCountsAndBudget) {
 }
 
 TEST_F(PartListTest, TextAndCsvLayout) {
-    // The table's colours and descriptions come from the parts' XML files.
+    // The table's colors and descriptions come from the parts' XML files.
     for (const char* part : { "2865.8", "3811.1" }) {
         if (!lib_.metadata(QString::fromLatin1(part)))
             GTEST_SKIP() << "the BlueBrickParts library isn't checked out (run git submodule update --init); missing " << part;

@@ -11,9 +11,9 @@ namespace bld::core { class Map; }
 namespace bld::edit {
 
 // Paint or erase one or more cells on a LayerArea in a single undoable step.
-// Each entry either sets the cell colour (newColor has value) or erases it
+// Each entry either sets the cell color (newColor has value) or erases it
 // (newColor is std::nullopt). The command snapshots each cell's previous
-// colour (or absence) on first redo so undo restores the prior state exactly.
+// color (or absence) on first redo so undo restores the prior state exactly.
 class PaintAreaCellsCommand : public QUndoCommand {
 public:
     struct Change {

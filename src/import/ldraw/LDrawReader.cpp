@@ -214,7 +214,7 @@ LDrawReadResult readLDraw(const QString& path) {
         // hint for edge detection, not geometry we want to rasterize.
         if (code == 2 || code == 3 || code == 4) {
             const int nVerts = code;
-            // Expect: <code> colour  <3 * nVerts floats>
+            // Expect: <code> color  <3 * nVerts floats>
             if (parts.size() < 2 + 3 * nVerts) continue;
             LDrawPrimitive p;
             p.kind = code;
@@ -254,8 +254,8 @@ LDrawReadResult readLDraw(const QString& path) {
 
 namespace {
 
-// Library key for an LDraw reference: exact "<part>.<colour>", then the
-// part in any colour, then the same two for each earlier LDraw number
+// Library key for an LDraw reference: exact "<part>.<color>", then the
+// part in any color, then the same two for each earlier LDraw number
 // of a renumbered part. Empty when nothing in `lib` matches.
 QString resolvePartKey(const LDrawPartRef& ref, const QString& partNumber, int colorCode,
                        const parts::PartsLibrary& lib, const LDrawLibrary* ldraw) {

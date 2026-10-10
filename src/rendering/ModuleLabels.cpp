@@ -137,7 +137,7 @@ quint32 moduleIdHash(const QString& id) {
     return h;
 }
 
-QHash<QString, QString> moduleColours(const std::vector<ModuleColourInput>& modules) {
+QHash<QString, QString> moduleColors(const std::vector<ModuleColorInput>& modules) {
     const int n = static_cast<int>(kModulePalette.size());
     const double d = kModuleNeighbourStuds;
     const auto near = [d](const QRectF& a, const QRectF& b) {

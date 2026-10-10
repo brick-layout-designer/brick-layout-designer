@@ -36,7 +36,7 @@ for bbm in "${CORPUS}"/*.bbm; do
     out="${GOLDENS}/${stem}.png"
     echo "=> ${stem}"
     # The test harness renders at 1600x1200 with the parts library
-    # and the map's own background colour. bld_render mirrors that
+    # and the map's own background color. bld_render mirrors that
     # exact pipeline (width argument matches; parts dir is searched
     # at the submodule path by default).
     "${RENDER_BIN}" "${bbm}" "${out}" 1600 "${PARTS}"

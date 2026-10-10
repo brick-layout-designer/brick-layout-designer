@@ -143,7 +143,7 @@ anchor moves.
   - `outlineColor`, `nameColor` (`"#rrggbb"`, default the light blue
     `rgba(100,180,255)`): drawn at the default look's opacity (0.8 for
     the outline, 0.9 for the name).
-  - `sameColor` (bool, default `true`): the two colours change together.
+  - `sameColor` (bool, default `true`): the two colors change together.
   - `pinned` (bool, default `false`): the module can't be moved or turned
     as a whole; Edit module still changes its parts.
 - Fields a reader doesn't know are kept when it writes the module again.

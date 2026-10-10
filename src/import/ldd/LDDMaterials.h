@@ -17,7 +17,7 @@ namespace bld::import {
 // res/brickdb/Materials.xml.
 //
 // Used by the LDD import pipeline when a part has no LDraw equivalent
-// in ldraw.xml — we still need to colour the rendered .g geometry,
+// in ldraw.xml — we still need to color the rendered .g geometry,
 // and Materials.xml is the only authoritative LDD palette source.
 class LDDMaterials {
 public:

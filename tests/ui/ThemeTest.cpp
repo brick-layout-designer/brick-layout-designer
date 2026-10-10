@@ -1,6 +1,6 @@
 // The redesign's look: the tokens match the web's (apps/web/src/theme/
 // tokens.ts), the palette in light and dark, "match my computer" following
-// the system colour scheme, the colours and bigger text, and the settings'
+// the system color scheme, the colors and bigger text, and the settings'
 // JSON as the server's /api/me/preferences has it.
 
 #include "ui/theme/AppPrefs.h"
@@ -96,7 +96,7 @@ TEST_F(Theme, PaletteInLightAndDark) {
     EXPECT_TRUE(buildStyleSheet(Mode::Dark, accent(QStringLiteral("ocean"))).contains(QStringLiteral("#93b4f0")));
 }
 
-TEST_F(Theme, MatchMyComputerFollowsTheColourScheme) {
+TEST_F(Theme, MatchMyComputerFollowsTheColorScheme) {
     EXPECT_EQ(resolveMode(ThemeChoice::System, Qt::ColorScheme::Dark), Mode::Dark);
     EXPECT_EQ(resolveMode(ThemeChoice::System, Qt::ColorScheme::Light), Mode::Light);
     EXPECT_EQ(resolveMode(ThemeChoice::System, Qt::ColorScheme::Unknown), Mode::Light);
@@ -121,7 +121,7 @@ TEST_F(Theme, MatchMyComputerFollowsTheColourScheme) {
     EXPECT_EQ(hex(QApplication::palette().color(QPalette::Window)), QStringLiteral("#1F2226"));
 }
 
-TEST_F(Theme, ColoursAndBiggerTextApply) {
+TEST_F(Theme, ColorsAndBiggerTextApply) {
     PrefsStore store(QString::fromLatin1(kGroup));
     ThemeManager manager(store);
     manager.apply();

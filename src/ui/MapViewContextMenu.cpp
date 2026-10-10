@@ -299,7 +299,7 @@ bool MapView::addModuleMenu(QMenu& menu, const QString& clickedBrickGuid) {
             undoStack_->push(new edit::UpdateModuleCommand(*map_, core::withShowName(*m, !m->showName),
                                                            m->showName ? tr("Hide module name") : tr("Show module name")));
     });
-    menu.addAction(tr("Colours..."), this, [this, id] { emit moduleLookRequested(id); });
+    menu.addAction(tr("Colors..."), this, [this, id] { emit moduleLookRequested(id); });
     if (moduleLibraryInfo_) {
         menu.addSeparator();
         for (const auto& e : moduleLibraryInfo_(*mod).entries) {

@@ -21,9 +21,9 @@ namespace bld::import {
 // rendering the inline primitives at least gives the user a tinted
 // silhouette rather than a dashed placeholder.
 //
-// Triangles and quads are filled with the LDraw colour for that
+// Triangles and quads are filled with the LDraw color for that
 // primitive (via LDrawColors lookup). Lines are stroked thin black.
-// Transparent colour codes honour their alpha so windscreens / glass
+// Transparent color codes honour their alpha so windscreens / glass
 // render as see-through overlays.
 QImage rasterizeTopDown(const LDrawReadResult& src,
                         double pxPerStud = 8.0,

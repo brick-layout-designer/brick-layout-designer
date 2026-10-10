@@ -277,7 +277,7 @@ void MainWindow::pullModule(const QString& moduleId) {
         o.title = version > 0 ? tr("Replace “%1” with version %2?").arg(name).arg(version)
                               : tr("Replace “%1” with the Module library file's parts?").arg(name);
         o.removes = tr("This module was changed in this layout. Those changes are replaced by the Module library's version.");
-        o.keeps = tr("Its name, colours and place on the map stay. You can undo this.");
+        o.keeps = tr("Its name, colors and place on the map stay. You can undo this.");
         o.confirmLabel = tr("Update");
         o.danger = false;
         return confirmModuleLibrary(o);

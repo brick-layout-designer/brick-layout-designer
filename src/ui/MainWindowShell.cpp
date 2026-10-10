@@ -148,7 +148,7 @@ void MainWindow::setupShell() {
     struct ToolEntry { MapView::Tool tool; QString icon, text, tip; };
     const ToolEntry entries[] = {
         { MapView::Tool::Select, QStringLiteral("select"), tr("Select"), tr("Pick and move pieces") },
-        { MapView::Tool::PaintArea, QStringLiteral("paint"), tr("Paint"), tr("Paint areas of colour on an area sheet") },
+        { MapView::Tool::PaintArea, QStringLiteral("paint"), tr("Paint"), tr("Paint areas of color on an area sheet") },
         { MapView::Tool::EraseArea, QStringLiteral("erase"), tr("Erase"), tr("Erase painted areas") },
         { MapView::Tool::DrawLinearRuler, QStringLiteral("measure"), tr("Measure"), tr("Draw a ruler to measure a distance") },
         { MapView::Tool::DrawCircularRuler, QStringLiteral("circle"), tr("Circle"), tr("Draw a circle to measure a radius") },
@@ -163,11 +163,11 @@ void MainWindow::setupShell() {
     help::HelpButton::addTo(toolbar, QStringLiteral("dialog.measure"),
                             toolbar->widgetForAction(findChild<QAction*>(QStringLiteral("tool.measure"))));
 
-    // The paint colour, one click away.
-    auto* colour = toolbar->addAction(tr("Colour"));
-    colour->setObjectName(QStringLiteral("tool.paintColour"));
-    colour->setToolTip(tr("The colour Paint uses"));
-    refreshPaintSwatch_ = [this, colour] {
+    // The paint color, one click away.
+    auto* color = toolbar->addAction(tr("Color"));
+    color->setObjectName(QStringLiteral("tool.paintColor"));
+    color->setToolTip(tr("The color Paint uses"));
+    refreshPaintSwatch_ = [this, color] {
         QPixmap pm(QSize(20, 20) * 2);
         pm.setDevicePixelRatio(2);
         pm.fill(Qt::transparent);
@@ -176,18 +176,18 @@ void MainWindow::setupShell() {
         p.setPen(QPen(palette().color(QPalette::Mid), 1));
         p.setBrush(mapView_->paintColor());
         p.drawRoundedRect(QRectF(2.5, 2.5, 15, 15), 4, 4);
-        colour->setIcon(QIcon(pm));
+        color->setIcon(QIcon(pm));
     };
     {
         QSettings s;
         s.beginGroup(QStringLiteral("editing"));
         QColor saved(s.value(QStringLiteral("paintColor"), QColor(0, 128, 0).name()).toString());
-        // A 0-alpha paint colour silently does nothing on the canvas.
+        // A 0-alpha paint color silently does nothing on the canvas.
         if (saved.isValid() && saved.alpha() == 0) saved.setAlpha(255);
         if (saved.isValid()) mapView_->setPaintColor(saved);
     }
-    connect(colour, &QAction::triggered, this, [this] {
-        const QColor c = QColorDialog::getColor(mapView_->paintColor(), this, tr("Paint colour"),
+    connect(color, &QAction::triggered, this, [this] {
+        const QColor c = QColorDialog::getColor(mapView_->paintColor(), this, tr("Paint color"),
                                                 QColorDialog::ShowAlphaChannel);
         if (!c.isValid()) return;
         mapView_->setPaintColor(c);
@@ -196,7 +196,7 @@ void MainWindow::setupShell() {
         s.beginGroup(QStringLiteral("editing"));
         s.setValue(QStringLiteral("paintColor"), c.name(QColor::HexArgb));
     });
-    help::HelpButton::addTo(toolbar, QStringLiteral("toolbar.paintColour"), toolbar->widgetForAction(colour));
+    help::HelpButton::addTo(toolbar, QStringLiteral("toolbar.paintColor"), toolbar->widgetForAction(color));
     toolbar->addSeparator();
 
     addTool(QStringLiteral("turnLeft"), tr("Turn left"), tr("Turn the selected pieces anticlockwise"), [this] {

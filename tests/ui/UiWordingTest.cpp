@@ -95,3 +95,29 @@ TEST(UiWordingTest, ModuleAndBudgetWordsArePlain) {
     }
     EXPECT_TRUE(bad.isEmpty()) << describe(bad).toStdString();
 }
+
+// US spelling: "color", not "colour" (Aaron, 2026-10-08), in every source
+// file: words, comments and names. LDraw's own `!COLOUR` command is the one
+// exception.
+TEST(UiWordingTest, SaysColorNotColour) {
+    QStringList found;
+    for (const char* dir : { "/src", "/tests" }) {
+        QDirIterator it(QStringLiteral(BLD_SOURCE_DIR) + QLatin1String(dir),
+                        { QStringLiteral("*.cpp"), QStringLiteral("*.h") }, QDir::Files, QDirIterator::Subdirectories);
+        while (it.hasNext()) {
+            const QString path = it.next();
+            if (path.endsWith(QLatin1String("UiWordingTest.cpp"))) continue;  // this test names it
+            QFile f(path);
+            if (!f.open(QIODevice::ReadOnly)) continue;
+            int n = 0;
+            for (const QByteArray& raw : f.readAll().split('\n')) {
+                ++n;
+                QString line = QString::fromUtf8(raw);
+                line.remove(QStringLiteral("!COLOUR"));
+                if (line.contains(QStringLiteral("colour"), Qt::CaseInsensitive))
+                    found << QStringLiteral("%1:%2").arg(path.mid(QStringLiteral(BLD_SOURCE_DIR).size() + 1)).arg(n);
+            }
+        }
+    }
+    EXPECT_TRUE(found.isEmpty()) << found.join(QStringLiteral(", ")).toStdString();
+}

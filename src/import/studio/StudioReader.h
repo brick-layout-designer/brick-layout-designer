@@ -9,10 +9,10 @@
 namespace bld::import {
 
 // BrickLink Studio 2.0 `.io` files are ZIP archives:
-//   model.ldr     the model, LDraw text with LDraw colours; an MPD whose
+//   model.ldr     the model, LDraw text with LDraw colors; an MPD whose
 //                 first "0 FILE" block is the model and the rest submodels
-//   modelv1.ldr   the same in Studio's older "10 <colour> False 0 ..." lines
-//   model2.ldr    the same with BrickLink colour numbers and every custom
+//   modelv1.ldr   the same in Studio's older "10 <color> False 0 ..." lines
+//   model2.ldr    the same with BrickLink color numbers and every custom
 //                 part's geometry inlined (big: 72 MB for a large set)
 //   CustomParts/  the model's own parts (*.dat), with Studio-only
 //                 connectivity/*.conn and collider/*.col next to them

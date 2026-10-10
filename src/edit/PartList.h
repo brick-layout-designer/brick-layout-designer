@@ -18,7 +18,7 @@ class Budget;
 
 struct PartListRow {
     QString partNumber;   // full, e.g. "3811.1"
-    QString part;         // without the colour, e.g. "3811"
+    QString part;         // without the color, e.g. "3811"
     QString colorName;    // e.g. "Blue"
     QString description;
     int count = 0;
