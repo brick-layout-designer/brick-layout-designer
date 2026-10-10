@@ -235,3 +235,28 @@ TEST(EditCommands, MoveBricksToAnotherSheetTakesWholeGroupsAndUndoes) {
     stack.redo();
     EXPECT_EQ(B->bricks.size(), 4u);
 }
+
+TEST(EditCommands, ANewAltitudeSortsTheSheetLikeBlueBrickAndUndoPutsTheOrderBack) {
+    core::Map m = makeMapWithBrickLayer();
+    auto* L = static_cast<core::LayerBrick*>(m.layers()[0].get());
+    for (const auto& g : { "a", "b", "c" }) L->bricks.push_back(makeBrick(QString::fromUtf8(g), QStringLiteral("x"), QRectF()));
+    L->bricks[2].altitude = 2.0f;
+    QUndoStack stack;
+    // Bring to Front works whatever the altitude: the order is the drawing order.
+    stack.push(new edit::ReorderBricksCommand(m, { { 0, QStringLiteral("c") } }, edit::ReorderBricksCommand::ToBack));
+    EXPECT_EQ(L->bricks[0].guid, QStringLiteral("c"));
+
+    edit::EditBrickCommand::State before{ QStringLiteral("x"), {}, 0.0f, 0.0f, 0 };
+    edit::EditBrickCommand::State after = before;
+    after.altitude = 5.0f;
+    stack.push(new edit::EditBrickCommand(m, { 0, QStringLiteral("a") }, before, after));
+    // Sorted by altitude, equal ones keeping their order: b (0), c (2), a (5).
+    ASSERT_EQ(L->bricks.size(), 3u);
+    EXPECT_EQ(L->bricks[0].guid, QStringLiteral("b"));
+    EXPECT_EQ(L->bricks[1].guid, QStringLiteral("c"));
+    EXPECT_EQ(L->bricks[2].guid, QStringLiteral("a"));
+    stack.undo();
+    EXPECT_EQ(L->bricks[0].guid, QStringLiteral("c"));
+    EXPECT_EQ(L->bricks[1].guid, QStringLiteral("a"));
+    EXPECT_FLOAT_EQ(L->bricks[1].altitude, 0.0f);
+}
