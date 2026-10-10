@@ -11,6 +11,7 @@ extern "C" {
 }
 
 #include <QJsonArray>
+#include <QHash>
 #include <QSet>
 
 #include <deque>
@@ -20,6 +21,27 @@ extern "C" {
 namespace bld::sync {
 
 namespace {
+
+// Indexes into `seq` of a longest strictly increasing run (patience sort).
+QSet<qsizetype> longestIncreasingRun(const QList<qsizetype>& seq) {
+    QList<qsizetype> tails;            // index into seq of the smallest tail per length
+    QList<qsizetype> prev(seq.size(), -1);
+    for (qsizetype i = 0; i < seq.size(); ++i) {
+        qsizetype lo = 0, hi = tails.size();
+        while (lo < hi) {
+            const qsizetype mid = (lo + hi) / 2;
+            if (seq[tails[mid]] < seq[i]) lo = mid + 1;
+            else hi = mid;
+        }
+        if (lo > 0) prev[i] = tails[lo - 1];
+        if (lo == tails.size()) tails << i;
+        else tails[lo] = i;
+    }
+    QSet<qsizetype> out;
+    for (qsizetype k = tails.isEmpty() ? -1 : tails.last(); k >= 0; k = prev[k]) out.insert(k);
+    return out;
+}
+
 
 // Keys of a layer's Y.Map that hold Y.Arrays: of Y.Maps (items matched by
 // id) or of plain values (replaced as a whole).
@@ -229,10 +251,23 @@ struct SyncDoc::Impl {
                 cur.removeAt(i);
                 curIds.removeAt(i);
             }
-            QStringList keptInWantOrder;
-            const QSet<QString> curSet(curIds.begin(), curIds.end());
-            for (const QString& id : wantIds) if (curSet.contains(id)) keptInWantOrder << id;
-            rebuild = keptInWantOrder != curIds;
+            // Kept items out of order (Bring to Front, an altitude sort): move
+            // only the fewest, the ones off the longest run already in order,
+            // so someone else's edit to any other item survives (a moved
+            // item is deleted and inserted again, which drops concurrent
+            // edits to it).
+            QHash<QString, qsizetype> wantPos;
+            for (qsizetype i = 0; i < wantIds.size(); ++i) wantPos.insert(wantIds[i], i);
+            QList<qsizetype> seq;
+            for (const QString& id : curIds) seq << wantPos.value(id);
+            const QSet<qsizetype> keep = longestIncreasingRun(seq);
+            for (qsizetype i = curIds.size() - 1; i >= 0; --i) {
+                if (keep.contains(i)) continue;
+                yarray_remove_range(arr, txn, static_cast<uint32_t>(i), 1);
+                ++ops;
+                cur.removeAt(i);
+                curIds.removeAt(i);
+            }
         }
         if (rebuild) {
             ++ops;
