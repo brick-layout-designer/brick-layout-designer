@@ -1709,6 +1709,26 @@ void MapView::bringSelectionToFront() {
         *map_, std::move(targets), edit::ReorderBricksCommand::ToFront));  // indexChanged handler rebuilds the scene
 }
 
+void MapView::moveSelectionToSheet(int layerIndex) {
+    if (!map_) return;
+    std::vector<edit::MoveBricksToLayerCommand::Target> targets;
+    for (QGraphicsItem* it : scene()->selectedItems()) {
+        if (!isBrickItem(it)) continue;
+        targets.push_back({ it->data(kBrickDataLayerIndex).toInt(), it->data(kBrickDataGuid).toString() });
+    }
+    if (targets.empty()) return;
+    if (layerIndex >= 0) {
+        undoStack_->push(new edit::MoveBricksToLayerCommand(*map_, std::move(targets), layerIndex));
+        return;
+    }
+    // A new sheet on top, and the move: one undo step.
+    undoStack_->beginMacro(tr("Move to a new sheet"));
+    auto* add = new edit::AddLayerCommand(*map_, core::LayerKind::Brick);
+    undoStack_->push(add);
+    undoStack_->push(new edit::MoveBricksToLayerCommand(*map_, std::move(targets), add->insertedIndex()));
+    undoStack_->endMacro();
+}
+
 void MapView::sendSelectionToBack() {
     if (!map_) return;
     std::vector<edit::ReorderBricksCommand::Target> targets;

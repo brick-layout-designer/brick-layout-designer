@@ -165,6 +165,24 @@ void MapView::contextMenuEvent(QContextMenuEvent* e) {
             connect(bringFront, &QAction::triggered, [this]{ bringSelectionToFront(); });
             auto* sendBack = menu.addAction(tr("Send to Back"));
             connect(sendBack, &QAction::triggered, [this]{ sendSelectionToBack(); });
+            // To another part sheet, on top of what's there.
+            {
+                QSet<int> from;
+                for (QGraphicsItem* it : sel)
+                    if (isBrickItem(it)) from.insert(it->data(kBrickDataLayerIndex).toInt());
+                auto* sheets = menu.addMenu(tr("Move to Sheet"));
+                sheets->setObjectName(QStringLiteral("moveToSheet"));
+                const auto& layers = map_->layers();
+                for (int i = static_cast<int>(layers.size()) - 1; i >= 0; --i) {
+                    if (layers[i]->kind() != core::LayerKind::Brick) continue;
+                    if (from.size() == 1 && from.contains(i)) continue;
+                    auto* a = sheets->addAction(layers[i]->name);
+                    connect(a, &QAction::triggered, [this, i]{ moveSelectionToSheet(i); });
+                }
+                if (!sheets->isEmpty()) sheets->addSeparator();
+                auto* fresh = sheets->addAction(tr("New Sheet"));
+                connect(fresh, &QAction::triggered, [this]{ moveSelectionToSheet(-1); });
+            }
             menu.addSeparator();
 
             if (sel.size() >= 2) {

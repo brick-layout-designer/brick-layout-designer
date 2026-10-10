@@ -151,6 +151,9 @@ public:
 
     void bringSelectionToFront();
     void sendSelectionToBack();
+    // Move the selected parts to that part sheet (an index into the map's
+    // layers), or with -1 to a new part sheet. One undo step.
+    void moveSelectionToSheet(int layerIndex);
 
     // Grouping (same-layer vanilla groups — modules span layers).
     void groupSelection();
