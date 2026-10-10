@@ -17,6 +17,8 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
+
 #include <QBuffer>
 #include <QFile>
 #include <QJsonArray>
@@ -155,6 +157,36 @@ TEST(SyncDoc, ConcurrentEditsToDifferentBricksAndFieldsBothSurvive) {
     EXPECT_EQ(merged[1].displayArea, bricksB[1].displayArea);
     EXPECT_EQ(merged[2].orientation, 90.0f);
     EXPECT_EQ(merged[2].displayArea, bricksB[2].displayArea);
+}
+
+TEST(SyncDoc, BringingAPartToFrontKeepsSomeoneElsesEditToTheOthers) {
+    sync::SyncDoc a, b;
+    ASSERT_TRUE(a.applyUpdate(serverDoc()));
+    ASSERT_TRUE(b.applyUpdate(serverDoc()));
+    auto mapA = mapOf(a);
+    auto mapB = mapOf(b);
+    auto& bricksA = layerOf<core::LayerBrick>(*mapA, core::LayerKind::Brick).bricks;
+    auto& bricksB = layerOf<core::LayerBrick>(*mapB, core::LayerKind::Brick).bricks;
+    ASSERT_GE(bricksA.size(), 3u);
+    // A brings the first part to the front; at the same moment B moves the second.
+    const QString first = bricksA[0].guid;
+    std::rotate(bricksA.begin(), bricksA.begin() + 1, bricksA.end());
+    bricksB[1].displayArea.translate(0, 16);
+    const QRectF moved = bricksB[1].displayArea;
+    const QString second = bricksB[1].guid;
+    const QByteArray fromA = a.writeMap(*mapA);
+    const QByteArray fromB = b.writeMap(*mapB);
+    ASSERT_TRUE(a.applyUpdate(fromB));
+    ASSERT_TRUE(b.applyUpdate(fromA));
+
+    const auto mergedA = mapOf(a);
+    EXPECT_EQ(bbm(*mergedA), bbm(*mapOf(b)));
+    const auto& merged = layerOf<core::LayerBrick>(*mergedA, core::LayerKind::Brick).bricks;
+    ASSERT_EQ(merged.size(), bricksA.size());
+    EXPECT_EQ(merged.back().guid, first);  // on top
+    const auto it = std::find_if(merged.begin(), merged.end(), [&](const core::Brick& x) { return x.guid == second; });
+    ASSERT_NE(it, merged.end());
+    EXPECT_EQ(it->displayArea, moved);  // B's move survived
 }
 
 TEST(SyncDoc, ExportsAnUpdateForTheWebCheck) {
