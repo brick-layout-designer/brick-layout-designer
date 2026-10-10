@@ -4,6 +4,7 @@
 // retry what failed next time.
 
 #include "PartsSync.h"
+#include "parts/PartsLibrary.h"
 #include "ServerApi.h"
 #include "FakeHttp.h"
 
@@ -103,7 +104,9 @@ TEST(PartsSync, DownloadsWhatChangedAndSkipsWhatDidnt) {
     EXPECT_EQ(first.downloaded, 4);
     EXPECT_TRUE(first.failed.isEmpty()) << first.failed.join(QStringLiteral("; ")).toStdString();
     EXPECT_EQ(read(dir.filePath(QStringLiteral("libs/club/3001.gif"))), kGif);
-    EXPECT_EQ(read(dir.filePath(QStringLiteral("custom/MY.1.xml"))), kCustomXml);
+    // The website's key for it is kept as an old name, so layouts made there find it.
+    EXPECT_EQ(read(dir.filePath(QStringLiteral("custom/MY.1.xml"))),
+              QByteArray("<part><Author>me</Author><OldNameList><OldName>custom:c1</OldName></OldNameList></part>"));
     EXPECT_EQ(read(dir.filePath(QStringLiteral("custom/MY.1.png"))), kPng);
     for (const auto& r : http.requests) {
         // The token goes to the API, never with the public part files (the
@@ -211,4 +214,31 @@ TEST(PartsSync, APartResentWithTheOtherSpriteDropsTheOldOne) {
     EXPECT_TRUE(second.failed.isEmpty()) << second.failed.join(QStringLiteral("; ")).toStdString();
     EXPECT_EQ(read(dir.filePath(QStringLiteral("custom/MY.1.gif"))), kGif);
     EXPECT_FALSE(QFile::exists(dir.filePath(QStringLiteral("custom/MY.1.png"))));
+}
+
+TEST(PartsSync, ALayoutMadeOnTheWebsiteFindsTheServersCustomParts) {
+    // The website places a custom part as "custom:<id>"; the desktop knows it by part number.
+    QTemporaryDir dir;
+    FakeHttp http;
+    serveManifest(http, QStringLiteral("L1"), QStringLiteral("C1"), QJsonArray{});
+    const QByteArray xml = "<part><Author>me</Author><ImageURL></ImageURL></part>";
+    http.replyRaw("/api/custom-parts/c1/xml", 200, xml, "application/xml");
+    http.replyRaw("/api/custom-parts/c1/sprite", 200, kPng, "image/png");
+    const auto first = sync(http, dir.path());
+    EXPECT_TRUE(first.failed.isEmpty()) << first.failed.join(QStringLiteral("; ")).toStdString();
+
+    bld::parts::PartsLibrary lib;
+    lib.addSearchPath(dir.filePath(QStringLiteral("custom")));
+    lib.scan();
+    EXPECT_TRUE(lib.metadata(QStringLiteral("MY.1")).has_value());
+    EXPECT_TRUE(lib.metadata(QStringLiteral("custom:c1")).has_value());
+    EXPECT_TRUE(lib.metadata(QStringLiteral("CUSTOM:C1")).has_value());
+
+    // A copy cached before this fix (no key in it) is fetched again, once.
+    QFile f(dir.filePath(QStringLiteral("custom/MY.1.xml")));
+    ASSERT_TRUE(f.open(QIODevice::WriteOnly));
+    f.write(xml);
+    f.close();
+    EXPECT_EQ(sync(http, dir.path()).downloaded, 2);
+    EXPECT_EQ(sync(http, dir.path()).downloaded, 0);
 }

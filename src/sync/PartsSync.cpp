@@ -44,6 +44,25 @@ QString safeFileName(QString n) {
     return n.isEmpty() ? QStringLiteral("part") : n;
 }
 
+// The website places a server's custom part as "custom:<id>", not by its
+// part number. Listing that as an old name in the cached XML lets this
+// app's parts library find the part either way.
+QByteArray serverKeyTag(const QString& id) {
+    return QByteArrayLiteral("<OldNameList><OldName>custom:") + id.toUtf8()
+           + QByteArrayLiteral("</OldName></OldNameList>");
+}
+
+QByteArray withServerKey(const QByteArray& xml, const QString& id) {
+    const qsizetype close = xml.lastIndexOf("</");
+    if (close < 0) return xml;
+    return xml.left(close) + serverKeyTag(id) + xml.mid(close);
+}
+
+bool hasServerKey(const QString& xmlPath, const QString& id) {
+    QFile f(xmlPath);
+    return f.open(QIODevice::ReadOnly) && f.readAll().contains(serverKeyTag(id));
+}
+
 } // namespace
 
 PartsSync::PartsSync(QUrl server, QString token, const QString& cacheDir, QObject* parent)
@@ -104,7 +123,8 @@ void PartsSync::onManifest(const QJsonObject& manifest) {
         const QString number = safeFileName(p.value(QLatin1String("partNumber")).toString());
         newCustomHashes_.insert(id, hash);
         const QString base = cache_.filePath(QStringLiteral("custom/") + number);
-        if (customHashes_.value(id) == hash && QFile::exists(base + QStringLiteral(".xml"))) {
+        // (A copy cached before it carried the server's key is fetched again.)
+        if (customHashes_.value(id) == hash && hasServerKey(base + QStringLiteral(".xml"), id)) {
             ++result_.unchanged;
             continue;
         }
@@ -204,7 +224,8 @@ void PartsSync::next() {
         if (status != 200) error = tr("%1: the server answered %2").arg(f.what).arg(status);
         else if (!f.sha256.isEmpty() && got != f.sha256)
             error = tr("%1: the download didn't match its hash").arg(f.what);
-        else if (!writeFile(target, data)) error = tr("%1: could not write %2").arg(f.what, target);
+        else if (!writeFile(target, f.customId.isEmpty() || !f.spriteBase.isEmpty() ? data : withServerKey(data, f.customId)))
+            error = tr("%1: could not write %2").arg(f.what, target);
         if (error.isEmpty()) {
             ++result_.downloaded;
             // A part re-sent with the other kind of sprite: drop the old one,
