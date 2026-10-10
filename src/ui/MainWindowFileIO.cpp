@@ -24,6 +24,7 @@
 #include "ModulesPanel.h"
 #include "PartDifferencesDialog.h"
 #include "PartsBrowser.h"
+#include "ServerList.h"
 
 #include "../core/ColorSpec.h"
 #include "../core/Ids.h"
@@ -81,7 +82,10 @@ void MainWindow::updateTitle() {
         name = tr("%1 — Live on %2").arg(live_->title(), liveServerName());
         dirty = false;
     } else if (!editingModule_.id.isEmpty()) {
-        name = tr("%1 — Module on %2").arg(editingModule_.title, editingModule_.server.host());
+        // The server by its name in Your servers, as for a live layout.
+        const sync::ServerList servers = sync::ServerList::load();
+        const sync::ServerEntry* e = servers.find(editingModule_.server);
+        name = tr("%1 — Module on %2").arg(editingModule_.title, e ? e->label() : editingModule_.server.host());
     }
     // As BlueBrick, the open budget follows the map name.
     QString budget;

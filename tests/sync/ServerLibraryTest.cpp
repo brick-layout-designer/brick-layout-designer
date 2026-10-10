@@ -1244,7 +1244,8 @@ TEST_F(ServerModulesWindow, OpenToChangeItThenSaveMakesANewVersion) {
     ASSERT_TRUE(waitFor([&] { return window_->editingModule().id == QStringLiteral("m1"); }));
     EXPECT_EQ(library_->editingModule(), QStringLiteral("m1"));
     EXPECT_EQ(bricksInMap(), 3);
-    EXPECT_TRUE(window_->windowTitle().contains(QStringLiteral("Freight yard — Module on")));
+    // The server by the name it has in Your servers, as a live layout does.
+    EXPECT_TRUE(window_->windowTitle().contains(QStringLiteral("Freight yard — Module on Club server")));
     EXPECT_TRUE(window_->notices()->isShown(QStringLiteral("editing-module")));
     // Take one part out, then Save: a new version with its note.
     {
