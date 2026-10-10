@@ -286,6 +286,8 @@ PreparedPart prepareImport(const QString& path, const ImportSettings& settings,
 
 PreparedPart alignPart(const PreparedPart& part, ImportAlign align, QPointF nudgeStuds) {
     PreparedPart out = part;
+    out.align = align;
+    out.nudgeStuds = nudgeStuds;
     if (part.sprite.isNull() || part.widthStuds <= 0 || part.heightStuds <= 0 || part.contentStuds.isEmpty()) return out;
     // Where the model's bounds start, before the nudge.
     QPointF shift;
@@ -324,6 +326,7 @@ PreparedPart alignPart(const PreparedPart& part, ImportAlign align, QPointF nudg
         c.yStuds += d.y();
     }
     for (auto& p : out.droppedConnections) p += d;
+    out.alignShift = part.alignShift + d;
     // The base (inside the old margin) moves too; the margin stays whole studs.
     if (!part.snapMargin.isNull()) {
         const QRectF base = QRectF(part.snapMargin.left(), part.snapMargin.top(),
@@ -394,7 +397,14 @@ QString writeImportedPart(const PreparedPart& part, const QString& name,
     source.path = QFileInfo(part.source).absoluteFilePath();
     source.modified = QFileInfo(part.source).lastModified();
     source.quarterTurns = part.quarterTurns;
-    source.droppedConnections = part.droppedConnections;
+    // Kept as they were before the stud alignment moved them: a re-import
+    // drops them first, then lines the model up again.
+    source.droppedConnections.clear();
+    for (const QPointF& p : part.droppedConnections) source.droppedConnections << p - part.alignShift;
+    source.align = part.align == ImportAlign::BottomLayer   ? QStringLiteral("bottom")
+                   : part.align == ImportAlign::BoundingBox ? QStringLiteral("box")
+                                                            : QString();
+    source.nudgeStuds = part.nudgeStuds;
     return import::writeImportedModelAsLibraryPart(
         keyName.isEmpty() ? name : keyName, part.sprite, part.widthStuds, part.heightStuds, destDir, author,
         part.connections, error, replaceExisting, part.source.isEmpty() ? nullptr : &source,

@@ -280,6 +280,12 @@ bool parsePartXml(const QString& xmlPath, PartMetadata& out) {
                     else if (m == QStringLiteral("SourceModified"))
                         src.modified = QDateTime::fromString(r.readElementText().trimmed(), Qt::ISODateWithMs);
                     else if (m == QStringLiteral("QuarterTurns")) src.quarterTurns = r.readElementText().toInt();
+                    else if (m == QStringLiteral("Align")) src.align = r.readElementText().trimmed();
+                    else if (m == QStringLiteral("Nudge")) {
+                        src.nudgeStuds = QPointF(r.attributes().value(QStringLiteral("x")).toDouble(),
+                                                 r.attributes().value(QStringLiteral("y")).toDouble());
+                        r.skipCurrentElement();
+                    }
                     else if (m == QStringLiteral("DroppedConnection")) {
                         src.droppedConnections << QPointF(r.attributes().value(QStringLiteral("x")).toDouble(),
                                                           r.attributes().value(QStringLiteral("y")).toDouble());

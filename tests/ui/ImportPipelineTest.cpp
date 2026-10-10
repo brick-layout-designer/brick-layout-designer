@@ -915,3 +915,64 @@ TEST(ImportPreviewDialog, ArrowKeysNudgeAndTheSizeShowsLive) {
         if (b->text() == ui::ImportPreviewDialog::tr("Reset")) b->click();
     EXPECT_EQ(dlg.result().widthStuds, 4);
 }
+
+TEST(ImportAlign, AReimportKeepsTheAlignmentNudgeAndDroppedPoints) {
+    QTemporaryDir out;
+    const QString model = out.filePath(QStringLiteral("model.ldr"));
+    {
+        QFile f(model);
+        ASSERT_TRUE(f.open(QIODevice::WriteOnly));
+        f.write("0 model\n");
+    }
+    ui::PreparedPart base = fullPart();
+    base.source = model;
+
+    // In the preview: a 1/16 + ¼ stud nudge, then one connection point unticked.
+    ui::PreparedPart chosen = ui::alignPart(base, ui::ImportAlign::BoundingBox, { 0.0625, 0.25 });
+    ASSERT_EQ(chosen.connections.size(), 2);
+    chosen.droppedConnections << QPointF(chosen.connections[0].xStuds, chosen.connections[0].yStuds);
+    chosen.connections.removeFirst();
+    QString err;
+    const QString key = ui::writeImportedPart(chosen, QStringLiteral("Model"), out.path(), {}, false, &err);
+    ASSERT_FALSE(key.isEmpty()) << err.toStdString();
+
+    parts::PartsLibrary lib;
+    lib.addSearchPath(out.path());
+    lib.scan();
+    const auto meta = lib.metadata(key);
+    ASSERT_TRUE(meta && meta->importSource);
+    const auto& src = *meta->importSource;
+    EXPECT_EQ(src.align, QStringLiteral("box"));
+    EXPECT_NEAR(src.nudgeStuds.x(), 0.0625, 1e-9);
+    EXPECT_NEAR(src.nudgeStuds.y(), 0.25, 1e-9);
+    // The dropped point is kept where it was before the alignment moved it.
+    ASSERT_EQ(src.droppedConnections.size(), 1);
+    EXPECT_NEAR(src.droppedConnections[0].x(), base.connections[0].xStuds, 1e-6);
+    EXPECT_NEAR(src.droppedConnections[0].y(), base.connections[0].yStuds, 1e-6);
+
+    // Re-import from Source (MainWindow::reimportPart, no dialog): the same part again.
+    ui::PreparedPart again = fullPart();
+    again.source = model;
+    ui::applyImportEdits(again, src.quarterTurns, QVector<QPointF>(src.droppedConnections.cbegin(), src.droppedConnections.cend()));
+    again = ui::alignPart(again, ui::ImportAlign::BoundingBox, src.nudgeStuds);
+    EXPECT_EQ(again.widthStuds, chosen.widthStuds);
+    EXPECT_EQ(again.heightStuds, chosen.heightStuds);
+    EXPECT_EQ(again.contentStuds, chosen.contentStuds);
+    EXPECT_EQ(again.snapMargin, chosen.snapMargin);
+    ASSERT_EQ(again.connections.size(), 1);
+    EXPECT_DOUBLE_EQ(again.connections[0].xStuds, chosen.connections[0].xStuds);
+    EXPECT_DOUBLE_EQ(again.connections[0].yStuds, chosen.connections[0].yStuds);
+    EXPECT_EQ(again.sprite, chosen.sprite);
+}
+
+TEST(ImportPreviewDialog, AReimportOpensWithTheAlignmentItWasImportedWith) {
+    ui::ImportPreviewDialog dlg(fullPart(), { QStringLiteral("imports") }, QStringLiteral("imports"), {});
+    dlg.presetAlignment(ui::ImportAlign::BottomLayer, { 0.125, 0 });
+    EXPECT_EQ(dlg.nudgeStuds(), QPointF(0.125, 0));
+    auto* box = dlg.findChild<QComboBox*>(QStringLiteral("alignTo"));
+    ASSERT_TRUE(box);
+    EXPECT_EQ(box->currentData().toInt(), static_cast<int>(ui::ImportAlign::BottomLayer));
+    EXPECT_EQ(dlg.result().align, ui::ImportAlign::BottomLayer);
+    // Put the session's remembered choice back for the other tests.
+    dlg.setAlign(ui::ImportAlign::Automatic);
+}

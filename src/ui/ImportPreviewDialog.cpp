@@ -424,6 +424,11 @@ PreparedPart ImportPreviewDialog::result() const {
     return out;
 }
 
+void ImportPreviewDialog::presetAlignment(ImportAlign align, QPointF nudgeStuds) {
+    nudge_ = nudgeStuds;
+    setAlign(align);
+}
+
 void ImportPreviewDialog::presetForReimport(const QString& name, const QString& category) {
     nameEdit_->setText(name);
     categoryBox_->setCurrentText(category);
