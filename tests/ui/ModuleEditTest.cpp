@@ -632,3 +632,19 @@ TEST(LiveDrag, AnEditModuleDragOnABigLayoutStaysQuick) {
     // A sanitizer or a loaded CI machine is slower: a generous bound.
     EXPECT_LT(perMove, 100.0);
 }
+
+TEST_F(ModuleEditTest, SaysWhichSheetThePickedPartsAreOnAndMovesThemToANewOne) {
+    auto* item = brickItem(*view_->scene(), loose_);
+    ASSERT_TRUE(item);
+    const int sheet = item->data(ui::detail::kBrickDataLayerIndex).toInt();
+    item->setSelected(true);
+    EXPECT_EQ(view_->selectedSheets(), QList<int>{ sheet });
+    const auto layersBefore = view_->currentMap()->layers().size();
+    view_->moveSelectionToSheet(-1);
+    ASSERT_EQ(view_->currentMap()->layers().size(), layersBefore + 1);
+    const auto& fresh = static_cast<const core::LayerBrick&>(*view_->currentMap()->layers().back());
+    ASSERT_EQ(fresh.bricks.size(), 1u);
+    EXPECT_EQ(fresh.bricks[0].guid, loose_);
+    view_->undoStack()->undo();
+    EXPECT_EQ(view_->currentMap()->layers().size(), layersBefore);
+}

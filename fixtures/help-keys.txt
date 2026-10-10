@@ -65,6 +65,7 @@ club.listed
 club.requests
 club.roles
 club.find
+catalog.featured
 catalog.collections
 catalog.yourCollections
 catalog.clubCollections

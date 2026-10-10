@@ -398,6 +398,10 @@ constexpr Raw kShared[] = {
       QT_TRANSLATE_NOOP("HelpTexts", "Clubs that chose to be listed here, for anyone to find."),
       QT_TRANSLATE_NOOP("HelpTexts", "Join an open club straight away, or ask to join and wait for an "
                                      "admin to say yes. Some clubs take new members by invite only.") },
+    { "catalog.featured", "/help#collections",
+      QT_TRANSLATE_NOOP("HelpTexts", "Featured"),
+      QT_TRANSLATE_NOOP("HelpTexts", "Collections the site’s moderators picked as a good place to start."),
+      QT_TRANSLATE_NOOP("HelpTexts", "Open one to see what’s in it, then add one item or Add all to copy everything to you or your club. Below them, each kind of thing has its own row: See all opens the whole list, which you can search and sort.") },
     { "catalog.collections", "/help#collections",
       QT_TRANSLATE_NOOP("HelpTexts", "Collections"),
       QT_TRANSLATE_NOOP("HelpTexts", "Sets of modules and parts that go well together, like “Starter town”."),

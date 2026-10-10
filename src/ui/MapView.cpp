@@ -1709,6 +1709,16 @@ void MapView::bringSelectionToFront() {
         *map_, std::move(targets), edit::ReorderBricksCommand::ToFront));  // indexChanged handler rebuilds the scene
 }
 
+QList<int> MapView::selectedSheets() const {
+    QList<int> out;
+    for (QGraphicsItem* it : scene()->selectedItems()) {
+        if (!isBrickItem(it)) continue;
+        const int i = it->data(kBrickDataLayerIndex).toInt();
+        if (!out.contains(i)) out << i;
+    }
+    return out;
+}
+
 void MapView::moveSelectionToSheet(int layerIndex) {
     if (!map_) return;
     std::vector<edit::MoveBricksToLayerCommand::Target> targets;
