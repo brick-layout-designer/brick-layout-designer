@@ -12,6 +12,7 @@
 #include <QCheckBox>
 #include <QEvent>
 #include <QFrame>
+#include <QGridLayout>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPainter>
@@ -179,10 +180,13 @@ SettingsDialog::SettingsDialog(PrefsStore& store, const QString& syncedHost,
     // Color and bigger text.
     {
         auto* v = card(tr("Color"), QStringLiteral("settings.color"));
-        auto* row = new QHBoxLayout;
-        row->setSpacing(2 * kSpacing);
+        // Two rows of five, so ten colors fit the dialog.
+        auto* row = new QGridLayout;
+        row->setHorizontalSpacing(2 * kSpacing);
+        row->setVerticalSpacing(kSpacing);
         auto* group = new QButtonGroup(this);
         group->setObjectName(QStringLiteral("accentGroup"));
+        int index = 0;
         for (const Accent& a : accents()) {
             auto* b = new QToolButton(this);
             b->setObjectName(QStringLiteral("accent_") + a.id);
@@ -194,7 +198,8 @@ SettingsDialog::SettingsDialog(PrefsStore& store, const QString& syncedHost,
             b->setAccessibleName(b->text());
             b->setCursor(Qt::PointingHandCursor);
             group->addButton(b);
-            row->addWidget(b);
+            row->addWidget(b, index / 5, index % 5);
+            ++index;
             connect(b, &QToolButton::toggled, this, [this, id = a.id](bool on) {
                 if (!on || loading_) return;
                 AppPrefs p = store_.prefs();
@@ -202,7 +207,7 @@ SettingsDialog::SettingsDialog(PrefsStore& store, const QString& syncedHost,
                 store_.update(p);
             });
         }
-        row->addStretch(1);
+        row->setColumnStretch(5, 1);
         v->addLayout(row);
         auto* large = new QCheckBox(tr("Bigger text and buttons"), this);
         large->setObjectName(QStringLiteral("largeText"));

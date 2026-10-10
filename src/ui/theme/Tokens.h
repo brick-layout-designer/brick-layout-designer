@@ -24,7 +24,7 @@ struct Neutrals {
 const Neutrals& neutrals(Mode mode);
 
 struct Accent {
-    QString id;     // brick, ocean, forest, plum, sunny (the stored value)
+    QString id;     // brick, ocean, forest, plum, sunny, teal, ... (the stored value)
     QString label;  // plain-words name shown in Settings
     QColor main;    // filled buttons, the selected tool, focus rings
     QColor onMain;  // text and icons drawn on `main`

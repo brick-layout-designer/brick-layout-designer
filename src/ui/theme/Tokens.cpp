@@ -35,6 +35,16 @@ const QList<Accent>& accents() {
           c("#2E2238"), c("#7340A3"), c("#C9A6EA") },
         { QStringLiteral("sunny"), QStringLiteral("Sunny yellow"), c("#B8860B"), c("#1E2124"), c("#FBF1D9"),
           c("#3A2F14"), c("#8A6508"), c("#E9C86A") },
+        { QStringLiteral("teal"), QStringLiteral("Lagoon teal"), c("#0F7C80"), c("#FFFFFF"), c("#E0F2F2"),
+          c("#16302F"), c("#0B6569"), c("#7FD0CF") },
+        { QStringLiteral("orange"), QStringLiteral("Pumpkin orange"), c("#B9520B"), c("#FFFFFF"), c("#FCEBDD"),
+          c("#3A2616"), c("#A0470A"), c("#F4B183") },
+        { QStringLiteral("rose"), QStringLiteral("Rose pink"), c("#C2335F"), c("#FFFFFF"), c("#FBE6EC"),
+          c("#3A1E27"), c("#A6284F"), c("#F2A3BA") },
+        { QStringLiteral("indigo"), QStringLiteral("Indigo"), c("#4B4FC4"), c("#FFFFFF"), c("#EAEAFB"),
+          c("#23243F"), c("#3E42A8"), c("#B0B3F2") },
+        { QStringLiteral("slate"), QStringLiteral("Slate gray"), c("#4F5B6B"), c("#FFFFFF"), c("#EBEEF2"),
+          c("#262B32"), c("#46505E"), c("#B6C0CC") },
     };
     return all;
 }

@@ -53,7 +53,9 @@ TEST(Tokens, MatchTheWebValues) {
     EXPECT_EQ(hex(accent(QStringLiteral("ocean")).main), QStringLiteral("#2459C4"));
     EXPECT_EQ(hex(accent(QStringLiteral("forest")).text(Mode::Dark)), QStringLiteral("#8FD1A8"));
     EXPECT_EQ(hex(accent(QStringLiteral("plum")).soft(Mode::Light)), QStringLiteral("#F1E8F9"));
-    EXPECT_EQ(accents().size(), 5);
+    EXPECT_EQ(accents().size(), 10);
+    EXPECT_EQ(hex(accent(QStringLiteral("teal")).main), QStringLiteral("#0F7C80"));
+    EXPECT_EQ(hex(accent(QStringLiteral("slate")).text(Mode::Dark)), QStringLiteral("#B6C0CC"));
     EXPECT_EQ(accents().first().id, QStringLiteral("brick"));
     EXPECT_EQ(accent(QStringLiteral("no-such")).id, QStringLiteral("brick"));
     EXPECT_EQ(Radius::control, 10);
