@@ -154,6 +154,8 @@ public:
     // Move the selected parts to that part sheet (an index into the map's
     // layers), or with -1 to a new part sheet. One undo step.
     void moveSelectionToSheet(int layerIndex);
+    // The sheets (indexes into the map's layers) the selected parts are on.
+    QList<int> selectedSheets() const;
 
     // Grouping (same-layer vanilla groups — modules span layers).
     void groupSelection();

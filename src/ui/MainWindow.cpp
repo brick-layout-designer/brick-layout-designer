@@ -582,7 +582,16 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
     statusBar()->addPermanentWidget(selLabel);
     connect(mapView_, &MapView::selectionChanged, this, [this, selLabel]{
         const int n = mapView_->scene()->selectedItems().size();
-        selLabel->setText(n == 0 ? QString() : tr("%n selected", nullptr, n));
+        QString text = n == 0 ? QString() : tr("%n selected", nullptr, n);
+        // Which sheet the picked parts are on, so it's clear where they live
+        // (Bring to Front and Send to Back only change the order inside it).
+        const QList<int> sheets = mapView_->selectedSheets();
+        const core::Map* map = mapView_->currentMap();
+        if (sheets.size() == 1 && map && sheets[0] >= 0 && sheets[0] < static_cast<int>(map->layers().size()))
+            text += tr(" · on sheet “%1”").arg(map->layers()[sheets[0]]->name);
+        else if (sheets.size() > 1)
+            text += tr(" · on %n sheet(s)", nullptr, static_cast<int>(sheets.size()));
+        selLabel->setText(text);
     });
 
     // Venue-validator readout — counts walkway-buffer / outside-outline /
