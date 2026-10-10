@@ -180,6 +180,12 @@ QString writeImportedModelAsLibraryPart(
             w.writeTextElement(QStringLiteral("SourceModified"), source->modified.toUTC().toString(Qt::ISODateWithMs));
         if (source->quarterTurns % 4)
             w.writeTextElement(QStringLiteral("QuarterTurns"), QString::number(((source->quarterTurns % 4) + 4) % 4));
+        if (!source->align.isEmpty()) w.writeTextElement(QStringLiteral("Align"), source->align);
+        if (!source->nudgeStuds.isNull()) {
+            w.writeEmptyElement(QStringLiteral("Nudge"));
+            w.writeAttribute(QStringLiteral("x"), QString::number(source->nudgeStuds.x(), 'f', 4));
+            w.writeAttribute(QStringLiteral("y"), QString::number(source->nudgeStuds.y(), 'f', 4));
+        }
         for (const QPointF& p : source->droppedConnections) {
             w.writeEmptyElement(QStringLiteral("DroppedConnection"));
             w.writeAttribute(QStringLiteral("x"), QString::number(p.x(), 'f', 4));

@@ -27,6 +27,9 @@ struct ImportStats {
 
 // An imported model turned into a library-part-to-be: sprite, footprint
 // and snap points. Nothing is written until writeImportedPart().
+// How the import dialog lines the model up with the stud grid.
+enum class ImportAlign { Automatic, BottomLayer, BoundingBox };
+
 struct PreparedPart {
     QString source;
     QString title;                                  // the model's own name, if it has one
@@ -45,6 +48,11 @@ struct PreparedPart {
     QVector<import::ImportedConnection> connections;  // relative to sprite centre
     int quarterTurns = 0;                           // clockwise turns applied (rotatePart)
     QVector<QPointF> droppedConnections;            // removed in the preview (current frame)
+    // The stud alignment chosen in the preview (alignPart), kept for
+    // Re-import from Source, and how far it moved the connection points.
+    ImportAlign align = ImportAlign::Automatic;
+    QPointF     nudgeStuds;
+    QPointF     alignShift;
     ImportStats stats;
     QStringList warnings;
     QString     error;                             // non-empty: nothing to import
@@ -76,13 +84,10 @@ using HeavyRunner = std::function<bool(const QString& label,
 PreparedPart prepareImport(const QString& path, const ImportSettings& settings,
                            parts::PartsLibrary& parts, const HeavyRunner& runHeavy);
 
-// How the import dialog lines the model up with the stud grid.
-enum class ImportAlign { Automatic, BottomLayer, BoundingBox };
-
 // The part laid out again over the stud grid: `align` picks the starting
 // place (Automatic: as prepared, which puts a flat whole-stud bottom layer
 // on the grid; BoundingBox: the model's bounds centred in whole studs),
-// then the model moves `nudgeStuds` (quarter studs) against the grid. The
+// then the model moves `nudgeStuds` (down to 1/16 stud) against the grid. The
 // sprite is re-cut to whole studs around it; connection points and the
 // <SnapMargin> move with it.
 PreparedPart alignPart(const PreparedPart& part, ImportAlign align, QPointF nudgeStuds);

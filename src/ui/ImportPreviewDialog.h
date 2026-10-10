@@ -40,6 +40,8 @@ public:
 
     // Re-importing an existing part: its name and category, replacing it.
     void presetForReimport(const QString& name, const QString& category);
+    // ...and the stud alignment it was imported with.
+    void presetAlignment(ImportAlign align, QPointF nudgeStuds);
 
     // Final values after exec() returns Accepted.
     PreparedPart result() const;   // rotated, unchecked connections removed

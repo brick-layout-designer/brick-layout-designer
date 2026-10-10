@@ -140,6 +140,10 @@ bool MainWindow::reimportPart(const QString& key, bool interactive) {
         return false;
     }
     applyImportEdits(part, src.quarterTurns, QVector<QPointF>(src.droppedConnections.cbegin(), src.droppedConnections.cend()));
+    // The stud alignment and nudge chosen last time, so the part doesn't shift.
+    const ImportAlign align = src.align == QLatin1String("bottom") ? ImportAlign::BottomLayer
+                              : src.align == QLatin1String("box")  ? ImportAlign::BoundingBox
+                                                                   : ImportAlign::Automatic;
 
     // Same name, same folder, replacing the part.
     const QFileInfo xml(meta->xmlFilePath);
@@ -151,8 +155,11 @@ bool MainWindow::reimportPart(const QString& key, bool interactive) {
         ImportPreviewDialog dlg(std::move(part), importCategories(root), category,
             [root](const QString& n, const QString& c) { return importedPartExists(root, n, c); }, this);
         dlg.presetForReimport(name, category);
+        dlg.presetAlignment(align, src.nudgeStuds);
         if (dlg.exec() != QDialog::Accepted) return false;
         part = dlg.result();
+    } else {
+        part = alignPart(part, align, src.nudgeStuds);
     }
     const QString author = mapView_->currentMap() ? mapView_->currentMap()->author : QString();
     QString err;

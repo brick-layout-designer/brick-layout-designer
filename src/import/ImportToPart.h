@@ -47,6 +47,10 @@ struct ImportSource {
     // in the import dialog. Empty: the file name without its extension.
     QString   displayName;
     QString   format;                       // "studio", "ldd" or "ldraw", for <ImportedFrom>
+    // The stud alignment chosen in the preview: "" (automatic), "bottom"
+    // or "box", and the nudge in studs after it.
+    QString   align;
+    QPointF   nudgeStuds;
 };
 
 // "studio", "ldd" or "ldraw" from a model file's extension.

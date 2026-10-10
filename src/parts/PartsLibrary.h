@@ -116,6 +116,8 @@ struct PartMetadata {
         QDateTime modified;
         int       quarterTurns = 0;
         QList<QPointF> droppedConnections;
+        QString   align;        // "" (automatic), "bottom" or "box"
+        QPointF   nudgeStuds;   // after the alignment
     };
     std::optional<ImportSource> importSource;
     // <ImportedFrom file format date>: the model an imported part was made
