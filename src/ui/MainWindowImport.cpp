@@ -139,6 +139,11 @@ bool MainWindow::reimportPart(const QString& key, bool interactive) {
         if (interactive && !part.cancelled) QMessageBox::warning(this, part.kindLabel, part.error);
         return false;
     }
+    // The credit typed last time, unless the model now names its builder.
+    if (part.designer.isEmpty()) {
+        part.designer = meta->designer;
+        part.designerUrl = meta->designerUrl;
+    }
     applyImportEdits(part, src.quarterTurns, QVector<QPointF>(src.droppedConnections.cbegin(), src.droppedConnections.cend()));
     // The stud alignment and nudge chosen last time, so the part doesn't shift.
     const ImportAlign align = src.align == QLatin1String("bottom") ? ImportAlign::BottomLayer

@@ -44,6 +44,7 @@ struct LDrawReadResult {
     std::vector<LDrawPartRef>    parts;
     std::vector<LDrawPrimitive>  primitives;
     QString title;  // first comment line (line 0 after leading "0")
+    QString author; // the main model's "0 Author:" line, if it has one
     // Set by readLDD: refs keep LDD's native axes (+Y up) rather than
     // LDraw's, so toBlueBrickMap must not apply LDraw's y = -z mapping.
     bool lddAxes = false;

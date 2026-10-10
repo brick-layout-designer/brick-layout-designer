@@ -22,6 +22,7 @@
 #include <QWheelEvent>
 #include <QDir>
 #include <QFile>
+#include <QLineEdit>
 #include <QFileInfo>
 #include <QImage>
 #include <QListWidget>
@@ -975,4 +976,58 @@ TEST(ImportPreviewDialog, AReimportOpensWithTheAlignmentItWasImportedWith) {
     EXPECT_EQ(dlg.result().align, ui::ImportAlign::BottomLayer);
     // Put the session's remembered choice back for the other tests.
     dlg.setAlign(ui::ImportAlign::Automatic);
+}
+
+TEST(ImportCredit, TheModelsAuthorIsCreditedAndKeptInThePart) {
+    QTemporaryDir out;
+    const QString model = out.filePath(QStringLiteral("model.ldr"));
+    {
+        QFile f(model);
+        ASSERT_TRUE(f.open(QIODevice::WriteOnly));
+        f.write("0 Market street\n0 Name: model.ldr\n0 Author: Sam Builder\n1 4 0 0 0 1 0 0 0 1 0 0 0 1 3001.dat\n");
+    }
+    const auto read = import::readLDraw(model);
+    ASSERT_TRUE(read.ok);
+    EXPECT_EQ(read.author, QStringLiteral("Sam Builder"));
+    EXPECT_EQ(read.title, QStringLiteral("Market street"));
+
+    // The dialog offers it, and a link without a scheme becomes https.
+    ui::PreparedPart p = fullPart();
+    p.source = model;
+    p.designer = read.author;
+    ui::ImportPreviewDialog dlg(p, { QStringLiteral("imports") }, QStringLiteral("imports"), {});
+    auto* who = dlg.findChild<QLineEdit*>(QStringLiteral("designer"));
+    auto* link = dlg.findChild<QLineEdit*>(QStringLiteral("designerUrl"));
+    ASSERT_TRUE(who && link);
+    EXPECT_EQ(who->text(), QStringLiteral("Sam Builder"));
+    link->setText(QStringLiteral("example.com/sam"));
+    const auto chosen = dlg.result();
+    EXPECT_EQ(chosen.designerUrl, QStringLiteral("https://example.com/sam"));
+
+    QString err;
+    const QString key = ui::writeImportedPart(chosen, QStringLiteral("Market"), out.path(), {}, false, &err);
+    ASSERT_FALSE(key.isEmpty()) << err.toStdString();
+    QFile xml(out.filePath(key + QStringLiteral(".xml")));
+    ASSERT_TRUE(xml.open(QIODevice::ReadOnly));
+    const QByteArray text = xml.readAll();
+    // Outside <ImportSource> (which stays on this computer), so a server keeps it.
+    EXPECT_TRUE(text.contains("<Designer url=\"https://example.com/sam\">Sam Builder</Designer>")) << text.toStdString();
+    EXPECT_LT(text.indexOf("<Designer"), text.indexOf("<ImportSource"));
+
+    parts::PartsLibrary lib;
+    lib.addSearchPath(out.path());
+    lib.scan();
+    const auto meta = lib.metadata(key);
+    ASSERT_TRUE(meta);
+    EXPECT_EQ(meta->designer, QStringLiteral("Sam Builder"));
+    EXPECT_EQ(meta->designerUrl, QStringLiteral("https://example.com/sam"));
+}
+
+TEST(ImportCredit, NoNameMeansNoCredit) {
+    ui::PreparedPart p = fullPart();
+    ui::ImportPreviewDialog dlg(p, { QStringLiteral("imports") }, QStringLiteral("imports"), {});
+    dlg.findChild<QLineEdit*>(QStringLiteral("designerUrl"))->setText(QStringLiteral("https://example.com"));
+    const auto r = dlg.result();
+    EXPECT_TRUE(r.designer.isEmpty());
+    EXPECT_TRUE(r.designerUrl.isEmpty());
 }

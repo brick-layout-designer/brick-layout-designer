@@ -128,6 +128,9 @@ struct PartMetadata {
         QString date;    // yyyy-MM-dd
     };
     std::optional<ImportedFrom> importedFrom;
+    // <Designer url="...">Name</Designer>: who built an imported model.
+    QString designer;
+    QString designerUrl;
     // <PickShape>: an imported part's outline (holes included), in studs
     // around the sprite centre, for picking and the selection outline.
     // BlueBrick ignores it; the footprint still comes from the sprite.

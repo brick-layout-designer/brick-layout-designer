@@ -33,6 +33,10 @@ enum class ImportAlign { Automatic, BottomLayer, BoundingBox };
 struct PreparedPart {
     QString source;
     QString title;                                  // the model's own name, if it has one
+    // Who built the model (credited on the part): from its "0 Author:"
+    // line, or typed in the import dialog; and a link to their page.
+    QString designer;
+    QString designerUrl;
     QString kindLabel;                              // "LDraw import", ...
     QImage  sprite;
     int     widthStuds  = 0;

@@ -299,6 +299,16 @@ ImportPreviewDialog::ImportPreviewDialog(PreparedPart part,
     categoryBox_->setCurrentText(defaultCategory);
     categoryBox_->setToolTip(tr("Parts panel category (a folder of your custom parts)"));
     form->addRow(tr("Category:"), categoryBox_);
+    // Credit: someone else may have built the model.
+    designerEdit_ = new QLineEdit(part_.designer, this);
+    designerEdit_->setObjectName(QStringLiteral("designer"));
+    designerEdit_->setPlaceholderText(tr("Who built this model (optional)"));
+    designerEdit_->setToolTip(tr("Shown with the part wherever it's used, here and on a server"));
+    form->addRow(tr("Designed by:"), designerEdit_);
+    designerUrlEdit_ = new QLineEdit(part_.designerUrl, this);
+    designerUrlEdit_->setObjectName(QStringLiteral("designerUrl"));
+    designerUrlEdit_->setPlaceholderText(tr("A link to their page or the model (optional)"));
+    form->addRow(tr("Link:"), designerUrlEdit_);
     replaceBox_ = new QCheckBox(this);
     form->addRow(QString(), replaceBox_);
     root->addLayout(form);
@@ -415,6 +425,13 @@ void ImportPreviewDialog::refreshReplace() {
 
 PreparedPart ImportPreviewDialog::result() const {
     PreparedPart out = part_;
+    out.designer = designerEdit_->text().trimmed();
+    QString url = designerUrlEdit_->text().trimmed();
+    // Only web links: anything else isn't something to click.
+    if (!url.isEmpty() && !url.startsWith(QLatin1String("http://"), Qt::CaseInsensitive)
+        && !url.startsWith(QLatin1String("https://"), Qt::CaseInsensitive))
+        url = QStringLiteral("https://") + url;
+    out.designerUrl = out.designer.isEmpty() ? QString() : url;
     out.connections.clear();
     for (int i = 0; i < part_.connections.size(); ++i) {
         const auto& c = part_.connections[i];

@@ -252,6 +252,7 @@ PreparedPart prepareImport(const QString& path, const ImportSettings& settings,
         return out;
     }
     out.title = read.title.trimmed();
+    out.designer = read.author;
 
     if (format == Format::LDD) {
         import::LDDAssets assets;
@@ -405,6 +406,8 @@ QString writeImportedPart(const PreparedPart& part, const QString& name,
                    : part.align == ImportAlign::BoundingBox ? QStringLiteral("box")
                                                             : QString();
     source.nudgeStuds = part.nudgeStuds;
+    source.designer = part.designer.trimmed();
+    source.designerUrl = part.designerUrl.trimmed();
     return import::writeImportedModelAsLibraryPart(
         keyName.isEmpty() ? name : keyName, part.sprite, part.widthStuds, part.heightStuds, destDir, author,
         part.connections, error, replaceExisting, part.source.isEmpty() ? nullptr : &source,

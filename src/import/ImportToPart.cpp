@@ -171,6 +171,14 @@ QString writeImportedModelAsLibraryPart(
         w.writeAttribute(QStringLiteral("date"), QDate::currentDate().toString(Qt::ISODate));
     }
 
+    // Credit for whoever built the model.
+    if (source && !source->designer.isEmpty()) {
+        w.writeStartElement(QStringLiteral("Designer"));
+        if (!source->designerUrl.isEmpty()) w.writeAttribute(QStringLiteral("url"), source->designerUrl);
+        w.writeCharacters(source->designer);
+        w.writeEndElement();
+    }
+
     // Provenance for Re-import from Source. Element names avoid the ones
     // BlueBrick reacts to while it skips unknown elements.
     if (source && !source->path.isEmpty()) {

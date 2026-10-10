@@ -184,6 +184,12 @@ LDrawReadResult readLDraw(const QString& path) {
             }
             continue;
         }
+        // "0 Author: Name": who built the model (the main model's, not a part's).
+        if (code == 0 && r.author.isEmpty() && parts.size() > 1 && (main == nullptr || current == main)
+            && parts[1].compare(QLatin1String("Author:"), Qt::CaseInsensitive) == 0) {
+            r.author = trimmed.mid(trimmed.indexOf(QLatin1Char(':')) + 1).trimmed().left(120);
+            continue;
+        }
         if (code == 0 && firstComment) {
             // Line-0 comments start with "0" followed by text.
             if (parts.size() > 1) {
