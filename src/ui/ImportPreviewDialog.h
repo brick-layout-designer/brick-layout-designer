@@ -78,6 +78,8 @@ private:
     QLabel*              header_      = nullptr;
     QListWidget*         connList_    = nullptr;
     QLineEdit*           nameEdit_    = nullptr;
+    QLineEdit*           designerEdit_    = nullptr;
+    QLineEdit*           designerUrlEdit_ = nullptr;
     QComboBox*           categoryBox_ = nullptr;
     QCheckBox*           replaceBox_  = nullptr;
 };

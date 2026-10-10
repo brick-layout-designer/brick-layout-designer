@@ -51,6 +51,10 @@ struct ImportSource {
     // or "box", and the nudge in studs after it.
     QString   align;
     QPointF   nudgeStuds;
+    // Who built the model and a link to them: written as <Designer>, which
+    // (unlike <ImportSource>) is kept when the part goes to a server.
+    QString   designer;
+    QString   designerUrl;
 };
 
 // "studio", "ldd" or "ldraw" from a model file's extension.

@@ -1,4 +1,5 @@
 #include "EditDialogs.h"
+#include <QUrl>
 #include "help/HelpButton.h"
 
 #include "../core/Layer.h"
@@ -121,6 +122,19 @@ bool editBrickDialog(QWidget* parent, core::Map& map, int layerIndex,
     connSpin->setValue(std::min(brick->activeConnectionPointIndex, std::max(0, nConn - 1)));
     connSpin->setEnabled(nConn > 0);
     form->addRow(QObject::tr("Active connection #:"), connSpin);
+    if (meta && !meta->designer.isEmpty()) {
+        // Credit for whoever built an imported model.
+        const QString who = meta->designer.toHtmlEscaped();
+        const QUrl url(meta->designerUrl);
+        auto* by = new QLabel(url.isValid() && (url.scheme() == QLatin1String("https") || url.scheme() == QLatin1String("http"))
+                                  ? QObject::tr("Designed by <a href=\"%1\">%2</a>").arg(url.toString(QUrl::FullyEncoded).toHtmlEscaped(), who)
+                                  : QObject::tr("Designed by %1").arg(who),
+                              &dlg);
+        by->setObjectName(QStringLiteral("designer"));
+        by->setTextFormat(Qt::RichText);
+        by->setOpenExternalLinks(true);
+        form->addRow(by);
+    }
     if (meta && meta->importedFrom) {
         // Quietly: where an imported part came from.
         auto* from = new QLabel(QObject::tr("Imported from %1").arg(meta->importedFrom->file), &dlg);

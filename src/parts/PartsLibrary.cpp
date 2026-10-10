@@ -264,6 +264,10 @@ bool parsePartXml(const QString& xmlPath, PartMetadata& out) {
                     if (ring.size() >= 3 && out.pickShape.size() < 256) out.pickShape << ring;
                 }
             }
+            else if (n == QStringLiteral("Designer")) {
+                out.designerUrl = r.attributes().value(QStringLiteral("url")).toString().trimmed();
+                out.designer = r.readElementText().trimmed();
+            }
             else if (n == QStringLiteral("ImportedFrom")) {
                 PartMetadata::ImportedFrom from;
                 from.file = r.attributes().value(QStringLiteral("file")).toString();
