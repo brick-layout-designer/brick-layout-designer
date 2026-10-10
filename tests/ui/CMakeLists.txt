@@ -28,6 +28,7 @@ add_executable(bld_ui_tests
     RecentFilesTest.cpp
     TouchTest.cpp
     PartsIconSizeTest.cpp
+    PartsTooltipTest.cpp
     UiWordingTest.cpp
     SnapFeelTest.cpp
     GridSnapTest.cpp

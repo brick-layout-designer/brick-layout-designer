@@ -7,6 +7,7 @@
 
 #include "../parts/PartsLibrary.h"
 #include "theme/AppPrefs.h"
+#include "ServerList.h"
 
 #include <QApplication>
 #include <QClipboard>
@@ -340,7 +341,31 @@ QString PartsBrowser::categoryForPath(const QString& absPath) const {
     return parent.isEmpty() ? tr("Other") : parent;
 }
 
+QString partTooltip(const parts::PartMetadata& meta, const QString& key, const QString& desc,
+                    const QHash<QString, QString>& serverLabels) {
+    QString tip = desc.isEmpty() ? key : QStringLiteral("%1\n(%2)").arg(desc, key);
+    if (!meta.designer.isEmpty()) tip += QLatin1Char('\n') + PartsBrowser::tr("Designed by %1").arg(meta.designer);
+    // .../server-parts/<folder>/...: that server's part.
+    const QString path = QDir::fromNativeSeparators(meta.xmlFilePath);
+    const QString marker = QStringLiteral("/server-parts/");
+    if (const qsizetype at = path.indexOf(marker); at >= 0) {
+        const qsizetype from = at + marker.size();
+        const QString folder = path.mid(from, path.indexOf(QLatin1Char('/'), from) - from);
+        if (!folder.isEmpty())
+            tip += QLatin1Char('\n') + PartsBrowser::tr("From the server %1").arg(serverLabels.value(folder, folder));
+    }
+    return tip;
+}
+
 namespace {
+
+// Each server's parts folder (server-parts/<folder>) with the name it has in "Your servers".
+QHash<QString, QString> serverPartLabels() {
+    QHash<QString, QString> out;
+    const sync::ServerList list = sync::ServerList::load();
+    for (const sync::ServerEntry& e : list.servers()) out.insert(sync::ServerList::folderName(e.url), e.label());
+    return out;
+}
 
 void setPartIcon(parts::PartsLibrary& lib, const QString& key, QListWidgetItem* item, int size) {
     QPixmap pm = lib.pixmap(key);
@@ -357,6 +382,7 @@ void setPartIcon(parts::PartsLibrary& lib, const QString& key, QListWidgetItem* 
 QListWidgetItem* makePartItem(parts::PartsLibrary& lib,
                               const QString& key,
                               const QString& cat,
+                              const QHash<QString, QString>& serverLabels,
                               int iconSize = 0) {
     auto meta = lib.metadata(key);
     if (!meta) return nullptr;
@@ -374,7 +400,7 @@ QListWidgetItem* makePartItem(parts::PartsLibrary& lib,
     const QString caption = descShort.isEmpty() ? key : descShort;
 
     auto* item = new QListWidgetItem(caption);
-    item->setToolTip(desc.isEmpty() ? key : QStringLiteral("%1\n(%2)").arg(desc, key));
+    item->setToolTip(partTooltip(*meta, key, desc, serverLabels));
     item->setTextAlignment(Qt::AlignHCenter | Qt::AlignTop);
 
     // Go through PartsLibrary::pixmap() rather than loading meta->gifFilePath
@@ -406,12 +432,13 @@ void PartsBrowser::rebuild() {
     QSet<QString> cats;
 
     const auto keys = lib_.keys();
+    const auto serverLabels = serverPartLabels();
     for (const QString& key : keys) {
         auto meta = lib_.metadata(key);
         if (!meta) continue;
         const QString cat = categoryForPath(meta->xmlFilePath);
         cats.insert(cat);
-        if (auto* item = makePartItem(lib_, key, cat)) {
+        if (auto* item = makePartItem(lib_, key, cat, serverLabels)) {
             grid_->addItem(item);
         }
     }
@@ -492,7 +519,7 @@ void PartsBrowser::addOne(const QString& key) {
         category_->setCurrentIndex(restoreIdx >= 0 ? restoreIdx : 0);
         category_->blockSignals(false);
     }
-    if (auto* item = makePartItem(lib_, key, cat, iconSize_)) {
+    if (auto* item = makePartItem(lib_, key, cat, serverPartLabels(), iconSize_)) {
         grid_->addItem(item);
         grid_->sortItems(Qt::AscendingOrder);
         refreshBudget();

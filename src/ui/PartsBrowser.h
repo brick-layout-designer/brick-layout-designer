@@ -20,11 +20,18 @@ class QSlider;
 
 namespace bld::core  { class Map; }
 namespace bld::ui::theme { class PrefsStore; }
-namespace bld::parts { class PartsLibrary; }
+namespace bld::parts { class PartsLibrary; struct PartMetadata; }
 
 namespace bld::ui {
 
 class BudgetSession;
+
+// A part's tooltip in the Parts list: its description and key, who built
+// it (an imported model's <Designer>), and which server it came from when
+// it's one of a server's parts (server-parts/<folder>; serverLabels maps
+// each folder to the server's name in "Your servers").
+QString partTooltip(const parts::PartMetadata& meta, const QString& key, const QString& desc,
+                    const QHash<QString, QString>& serverLabels);
 
 // Dock panel showing parts in a thumbnail grid (QListView::IconMode).
 // Top strip: category dropdown + live text filter. Double-click (or
