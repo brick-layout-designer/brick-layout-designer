@@ -147,6 +147,34 @@ private:
     bool haveSnapshot_ = false;
 };
 
+// Move parts to another part sheet, on top of what's there. A group goes
+// along when every part under it does (and its parent groups likewise); a
+// part whose group stays behind leaves it. Guids are kept, so modules,
+// labels and rulers still find the parts; links are rebuilt afterwards
+// (MapView rebuilds connectivity on every undo-stack change).
+class MoveBricksToLayerCommand : public QUndoCommand {
+public:
+    struct Target { int layerIndex = -1; QString guid; };
+
+    MoveBricksToLayerCommand(core::Map& map, std::vector<Target> targets, int toLayerIndex,
+                             QUndoCommand* parent = nullptr);
+
+    void undo() override;
+    void redo() override;
+    int moved() const { return moved_; }
+
+private:
+    struct Contents { std::vector<core::Brick> bricks; std::vector<core::Group> groups; };
+    void apply(const QHash<int, Contents>& state);
+
+    core::Map& map_;
+    std::vector<Target> targets_;
+    int to_;
+    QHash<int, Contents> before_, after_;
+    bool ready_ = false;
+    int moved_ = 0;
+};
+
 // Edit a single brick's mutable properties in one undoable step. Upstream's
 // EditBrickForm exposes part number (for ReplaceBrick), position, orientation,
 // altitude, and active connection point — we capture the same surface here so

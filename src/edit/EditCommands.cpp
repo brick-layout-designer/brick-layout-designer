@@ -270,6 +270,86 @@ void ReorderBricksCommand::undo() {
     }
 }
 
+// ----- MoveBricksToLayerCommand -----
+
+MoveBricksToLayerCommand::MoveBricksToLayerCommand(core::Map& map, std::vector<Target> targets,
+                                                   int toLayerIndex, QUndoCommand* parent)
+    : QUndoCommand(parent), map_(map), targets_(std::move(targets)), to_(toLayerIndex) {
+    setText(QObject::tr("Move %n part(s) to another sheet", nullptr, static_cast<int>(targets_.size())));
+}
+
+void MoveBricksToLayerCommand::apply(const QHash<int, Contents>& state) {
+    for (auto it = state.constBegin(); it != state.constEnd(); ++it) {
+        if (auto* L = brickLayer(map_, it.key())) {
+            L->bricks = it.value().bricks;
+            L->groups = it.value().groups;
+        }
+    }
+}
+
+void MoveBricksToLayerCommand::redo() {
+    if (!ready_) {
+        auto* target = brickLayer(map_, to_);
+        if (!target) return;
+        QHash<int, QSet<QString>> byLayer;
+        for (const auto& t : targets_)
+            if (t.layerIndex != to_ && brickLayer(map_, t.layerIndex)) byLayer[t.layerIndex].insert(t.guid);
+        before_.insert(to_, { target->bricks, target->groups });
+        Contents into = before_.value(to_);
+        for (auto it = byLayer.constBegin(); it != byLayer.constEnd(); ++it) {
+            auto* L = brickLayer(map_, it.key());
+            const QSet<QString>& moving = it.value();
+            before_.insert(it.key(), { L->bricks, L->groups });
+            QHash<QString, QString> parentOf;
+            for (const auto& g : L->groups) parentOf.insert(g.guid, g.myGroupId);
+            const auto chain = [&](QString g) {
+                QStringList out;
+                while (!g.isEmpty() && !out.contains(g)) {
+                    out << g;
+                    g = parentOf.value(g);
+                }
+                return out;
+            };
+            // A group goes when every part under it does.
+            QSet<QString> stays, goes;
+            for (const auto& b : L->bricks)
+                if (!moving.contains(b.guid))
+                    for (const QString& g : chain(b.myGroupId)) stays.insert(g);
+            for (const auto& b : L->bricks)
+                if (moving.contains(b.guid))
+                    for (const QString& g : chain(b.myGroupId))
+                        if (!stays.contains(g)) goes.insert(g);
+            Contents left;
+            for (const auto& g : L->groups) {
+                if (!goes.contains(g.guid)) {
+                    left.groups.push_back(g);
+                    continue;
+                }
+                core::Group copy = g;
+                if (!goes.contains(copy.myGroupId)) copy.myGroupId.clear();
+                into.groups.push_back(std::move(copy));
+            }
+            for (const auto& b : L->bricks) {
+                if (!moving.contains(b.guid)) {
+                    left.bricks.push_back(b);
+                    continue;
+                }
+                core::Brick copy = b;
+                if (!goes.contains(copy.myGroupId)) copy.myGroupId.clear();
+                for (auto& c : copy.connections) c.linkedToId.clear();
+                into.bricks.push_back(std::move(copy));
+                ++moved_;
+            }
+            after_.insert(it.key(), std::move(left));
+        }
+        after_.insert(to_, std::move(into));
+        ready_ = true;
+    }
+    apply(after_);
+}
+
+void MoveBricksToLayerCommand::undo() { apply(before_); }
+
 // ----- EditBrickCommand -----
 
 EditBrickCommand::EditBrickCommand(core::Map& map, BrickRef ref, State before, State after,

@@ -191,3 +191,47 @@ TEST(EditCommands, MultiBrickDelete) {
     stack.undo();
     ASSERT_EQ(L->bricks.size(), 4u);
 }
+
+TEST(EditCommands, MoveBricksToAnotherSheetTakesWholeGroupsAndUndoes) {
+    core::Map m = makeMapWithBrickLayer();
+    m.layers().push_back(std::make_unique<core::LayerBrick>());
+    auto* A = static_cast<core::LayerBrick*>(m.layers()[0].get());
+    auto* B = static_cast<core::LayerBrick*>(m.layers()[1].get());
+    for (const auto& g : { "g1", "g2", "h1", "h2", "solo" })
+        A->bricks.push_back(makeBrick(QString::fromUtf8(g), QStringLiteral("x"), QRectF()));
+    B->bricks.push_back(makeBrick(QStringLiteral("there"), QStringLiteral("x"), QRectF()));
+    core::Group whole; whole.guid = QStringLiteral("W");
+    core::Group split; split.guid = QStringLiteral("S");
+    A->groups = { whole, split };
+    A->bricks[0].myGroupId = A->bricks[1].myGroupId = QStringLiteral("W");
+    A->bricks[2].myGroupId = A->bricks[3].myGroupId = QStringLiteral("S");
+    A->bricks[0].connections.push_back({});
+    A->bricks[0].connections[0].linkedToId = QStringLiteral("h2");
+
+    QUndoStack stack;
+    std::vector<edit::MoveBricksToLayerCommand::Target> t = {
+        { 0, QStringLiteral("g1") }, { 0, QStringLiteral("g2") }, { 0, QStringLiteral("h1") } };
+    stack.push(new edit::MoveBricksToLayerCommand(m, t, 1));
+    ASSERT_EQ(A->bricks.size(), 2u);
+    EXPECT_EQ(A->bricks[0].guid, QStringLiteral("h2"));
+    EXPECT_EQ(A->bricks[0].myGroupId, QStringLiteral("S"));
+    ASSERT_EQ(B->bricks.size(), 4u);
+    EXPECT_EQ(B->bricks[0].guid, QStringLiteral("there"));  // on top of what was there
+    EXPECT_EQ(B->bricks[1].guid, QStringLiteral("g1"));
+    EXPECT_EQ(B->bricks[1].myGroupId, QStringLiteral("W"));
+    EXPECT_TRUE(B->bricks[1].connections[0].linkedToId.isEmpty());
+    EXPECT_EQ(B->bricks[3].guid, QStringLiteral("h1"));
+    EXPECT_TRUE(B->bricks[3].myGroupId.isEmpty());  // its group stayed behind
+    ASSERT_EQ(B->groups.size(), 1u);
+    EXPECT_EQ(B->groups[0].guid, QStringLiteral("W"));
+    ASSERT_EQ(A->groups.size(), 1u);
+    EXPECT_EQ(A->groups[0].guid, QStringLiteral("S"));
+
+    stack.undo();
+    EXPECT_EQ(A->bricks.size(), 5u);
+    EXPECT_EQ(B->bricks.size(), 1u);
+    EXPECT_EQ(A->groups.size(), 2u);
+    EXPECT_EQ(A->bricks[0].myGroupId, QStringLiteral("W"));
+    stack.redo();
+    EXPECT_EQ(B->bricks.size(), 4u);
+}
