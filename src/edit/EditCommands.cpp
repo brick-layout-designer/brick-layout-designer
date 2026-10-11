@@ -1,4 +1,6 @@
 #include "EditCommands.h"
+#include "../core/LayerRuler.h"
+#include "../core/LayerText.h"
 
 #include "../core/Brick.h"
 #include "../core/Groups.h"
@@ -349,6 +351,62 @@ void MoveBricksToLayerCommand::redo() {
 }
 
 void MoveBricksToLayerCommand::undo() { apply(before_); }
+
+// ----- ReorderAnnotationsCommand -----
+
+namespace {
+template <typename T, typename GuidOf>
+void reorderBy(std::vector<T>& items, const std::vector<QString>& order, GuidOf guidOf) {
+    QHash<QString, qsizetype> pos;
+    for (qsizetype i = 0; i < static_cast<qsizetype>(order.size()); ++i) pos.insert(order[static_cast<size_t>(i)], i);
+    std::stable_sort(items.begin(), items.end(),
+                     [&](const T& a, const T& b) { return pos.value(guidOf(a), 0) < pos.value(guidOf(b), 0); });
+}
+QString rulerGuid(const core::LayerRuler::AnyRuler& r) {
+    return r.kind == core::RulerKind::Linear ? r.linear.guid : r.circular.guid;
+}
+}  // namespace
+
+ReorderAnnotationsCommand::ReorderAnnotationsCommand(core::Map& map, std::vector<Target> targets, bool toFront,
+                                                     QUndoCommand* parent)
+    : QUndoCommand(parent), map_(map), targets_(std::move(targets)), toFront_(toFront) {
+    setText(toFront_ ? QObject::tr("Bring to front") : QObject::tr("Send to back"));
+}
+
+void ReorderAnnotationsCommand::reorder(bool forward) {
+    QHash<int, QSet<QString>> byLayer;
+    for (const auto& t : targets_) byLayer[t.layerIndex].insert(t.guid);
+    for (auto it = byLayer.constBegin(); it != byLayer.constEnd(); ++it) {
+        const int li = it.key();
+        if (li < 0 || li >= static_cast<int>(map_.layers().size())) continue;
+        core::Layer* L = map_.layers()[static_cast<size_t>(li)].get();
+        std::vector<QString> ids;
+        if (L->kind() == core::LayerKind::Text)
+            for (const auto& c : static_cast<core::LayerText*>(L)->textCells) ids.push_back(c.guid);
+        else if (L->kind() == core::LayerKind::Ruler)
+            for (const auto& r : static_cast<core::LayerRuler*>(L)->rulers) ids.push_back(rulerGuid(r));
+        else
+            continue;
+        std::vector<QString> want;
+        if (forward) {
+            before_.insert(li, ids);
+            std::vector<QString> stay, move;
+            for (const QString& id : ids) (it.value().contains(id) ? move : stay).push_back(id);
+            want = toFront_ ? stay : move;
+            const auto& rest = toFront_ ? move : stay;
+            want.insert(want.end(), rest.begin(), rest.end());
+        } else {
+            want = before_.value(li);
+        }
+        if (L->kind() == core::LayerKind::Text)
+            reorderBy(static_cast<core::LayerText*>(L)->textCells, want, [](const core::TextCell& c) { return c.guid; });
+        else
+            reorderBy(static_cast<core::LayerRuler*>(L)->rulers, want, rulerGuid);
+    }
+}
+
+void ReorderAnnotationsCommand::redo() { reorder(true); }
+void ReorderAnnotationsCommand::undo() { reorder(false); }
 
 // ----- EditBrickCommand -----
 
