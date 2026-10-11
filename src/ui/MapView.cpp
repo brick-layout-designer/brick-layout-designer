@@ -1704,9 +1704,18 @@ void MapView::bringSelectionToFront() {
         targets.push_back({ it->data(kBrickDataLayerIndex).toInt(),
                             it->data(kBrickDataGuid).toString() });
     }
-    if (targets.empty()) return;
-    undoStack_->push(new edit::ReorderBricksCommand(
-        *map_, std::move(targets), edit::ReorderBricksCommand::ToFront));  // indexChanged handler rebuilds the scene
+    // Text and rulers too, like BlueBrick (BringTextToFront, BringRulerToFront).
+    std::vector<edit::ReorderAnnotationsCommand::Target> anno;
+    for (QGraphicsItem* it : scene()->selectedItems())
+        if (isTextItem(it) || isRulerItem(it))
+            anno.push_back({ it->data(kBrickDataLayerIndex).toInt(), it->data(kBrickDataGuid).toString() });
+    if (targets.empty() && anno.empty()) return;
+    undoStack_->beginMacro(tr("Bring to front"));
+    if (!targets.empty())
+        undoStack_->push(new edit::ReorderBricksCommand(*map_, std::move(targets), edit::ReorderBricksCommand::ToFront));
+    if (!anno.empty())
+        undoStack_->push(new edit::ReorderAnnotationsCommand(*map_, std::move(anno), true));
+    undoStack_->endMacro();  // indexChanged handler rebuilds the scene
 }
 
 QList<int> MapView::selectedSheets() const {
@@ -1747,9 +1756,18 @@ void MapView::sendSelectionToBack() {
         targets.push_back({ it->data(kBrickDataLayerIndex).toInt(),
                             it->data(kBrickDataGuid).toString() });
     }
-    if (targets.empty()) return;
-    undoStack_->push(new edit::ReorderBricksCommand(
-        *map_, std::move(targets), edit::ReorderBricksCommand::ToBack));  // indexChanged handler rebuilds the scene
+    // Text and rulers too, like BlueBrick (BringTextToFront, BringRulerToFront).
+    std::vector<edit::ReorderAnnotationsCommand::Target> anno;
+    for (QGraphicsItem* it : scene()->selectedItems())
+        if (isTextItem(it) || isRulerItem(it))
+            anno.push_back({ it->data(kBrickDataLayerIndex).toInt(), it->data(kBrickDataGuid).toString() });
+    if (targets.empty() && anno.empty()) return;
+    undoStack_->beginMacro(tr("Send to back"));
+    if (!targets.empty())
+        undoStack_->push(new edit::ReorderBricksCommand(*map_, std::move(targets), edit::ReorderBricksCommand::ToBack));
+    if (!anno.empty())
+        undoStack_->push(new edit::ReorderAnnotationsCommand(*map_, std::move(anno), false));
+    undoStack_->endMacro();  // indexChanged handler rebuilds the scene
 }
 
 void MapView::groupSelection() {

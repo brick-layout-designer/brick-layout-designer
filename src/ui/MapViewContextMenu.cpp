@@ -160,6 +160,14 @@ void MapView::contextMenuEvent(QContextMenuEvent* e) {
                 [this]{ rotateSelected(static_cast<float>(rotationStepDegrees_)); });
         menu.addSeparator();
 
+        if (!onlyBrick && brickCount == 0) {
+            // Text and rulers have a drawing order too (BlueBrick).
+            auto* bringFront = menu.addAction(tr("Bring to Front"));
+            connect(bringFront, &QAction::triggered, [this]{ bringSelectionToFront(); });
+            auto* sendBack = menu.addAction(tr("Send to Back"));
+            connect(sendBack, &QAction::triggered, [this]{ sendSelectionToBack(); });
+            menu.addSeparator();
+        }
         if (onlyBrick) {
             auto* bringFront = menu.addAction(tr("Bring to Front"));
             connect(bringFront, &QAction::triggered, [this]{ bringSelectionToFront(); });

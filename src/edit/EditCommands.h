@@ -175,6 +175,25 @@ private:
     int moved_ = 0;
 };
 
+// Bring to Front / Send to Back for text and rulers, as BlueBrick has them
+// (BringTextToFront, BringRulerToFront, ...): the picked ones move to the
+// end (front) or start (back) of their sheet, keeping their order.
+class ReorderAnnotationsCommand : public QUndoCommand {
+public:
+    struct Target { int layerIndex = -1; QString guid; };
+    ReorderAnnotationsCommand(core::Map& map, std::vector<Target> targets, bool toFront,
+                              QUndoCommand* parent = nullptr);
+    void undo() override;
+    void redo() override;
+
+private:
+    void reorder(bool forward);
+    core::Map& map_;
+    std::vector<Target> targets_;
+    bool toFront_;
+    QHash<int, std::vector<QString>> before_;  // each sheet's order before
+};
+
 // Edit a single brick's mutable properties in one undoable step. Upstream's
 // EditBrickForm exposes part number (for ReplaceBrick), position, orientation,
 // altitude, and active connection point — we capture the same surface here so

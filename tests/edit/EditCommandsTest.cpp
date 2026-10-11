@@ -1,6 +1,8 @@
 #include "edit/EditCommands.h"
 #include "core/Brick.h"
 #include "core/LayerBrick.h"
+#include "core/LayerRuler.h"
+#include "core/LayerText.h"
 #include "core/Map.h"
 
 #include <gtest/gtest.h>
@@ -259,4 +261,34 @@ TEST(EditCommands, ANewAltitudeSortsTheSheetLikeBlueBrickAndUndoPutsTheOrderBack
     EXPECT_EQ(L->bricks[0].guid, QStringLiteral("c"));
     EXPECT_EQ(L->bricks[1].guid, QStringLiteral("a"));
     EXPECT_FLOAT_EQ(L->bricks[1].altitude, 0.0f);
+}
+
+TEST(EditCommands, TextAndRulersComeToFrontAndGoBackLikeBlueBrick) {
+    core::Map m;
+    auto text = std::make_unique<core::LayerText>();
+    for (const char* g : { "a", "b", "c" }) {
+        core::TextCell c;
+        c.guid = QString::fromUtf8(g);
+        text->textCells.push_back(c);
+    }
+    m.layers().push_back(std::move(text));
+    auto rulers = std::make_unique<core::LayerRuler>();
+    for (const char* g : { "r1", "r2" }) {
+        core::LayerRuler::AnyRuler r;
+        r.linear.guid = QString::fromUtf8(g);
+        rulers->rulers.push_back(r);
+    }
+    m.layers().push_back(std::move(rulers));
+    auto* T = static_cast<core::LayerText*>(m.layers()[0].get());
+    auto* R = static_cast<core::LayerRuler*>(m.layers()[1].get());
+    QUndoStack stack;
+    stack.push(new edit::ReorderAnnotationsCommand(m, { { 0, QStringLiteral("a") }, { 1, QStringLiteral("r1") }, { 1, QStringLiteral("r1") } }, true));
+    EXPECT_EQ(T->textCells[2].guid, QStringLiteral("a"));
+    EXPECT_EQ(T->textCells[0].guid, QStringLiteral("b"));
+    EXPECT_EQ(R->rulers[1].linear.guid, QStringLiteral("r1"));
+    stack.undo();
+    EXPECT_EQ(T->textCells[0].guid, QStringLiteral("a"));
+    EXPECT_EQ(R->rulers[0].linear.guid, QStringLiteral("r1"));
+    stack.push(new edit::ReorderAnnotationsCommand(m, { { 0, QStringLiteral("c") } }, false));
+    EXPECT_EQ(T->textCells[0].guid, QStringLiteral("c"));
 }
