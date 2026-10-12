@@ -1,0 +1,33 @@
+{
+  "about": "sidecarBlobHash (web packages/ydoc, desktop sync/SidecarItems.cpp): each vector is a JSON text and the hash both apps must give it.",
+  "vectors": [
+    {
+      "json": "{}",
+      "hash": "2:5465b825"
+    },
+    {
+      "json": "{\"b\":1,\"a\":\"x\"}",
+      "hash": "15:f7b213ed"
+    },
+    {
+      "json": "{\"modules\":[{\"id\":\"m1\",\"name\":\"Yard\",\"memberIds\":[\"a\",\"b\"],\"z\":null,\"ok\":true}],\"anchoredLabels\":[]}",
+      "hash": "100:b3f06b1b"
+    },
+    {
+      "json": "{\"n\":[0,-1,1.5,0.1,100,1e+21,1.5e-7,123456789012,-0.000001,2.5e-7],\"s\":\"é \\\"q\\\" \\\\ \\n\\t\\u0001 ✓ 😀\"}",
+      "hash": "100:779387ef"
+    },
+    {
+      "json": "{\"nested\":{\"z\":{\"y\":[{\"b\":2,\"a\":1}]},\"a\":false}}",
+      "hash": "48:6b434d83"
+    },
+    {
+      "json": "{\"schemaVersion\":1,\"bbmHashSha256\":\"\",\"modules\":[{\"id\":\"8f1c2d3e-0000-4000-8000-000000000001\",\"name\":\"Harbour yard\",\"members\":[\"b1\",\"b2\",\"b3\"],\"transform\":[1,0,12.5,0,1,-4,0,0,1],\"sourceFile\":\"yard.bbm\"}],\"anchoredLabels\":[{\"id\":\"l1\",\"text\":\"Station ✓\",\"kind\":3,\"targetId\":\"8f1c2d3e-0000-4000-8000-000000000001\",\"offset\":{\"x\":-2.25,\"y\":0},\"rot\":90,\"minZoom\":0.5,\"font\":{\"family\":\"Arial\",\"size\":12,\"style\":\"Bold\"},\"color\":{\"known\":true,\"argb\":-16777216,\"name\":\"Black\"}}],\"venue\":{\"name\":\"Hall\",\"enabled\":true,\"edges\":[],\"obstacles\":[],\"minWalkwayStuds\":2}}",
+      "hash": "555:d91d86ff"
+    },
+    {
+      "json": "{\"emptyArr\":[],\"emptyObj\":{},\"neg0\":-0,\"big\":9007199254740991,\"tiny\":5e-324,\"ctl\":\"\\u001f\\u007f\",\"astral\":\"𝄞🚂\",\"keys\":{\"Z\":1,\"a\":2,\"_\":3,\"é\":4,\"10\":5,\"9\":6}}",
+      "hash": "153:2473ae19"
+    }
+  ]
+}

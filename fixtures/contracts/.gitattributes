@@ -1,0 +1,2 @@
+# Byte-exact in both repos (MANIFEST.sha256): never convert line endings.
+* -text
