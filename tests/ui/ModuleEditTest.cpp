@@ -11,6 +11,7 @@
 
 #include "core/LayerBrick.h"
 #include "core/LayerRuler.h"
+#include "core/LayerText.h"
 #include "core/Map.h"
 #include "core/ModuleEdit.h"
 #include "core/Venue.h"
@@ -647,4 +648,29 @@ TEST_F(ModuleEditTest, SaysWhichSheetThePickedPartsAreOnAndMovesThemToANewOne) {
     EXPECT_EQ(fresh.bricks[0].guid, loose_);
     view_->undoStack()->undo();
     EXPECT_EQ(view_->currentMap()->layers().size(), layersBefore);
+}
+
+TEST_F(ModuleEditTest, BringToFrontWorksOnTextLikeBlueBrick) {
+    // The first text cell on the map, picked in the scene as a person would click it.
+    QGraphicsItem* first = nullptr;
+    int layer = -1;
+    for (QGraphicsItem* it : view_->scene()->items())
+        if (ui::detail::isTextItem(it)) {
+            const int li = it->data(ui::detail::kBrickDataLayerIndex).toInt();
+            const auto& cells = static_cast<const core::LayerText&>(*view_->currentMap()->layers()[static_cast<size_t>(li)]).textCells;
+            if (cells.size() > 1 && it->data(ui::detail::kBrickDataGuid).toString() == cells.front().guid) {
+                first = it;
+                layer = li;
+                break;
+            }
+        }
+    if (!first) GTEST_SKIP() << "no sheet with two text cells";
+    const QString guid = first->data(ui::detail::kBrickDataGuid).toString();
+    view_->scene()->clearSelection();
+    first->setSelected(true);
+    view_->bringSelectionToFront();
+    const auto& cells = static_cast<const core::LayerText&>(*view_->currentMap()->layers()[static_cast<size_t>(layer)]).textCells;
+    EXPECT_EQ(cells.back().guid, guid);
+    view_->undoStack()->undo();
+    EXPECT_EQ(static_cast<const core::LayerText&>(*view_->currentMap()->layers()[static_cast<size_t>(layer)]).textCells.front().guid, guid);
 }
