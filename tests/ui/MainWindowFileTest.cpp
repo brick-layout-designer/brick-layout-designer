@@ -4,6 +4,8 @@
 #include "ui/MainWindow.h"
 #include "ui/MapView.h"
 #include "ui/PartDifferencesDialog.h"
+#include "ui/PartsBrowser.h"
+#include "ui/MapViewInternal.h"
 #include "ui/UpdateCheck.h"
 
 #include "core/LayerBrick.h"
@@ -18,6 +20,11 @@
 #include <gtest/gtest.h>
 
 #include <QAction>
+#include <QMenu>
+#include <QListWidget>
+#include <QGraphicsScene>
+#include <QGraphicsItem>
+#include <QContextMenuEvent>
 #include <QComboBox>
 #include <QDockWidget>
 #include <QLabel>
@@ -459,4 +466,81 @@ TEST_F(MainWindowFile, ShellHasTaskTabsSheetsAndThePieceCount) {
     EXPECT_NE(action(*window_, QStringLiteral("&Preferences...")), nullptr);
     EXPECT_NE(action(*window_, QStringLiteral("Cu&t")), nullptr);
     EXPECT_NE(action(*window_, QStringLiteral("Send to &Back")), nullptr);
+}
+
+// BlueBrick's Use as Model: right-click a part on the map and choose Use as
+// Model; the parts list shows and picks that part.
+TEST(MainWindowUseAsModel, RightClickAPartToPickItInThePartsList) {
+    const QString root = QStringLiteral(BLD_PARTS_LIBRARY_ROOT);
+    if (!QDir(root).exists()) GTEST_SKIP() << "BlueBrickParts submodule missing";
+    QStandardPaths::setTestModeEnabled(true);
+    ui::UpdateCheck::setCheckAtStartupEnabled(false);
+    parts::PartsLibrary lib;
+    lib.addSearchPath(root);
+    lib.scan();
+    QTemporaryDir dir;
+    const QString bbm = dir.filePath(QStringLiteral("corner.bbm"));
+    ASSERT_TRUE(QFile::copy(kCorpus + QStringLiteral("/tight-corner.bbm"), bbm));
+    ui::MainWindow window(lib);
+    window.resize(1400, 900);
+    window.show();
+    ASSERT_TRUE(QTest::qWaitForWindowExposed(&window));
+    ASSERT_TRUE(window.openFile(bbm));
+    auto* view = window.findChild<ui::MapView*>();
+    auto* browser = window.findChild<ui::PartsBrowser*>();
+    ASSERT_TRUE(view && browser);
+    browser->showPart(QStringLiteral("nothing-matches-this"));
+
+    // A part on screen, under the pointer.
+    QGraphicsItem* part = nullptr;
+    QPoint at;
+    for (QGraphicsItem* it : view->scene()->items()) {
+        if (!ui::detail::isBrickItem(it)) continue;
+        const QPoint p = view->mapFromScene(it->sceneBoundingRect().center());
+        if (view->viewport()->rect().contains(p) && view->itemAt(p) == it) {
+            part = it;
+            at = p;
+            break;
+        }
+    }
+    ASSERT_TRUE(part) << "no part on screen";
+    const QString partNumber = part->data(12).toString();  // SceneBuilder::kBrickPartRole
+
+    bool chosen = false;
+    QTimer closer;
+    closer.setInterval(20);
+    QObject::connect(&closer, &QTimer::timeout, [&] {
+        if (auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget())) {
+            closer.stop();
+            for (QAction* a : menu->actions())
+                if (a->text() == QStringLiteral("Use as Model")) {
+                    a->trigger();
+                    chosen = true;
+                }
+            menu->close();
+        }
+    });
+    closer.start();
+    QTest::mouseClick(view->viewport(), Qt::LeftButton, {}, at);
+    QContextMenuEvent ce(QContextMenuEvent::Mouse, at, view->viewport()->mapToGlobal(at));
+    QApplication::sendEvent(view->viewport(), &ce);
+    ASSERT_TRUE(chosen);
+    ASSERT_TRUE(browser->grid()->currentItem());
+    EXPECT_EQ(browser->grid()->currentItem()->data(Qt::UserRole + 1).toString().toLower(), partNumber.toLower());
+    EXPECT_FALSE(browser->grid()->currentItem()->isHidden());
+    EXPECT_TRUE(browser->isVisible());
+    QStandardPaths::setTestModeEnabled(false);
+}
+
+TEST(PartsBrowserShowPart, PicksThePartItself) {
+    const QString root = QStringLiteral(BLD_PARTS_LIBRARY_ROOT);
+    if (!QDir(root).exists()) GTEST_SKIP() << "BlueBrickParts submodule missing";
+    parts::PartsLibrary lib;
+    lib.addSearchPath(root);
+    lib.scan();
+    ui::PartsBrowser browser(lib);
+    browser.rebuild();
+    browser.showPart(QStringLiteral("2865.8"));
+    ASSERT_TRUE(browser.grid()->currentItem());
+    EXPECT_EQ(browser.grid()->currentItem()->data(Qt::UserRole + 1).toString(), QStringLiteral("2865.8"));
 }

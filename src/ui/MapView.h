@@ -286,6 +286,8 @@ signals:
     // A module's library entry (save, publish or pull), and Make a module for the picked parts.
     void moduleLibraryActionRequested(const QString& moduleId, const QString& action);
     void makeModuleRequested();
+    // "Use as Model" on a part's menu: pick that part in the parts list.
+    void useAsModelRequested(const QString& partNumber);
 
 protected:
     // Touch (pinch, two-finger pan, tap, drag, long press) and trackpad
