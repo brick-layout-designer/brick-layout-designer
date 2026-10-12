@@ -44,7 +44,7 @@ These are confirmed in both apps unless a row says otherwise. They are the gaps 
 | GroupItems / UngroupItems | same: `GroupBricksCommand` / `UngroupBricksCommand` | same: `groupBricks` / `ungroupBricks` |
 | MoveGridOrigin | same: `MoveGridOriginCommand` | same: `moveGridOrigin` |
 | AddArea / DeleteArea | same: paint / erase (`PaintAreaCellsCommand`) | same: `paintAreaCells` |
-| MoveArea | **missing.** You can't shift a whole area layer by cells | **missing** |
+| MoveArea | same: Ctrl+drag with Paint or Erase shifts the whole area sheet by cells (`MoveAreaCommand`), as BlueBrick's area layer does with its multiple-selection key | **missing** |
 | AddLayer / RemoveLayer | same: `AddLayerCommand` / `DeleteLayerCommand` | same: `addLayer` / `deleteLayer` |
 | MoveLayerUp / MoveLayerDown | same: `MoveLayerCommand` | same: `moveLayer` |
 | ChangeLayerOption | same: layer properties (name, transparency, hull, elevation) | same: `renameLayer`, `setLayerTransparency`, `setLayerHullProperties`, ... |
@@ -114,5 +114,5 @@ The menus otherwise match, item by item. The web repo's `references/PARITY.md` c
 4. Detach on the context menu.
 5. On-canvas ruler offset and radius handles.
 6. Use as Model.
-7. MoveArea.
+7. ~~MoveArea~~: done on desktop.
 8. ~~Rotation pivot~~: done on desktop, checked against vanilla (`RotateOracleTest`).

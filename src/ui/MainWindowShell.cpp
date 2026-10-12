@@ -148,7 +148,7 @@ void MainWindow::setupShell() {
     struct ToolEntry { MapView::Tool tool; QString icon, text, tip; };
     const ToolEntry entries[] = {
         { MapView::Tool::Select, QStringLiteral("select"), tr("Select"), tr("Pick and move pieces") },
-        { MapView::Tool::PaintArea, QStringLiteral("paint"), tr("Paint"), tr("Paint areas of color on an area sheet") },
+        { MapView::Tool::PaintArea, QStringLiteral("paint"), tr("Paint"), tr("Paint areas of color on an area sheet. Ctrl+drag moves the whole sheet.") },
         { MapView::Tool::EraseArea, QStringLiteral("erase"), tr("Erase"), tr("Erase painted areas") },
         { MapView::Tool::DrawLinearRuler, QStringLiteral("measure"), tr("Measure"), tr("Draw a ruler to measure a distance") },
         { MapView::Tool::DrawCircularRuler, QStringLiteral("circle"), tr("Circle"), tr("Draw a circle to measure a radius") },

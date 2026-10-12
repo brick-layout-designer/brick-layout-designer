@@ -2,6 +2,7 @@
 
 #include "../core/Brick.h"
 #include "../core/Group.h"
+#include "../core/LayerArea.h"
 #include "../core/Module.h"
 #include "ModuleLibraryMenu.h"
 #include "SnapFeel.h"
@@ -510,6 +511,13 @@ private:
     // Track which cells we already painted in the current stroke so dragging
     // a single cell size across cells adds exactly one change per cell.
     QSet<QPoint> strokeCellsTouched_;
+    // Ctrl+drag with Paint / Erase shifts the whole area sheet by cells
+    // (BlueBrick MoveArea): the sheet, the cell pressed and last over, and
+    // its cells as they were (shown shifted live, put back for the command).
+    int areaMoveLayer_ = -1;
+    QPoint areaMoveStart_;
+    QPoint areaMoveLast_;
+    std::vector<core::AreaCell> areaMoveOriginal_;
 
     // Ruler-draw state: scene pos of the first click-anchor when a ruler
     // tool is active. Released-position pairs with this to create the ruler.

@@ -67,4 +67,23 @@ void PaintAreaCellsCommand::undo() {
     for (const auto& p : prev_) setOrErase(*L, p.x, p.y, p.oldColor);
 }
 
+// ----- MoveAreaCommand -----
+
+MoveAreaCommand::MoveAreaCommand(core::Map& map, int layerIndex, int dxCells, int dyCells, QUndoCommand* parent)
+    : QUndoCommand(parent), map_(map), layerIndex_(layerIndex), dx_(dxCells), dy_(dyCells) {
+    setText(QObject::tr("Move area"));
+}
+
+void MoveAreaCommand::shift(int dx, int dy) {
+    if (auto* L = areaLayer(map_, layerIndex_))
+        for (auto& c : L->cells) {
+            c.x += dx;
+            c.y += dy;
+        }
+}
+
+void MoveAreaCommand::redo() { shift(dx_, dy_); }
+
+void MoveAreaCommand::undo() { shift(-dx_, -dy_); }
+
 }
