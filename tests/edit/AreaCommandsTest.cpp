@@ -92,3 +92,20 @@ TEST(AreaCommands, MultiCellBatch) {
     stack.undo();
     EXPECT_TRUE(areaOf(m).cells.empty());
 }
+
+TEST(AreaCommands, MoveAreaShiftsEveryCellAndUndoPutsThemBack) {
+    core::Map m;
+    auto area = std::make_unique<core::LayerArea>();
+    area->cells.push_back({ 0, 0, QColor(Qt::red) });
+    area->cells.push_back({ -2, 5, QColor(Qt::blue) });
+    m.layers().push_back(std::move(area));
+    auto* A = static_cast<core::LayerArea*>(m.layers()[0].get());
+    QUndoStack stack;
+    stack.push(new edit::MoveAreaCommand(m, 0, 3, -1));
+    EXPECT_EQ(QPoint(A->cells[0].x, A->cells[0].y), QPoint(3, -1));
+    EXPECT_EQ(QPoint(A->cells[1].x, A->cells[1].y), QPoint(1, 4));
+    stack.undo();
+    EXPECT_EQ(QPoint(A->cells[1].x, A->cells[1].y), QPoint(-2, 5));
+    stack.push(new edit::MoveAreaCommand(m, 7, 1, 1));  // no such sheet: nothing
+    EXPECT_EQ(QPoint(A->cells[0].x, A->cells[0].y), QPoint(0, 0));
+}

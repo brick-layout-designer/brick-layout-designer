@@ -39,4 +39,18 @@ private:
     bool haveSnapshot_ = false;
 };
 
+// BlueBrick MoveArea: shift every cell of an area sheet by whole cells.
+class MoveAreaCommand : public QUndoCommand {
+public:
+    MoveAreaCommand(core::Map& map, int layerIndex, int dxCells, int dyCells, QUndoCommand* parent = nullptr);
+    void undo() override;
+    void redo() override;
+private:
+    void shift(int dx, int dy);
+    core::Map& map_;
+    int layerIndex_;
+    int dx_;
+    int dy_;
+};
+
 }

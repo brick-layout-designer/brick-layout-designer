@@ -4,6 +4,7 @@
 
 #include "ui/MapView.h"
 #include "core/Ids.h"
+#include "core/LayerArea.h"
 #include "core/LayerBrick.h"
 #include "core/LayerGrid.h"
 #include "core/LayerRuler.h"
@@ -863,4 +864,43 @@ TEST(MapViewRotate, TextAndRulersTurnWithTheSelection) {
     EXPECT_FLOAT_EQ(T->textCells[0].orientation, 0);
     EXPECT_EQ(T->textCells[0].displayArea, QRectF(10, 10, 8, 2));
     EXPECT_EQ(R->rulers[0].linear.point1, QPointF(0, 20));
+}
+
+// BlueBrick MoveArea: with Paint picked, a Ctrl+drag shifts the whole area
+// sheet by whole cells (one undo step) and paints nothing.
+TEST(MapViewMoveArea, CtrlDragShiftsTheWholeSheet) {
+    auto map = std::make_unique<core::Map>();
+    auto area = std::make_unique<core::LayerArea>();
+    area->areaCellSizeInStud = 4;
+    area->cells.push_back({ 0, 0, QColor(Qt::red) });
+    area->cells.push_back({ 1, 0, QColor(Qt::blue) });
+    map->layers().push_back(std::move(area));
+    parts::PartsLibrary lib;
+    ui::MapView view(lib);
+    view.resize(900, 700);
+    view.show();
+    ASSERT_TRUE(QTest::qWaitForWindowExposed(&view));
+    view.loadMap(std::move(map));
+    const double px = rendering::SceneBuilder::kPixelsPerStud;
+    view.setTransform(QTransform::fromScale(10.0 / px, 10.0 / px));
+    view.centerOn(QPointF(8, 8) * px);
+    view.setTool(ui::MapView::Tool::PaintArea);
+    const auto* A = static_cast<const core::LayerArea*>(view.currentMap()->layers()[0].get());
+    const auto screen = [&](QPointF studs) { return view.mapFromScene(studs * px); };
+
+    QWidget* vp = view.viewport();
+    QTest::mousePress(vp, Qt::LeftButton, Qt::ControlModifier, screen({ 2, 2 }));  // in cell (0, 0)
+    for (int i = 1; i <= 8; ++i) {
+        const QPoint p = screen(QPointF(2, 2) + QPointF(8, 4) * i / 8.0);
+        QMouseEvent move(QEvent::MouseMove, p, vp->mapToGlobal(p), Qt::NoButton, Qt::LeftButton, Qt::ControlModifier);
+        QApplication::sendEvent(vp, &move);
+    }
+    QTest::mouseRelease(vp, Qt::LeftButton, Qt::ControlModifier, screen({ 10, 6 }));  // in cell (2, 1)
+    ASSERT_EQ(A->cells.size(), 2U);
+    EXPECT_EQ(QPoint(A->cells[0].x, A->cells[0].y), QPoint(2, 1));
+    EXPECT_EQ(QPoint(A->cells[1].x, A->cells[1].y), QPoint(3, 1));
+    EXPECT_EQ(A->cells[1].color, QColor(Qt::blue));
+    EXPECT_EQ(view.undoStack()->count(), 1);
+    view.undoStack()->undo();
+    EXPECT_EQ(QPoint(A->cells[0].x, A->cells[0].y), QPoint(0, 0));
 }

@@ -281,6 +281,7 @@ void MapView::loadMap(std::unique_ptr<core::Map> map) {
     rulerDragStart_.clear();
     labelDragStart_.clear();
     annoItemsAtPress_.clear();
+    areaMoveLayer_ = -1;
     // The handles point at items the rebuild deletes; the selection's
     // return (selectionChanged) puts them back.
     bendHandles_.clear();
@@ -737,6 +738,17 @@ void MapView::mousePressEvent(QMouseEvent* e) {
             targetLayer = static_cast<int>(map_->layers().size()) - 1;
             emit layersChanged();
         }
+        if (target && (e->modifiers() & Qt::ControlModifier)) {
+            // Ctrl+drag moves the whole sheet (BlueBrick MoveArea).
+            const double cell = std::max(1, target->areaCellSizeInStud) * rendering::SceneBuilder::kPixelsPerStud;
+            const QPointF sp = mapToScene(e->pos());
+            areaMoveLayer_ = targetLayer;
+            areaMoveStart_ = QPoint(static_cast<int>(std::floor(sp.x() / cell)), static_cast<int>(std::floor(sp.y() / cell)));
+            areaMoveLast_ = areaMoveStart_;
+            areaMoveOriginal_ = target->cells;
+            e->accept();
+            return;
+        }
         if (target) {
             const double pxPerStud = rendering::SceneBuilder::kPixelsPerStud;
             const QPointF sp = mapToScene(e->pos());
@@ -902,6 +914,27 @@ void MapView::mouseMoveEvent(QMouseEvent* e) {
     // and we're in a paint tool. Group each cell change as its own command so
     // Ctrl+Z rolls back one cell at a time (matches vanilla BlueBrick's
     // per-click behaviour).
+    if (map_ && areaMoveLayer_ >= 0 && areaMoveLayer_ < static_cast<int>(map_->layers().size())
+        && (e->buttons() & Qt::LeftButton)) {
+        auto* L = map_->layers()[areaMoveLayer_].get();
+        if (L && L->kind() == core::LayerKind::Area) {
+            auto* area = static_cast<core::LayerArea*>(L);
+            const double cell = std::max(1, area->areaCellSizeInStud) * rendering::SceneBuilder::kPixelsPerStud;
+            const QPointF sp = mapToScene(e->pos());
+            const QPoint at(static_cast<int>(std::floor(sp.x() / cell)), static_cast<int>(std::floor(sp.y() / cell)));
+            if (at != areaMoveLast_) {
+                areaMoveLast_ = at;
+                area->cells = areaMoveOriginal_;
+                for (auto& c : area->cells) {
+                    c.x += at.x() - areaMoveStart_.x();
+                    c.y += at.y() - areaMoveStart_.y();
+                }
+                rebuildScene();
+            }
+        }
+        e->accept();
+        return;
+    }
     if (map_ && (tool_ == Tool::PaintArea || tool_ == Tool::EraseArea)
         && (e->buttons() & Qt::LeftButton)) {
         int targetLayer = -1;
@@ -959,6 +992,20 @@ void MapView::mouseMoveEvent(QMouseEvent* e) {
 
 void MapView::mouseReleaseEvent(QMouseEvent* e) {
     snapMods_ = e->modifiers();
+    if (areaMoveLayer_ >= 0 && e->button() == Qt::LeftButton) {
+        const int li = areaMoveLayer_;
+        areaMoveLayer_ = -1;
+        if (map_ && li < static_cast<int>(map_->layers().size())) {
+            auto* L = map_->layers()[li].get();
+            if (L && L->kind() == core::LayerKind::Area) static_cast<core::LayerArea*>(L)->cells = areaMoveOriginal_;
+            const QPoint d = areaMoveLast_ - areaMoveStart_;
+            if (!d.isNull()) undoStack_->push(new edit::MoveAreaCommand(*map_, li, d.x(), d.y()));
+            else rebuildScene();
+        }
+        areaMoveOriginal_.clear();
+        e->accept();
+        return;
+    }
     if (gridOriginDragging_ && e->button() == Qt::LeftButton) {
         gridOriginDragging_ = false;
         unsetCursor();
