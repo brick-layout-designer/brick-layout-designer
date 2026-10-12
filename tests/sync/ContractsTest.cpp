@@ -101,9 +101,11 @@ QString writeFixturePart(const QString& dir) {
     return key;
 }
 
-/** The XML with its import date (the day the test runs) taken out. */
+/** The XML with its import date (the day the test runs) taken out, and
+ *  Unix line ends (ImportToPart writes text mode: CRLF on Windows). */
 QByteArray withoutDate(QByteArray xml) {
     static const QRegularExpression date(QStringLiteral(R"(date="\d{4}-\d{2}-\d{2}")"));
+    xml.replace("\r\n", "\n");
     return QString::fromUtf8(xml).replace(date, QStringLiteral("date=\"(date)\"")).toUtf8();
 }
 
@@ -134,12 +136,12 @@ TEST(Contracts, EveryFixtureMatchesTheManifest) {
         EXPECT_EQ(QCryptographicHash::hash(data, QCryptographicHash::Sha256).toHex(), parts.first())
             << name.toStdString() << " differs from MANIFEST.sha256 (and so from the web repo's copy)";
     }
-    QStringList onDisk = QDir(contractsDir()).entryList(QDir::Files);
-    onDisk.removeAll(QStringLiteral("MANIFEST.sha256"));
-    onDisk.removeAll(QStringLiteral("README.md"));
+    QStringList onDisk;
+    for (const QString& f : QDir(contractsDir()).entryList(QDir::Files))
+        if (!f.startsWith(QLatin1Char('.')) && f != QStringLiteral("MANIFEST.sha256") && f != QStringLiteral("README.md")) onDisk << f;
     listed.sort();
     onDisk.sort();
-    EXPECT_EQ(listed, onDisk);
+    EXPECT_EQ(listed.join(QLatin1Char(' ')).toStdString(), onDisk.join(QLatin1Char(' ')).toStdString());
 }
 
 TEST(Contracts, TheImportedPartXmlIsWhatImportToPartWrites) {
@@ -154,7 +156,7 @@ TEST(Contracts, TheImportedPartXmlIsWhatImportToPartWrites) {
         f.write(xml);
         GTEST_SKIP() << "wrote " << fixture.toStdString();
     }
-    EXPECT_EQ(xml, readFile(fixture)) << "ImportToPart's output changed: rerun with BLD_WRITE_CONTRACTS=1 and copy to the web repo";
+    EXPECT_EQ(QString::fromUtf8(xml), QString::fromUtf8(readFile(fixture))) << "ImportToPart's output changed: rerun with BLD_WRITE_CONTRACTS=1 and copy to the web repo";
 }
 
 TEST(Contracts, TheImportedPartReadsAsTheFixtureSays) {
