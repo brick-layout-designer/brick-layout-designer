@@ -4,6 +4,7 @@
 #include "core/LayerRuler.h"
 #include "core/LayerText.h"
 #include "core/Map.h"
+#include "edit/RulerCommands.h"
 #include "edit/TextCommands.h"
 
 #include <gtest/gtest.h>
@@ -373,4 +374,33 @@ TEST(EditCommands, ReplaceAnnotationsSwapsAndUndoes) {
     stack.undo();
     EXPECT_FLOAT_EQ(T->textCells[0].orientation, 0);
     EXPECT_EQ(R->rulers[0].linear.point1, QPointF(0, 0));
+}
+
+// BlueBrick DetachRuler: attaching an end to no part frees it; undo
+// attaches it again.
+TEST(EditCommands, DetachFreesARulerEnd) {
+    core::Map m;
+    auto layer = std::make_unique<core::LayerRuler>();
+    core::LayerRuler::AnyRuler line;
+    line.linear.guid = QStringLiteral("r");
+    line.linear.attachedBrick1Id = QStringLiteral("a");
+    line.linear.attachedBrick2Id = QStringLiteral("b");
+    layer->rulers.push_back(line);
+    core::LayerRuler::AnyRuler circle;
+    circle.kind = core::RulerKind::Circular;
+    circle.circular.guid = QStringLiteral("c");
+    circle.circular.attachedBrickId = QStringLiteral("a");
+    layer->rulers.push_back(circle);
+    m.layers().push_back(std::move(layer));
+    auto* R = static_cast<core::LayerRuler*>(m.layers()[0].get());
+    QUndoStack stack;
+    stack.push(new edit::AttachRulerCommand(m, 0, QStringLiteral("r"), 1, QString()));
+    EXPECT_EQ(R->rulers[0].linear.attachedBrick1Id, QStringLiteral("a"));
+    EXPECT_TRUE(R->rulers[0].linear.attachedBrick2Id.isEmpty());
+    stack.push(new edit::AttachRulerCommand(m, 0, QStringLiteral("c"), 0, QString()));
+    EXPECT_TRUE(R->rulers[1].circular.attachedBrickId.isEmpty());
+    stack.undo();
+    stack.undo();
+    EXPECT_EQ(R->rulers[0].linear.attachedBrick2Id, QStringLiteral("b"));
+    EXPECT_EQ(R->rulers[1].circular.attachedBrickId, QStringLiteral("a"));
 }

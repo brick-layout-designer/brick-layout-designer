@@ -281,6 +281,45 @@ void MapView::contextMenuEvent(QContextMenuEvent* e) {
         menu.addSeparator();
     }
 
+    // BlueBrick's Detach (MapPanel.cs): free an attached end of the one
+    // picked ruler from its part.
+    {
+        QSet<QString> rulers;
+        int rulerLayer = -1;
+        for (QGraphicsItem* it : scene()->selectedItems()) {
+            if (!isRulerItem(it)) continue;
+            rulers.insert(it->data(kBrickDataGuid).toString());
+            rulerLayer = it->data(kBrickDataLayerIndex).toInt();
+        }
+        const core::LayerRuler::AnyRuler* picked = nullptr;
+        if (rulers.size() == 1 && map_ && rulerLayer >= 0 && rulerLayer < static_cast<int>(map_->layers().size())) {
+            const auto* L = map_->layers()[rulerLayer].get();
+            if (L && L->kind() == core::LayerKind::Ruler)
+                for (const auto& any : static_cast<const core::LayerRuler&>(*L).rulers)
+                    if ((any.kind == core::RulerKind::Linear ? any.linear.guid : any.circular.guid) == *rulers.begin())
+                        picked = &any;
+        }
+        if (picked) {
+            const QString guid = *rulers.begin();
+            const int layer = rulerLayer;
+            auto detach = [&](const QString& label, int end) {
+                connect(menu.addAction(label), &QAction::triggered, [this, layer, guid, end] {
+                    undoStack_->push(new edit::AttachRulerCommand(*map_, layer, guid, end, QString()));
+                });
+            };
+            const bool any = picked->kind == core::RulerKind::Circular
+                ? !picked->circular.attachedBrickId.isEmpty()
+                : !picked->linear.attachedBrick1Id.isEmpty() || !picked->linear.attachedBrick2Id.isEmpty();
+            if (picked->kind == core::RulerKind::Circular) {
+                if (!picked->circular.attachedBrickId.isEmpty()) detach(tr("Detach Ruler Centre"), 0);
+            } else {
+                if (!picked->linear.attachedBrick1Id.isEmpty()) detach(tr("Detach Ruler Endpoint 1"), 0);
+                if (!picked->linear.attachedBrick2Id.isEmpty()) detach(tr("Detach Ruler Endpoint 2"), 1);
+            }
+            if (any) menu.addSeparator();
+        }
+    }
+
     auto* undo = menu.addAction(tr("Undo"));
     undo->setEnabled(undoStack_->canUndo());
     connect(undo, &QAction::triggered, undoStack_.get(), &QUndoStack::undo);

@@ -30,6 +30,9 @@
 #include <QMouseEvent>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QContextMenuEvent>
+#include <QTimer>
+#include <QMenu>
 #include <QUndoStack>
 
 #include <cmath>
@@ -305,6 +308,31 @@ protected:
         return nullptr;
     }
 
+    // Right-clicks at `studs`; triggers the menu entry `pick` (if given)
+    // and returns every entry's text.
+    QStringList contextMenu(QPointF studs, const QString& pick = {}) {
+        QStringList out;
+        QTimer closer;
+        closer.setInterval(20);
+        QObject::connect(&closer, &QTimer::timeout, [&] {
+            if (auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget())) {
+                QAction* chosen = nullptr;
+                for (QAction* a : menu->actions()) {
+                    out << a->text();
+                    if (a->text() == pick) chosen = a;
+                }
+                closer.stop();
+                if (chosen) chosen->trigger();
+                menu->close();
+            }
+        });
+        closer.start();
+        const QPoint at = screen(studs);
+        QContextMenuEvent ce(QContextMenuEvent::Mouse, at, view_->viewport()->mapToGlobal(at));
+        QApplication::sendEvent(view_->viewport(), &ce);
+        return out;
+    }
+
     static constexpr double kStudPx = 14.0;
     static constexpr double kPx = rendering::SceneBuilder::kPixelsPerStud;
     GridLibrary lib_;
@@ -526,6 +554,27 @@ TEST_F(GridSnapView, VenueCornersAreDrawnOnTheGrid) {
     EXPECT_EQ(venue->edges[0].polyline.front(), QPointF(0, 0));
     EXPECT_EQ(venue->edges[1].polyline.front(), QPointF(64, 8));
     EXPECT_EQ(venue->edges[2].polyline.front(), QPointF(56, 48));
+}
+
+// BlueBrick's Detach on the map's menu: pick a ruler, attach its first
+// end to a part from the part's menu, then detach it from the ruler's menu.
+TEST_F(GridSnapView, DetachIsOnTheRulersMenu) {
+    click({ 5.2, 41.1 });  // the ruler
+    ASSERT_TRUE(item(QStringLiteral("ruler"), QStringLiteral("ruler"))->isSelected());
+    EXPECT_FALSE(contextMenu({ 5.2, 41.1 }).join(u',').contains(QStringLiteral("Detach")));
+    contextMenu({ 10, 5 }, QStringLiteral("Attach Ruler Endpoint &1 to This Brick"));
+    ASSERT_EQ(ruler(QStringLiteral("ruler"))->attachedBrick1Id, QStringLiteral("S"));
+
+    // Its first end now sits on the part's centre (11.8, 6.2): click near its other end.
+    const QPointF onLine = QPointF(11.8, 6.2) + (QPointF(9.2, 41.1) - QPointF(11.8, 6.2)) * 0.9;
+    click(onLine);
+    ASSERT_TRUE(item(QStringLiteral("ruler"), QStringLiteral("ruler"))->isSelected());
+    const QStringList entries = contextMenu(onLine, QStringLiteral("Detach Ruler Endpoint 1"));
+    EXPECT_FALSE(entries.contains(QStringLiteral("Detach Ruler Endpoint 2"))) << entries.join(u',').toStdString();
+    ASSERT_TRUE(ruler(QStringLiteral("ruler")));
+    EXPECT_TRUE(ruler(QStringLiteral("ruler"))->attachedBrick1Id.isEmpty());
+    view_->undoStack()->undo();
+    EXPECT_EQ(ruler(QStringLiteral("ruler"))->attachedBrick1Id, QStringLiteral("S"));
 }
 
 TEST_F(GridSnapView, ArrowKeysMoveByTheGridStep) {
