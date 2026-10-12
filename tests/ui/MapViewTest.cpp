@@ -847,15 +847,16 @@ TEST(MapViewRotate, TextAndRulersTurnWithTheSelection) {
     textItem->setSelected(true);
     QTest::mouseClick(view.viewport(), Qt::LeftButton, Qt::ControlModifier, pointOn(view, rulerItem));
     QTest::keyClick(&view, Qt::Key_R);
-    // Pivot: the mean of (14, 11) and (4, 20) = (9, 15.5); +90 maps (x, y) to (-y, x).
+    // Pivot: the centre of their box, (0, 7)-(15, 20), so (7.5, 13.5)
+    // (BlueBrick RotateItems); +90 maps (x, y) to (-y, x).
     EXPECT_FLOAT_EQ(T->textCells[0].orientation, 180);
-    EXPECT_NEAR(T->textCells[0].displayArea.center().x(), 13.5, 1e-9);
-    EXPECT_NEAR(T->textCells[0].displayArea.center().y(), 20.5, 1e-9);
+    EXPECT_NEAR(T->textCells[0].displayArea.center().x(), 10, 1e-9);
+    EXPECT_NEAR(T->textCells[0].displayArea.center().y(), 20, 1e-9);
     EXPECT_NEAR(T->textCells[0].displayArea.width(), 8, 1e-9);
-    EXPECT_NEAR(R->rulers[0].linear.point1.x(), 4.5, 1e-9);
-    EXPECT_NEAR(R->rulers[0].linear.point1.y(), 6.5, 1e-9);
-    EXPECT_NEAR(R->rulers[0].linear.point2.x(), 4.5, 1e-9);
-    EXPECT_NEAR(R->rulers[0].linear.point2.y(), 14.5, 1e-9);
+    EXPECT_NEAR(R->rulers[0].linear.point1.x(), 1, 1e-9);
+    EXPECT_NEAR(R->rulers[0].linear.point1.y(), 6, 1e-9);
+    EXPECT_NEAR(R->rulers[0].linear.point2.x(), 1, 1e-9);
+    EXPECT_NEAR(R->rulers[0].linear.point2.y(), 14, 1e-9);
 
     view.undoStack()->undo();
     view.undoStack()->undo();

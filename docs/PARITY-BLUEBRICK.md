@@ -16,7 +16,7 @@ It was first audited on 2026-10-10.
 These are confirmed in both apps unless a row says otherwise. They are the gaps that matter most, in order:
 
 1. ~~**Text cells can't be moved.**~~ Fixed: both apps drag text (`MoveText`). The box's top-left corner snaps to the grid; Alt frees it.
-2. **Rotating a part that is connected to other track.** BlueBrick's `RotateBrick` steps the selection around its connection to the fixed track, through the free connections in turn, so the part stays connected (`Actions/Bricks/RotateBrick.cs`). Ours turns the part about its own centre, which breaks the connection.
+2. ~~**Rotating a part that is connected to other track.**~~ Fixed on desktop: a selection joined to other track steps round that join to its next free connection, like `RotateBrick` (`edit/RotateTurn.h`).
 3. ~~**Rotate CW / CCW skips text and rulers.**~~ Fixed: picked text and rulers turn with the selection (`RotateText`, `RotateRulers`).
 4. **Bring to Front / Send to Back skips text and rulers.** It works on parts only: `MapView::bringSelectionToFront` / `sendSelectionToBack` and `ReorderBricksCommand` on desktop, `reorderBricks` on web. BlueBrick has `BringTextToFront`, `SendTextToBack`, `BringRulerToFront` and `SendRulerToBack`.
 5. **A ruler's offset or a circle's radius can't be dragged on the map.** BlueBrick's `ScaleRuler` does this. Ours sets both in the Edit Ruler dialog only.
@@ -32,7 +32,7 @@ These are confirmed in both apps unless a row says otherwise. They are the gaps 
 | DeleteBrick | same: `DeleteBricksCommand` | same: `deleteBricks` / `deleteBricksAcrossLayers` |
 | DuplicateBrick | **differs.** Duplicate is copy plus paste under the cursor, not BlueBrick's offset copy (`ui/MapViewClipboard.cpp:144`) | **differs** in the same way (`mixedSelection.ts`) |
 | MoveBrick | same: `MoveBricksCommand` | same: `translateBricks` / `translateBricksAcrossLayers` |
-| RotateBrick | **differs.** (a) There is no stepping round a fixed connection (gap 2). (b) The pivot is the mean of the sprite centres; BlueBrick uses the centre of the selection's bounding box (`Actions/Items/RotateItems.cs`). One part is the same either way (`MapView::rotateSelected`). | **differs** in the same two ways (`rotateBricksAboutCentroid`, `brickGeometry.ts` `rotateAroundPivots`) |
+| RotateBrick | same: steps round a join to fixed track (`edit::connectedTurn`); several items turn about the centre of their bounding box, worked out afresh each turn (vanilla's `sLastCenter` is cleared when its redo re-selects; checked with `bbrotate.cs`, `fixtures/bluebrick-oracle/rot-*.bbm`) | **differs** in the same two ways (`rotateBricksAboutCentroid`, `brickGeometry.ts` `rotateAroundPivots`) |
 | RotateAndMoveBrick | same: snap-rotate on drop (`ui/MapViewDrag.cpp:628-715`) | same |
 | RotateBrickOnPivotBrick | same: a dragged selection turns to fit the connection it snaps to (`MapViewDrag.cpp` `connectionRotates`) | same: `snap.ts` |
 | BringBrickToFront / SendBrickToBack | same, apart from order (see ChangeItemOrder): `ReorderBricksCommand` | same: `reorderBricks` |
@@ -115,4 +115,4 @@ The menus otherwise match, item by item. The web repo's `references/PARITY.md` c
 5. On-canvas ruler offset and radius handles.
 6. Use as Model.
 7. MoveArea.
-8. Rotation pivot: the centre of the bounding box, as BlueBrick does. This changes where multi-part rotations land; check it with bbconv first.
+8. ~~Rotation pivot~~: done on desktop, checked against vanilla (`RotateOracleTest`).

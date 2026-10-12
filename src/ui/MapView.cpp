@@ -25,6 +25,7 @@
 #include "../core/Groups.h"
 #include "../edit/RulerCommands.h"
 #include "../edit/LabelCommands.h"
+#include "../edit/RotateTurn.h"
 #include "../edit/TextCommands.h"
 #include "../edit/VenueCommands.h"
 #include "../core/Venue.h"
@@ -1384,18 +1385,59 @@ void MapView::rotateSelected(float degrees) {
     const std::size_t count = hits.size() + texts.size() + rulers.size();
     if (count == 0) return;
 
-    QPointF pivot(0, 0);
-    for (const auto& h : hits) pivot += h.centre;
-    for (const auto& [li, c] : texts) pivot += c->displayArea.center();
-    for (const auto& [li, r] : rulers) pivot += edit::rulerCentre(*r);
-    pivot /= static_cast<double>(count);
+    // The pivot (BlueBrick RotateItems): one item turns about its own
+    // centre; several about the centre of their bounding box, worked out
+    // afresh each turn. (RotateItems keeps sLastCenter for the next turn,
+    // but its redo re-selects the items, which clears it: vanilla, run
+    // through scripts/bluebrick-oracle/bbrotate.cs, never reuses it.)
+    QRectF box;
+    for (const auto& h : hits) box = box.united(h.brick->displayArea);
+    for (const auto& [li, c] : texts) box = box.united(c->displayArea);
+    for (const auto& [li, r] : rulers)
+        box = box.united(r->kind == core::RulerKind::Linear ? r->linear.displayArea : r->circular.displayArea);
+    QPointF pivot = box.center();
+    if (count == 1) {
+        if (!hits.empty()) pivot = hits.front().centre;
+        else if (!texts.empty()) pivot = texts.front().second->displayArea.center();
+        else pivot = edit::rulerCentre(*rulers.front().second);
+    }
+
+    // Parts joined to other track step round that join instead, so they
+    // stay connected (RotateBrick).
+    std::optional<edit::ConnectedTurn> joined;
+    if (texts.empty() && rulers.empty()) {
+        std::vector<Hit> ordered = hits;
+        std::sort(ordered.begin(), ordered.end(), [](const Hit& a, const Hit& b) {
+            return a.li != b.li ? a.li < b.li : a.brick < b.brick;  // sheet order
+        });
+        std::vector<const core::Brick*> picked;
+        picked.reserve(ordered.size());
+        for (const auto& h : ordered) picked.push_back(h.brick);
+        joined = edit::connectedTurn(*map_, picked, degrees > 0 ? 1 : -1, parts_);
+        if (joined) degrees = static_cast<float>(joined->degrees);
+    }
 
     std::vector<edit::RotateBricksCommand::Entry> rotates;
+    std::vector<core::Brick> turnedBricks;
+    turnedBricks.reserve(hits.size());
     for (const auto& h : hits) {
         core::Brick turned = *h.brick;
         turned.orientation = h.brick->orientation + degrees;
         parts::placement::placeByImageCentre(
             turned, pivot + parts::placement::rotated(h.centre - pivot, degrees), parts_);
+        turnedBricks.push_back(turned);
+    }
+    if (joined) {
+        // Moved so the new connection sits where the old join was.
+        QPointF shift;
+        for (const auto& t : turnedBricks)
+            if (t.guid == joined->brickGuid)
+                shift = joined->at - parts::placement::connectionWorld(t, joined->connection, parts_);
+        for (auto& t : turnedBricks) t.displayArea.translate(shift);
+    }
+    for (std::size_t i = 0; i < hits.size(); ++i) {
+        const auto& h = hits[i];
+        const core::Brick& turned = turnedBricks[i];
         edit::RotateBricksCommand::Entry r;
         r.ref.layerIndex = h.li;
         r.ref.guid = h.brick->guid;
