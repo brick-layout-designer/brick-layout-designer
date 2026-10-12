@@ -13,6 +13,8 @@
 #include <QSet>
 
 #include <algorithm>
+#include <cmath>
+#include <numbers>
 
 namespace bld::edit {
 
@@ -407,6 +409,84 @@ void ReorderAnnotationsCommand::reorder(bool forward) {
 
 void ReorderAnnotationsCommand::redo() { reorder(true); }
 void ReorderAnnotationsCommand::undo() { reorder(false); }
+
+// ----- Rotate text and rulers -----
+
+namespace {
+QPointF turned(QPointF p, QPointF pivot, double degrees) {
+    const double r = degrees * std::numbers::pi / 180.0;
+    const double c = std::cos(r), s = std::sin(r);
+    const QPointF v = p - pivot;
+    return pivot + QPointF(v.x() * c - v.y() * s, v.x() * s + v.y() * c);
+}
+bool upright(double orientation) {
+    const double o = std::fmod(std::fmod(orientation, 360.0) + 360.0, 360.0);
+    return std::abs(o - 90) < 1 || std::abs(o - 270) < 1;
+}
+const QString& annoGuid(const core::LayerRuler::AnyRuler& r) {
+    return r.kind == core::RulerKind::Linear ? r.linear.guid : r.circular.guid;
+}
+}  // namespace
+
+core::TextCell rotatedTextCell(const core::TextCell& cell, QPointF pivot, double degrees) {
+    core::TextCell out = cell;
+    out.orientation = static_cast<float>(cell.orientation + degrees);
+    QSizeF size = cell.displayArea.size();
+    if (upright(cell.orientation) != upright(out.orientation)) size.transpose();
+    const QPointF c = turned(cell.displayArea.center(), pivot, degrees);
+    out.displayArea = QRectF(c.x() - size.width() / 2, c.y() - size.height() / 2, size.width(), size.height());
+    return out;
+}
+
+QPointF rulerCentre(const core::LayerRuler::AnyRuler& ruler) {
+    if (ruler.kind == core::RulerKind::Circular) return ruler.circular.center;
+    return (ruler.linear.point1 + ruler.linear.point2) / 2;
+}
+
+core::LayerRuler::AnyRuler rotatedRuler(const core::LayerRuler::AnyRuler& ruler, QPointF pivot, double degrees) {
+    core::LayerRuler::AnyRuler out = ruler;
+    if (ruler.kind == core::RulerKind::Circular) {
+        auto& c = out.circular;
+        c.center = turned(c.center, pivot, degrees);
+        c.displayArea = QRectF(c.center.x() - c.radius, c.center.y() - c.radius, 2 * c.radius, 2 * c.radius);
+    } else {
+        auto& l = out.linear;
+        l.point1 = turned(l.point1, pivot, degrees);
+        l.point2 = turned(l.point2, pivot, degrees);
+        l.displayArea = QRectF(l.point1, l.point2).normalized();
+    }
+    return out;
+}
+
+ReplaceAnnotationsCommand::ReplaceAnnotationsCommand(core::Map& map, std::vector<TextEntry> texts,
+                                                     std::vector<RulerEntry> rulers, QUndoCommand* parent)
+    : QUndoCommand(parent), map_(map), texts_(std::move(texts)), rulers_(std::move(rulers)) {
+    setText(QObject::tr("Rotate"));
+}
+
+void ReplaceAnnotationsCommand::apply(bool forward) {
+    auto layer = [&](int li, core::LayerKind kind) -> core::Layer* {
+        if (li < 0 || li >= static_cast<int>(map_.layers().size())) return nullptr;
+        core::Layer* L = map_.layers()[li].get();
+        return L && L->kind() == kind ? L : nullptr;
+    };
+    for (const auto& e : texts_) {
+        auto* L = static_cast<core::LayerText*>(layer(e.layerIndex, core::LayerKind::Text));
+        if (!L) continue;
+        for (auto& c : L->textCells)
+            if (c.guid == e.before.guid) c = forward ? e.after : e.before;
+    }
+    for (const auto& e : rulers_) {
+        auto* L = static_cast<core::LayerRuler*>(layer(e.layerIndex, core::LayerKind::Ruler));
+        if (!L) continue;
+        for (auto& r : L->rulers)
+            if (annoGuid(r) == annoGuid(e.before)) r = forward ? e.after : e.before;
+    }
+}
+
+void ReplaceAnnotationsCommand::redo() { apply(true); }
+
+void ReplaceAnnotationsCommand::undo() { apply(false); }
 
 // ----- EditBrickCommand -----
 

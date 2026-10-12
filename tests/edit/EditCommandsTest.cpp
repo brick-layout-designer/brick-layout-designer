@@ -313,3 +313,64 @@ TEST(EditCommands, MoveTextShiftsTheBoxAndUndoPutsItBack) {
     stack.push(new edit::MoveTextCellCommand(m, 0, QStringLiteral("zz"), QPointF(1, 1)));
     EXPECT_EQ(T->textCells[0].displayArea, QRectF(1, 2, 10, 4));
 }
+
+TEST(EditCommands, RotatedTextAndRulersTurnAboutThePivot) {
+    core::TextCell c;
+    c.guid = QStringLiteral("t");
+    c.displayArea = QRectF(0, 0, 8, 2);
+    const core::TextCell t = edit::rotatedTextCell(c, QPointF(0, 0), 90);
+    EXPECT_FLOAT_EQ(t.orientation, 90);
+    // The centre (4, 1) goes to (-1, 4); the box turns upright.
+    EXPECT_NEAR(t.displayArea.center().x(), -1, 1e-9);
+    EXPECT_NEAR(t.displayArea.center().y(), 4, 1e-9);
+    EXPECT_NEAR(t.displayArea.width(), 2, 1e-9);
+    EXPECT_NEAR(t.displayArea.height(), 8, 1e-9);
+    // A 45-degree turn keeps the text's size.
+    EXPECT_NEAR(edit::rotatedTextCell(c, c.displayArea.center(), 45).displayArea.width(), 8, 1e-9);
+
+    core::LayerRuler::AnyRuler line;
+    line.linear.point1 = QPointF(2, 0);
+    line.linear.point2 = QPointF(4, 0);
+    const auto l = edit::rotatedRuler(line, QPointF(0, 0), 90);
+    EXPECT_NEAR(l.linear.point1.x(), 0, 1e-9);
+    EXPECT_NEAR(l.linear.point1.y(), 2, 1e-9);
+    EXPECT_NEAR(l.linear.point2.y(), 4, 1e-9);
+    EXPECT_EQ(edit::rulerCentre(line), QPointF(3, 0));
+
+    core::LayerRuler::AnyRuler circle;
+    circle.kind = core::RulerKind::Circular;
+    circle.circular.center = QPointF(5, 0);
+    circle.circular.radius = 2;
+    const auto o = edit::rotatedRuler(circle, QPointF(0, 0), -90);
+    EXPECT_NEAR(o.circular.center.x(), 0, 1e-9);
+    EXPECT_NEAR(o.circular.center.y(), -5, 1e-9);
+    EXPECT_FLOAT_EQ(o.circular.radius, 2);
+    EXPECT_NEAR(o.circular.displayArea.left(), -2, 1e-9);
+}
+
+TEST(EditCommands, ReplaceAnnotationsSwapsAndUndoes) {
+    core::Map m;
+    auto text = std::make_unique<core::LayerText>();
+    core::TextCell c;
+    c.guid = QStringLiteral("t");
+    text->textCells.push_back(c);
+    m.layers().push_back(std::move(text));
+    auto rulers = std::make_unique<core::LayerRuler>();
+    core::LayerRuler::AnyRuler r;
+    r.linear.guid = QStringLiteral("r");
+    rulers->rulers.push_back(r);
+    m.layers().push_back(std::move(rulers));
+    auto* T = static_cast<core::LayerText*>(m.layers()[0].get());
+    auto* R = static_cast<core::LayerRuler*>(m.layers()[1].get());
+    core::TextCell c2 = c;
+    c2.orientation = 90;
+    core::LayerRuler::AnyRuler r2 = r;
+    r2.linear.point1 = QPointF(1, 1);
+    QUndoStack stack;
+    stack.push(new edit::ReplaceAnnotationsCommand(m, { { 0, c, c2 } }, { { 1, r, r2 } }));
+    EXPECT_FLOAT_EQ(T->textCells[0].orientation, 90);
+    EXPECT_EQ(R->rulers[0].linear.point1, QPointF(1, 1));
+    stack.undo();
+    EXPECT_FLOAT_EQ(T->textCells[0].orientation, 0);
+    EXPECT_EQ(R->rulers[0].linear.point1, QPointF(0, 0));
+}

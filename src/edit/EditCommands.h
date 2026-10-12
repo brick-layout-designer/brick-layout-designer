@@ -2,7 +2,9 @@
 
 #include "../core/Brick.h"
 #include "../core/Group.h"
+#include "../core/LayerRuler.h"
 #include "../core/Module.h"
+#include "../core/TextCell.h"
 
 #include <QHash>
 #include <QPointF>
@@ -192,6 +194,34 @@ private:
     std::vector<Target> targets_;
     bool toFront_;
     QHash<int, std::vector<QString>> before_;  // each sheet's order before
+};
+
+// BlueBrick RotateText / RotateRulers: `degrees` about `pivot` (studs).
+// Text turns its box centre round the pivot and adds to its orientation;
+// its box keeps the text's size (swapped when it goes to or from upright
+// 90 / 270, as the map's text layout reads it). A ruler turns its points or
+// its circle's centre; offset, radius and attachments stay.
+core::TextCell rotatedTextCell(const core::TextCell& cell, QPointF pivot, double degrees);
+core::LayerRuler::AnyRuler rotatedRuler(const core::LayerRuler::AnyRuler& ruler, QPointF pivot, double degrees);
+// The point a text cell or ruler turns about when it turns alone.
+QPointF rulerCentre(const core::LayerRuler::AnyRuler& ruler);
+
+// Swap whole text cells and rulers (found by guid on their sheet) for new
+// values, and back on undo. Rotate uses it for text and rulers.
+class ReplaceAnnotationsCommand : public QUndoCommand {
+public:
+    struct TextEntry { int layerIndex = -1; core::TextCell before, after; };
+    struct RulerEntry { int layerIndex = -1; core::LayerRuler::AnyRuler before, after; };
+    ReplaceAnnotationsCommand(core::Map& map, std::vector<TextEntry> texts, std::vector<RulerEntry> rulers,
+                              QUndoCommand* parent = nullptr);
+    void undo() override;
+    void redo() override;
+
+private:
+    void apply(bool forward);
+    core::Map& map_;
+    std::vector<TextEntry> texts_;
+    std::vector<RulerEntry> rulers_;
 };
 
 // Edit a single brick's mutable properties in one undoable step. Upstream's
