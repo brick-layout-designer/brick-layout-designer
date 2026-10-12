@@ -9,6 +9,8 @@ add_library(bld_edit STATIC
     ModuleLibraryLink.h
     LabelCommands.cpp
     LabelCommands.h
+    RotateTurn.cpp
+    RotateTurn.h
     TextCommands.cpp
     TextCommands.h
     LayerCommands.cpp
