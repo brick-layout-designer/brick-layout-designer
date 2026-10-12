@@ -3,6 +3,7 @@
 #include "../core/Brick.h"
 #include "../core/Group.h"
 #include "../core/LayerArea.h"
+#include "../core/LayerRuler.h"
 #include "../core/Module.h"
 #include "ModuleLibraryMenu.h"
 #include "SnapFeel.h"
@@ -599,6 +600,10 @@ private:
     QString rulerEndpointGuid_;
     QPointF rulerEndpointDragLast_;          // last scene-px pos under cursor
     QPointF rulerEndpointOriginalStuds_;     // pre-drag value, in studs
+    // Index 2 drags the offset or radius (BlueBrick ScaleRuler); the ruler
+    // as it was, put back when the drag ends or is called off.
+    std::optional<core::LayerRuler::AnyRuler> rulerScaleOriginal_;
+    void restoreRulerScale();
     // Live preview while the user click-drags a ruler — shows the line
     // (or circle) being drawn plus a label with current length / radius
     // pinned near the cursor. Lets the user dial in a target length

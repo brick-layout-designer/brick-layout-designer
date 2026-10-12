@@ -162,7 +162,8 @@ void MapView::cancelTouchPress() {
         // Its live edit goes back with a release at the press point.
         draggingRulerEndpoint_ = false;
         moved = true;
-        if (map_ && rulerEndpointLayer_ >= 0 && rulerEndpointLayer_ < static_cast<int>(map_->layers().size())) {
+        if (rulerEndpointIndex_ == 2) restoreRulerScale();
+        else if (map_ && rulerEndpointLayer_ >= 0 && rulerEndpointLayer_ < static_cast<int>(map_->layers().size())) {
             auto* L = map_->layers()[rulerEndpointLayer_].get();
             if (L && L->kind() == core::LayerKind::Ruler) {
                 for (auto& any : static_cast<core::LayerRuler&>(*L).rulers) {

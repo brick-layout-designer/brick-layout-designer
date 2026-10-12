@@ -404,3 +404,33 @@ TEST(EditCommands, DetachFreesARulerEnd) {
     EXPECT_EQ(R->rulers[0].linear.attachedBrick2Id, QStringLiteral("b"));
     EXPECT_EQ(R->rulers[1].circular.attachedBrickId, QStringLiteral("a"));
 }
+
+TEST(EditCommands, ScaleRulerSetsTheOffsetOrTheRadiusLikeBlueBrick) {
+    core::LayerRuler::AnyRuler line;
+    line.linear.point1 = QPointF(0, 0);
+    line.linear.point2 = QPointF(10, 0);
+    line.linear.allowOffset = true;
+    // (Uy, -Ux) points up for a left-to-right ruler: 3 studs up is +3.
+    EXPECT_NEAR(edit::scaledRulerValue(line, QPointF(4, -3)), 3, 1e-9);
+    edit::setRulerScale(line, 3);
+    EXPECT_EQ(edit::rulerScaleHandle(line), QPointF(5, -3));
+    core::LayerRuler::AnyRuler circle;
+    circle.kind = core::RulerKind::Circular;
+    circle.circular.center = QPointF(1, 1);
+    EXPECT_NEAR(edit::scaledRulerValue(circle, QPointF(4, 5)), 5, 1e-9);
+    edit::setRulerScale(circle, 5);
+    EXPECT_EQ(circle.circular.displayArea, QRectF(-4, -4, 10, 10));
+    EXPECT_EQ(edit::rulerScaleHandle(circle), QPointF(6, 1));
+
+    core::Map m;
+    auto layer = std::make_unique<core::LayerRuler>();
+    circle.circular.guid = QStringLiteral("c");
+    layer->rulers.push_back(circle);
+    m.layers().push_back(std::move(layer));
+    auto* R = static_cast<core::LayerRuler*>(m.layers()[0].get());
+    QUndoStack stack;
+    stack.push(new edit::ScaleRulerCommand(m, 0, QStringLiteral("c"), 2));
+    EXPECT_FLOAT_EQ(R->rulers[0].circular.radius, 2);
+    stack.undo();
+    EXPECT_FLOAT_EQ(R->rulers[0].circular.radius, 5);
+}

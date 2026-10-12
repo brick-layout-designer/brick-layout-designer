@@ -562,6 +562,18 @@ double MapView::handleRadiusScenePx(double screenPx) const {
     return std::max(selection::kHandleRadius, screenPx / scale);
 }
 
+void MapView::restoreRulerScale() {
+    if (!map_ || !rulerScaleOriginal_ || rulerEndpointLayer_ < 0
+        || rulerEndpointLayer_ >= static_cast<int>(map_->layers().size()))
+        return;
+    auto* L = map_->layers()[rulerEndpointLayer_].get();
+    if (!L || L->kind() != core::LayerKind::Ruler) return;
+    for (auto& any : static_cast<core::LayerRuler&>(*L).rulers) {
+        const QString& g = any.kind == core::RulerKind::Linear ? any.linear.guid : any.circular.guid;
+        if (g == rulerEndpointGuid_) any = *rulerScaleOriginal_;
+    }
+}
+
 bool MapView::rulerEndpointAt(QPointF clickScene, bool startDrag) {
     if (!map_ || tool_ != Tool::Select) return false;
     QSet<QString> selRulerGuids;
@@ -581,17 +593,23 @@ bool MapView::rulerEndpointAt(QPointF clickScene, bool startDrag) {
         if (!L || L->kind() != core::LayerKind::Ruler) continue;
         const auto& RL = static_cast<const core::LayerRuler&>(*L);
         for (const auto& any : RL.rulers) {
-            if (any.kind != core::RulerKind::Linear) continue;
-            if (any.linear.guid != g) continue;
-            const QPointF p1(any.linear.point1.x() * pxPerStud, any.linear.point1.y() * pxPerStud);
-            const QPointF p2(any.linear.point2.x() * pxPerStud, any.linear.point2.y() * pxPerStud);
             auto near = [&](QPointF h) {
                 const QPointF d = h - clickScene;
                 return std::hypot(d.x(), d.y()) <= hitR;
             };
             int idx = -1;
-            if (near(p1)) idx = 0;
-            else if (near(p2)) idx = 1;
+            if (any.kind == core::RulerKind::Linear) {
+                if (any.linear.guid != g) continue;
+                if (near(any.linear.point1 * pxPerStud)) idx = 0;
+                else if (near(any.linear.point2 * pxPerStud)) idx = 1;
+                // BlueBrick ScaleRuler: the offset line's middle drags the offset.
+                else if (any.linear.allowOffset && near(edit::rulerScaleHandle(any) * pxPerStud)) idx = 2;
+            } else {
+                if (any.circular.guid != g) continue;
+                // ... and a circle's rim its radius.
+                const QPointF d = clickScene - any.circular.center * pxPerStud;
+                if (std::abs(std::hypot(d.x(), d.y()) - any.circular.radius * pxPerStud) <= hitR) idx = 2;
+            }
             if (idx < 0) continue;
             if (startDrag) {
                 draggingRulerEndpoint_ = true;
@@ -599,7 +617,8 @@ bool MapView::rulerEndpointAt(QPointF clickScene, bool startDrag) {
                 rulerEndpointLayer_ = li;
                 rulerEndpointGuid_ = g;
                 rulerEndpointDragLast_ = clickScene;
-                rulerEndpointOriginalStuds_ = (idx == 0) ? any.linear.point1 : any.linear.point2;
+                rulerScaleOriginal_ = any;
+                if (idx < 2) rulerEndpointOriginalStuds_ = (idx == 0) ? any.linear.point1 : any.linear.point2;
             }
             return true;
         }
@@ -859,6 +878,13 @@ void MapView::mouseMoveEvent(QMouseEvent* e) {
             L && L->kind() == core::LayerKind::Ruler) {
             auto& RL = static_cast<core::LayerRuler&>(*L);
             for (auto& any : RL.rulers) {
+                if (rulerEndpointIndex_ == 2) {
+                    // Offset or radius, live (BlueBrick ScaleRuler).
+                    const QString& g = any.kind == core::RulerKind::Linear ? any.linear.guid : any.circular.guid;
+                    if (g != rulerEndpointGuid_) continue;
+                    edit::setRulerScale(any, edit::scaledRulerValue(any, rulerEndpointDragLast_ / pxPerStud));
+                    break;
+                }
                 if (any.kind != core::RulerKind::Linear) continue;
                 if (any.linear.guid != rulerEndpointGuid_) continue;
                 if (rulerEndpointIndex_ == 0) any.linear.point1 = target;
@@ -1038,6 +1064,19 @@ void MapView::mouseReleaseEvent(QMouseEvent* e) {
         QPointF finalStuds(rulerEndpointDragLast_.x() / pxPerStud,
                            rulerEndpointDragLast_.y() / pxPerStud);
         finalStuds = gridPoint(finalStuds);
+        if (rulerEndpointIndex_ == 2) {
+            // The live edit goes back; one command makes it for good.
+            restoreRulerScale();
+            const QPointF at = rulerEndpointDragLast_ / pxPerStud;  // not on the grid, as BlueBrick
+            const double value = rulerScaleOriginal_ ? edit::scaledRulerValue(*rulerScaleOriginal_, at) : 0.0;
+            const double before = !rulerScaleOriginal_ ? value
+                                  : rulerScaleOriginal_->kind == core::RulerKind::Circular ? rulerScaleOriginal_->circular.radius
+                                                                                           : rulerScaleOriginal_->linear.offsetDistance;
+            if (rulerScaleOriginal_ && std::abs(value - before) > 1e-6)
+                undoStack_->push(new edit::ScaleRulerCommand(*map_, rulerEndpointLayer_, rulerEndpointGuid_, value));
+            else
+                rebuildScene();
+        } else
         // Restore pre-drag value so the command's redo() captures the
         // correct `before_` state. Without this the live in-place
         // mutation would fool the command into thinking nothing changed.
@@ -1059,7 +1098,9 @@ void MapView::mouseReleaseEvent(QMouseEvent* e) {
                 break;
             }
         }
-        if (finalStuds != rulerEndpointOriginalStuds_) {
+        if (rulerEndpointIndex_ == 2) {
+            // Scaled above.
+        } else if (finalStuds != rulerEndpointOriginalStuds_) {
             undoStack_->push(new edit::MoveRulerEndpointCommand(
                 *map_, rulerEndpointLayer_, rulerEndpointGuid_,
                 rulerEndpointIndex_, finalStuds));  // the undo handler rebuilds

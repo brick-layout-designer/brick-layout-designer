@@ -42,6 +42,30 @@ private:
     int index_ = -1;
 };
 
+// BlueBrick ScaleRuler: dragging a linear ruler's offset line or a circle's
+// rim. The offset (signed, along (Uy, -Ux) as vanilla draws it) or radius
+// that puts the handle at `studs`.
+double scaledRulerValue(const core::LayerRuler::AnyRuler& ruler, QPointF studs);
+// Sets that offset or radius (a circle's box follows).
+void setRulerScale(core::LayerRuler::AnyRuler& ruler, double value);
+// Where the handle is: the middle of the offset line, or the circle's
+// rightmost point.
+QPointF rulerScaleHandle(const core::LayerRuler::AnyRuler& ruler);
+
+class ScaleRulerCommand : public QUndoCommand {
+public:
+    ScaleRulerCommand(core::Map& map, int layerIndex, QString rulerGuid, double value, QUndoCommand* parent = nullptr);
+    void undo() override;
+    void redo() override;
+private:
+    void set(double value);
+    core::Map& map_;
+    int layerIndex_;
+    QString rulerGuid_;
+    double value_;
+    std::optional<double> before_;
+};
+
 // Translate a ruler by a (dx, dy) stud delta. Moves point1 + point2 for
 // linear rulers, center for circular. Undo subtracts the same delta.
 class MoveRulerItemCommand : public QUndoCommand {
