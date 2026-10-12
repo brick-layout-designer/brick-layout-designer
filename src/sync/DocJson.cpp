@@ -73,7 +73,7 @@ namespace detail {
 
 QJsonObject rootsToJson(YDoc* doc) {
     // Declaring an existing root type returns it.
-    const char* maps[] = { "meta", "layerData", "labels", "modules", "venue" };
+    const char* maps[] = { "meta", "layerData", "labels", "modules", "venue", "sidecarItems" };
     Branch* rootMaps[std::size(maps)];
     for (size_t i = 0; i < std::size(maps); ++i) rootMaps[i] = ymap(doc, maps[i]);
     Branch* layers = yarray(doc, "layers");

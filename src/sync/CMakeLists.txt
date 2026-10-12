@@ -114,6 +114,8 @@ add_library(bld_sync STATIC
     WebModelWriter.cpp
     DocJsonDetail.h
     SyncDoc.h
+    SidecarItems.cpp
+    SidecarItems.h
     SyncDoc.cpp
     SyncProtocol.h
     SyncProtocol.cpp
