@@ -6,6 +6,8 @@
 #include "core/Ids.h"
 #include "core/LayerBrick.h"
 #include "core/LayerGrid.h"
+#include "core/LayerRuler.h"
+#include "core/LayerText.h"
 #include "core/Map.h"
 #include "edit/Connectivity.h"
 #include "edit/EditCommands.h"
@@ -14,6 +16,7 @@
 #include "parts/BrickPlacement.h"
 #include "parts/PartsLibrary.h"
 #include "rendering/ModuleLabels.h"
+#include "rendering/SceneBuilder.h"
 #include "saveload/BbmReader.h"
 #include "ui/BudgetSession.h"
 #include "ui/MapViewInternal.h"
@@ -31,6 +34,7 @@
 #include <QHash>
 #include <QMouseEvent>
 #include <QSettings>
+#include <QTest>
 #include <QUndoStack>
 
 using namespace bld;
@@ -770,4 +774,92 @@ TEST(ModuleLabels, TheHoverNameSaysPartlyHidden) {
     // Long, thin: never taller than half its depth.
     EXPECT_EQ(rendering::moduleLabelFontPx(384, 48, 35), 24);
     EXPECT_EQ(rendering::moduleLabelFontPx(400, 300, 35), 140);
+}
+
+namespace {
+// A screen point on `item`'s drawn shape (glyphs or line), for a real click.
+QPoint pointOn(ui::MapView& view, QGraphicsItem* item) {
+    const QRectF r = item->sceneBoundingRect();
+    for (int iy = 1; iy < 40; ++iy)
+        for (int ix = 1; ix < 40; ++ix) {
+            const QPointF at(r.left() + r.width() * ix / 40.0, r.top() + r.height() * iy / 40.0);
+            const QPoint screen = view.mapFromScene(at);
+            if (item->contains(item->mapFromScene(view.mapToScene(screen))) && view.itemAt(screen) == item)
+                return screen;
+        }
+    return view.mapFromScene(r.center());
+}
+QGraphicsItem* selectableOf(ui::MapView& view, const QString& kind) {
+    for (QGraphicsItem* it : view.scene()->items())
+        if (it->data(ui::detail::kBrickDataKind).toString() == kind && (it->flags() & QGraphicsItem::ItemIsSelectable))
+            return it;
+    return nullptr;
+}
+}  // namespace
+
+// BlueBrick RotateText / RotateRulers: click a text cell and press R, it
+// turns in place; Ctrl+click a ruler too and press R, both turn about
+// their shared centre. Undo puts both back.
+TEST(MapViewRotate, TextAndRulersTurnWithTheSelection) {
+    auto map = std::make_unique<core::Map>();
+    auto text = std::make_unique<core::LayerText>();
+    core::TextCell cell;
+    cell.guid = QStringLiteral("t");
+    cell.text = QStringLiteral("MMMMMMMM");
+    cell.displayArea = QRectF(10, 10, 8, 2);
+    text->textCells.push_back(cell);
+    map->layers().push_back(std::move(text));
+    auto rulers = std::make_unique<core::LayerRuler>();
+    core::LayerRuler::AnyRuler r;
+    r.linear.guid = QStringLiteral("r");
+    r.linear.point1 = QPointF(0, 20);
+    r.linear.point2 = QPointF(8, 20);
+    r.linear.displayArea = QRectF(0, 20, 8, 0);
+    rulers->rulers.push_back(r);
+    map->layers().push_back(std::move(rulers));
+    parts::PartsLibrary lib;
+    ui::MapView view(lib);
+    view.resize(900, 700);
+    view.show();
+    ASSERT_TRUE(QTest::qWaitForWindowExposed(&view));
+    view.loadMap(std::move(map));
+    const double px = rendering::SceneBuilder::kPixelsPerStud;
+    view.setTransform(QTransform::fromScale(40.0 / px, 40.0 / px));
+    view.centerOn(QPointF(9, 15) * px);
+    const auto* T = static_cast<const core::LayerText*>(view.currentMap()->layers()[0].get());
+    const auto* R = static_cast<const core::LayerRuler*>(view.currentMap()->layers()[1].get());
+
+    QGraphicsItem* textItem = selectableOf(view, QStringLiteral("text"));
+    ASSERT_TRUE(textItem);
+    QTest::mouseClick(view.viewport(), Qt::LeftButton, {}, pointOn(view, textItem));
+    ASSERT_TRUE(textItem->isSelected());
+    QTest::keyClick(&view, Qt::Key_R);
+    EXPECT_FLOAT_EQ(T->textCells[0].orientation, 90);
+    EXPECT_NEAR(T->textCells[0].displayArea.center().x(), 14, 1e-9);
+    EXPECT_NEAR(T->textCells[0].displayArea.center().y(), 11, 1e-9);
+    EXPECT_NEAR(T->textCells[0].displayArea.width(), 2, 1e-9);
+    EXPECT_NEAR(T->textCells[0].displayArea.height(), 8, 1e-9);
+    EXPECT_EQ(R->rulers[0].linear.point1, QPointF(0, 20));  // not picked
+
+    textItem = selectableOf(view, QStringLiteral("text"));
+    QGraphicsItem* rulerItem = selectableOf(view, QStringLiteral("ruler"));
+    ASSERT_TRUE(textItem && rulerItem);
+    textItem->setSelected(true);
+    QTest::mouseClick(view.viewport(), Qt::LeftButton, Qt::ControlModifier, pointOn(view, rulerItem));
+    QTest::keyClick(&view, Qt::Key_R);
+    // Pivot: the mean of (14, 11) and (4, 20) = (9, 15.5); +90 maps (x, y) to (-y, x).
+    EXPECT_FLOAT_EQ(T->textCells[0].orientation, 180);
+    EXPECT_NEAR(T->textCells[0].displayArea.center().x(), 13.5, 1e-9);
+    EXPECT_NEAR(T->textCells[0].displayArea.center().y(), 20.5, 1e-9);
+    EXPECT_NEAR(T->textCells[0].displayArea.width(), 8, 1e-9);
+    EXPECT_NEAR(R->rulers[0].linear.point1.x(), 4.5, 1e-9);
+    EXPECT_NEAR(R->rulers[0].linear.point1.y(), 6.5, 1e-9);
+    EXPECT_NEAR(R->rulers[0].linear.point2.x(), 4.5, 1e-9);
+    EXPECT_NEAR(R->rulers[0].linear.point2.y(), 14.5, 1e-9);
+
+    view.undoStack()->undo();
+    view.undoStack()->undo();
+    EXPECT_FLOAT_EQ(T->textCells[0].orientation, 0);
+    EXPECT_EQ(T->textCells[0].displayArea, QRectF(10, 10, 8, 2));
+    EXPECT_EQ(R->rulers[0].linear.point1, QPointF(0, 20));
 }

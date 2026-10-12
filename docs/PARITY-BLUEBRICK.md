@@ -17,7 +17,7 @@ These are confirmed in both apps unless a row says otherwise. They are the gaps 
 
 1. ~~**Text cells can't be moved.**~~ Fixed: both apps drag text (`MoveText`). The box's top-left corner snaps to the grid; Alt frees it.
 2. **Rotating a part that is connected to other track.** BlueBrick's `RotateBrick` steps the selection around its connection to the fixed track, through the free connections in turn, so the part stays connected (`Actions/Bricks/RotateBrick.cs`). Ours turns the part about its own centre, which breaks the connection.
-3. **Rotate CW / CCW skips text and rulers.** It works on parts only: `MapView::rotateSelected` on desktop, `rotateBricksAboutCentroid` on web. BlueBrick has `RotateText` and `RotateRulers`.
+3. ~~**Rotate CW / CCW skips text and rulers.**~~ Fixed: picked text and rulers turn with the selection (`RotateText`, `RotateRulers`).
 4. **Bring to Front / Send to Back skips text and rulers.** It works on parts only: `MapView::bringSelectionToFront` / `sendSelectionToBack` and `ReorderBricksCommand` on desktop, `reorderBricks` on web. BlueBrick has `BringTextToFront`, `SendTextToBack`, `BringRulerToFront` and `SendRulerToBack`.
 5. **A ruler's offset or a circle's radius can't be dragged on the map.** BlueBrick's `ScaleRuler` does this. Ours sets both in the Edit Ruler dialog only.
 6. **Detach is only in the dialog.** BlueBrick has Detach on the map's context menu (`MapPanel.cs:1018`). Ours has it in the Edit Ruler dialog only: `ui/EditDialogs.cpp:266-283` on desktop, `EditRulerDialog.tsx:100` on web.
@@ -62,14 +62,14 @@ These are confirmed in both apps unless a row says otherwise. They are the gaps 
 | AttachRulerToBrick | same: context menu (`ui/MapViewContextMenu.cpp:250-270`) | same: `attachRulerEndpoint` |
 | DetachRuler | **differs.** Dialog only, no context-menu entry (gap 6) | **differs.** Dialog only |
 | ScaleRuler | **differs.** Offset and radius are dialog-only (gap 5) | **differs.** Dialog only |
-| RotateRulers | **missing** (gap 3) | **missing** |
+| RotateRulers | same: `rotatedRuler` + `ReplaceAnnotationsCommand` from `MapView::rotateSelected` | see `references/PARITY.md` |
 | BringRulerToFront / SendRulerToBack | **missing** (gap 4) | **missing** |
 | AddText | same: `AddTextCellCommand` | same: `addTextCell` / `newTextBox` |
 | DeleteText | same: `DeleteTextCellCommand` | same: `deleteTextCell` |
 | DuplicateText | same: mixed-selection copy / paste | same |
 | EditText | same: Edit Text dialog (`EditTextCellTextCommand`) | same: `editTextCellFull` |
 | MoveText | same: `MoveTextCellCommand` (`edit/TextCommands.h`), dragged with the selection in `ui/MapViewDrag.cpp`; arrow keys too | same: text drag in `EditorPage.tsx` |
-| RotateText | **missing** (gap 3) | **missing** |
+| RotateText | same: `rotatedTextCell` + `ReplaceAnnotationsCommand`. The box keeps the text's size, swapped at 90 / 270 as the text layout reads it | see `references/PARITY.md` |
 | BringTextToFront / SendTextToBack | **missing** (gap 4) | **missing** |
 
 ## Map context menu (`MapPanel.cs`)

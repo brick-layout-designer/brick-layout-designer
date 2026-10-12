@@ -1350,14 +1350,30 @@ void MapView::rotateSelected(float degrees) {
     // Every selected brick turns around the selection's pivot: for a single
     // brick that's its own sprite centre (BlueBrick's pivot), so it turns
     // in place. The displayArea follows the rotated hull.
+    // Picked text and rulers turn with them (BlueBrick RotateText and
+    // RotateRulers).
     struct Hit { int li; const core::Brick* brick; QPointF centre; };
     std::vector<Hit> hits;
+    std::vector<std::pair<int, const core::TextCell*>> texts;
+    std::vector<std::pair<int, const core::LayerRuler::AnyRuler*>> rulers;
+    QSet<QString> annoSeen;
     for (QGraphicsItem* it : scene()->selectedItems()) {
-        if (!isBrickItem(it)) continue;
         const int li = it->data(kBrickDataLayerIndex).toInt();
         const QString guid = it->data(kBrickDataGuid).toString();
         if (li < 0 || li >= static_cast<int>(map_->layers().size())) continue;
         auto* L = map_->layers()[li].get();
+        if (L && (isTextItem(it) || isRulerItem(it)) && !annoSeen.contains(guid)) {
+            annoSeen.insert(guid);
+            if (L->kind() == core::LayerKind::Text)
+                for (const auto& c : static_cast<const core::LayerText&>(*L).textCells)
+                    if (c.guid == guid) texts.emplace_back(li, &c);
+            if (L->kind() == core::LayerKind::Ruler)
+                for (const auto& r : static_cast<const core::LayerRuler&>(*L).rulers)
+                    if ((r.kind == core::RulerKind::Linear ? r.linear.guid : r.circular.guid) == guid)
+                        rulers.emplace_back(li, &r);
+            continue;
+        }
+        if (!isBrickItem(it)) continue;
         if (!L || L->kind() != core::LayerKind::Brick) continue;
         for (const auto& b : static_cast<core::LayerBrick&>(*L).bricks) {
             if (b.guid != guid) continue;
@@ -1365,11 +1381,14 @@ void MapView::rotateSelected(float degrees) {
             break;
         }
     }
-    if (hits.empty()) return;
+    const std::size_t count = hits.size() + texts.size() + rulers.size();
+    if (count == 0) return;
 
     QPointF pivot(0, 0);
     for (const auto& h : hits) pivot += h.centre;
-    pivot /= hits.size();
+    for (const auto& [li, c] : texts) pivot += c->displayArea.center();
+    for (const auto& [li, r] : rulers) pivot += edit::rulerCentre(*r);
+    pivot /= static_cast<double>(count);
 
     std::vector<edit::RotateBricksCommand::Entry> rotates;
     for (const auto& h : hits) {
@@ -1386,7 +1405,20 @@ void MapView::rotateSelected(float degrees) {
         r.afterArea  = turned.displayArea;
         rotates.push_back(r);
     }
-    undoStack_->push(new edit::RotateBricksCommand(*map_, std::move(rotates)));
+    std::vector<edit::ReplaceAnnotationsCommand::TextEntry> textTurns;
+    textTurns.reserve(texts.size());
+    for (const auto& [li, c] : texts) textTurns.push_back({ li, *c, edit::rotatedTextCell(*c, pivot, degrees) });
+    std::vector<edit::ReplaceAnnotationsCommand::RulerEntry> rulerTurns;
+    rulerTurns.reserve(rulers.size());
+    for (const auto& [li, r] : rulers) rulerTurns.push_back({ li, *r, edit::rotatedRuler(*r, pivot, degrees) });
+    if (textTurns.empty() && rulerTurns.empty()) {
+        undoStack_->push(new edit::RotateBricksCommand(*map_, std::move(rotates)));
+    } else {
+        undoStack_->beginMacro(tr("Rotate"));
+        if (!rotates.empty()) undoStack_->push(new edit::RotateBricksCommand(*map_, std::move(rotates)));
+        undoStack_->push(new edit::ReplaceAnnotationsCommand(*map_, std::move(textTurns), std::move(rulerTurns)));
+        undoStack_->endMacro();
+    }
     // Selection is preserved automatically by the undoStack indexChanged
     // handler, which rebuilds the scene + reselects every item by guid.
 }
