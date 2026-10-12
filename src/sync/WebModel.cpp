@@ -1,5 +1,7 @@
 #include "WebModel.h"
 
+#include "SidecarItems.h"
+
 #include "saveload/SidecarIO.h"
 
 #include "core/LayerArea.h"
@@ -225,7 +227,9 @@ std::unique_ptr<core::Map> mapFromDocJson(const QJsonObject& doc, QString* error
     map->selectedLayerIndex = integer(meta, "selectedLayerIndex");
     // Anchored labels, modules and the venue: the web keeps the sidecar in
     // meta.cache.
-    saveload::sidecarFromJson(obj(meta, "cache"), map->sidecar);
+    // Its modules and labels from sidecarItems when they go with that cache,
+    // so everyone's edits to different ones are kept (SidecarItems.h).
+    saveload::sidecarFromJson(mergedSidecarCache(obj(meta, "cache"), obj(doc, "sidecarItems")), map->sidecar);
 
     const QJsonObject data = obj(doc, "layerData");
     for (const auto& id : arr(doc, "layers")) {

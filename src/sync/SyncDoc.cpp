@@ -1,5 +1,7 @@
 #include "SyncDoc.h"
 
+#include "SidecarItems.h"
+
 #include "DocJsonDetail.h"
 #include "UpdateGuard.h"
 #include "WebModelWriter.h"
@@ -216,6 +218,7 @@ struct SyncDoc::Impl {
     Branch* meta = nullptr;
     Branch* layers = nullptr;
     Branch* layerData = nullptr;
+    Branch* sidecarItems = nullptr;
     YTransaction* txn = nullptr;
     Arena arena;
     int ops = 0;  // changes made by the current writeMap
@@ -323,12 +326,14 @@ SyncDoc::SyncDoc() : d_(std::make_unique<Impl>()) {
     d_->meta = ymap(d_->doc, "meta");
     d_->layers = yarray(d_->doc, "layers");
     d_->layerData = ymap(d_->doc, "layerData");
+    d_->sidecarItems = ymap(d_->doc, "sidecarItems");
     for (const char* extra : { "labels", "modules", "venue" }) ymap(d_->doc, extra);
 
     // No capture window: every writeMap is its own undo step.
     const YUndoManagerOptions opts{ 0 };
     d_->undo = yundo_manager(&opts);
-    for (const Branch* root : { d_->meta, d_->layers, d_->layerData }) yundo_manager_add_scope(d_->undo, d_->doc, root);
+    for (const Branch* root : { d_->meta, d_->layers, d_->layerData, d_->sidecarItems })
+        yundo_manager_add_scope(d_->undo, d_->doc, root);
     yundo_manager_add_origin(d_->undo, sizeof(kLocalOrigin) - 1, kLocalOrigin);
 }
 
@@ -393,6 +398,19 @@ QByteArray SyncDoc::writeMap(const core::Map& map) {
     if (curMeta.contains(QLatin1String("cache")) || !cache.isEmpty())
         wantMeta.insert(QStringLiteral("cache"), cache);
     d.setFields(d.meta, curMeta, wantMeta, false);
+    // Modules and labels one per key too, as the web keeps them, so edits
+    // made here and on the web at the same time merge (SidecarItems.h).
+    if (!cache.isEmpty()) {
+        const QJsonObject curItems = cur.value(QLatin1String("sidecarItems")).toObject();
+        const QJsonObject wantItems = sidecarItemsFor(cache);
+        for (auto it = curItems.begin(); it != curItems.end(); ++it)
+            if ((it.key().startsWith(QLatin1String("m:")) || it.key().startsWith(QLatin1String("l:")))
+                && !wantItems.contains(it.key())) {
+                ymap_remove(d.sidecarItems, d.txn, d.arena.str(it.key()));
+                ++d.ops;
+            }
+        d.setFields(d.sidecarItems, curItems, wantItems, false);
+    }
 
     const QJsonArray order = want.value(QLatin1String("layers")).toArray();
     if (!same(cur.value(QLatin1String("layers")), order)) {
