@@ -1,5 +1,6 @@
 #include "SidecarItems.h"
 
+#include <QSet>
 #include <QJsonArray>
 #include <QLocale>
 #include <QStringList>
@@ -118,8 +119,28 @@ QString sidecarBlobHash(const QJsonValue& blob) {
     return QStringLiteral("%1:%2").arg(text.size()).arg(h, 0, 16);
 }
 
+// The items are keyed by id: a sidecar where a module or label has no id,
+// or shares one, can't be split into them without losing an entry, so it's
+// read as the blob it is (as the web's readSidecarCache does).
+bool sidecarIdsUnique(const QJsonObject& blob) {
+    for (const Kind& kind : kKinds) {
+        const QJsonValue list = blob.value(QString::fromLatin1(kind.field));
+        if (!list.isArray()) continue;
+        QSet<QString> seen;
+        const QJsonArray entries = list.toArray();
+        for (const auto& v : entries) {
+            const QJsonValue id = v.toObject().value(QLatin1String("id"));
+            if (!id.isString() || seen.contains(id.toString())) return false;
+            seen.insert(id.toString());
+        }
+    }
+    return true;
+}
+
 QJsonObject mergedSidecarCache(const QJsonObject& blob, const QJsonObject& items) {
-    if (items.isEmpty() || items.value(QLatin1String(kBlobKey)).toString() != sidecarBlobHash(blob)) return blob;
+    if (items.isEmpty() || items.value(QLatin1String(kBlobKey)).toString() != sidecarBlobHash(blob)
+        || !sidecarIdsUnique(blob))
+        return blob;
     QJsonObject out = blob;
     for (const Kind& kind : kKinds) {
         struct Entry {
