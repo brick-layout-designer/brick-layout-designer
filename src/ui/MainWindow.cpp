@@ -298,6 +298,7 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
     connect(partsBrowser_, &PartsBrowser::touchDragMoved, mapView_, &MapView::touchPartDragTo);
     connect(partsBrowser_, &PartsBrowser::touchDragDropped, mapView_, &MapView::touchPartDropAt);
     connect(partsBrowser_, &PartsBrowser::touchDragCancelled, mapView_, &MapView::touchPartDragCancel);
+    connect(mapView_, &MapView::useAsModelRequested, this, &MainWindow::showPartInBrowser);
     connect(mapView_, &MapView::addPartRequested, this, [this] {
         // Not inside the bar button's own click.
         QTimer::singleShot(0, this, [this] {

@@ -19,6 +19,7 @@
 #include "../core/Map.h"
 #include "../edit/RulerCommands.h"
 #include "EditDialogs.h"
+#include "../rendering/SceneBuilder.h"
 #include "MapViewInternal.h"
 #include "TouchActionBar.h"
 
@@ -133,6 +134,11 @@ void MapView::contextMenuEvent(QContextMenuEvent* e) {
                     if (editBrickDialog(this, *map_, li, guid, parts_, *undoStack_))
                         rebuildScene();
                 });
+                // BlueBrick's Use as Model: pick this part in the parts list.
+                const QString partNumber = only->data(rendering::SceneBuilder::kBrickPartRole).toString();
+                if (!partNumber.isEmpty())
+                    connect(menu.addAction(tr("Use as Model")), &QAction::triggered, this,
+                            [this, partNumber] { emit useAsModelRequested(partNumber); });
             } else if (isRulerItem(only)) {
                 auto* prop = menu.addAction(tr("Properties..."));
                 connect(prop, &QAction::triggered, [this, li, guid]{

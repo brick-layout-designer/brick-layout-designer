@@ -507,6 +507,14 @@ void PartsBrowser::showPart(const QString& text) {
     category_->setCurrentIndex(0);
     filter_->setText(text);
     applyFilter();
+    // The part itself, when it is one, is picked and shown (Use as Model).
+    for (int i = 0; i < grid_->count(); ++i) {
+        QListWidgetItem* it = grid_->item(i);
+        if (it->isHidden() || it->data(kPartKeyRole).toString().compare(text, Qt::CaseInsensitive) != 0) continue;
+        grid_->setCurrentItem(it);
+        grid_->scrollToItem(it);
+        break;
+    }
 }
 
 void PartsBrowser::addOne(const QString& key) {

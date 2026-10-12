@@ -82,7 +82,7 @@ These are confirmed in both apps unless a row says otherwise. They are the gaps 
 | Group / Ungroup | same | same |
 | Attach (ruler) | same: per endpoint | same |
 | Detach (ruler) | same: one entry per attached end | **missing** from the menu |
-| Use as Model | **missing.** Nothing picks the clicked part in the parts library | **missing** |
+| Use as Model | same: a part's menu picks it in the parts list (`useAsModelRequested`, `PartsBrowser::showPart`) | **missing** |
 | Properties | same | same |
 | Scroll bars | n/a: there are no scroll bars | n/a |
 
@@ -113,6 +113,6 @@ The menus otherwise match, item by item. The web repo's `references/PARITY.md` c
 3. Rotate and Bring to Front / Send to Back for text and rulers.
 4. Detach on the context menu.
 5. On-canvas ruler offset and radius handles.
-6. Use as Model.
+6. ~~Use as Model~~: done on desktop.
 7. ~~MoveArea~~: done on desktop.
 8. ~~Rotation pivot~~: done on desktop, checked against vanilla (`RotateOracleTest`).
