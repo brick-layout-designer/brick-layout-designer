@@ -354,6 +354,7 @@ void addTextLayer(const core::LayerText& L, LayerSink& sink, int layerIndex) {
         tr.translate(-at.width / 2.0, -at.height / 2.0);
         t->setTransform(tr);
         t->setFlag(QGraphicsItem::ItemIsSelectable, true);
+        t->setFlag(QGraphicsItem::ItemIsMovable,    true);  // BlueBrick MoveText
         t->setData(kBrickDataLayerIndex, layerIndex);
         t->setData(kBrickDataGuid,       cell.guid);
         t->setData(kBrickDataKind,       QStringLiteral("text"));

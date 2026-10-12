@@ -30,6 +30,7 @@
 #include <QMouseEvent>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QUndoStack>
 
 #include <cmath>
 #include <memory>
@@ -215,6 +216,14 @@ protected:
         r.linear.displayArea = QRectF(1.2, 41.1, 8, 0);
         rulers->rulers.push_back(r);
         map->layers().push_back(std::move(rulers));
+        auto text = std::make_unique<core::LayerText>();
+        text->guid = QStringLiteral("T");
+        core::TextCell cell;
+        cell.guid = QStringLiteral("note");
+        cell.text = QStringLiteral("Yard");
+        cell.displayArea = QRectF(40.5, 60.3, 10, 4);
+        text->textCells.push_back(cell);
+        map->layers().push_back(std::move(text));
         core::AnchoredLabel label;
         label.id = QStringLiteral("label");
         label.text = QStringLiteral("Station");
@@ -285,6 +294,14 @@ protected:
             if (it->data(detail::kBrickDataKind).toString() == kind
                 && it->data(detail::kBrickDataGuid).toString() == guid)
                 return it;
+        return nullptr;
+    }
+
+    const core::TextCell* textCell(const QString& guid) {
+        for (const auto& l : view_->currentMap()->layers())
+            if (l->kind() == core::LayerKind::Text)
+                for (const auto& c : static_cast<const core::LayerText&>(*l).textCells)
+                    if (c.guid == guid) return &c;
         return nullptr;
     }
 
@@ -444,6 +461,48 @@ TEST_F(GridSnapView, PickedTogetherTheyMoveAlike) {
     const QPointF moved = brick(QStringLiteral("S"))->displayArea.topLeft() - QPointF(3.3, 2.2);
     EXPECT_NEAR(labelAt().x(), 10.3 + moved.x(), 1e-6);
     EXPECT_NEAR(labelAt().y(), 30.6 + moved.y(), 1e-6);
+}
+
+// BlueBrick MoveText: picked text drags with the pointer; its box's
+// top-left corner lands on the grid, and undo puts it back.
+TEST_F(GridSnapView, DraggedTextLandsByItsCornerOnTheGrid) {
+    pick(QStringLiteral("text"), QStringLiteral("note"));
+    QGraphicsItem* it = item(QStringLiteral("text"), QStringLiteral("note"));
+    ASSERT_TRUE(it);
+    const QPointF grab = it->sceneBoundingRect().center() / kPx;
+    drag(grab, grab + QPointF(9, 6));
+    ASSERT_TRUE(textCell(QStringLiteral("note")));
+    // (40.5, 60.3) + (9, 6) = (49.5, 66.3): the nearest grid point is (48, 64).
+    EXPECT_NEAR(textCell(QStringLiteral("note"))->displayArea.x(), 48, 1e-6);
+    EXPECT_NEAR(textCell(QStringLiteral("note"))->displayArea.y(), 64, 1e-6);
+    EXPECT_NEAR(textCell(QStringLiteral("note"))->displayArea.width(), 10, 1e-6);
+    view_->undoStack()->undo();
+    EXPECT_NEAR(textCell(QStringLiteral("note"))->displayArea.x(), 40.5, 1e-6);
+    EXPECT_NEAR(textCell(QStringLiteral("note"))->displayArea.y(), 60.3, 1e-6);
+}
+
+TEST_F(GridSnapView, AltDragsTextFreely) {
+    pick(QStringLiteral("text"), QStringLiteral("note"));
+    QGraphicsItem* it = item(QStringLiteral("text"), QStringLiteral("note"));
+    ASSERT_TRUE(it);
+    const QPointF grab = onScreen(it->sceneBoundingRect().center() / kPx);
+    const QPointF to = onScreen(grab + QPointF(9, 6));
+    drag(grab, to, Qt::AltModifier);
+    EXPECT_NEAR(textCell(QStringLiteral("note"))->displayArea.x(), 40.5 + (to - grab).x(), 1e-6);
+    EXPECT_NEAR(textCell(QStringLiteral("note"))->displayArea.y(), 60.3 + (to - grab).y(), 1e-6);
+}
+
+// Text picked with a part moves by the part's (snapped) amount.
+TEST_F(GridSnapView, TextPickedWithAPartMovesWithIt) {
+    for (QGraphicsItem* it : view_->scene()->items()) {
+        const QString kind = it->data(detail::kBrickDataKind).toString();
+        it->setSelected(kind == QLatin1String("brick") || kind == QLatin1String("text"));
+    }
+    drag(onScreen({ 10, 5 }), onScreen({ 27.6, 13.9 }));
+    const QPointF moved = brick(QStringLiteral("S"))->displayArea.topLeft() - QPointF(3.3, 2.2);
+    EXPECT_GT(moved.x(), 1);
+    EXPECT_NEAR(textCell(QStringLiteral("note"))->displayArea.x(), 40.5 + moved.x(), 1e-6);
+    EXPECT_NEAR(textCell(QStringLiteral("note"))->displayArea.y(), 60.3 + moved.y(), 1e-6);
 }
 
 TEST_F(GridSnapView, NewTextIsCentredOnTheGrid) {

@@ -1290,12 +1290,12 @@ void MapView::nudgeSelected(double dxStuds, double dyStuds) {
     const QPointF delta(dxStuds, dyStuds);
     std::vector<edit::MoveBricksCommand::Entry> brickEntries;
 
-    // Nudge also moves selected rulers + labels. Collect the ruler guids
+    // Nudge also moves selected rulers, text + labels. Collect the ruler guids
     // we've already handled so nudging a multi-piece ruler (seg1+seg2+
     // label) only fires one command.
     QSet<QString> rulerSeen;
     QSet<QString> labelSeen;
-    struct RulerHit { int li; QString guid; };
+    struct RulerHit { int li; QString guid; bool text; };
     std::vector<RulerHit> rulerHits;
     QStringList labelIds;
 
@@ -1316,11 +1316,11 @@ void MapView::nudgeSelected(double dxStuds, double dyStuds) {
                 brickEntries.push_back(e);
                 break;
             }
-        } else if (isRulerItem(it)) {
+        } else if (isRulerItem(it) || isTextItem(it)) {
             const QString guid = it->data(kBrickDataGuid).toString();
             if (guid.isEmpty() || rulerSeen.contains(guid)) continue;
             rulerSeen.insert(guid);
-            rulerHits.push_back({ it->data(kBrickDataLayerIndex).toInt(), guid });
+            rulerHits.push_back({ it->data(kBrickDataLayerIndex).toInt(), guid, isTextItem(it) });
         } else if (isLabelItem(it)) {
             const QString guid = it->data(kBrickDataGuid).toString();
             if (guid.isEmpty() || labelSeen.contains(guid)) continue;
@@ -1335,7 +1335,8 @@ void MapView::nudgeSelected(double dxStuds, double dyStuds) {
         undoStack_->push(new edit::MoveBricksCommand(*map_, std::move(brickEntries)));
     }
     for (const auto& h : rulerHits) {
-        undoStack_->push(new edit::MoveRulerItemCommand(*map_, h.li, h.guid, delta));
+        if (h.text) undoStack_->push(new edit::MoveTextCellCommand(*map_, h.li, h.guid, delta));
+        else undoStack_->push(new edit::MoveRulerItemCommand(*map_, h.li, h.guid, delta));
     }
     for (const QString& id : labelIds) {
         undoStack_->push(new edit::MoveAnchoredLabelCommand(*map_, id, delta));

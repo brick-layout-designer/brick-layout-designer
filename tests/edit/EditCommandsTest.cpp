@@ -4,6 +4,7 @@
 #include "core/LayerRuler.h"
 #include "core/LayerText.h"
 #include "core/Map.h"
+#include "edit/TextCommands.h"
 
 #include <gtest/gtest.h>
 
@@ -291,4 +292,24 @@ TEST(EditCommands, TextAndRulersComeToFrontAndGoBackLikeBlueBrick) {
     EXPECT_EQ(R->rulers[0].linear.guid, QStringLiteral("r1"));
     stack.push(new edit::ReorderAnnotationsCommand(m, { { 0, QStringLiteral("c") } }, false));
     EXPECT_EQ(T->textCells[0].guid, QStringLiteral("c"));
+}
+
+TEST(EditCommands, MoveTextShiftsTheBoxAndUndoPutsItBack) {
+    core::Map m;
+    auto text = std::make_unique<core::LayerText>();
+    core::TextCell c;
+    c.guid = QStringLiteral("a");
+    c.displayArea = QRectF(1, 2, 10, 4);
+    text->textCells.push_back(c);
+    m.layers().push_back(std::move(text));
+    auto* T = static_cast<core::LayerText*>(m.layers()[0].get());
+    QUndoStack stack;
+    stack.push(new edit::MoveTextCellCommand(m, 0, QStringLiteral("a"), QPointF(3.5, -1)));
+    EXPECT_EQ(T->textCells[0].displayArea, QRectF(4.5, 1, 10, 4));
+    stack.undo();
+    EXPECT_EQ(T->textCells[0].displayArea, QRectF(1, 2, 10, 4));
+    // An unknown cell or sheet is left alone.
+    stack.push(new edit::MoveTextCellCommand(m, 5, QStringLiteral("a"), QPointF(1, 1)));
+    stack.push(new edit::MoveTextCellCommand(m, 0, QStringLiteral("zz"), QPointF(1, 1)));
+    EXPECT_EQ(T->textCells[0].displayArea, QRectF(1, 2, 10, 4));
 }

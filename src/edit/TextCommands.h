@@ -2,6 +2,7 @@
 
 #include "../core/TextCell.h"
 
+#include <QPointF>
 #include <QUndoCommand>
 #include <QString>
 
@@ -39,6 +40,21 @@ private:
     QString cellGuid_;
     std::optional<core::TextCell> removed_;
     int insertIndex_ = -1;
+};
+
+// Move a text cell by `deltaStuds` (BlueBrick MoveText).
+class MoveTextCellCommand : public QUndoCommand {
+public:
+    MoveTextCellCommand(core::Map& map, int layerIndex, QString cellGuid, QPointF deltaStuds,
+                        QUndoCommand* parent = nullptr);
+    void undo() override;
+    void redo() override;
+private:
+    void shift(QPointF by);
+    core::Map& map_;
+    int layerIndex_;
+    QString cellGuid_;
+    QPointF delta_;
 };
 
 // Replace a text cell's text content. Font / color / alignment stay put.

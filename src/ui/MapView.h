@@ -330,6 +330,7 @@ private:
         int     layerIndex = -1;
         QString guid;
         QPointF scenePosAtPress;
+        bool    text = false;  // a text cell (MoveText), not a ruler
     };
     struct LabelDragSnapshot {
         QGraphicsItem* item = nullptr;
