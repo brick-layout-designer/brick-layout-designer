@@ -5,6 +5,7 @@ add_executable(bld_sync_tests
     WebModelTest.cpp
     SyncDocTest.cpp
     SidecarItemsTest.cpp
+    ContractsTest.cpp
     SyncProtocolTest.cpp
     SyncClientTest.cpp
     ServerApiTest.cpp

@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<part>
+  <Author>Sam Builder</Author>
+  <Description>
+    <en>Harbour yard</en>
+  </Description>
+  <PixelsPerStud>16</PixelsPerStud>
+  <ImportedFrom file="Harbour yard.io" format="studio" date="(date)"/>
+  <Designer url="https://example.com/sam">Sam Builder</Designer>
+  <ImportSource>
+    <SourcePath>/home/sam/models/Harbour yard.io</SourcePath>
+    <SourceModified>2026-10-01T12:00:00.000Z</SourceModified>
+    <QuarterTurns>1</QuarterTurns>
+    <Align>bottom</Align>
+    <Nudge x="0.5000" y="0.0000"/>
+    <DroppedConnection x="0.0000" y="6.0000"/>
+  </ImportSource>
+  <ConnexionList>
+    <connexion>
+      <type>rail</type>
+      <position>
+        <x>-6.0000</x>
+        <y>3.0000</y>
+      </position>
+      <angle>180.00</angle>
+    </connexion>
+    <connexion>
+      <type>rail</type>
+      <position>
+        <x>6.0000</x>
+        <y>3.0000</y>
+      </position>
+      <angle>0.00</angle>
+    </connexion>
+  </ConnexionList>
+  <PickShape>
+    <ring>
+      <point>
+        <x>-6</x>
+        <y>-6</y>
+      </point>
+      <point>
+        <x>0</x>
+        <y>-6</y>
+      </point>
+      <point>
+        <x>0</x>
+        <y>0</y>
+      </point>
+      <point>
+        <x>6</x>
+        <y>0</y>
+      </point>
+      <point>
+        <x>6</x>
+        <y>6</y>
+      </point>
+      <point>
+        <x>-6</x>
+        <y>6</y>
+      </point>
+    </ring>
+    <ring>
+      <point>
+        <x>-2</x>
+        <y>2</y>
+      </point>
+      <point>
+        <x>-4</x>
+        <y>2</y>
+      </point>
+      <point>
+        <x>-4</x>
+        <y>4</y>
+      </point>
+      <point>
+        <x>-2</x>
+        <y>4</y>
+      </point>
+    </ring>
+  </PickShape>
+  <SnapMargin>
+    <left>1</left>
+    <right>2</right>
+    <top>0</top>
+    <bottom>1</bottom>
+  </SnapMargin>
+</part>

@@ -1,0 +1,7 @@
+{
+  "about": "A server custom part: the website places it as custom:<id>; every file made for BlueBrick or the desktop (export.bbm, export.bbm.bld, export.zip, export.bld-layout, data downloads) names it by partNumber, and the desktop's PartsSync cache finds it by either.",
+  "id": "5b0d7c1e-3f2a-4c6b-9e8d-1a2b3c4d5e6f",
+  "partNumber": "HARBOUR_YARD.1",
+  "displayName": "Harbour yard",
+  "xml": "<part><Author>Sam Builder</Author><Description><en>Harbour yard</en></Description></part>"
+}

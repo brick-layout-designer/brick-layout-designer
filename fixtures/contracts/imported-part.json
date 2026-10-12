@@ -1,0 +1,134 @@
+{
+    "about": "What imported-part.xml (written by the desktop's ImportToPart for a 12 x 12 stud L with a 2 x 2 hole) reads as, in both apps. hits: points in studs from the sprite centre (y down) and whether a click there picks the part.",
+    "author": "Sam Builder",
+    "connections": [
+        {
+            "angle": 180,
+            "type": "rail",
+            "x": -6,
+            "y": 3
+        },
+        {
+            "angle": 0,
+            "type": "rail",
+            "x": 6,
+            "y": 3
+        }
+    ],
+    "description": "Harbour yard",
+    "designer": {
+        "name": "Sam Builder",
+        "url": "https://example.com/sam"
+    },
+    "hits": [
+        {
+            "inside": true,
+            "x": -3,
+            "y": -3
+        },
+        {
+            "inside": true,
+            "x": 3,
+            "y": 3
+        },
+        {
+            "inside": true,
+            "x": -1,
+            "y": 4.5
+        },
+        {
+            "inside": true,
+            "x": -5,
+            "y": 3
+        },
+        {
+            "inside": false,
+            "x": 3,
+            "y": -3
+        },
+        {
+            "inside": false,
+            "x": 1.5,
+            "y": -1.5
+        },
+        {
+            "inside": false,
+            "x": -3,
+            "y": 3
+        },
+        {
+            "inside": false,
+            "x": 8,
+            "y": 0
+        },
+        {
+            "inside": false,
+            "x": 0,
+            "y": -8
+        }
+    ],
+    "importedFrom": {
+        "file": "Harbour yard.io",
+        "format": "studio"
+    },
+    "neverOnTheServer": [
+        "ImportSource",
+        "SourcePath",
+        "/home/sam",
+        "QuarterTurns",
+        "DroppedConnection"
+    ],
+    "pickShape": [
+        [
+            [
+                -6,
+                -6
+            ],
+            [
+                0,
+                -6
+            ],
+            [
+                0,
+                0
+            ],
+            [
+                6,
+                0
+            ],
+            [
+                6,
+                6
+            ],
+            [
+                -6,
+                6
+            ]
+        ],
+        [
+            [
+                -2,
+                2
+            ],
+            [
+                -4,
+                2
+            ],
+            [
+                -4,
+                4
+            ],
+            [
+                -2,
+                4
+            ]
+        ]
+    ],
+    "pxPerStud": 16,
+    "snapMargin": {
+        "bottom": 1,
+        "left": 1,
+        "right": 2,
+        "top": 0
+    }
+}
