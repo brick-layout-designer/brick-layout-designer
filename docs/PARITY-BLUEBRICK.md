@@ -19,7 +19,7 @@ These are confirmed in both apps unless a row says otherwise. They are the gaps 
 2. ~~**Rotating a part that is connected to other track.**~~ Fixed on desktop: a selection joined to other track steps round that join to its next free connection, like `RotateBrick` (`edit/RotateTurn.h`).
 3. ~~**Rotate CW / CCW skips text and rulers.**~~ Fixed: picked text and rulers turn with the selection (`RotateText`, `RotateRulers`).
 4. **Bring to Front / Send to Back skips text and rulers.** It works on parts only: `MapView::bringSelectionToFront` / `sendSelectionToBack` and `ReorderBricksCommand` on desktop, `reorderBricks` on web. BlueBrick has `BringTextToFront`, `SendTextToBack`, `BringRulerToFront` and `SendRulerToBack`.
-5. **A ruler's offset or a circle's radius can't be dragged on the map.** BlueBrick's `ScaleRuler` does this. Ours sets both in the Edit Ruler dialog only.
+5. ~~**A ruler's offset or a circle's radius can't be dragged on the map.**~~ Fixed on desktop (`ScaleRuler`): with the ruler picked, drag the middle of its offset line, or a circle's rim.
 6. ~~**Detach is only in the dialog.**~~ Fixed on desktop: the map's context menu offers Detach Ruler Endpoint 1 / 2 or Detach Ruler Centre for a picked ruler's attached ends (`MapPanel.cs:1018`).
 
 ## Actions
@@ -61,7 +61,7 @@ These are confirmed in both apps unless a row says otherwise. They are the gaps 
 | MoveRulerControlPoint | same: `MoveRulerEndpointCommand` | same: `moveRulerEndpoint` |
 | AttachRulerToBrick | same: context menu (`ui/MapViewContextMenu.cpp:250-270`) | same: `attachRulerEndpoint` |
 | DetachRuler | same: the context menu's Detach entries (`ui/MapViewContextMenu.cpp`) and the dialog | **differs.** Dialog only |
-| ScaleRuler | **differs.** Offset and radius are dialog-only (gap 5) | **differs.** Dialog only |
+| ScaleRuler | same: `ScaleRulerCommand`; drag the offset line's middle (when the ruler allows an offset) or a circle's rim, not on the grid (`MapView::rulerEndpointAt`) | **differs.** Dialog only |
 | RotateRulers | same: `rotatedRuler` + `ReplaceAnnotationsCommand` from `MapView::rotateSelected` | see `references/PARITY.md` |
 | BringRulerToFront / SendRulerToBack | **missing** (gap 4) | **missing** |
 | AddText | same: `AddTextCellCommand` | same: `addTextCell` / `newTextBox` |

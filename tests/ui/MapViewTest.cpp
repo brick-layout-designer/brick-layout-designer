@@ -904,3 +904,74 @@ TEST(MapViewMoveArea, CtrlDragShiftsTheWholeSheet) {
     view.undoStack()->undo();
     EXPECT_EQ(QPoint(A->cells[0].x, A->cells[0].y), QPoint(0, 0));
 }
+
+namespace {
+const core::LayerRuler::AnyRuler& rulerOf(ui::MapView& view, int i) {
+    return static_cast<const core::LayerRuler&>(*view.currentMap()->layers()[0]).rulers[static_cast<std::size_t>(i)];
+}
+// A slow left drag with the mouse, from `from` to `to` (studs).
+void dragStuds(ui::MapView& view, QPointF from, QPointF to) {
+    const double px = rendering::SceneBuilder::kPixelsPerStud;
+    QWidget* vp = view.viewport();
+    const auto screen = [&](QPointF s) { return view.mapFromScene(s * px); };
+    QTest::mousePress(vp, Qt::LeftButton, {}, screen(from));
+    for (int i = 1; i <= 8; ++i) {
+        const QPoint p = screen(from + (to - from) * i / 8.0);
+        QMouseEvent move(QEvent::MouseMove, p, vp->mapToGlobal(p), Qt::NoButton, Qt::LeftButton, {});
+        QApplication::sendEvent(vp, &move);
+    }
+    QTest::mouseRelease(vp, Qt::LeftButton, {}, screen(to));
+}
+}  // namespace
+
+// BlueBrick ScaleRuler: with a ruler picked, dragging the middle of its
+// offset line sets the offset, and dragging a circle's rim its radius;
+// each is one undo step.
+TEST(MapViewScaleRuler, DragTheOffsetAndTheRadiusOnTheMap) {
+    auto map = std::make_unique<core::Map>();
+    auto rulers = std::make_unique<core::LayerRuler>();
+    core::LayerRuler::AnyRuler line;
+    line.linear.guid = QStringLiteral("line");
+    line.linear.point1 = QPointF(0, 20);
+    line.linear.point2 = QPointF(10, 20);
+    line.linear.displayArea = QRectF(0, 20, 10, 0);
+    line.linear.allowOffset = true;
+    line.linear.offsetDistance = 2;  // drawn 2 studs above: (Uy, -Ux) is up
+    rulers->rulers.push_back(line);
+    core::LayerRuler::AnyRuler circle;
+    circle.kind = core::RulerKind::Circular;
+    circle.circular.guid = QStringLiteral("circle");
+    circle.circular.center = QPointF(30, 20);
+    circle.circular.radius = 4;
+    circle.circular.displayArea = QRectF(26, 16, 8, 8);
+    rulers->rulers.push_back(circle);
+    map->layers().push_back(std::move(rulers));
+    parts::PartsLibrary lib;
+    ui::MapView view(lib);
+    view.resize(900, 700);
+    view.show();
+    ASSERT_TRUE(QTest::qWaitForWindowExposed(&view));
+    view.loadMap(std::move(map));
+    view.setSnapStepStuds(0);
+    const double px = rendering::SceneBuilder::kPixelsPerStud;
+    view.setTransform(QTransform::fromScale(20.0 / px, 20.0 / px));
+    view.centerOn(QPointF(18, 18) * px);
+
+    // Click the offset line to pick the ruler, then drag its middle up.
+    QTest::mouseClick(view.viewport(), Qt::LeftButton, {}, view.mapFromScene(QPointF(3, 18) * px));
+    dragStuds(view, QPointF(5, 18), QPointF(5, 14));
+    EXPECT_NEAR(rulerOf(view, 0).linear.offsetDistance, 6, 0.1);
+    EXPECT_EQ(rulerOf(view, 0).linear.point1, QPointF(0, 20));  // the ends stay
+
+    // Click the circle to pick it, then drag its rim out.
+    QTest::mouseClick(view.viewport(), Qt::LeftButton, {}, view.mapFromScene(QPointF(30, 16) * px));
+    dragStuds(view, QPointF(34, 20), QPointF(37, 20));
+    EXPECT_NEAR(rulerOf(view, 1).circular.radius, 7, 0.1);
+    EXPECT_EQ(rulerOf(view, 1).circular.center, QPointF(30, 20));  // not moved
+
+    EXPECT_EQ(view.undoStack()->count(), 2);
+    view.undoStack()->undo();
+    EXPECT_FLOAT_EQ(rulerOf(view, 1).circular.radius, 4);
+    view.undoStack()->undo();
+    EXPECT_FLOAT_EQ(rulerOf(view, 0).linear.offsetDistance, 2);
+}

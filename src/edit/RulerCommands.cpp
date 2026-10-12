@@ -7,6 +7,9 @@
 #include <QObject>
 #include <QUuid>
 
+#include <algorithm>
+#include <cmath>
+
 namespace bld::edit {
 
 namespace {
@@ -343,6 +346,62 @@ void AttachRulerCommand::undo() {
             if (attachGuidOf(any) == rulerGuid_) { applyAttachment(any, endpointIndex_, before_); break; }
         }
     }
+}
+
+// ----- ScaleRulerCommand (BlueBrick ScaleRuler) -----
+
+namespace {
+QPointF unitAlong(const core::LinearRuler& l) {
+    const QPointF d = l.point2 - l.point1;
+    const double len = std::hypot(d.x(), d.y());
+    return len > 1e-9 ? d / len : QPointF(1, 0);
+}
+}  // namespace
+
+double scaledRulerValue(const core::LayerRuler::AnyRuler& ruler, QPointF studs) {
+    if (ruler.kind == core::RulerKind::Circular) {
+        const QPointF d = studs - ruler.circular.center;
+        return std::hypot(d.x(), d.y());
+    }
+    const QPointF u = unitAlong(ruler.linear);
+    const QPointF d = studs - ruler.linear.point1;
+    return d.x() * u.y() - d.y() * u.x();
+}
+
+void setRulerScale(core::LayerRuler::AnyRuler& ruler, double value) {
+    if (ruler.kind == core::RulerKind::Circular) {
+        auto& c = ruler.circular;
+        c.radius = static_cast<float>(std::max(0.0, value));
+        c.displayArea = QRectF(c.center.x() - c.radius, c.center.y() - c.radius, 2 * c.radius, 2 * c.radius);
+    } else {
+        ruler.linear.offsetDistance = static_cast<float>(value);
+    }
+}
+
+QPointF rulerScaleHandle(const core::LayerRuler::AnyRuler& ruler) {
+    if (ruler.kind == core::RulerKind::Circular) return ruler.circular.center + QPointF(ruler.circular.radius, 0);
+    const QPointF u = unitAlong(ruler.linear);
+    const double off = ruler.linear.allowOffset ? ruler.linear.offsetDistance : 0.0;
+    return (ruler.linear.point1 + ruler.linear.point2) / 2 + QPointF(u.y(), -u.x()) * off;
+}
+
+ScaleRulerCommand::ScaleRulerCommand(core::Map& map, int layerIndex, QString rulerGuid, double value, QUndoCommand* parent)
+    : QUndoCommand(parent), map_(map), layerIndex_(layerIndex), rulerGuid_(std::move(rulerGuid)), value_(value) {
+    setText(QObject::tr("Scale ruler"));
+}
+
+void ScaleRulerCommand::set(double value) {
+    if (auto* any = findRuler(map_, layerIndex_, rulerGuid_)) {
+        if (!before_)
+            before_ = any->kind == core::RulerKind::Circular ? any->circular.radius : any->linear.offsetDistance;
+        setRulerScale(*any, value);
+    }
+}
+
+void ScaleRulerCommand::redo() { set(value_); }
+
+void ScaleRulerCommand::undo() {
+    if (before_) set(*before_);
 }
 
 }
