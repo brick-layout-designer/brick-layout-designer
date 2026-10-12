@@ -20,7 +20,7 @@ These are confirmed in both apps unless a row says otherwise. They are the gaps 
 3. ~~**Rotate CW / CCW skips text and rulers.**~~ Fixed: picked text and rulers turn with the selection (`RotateText`, `RotateRulers`).
 4. **Bring to Front / Send to Back skips text and rulers.** It works on parts only: `MapView::bringSelectionToFront` / `sendSelectionToBack` and `ReorderBricksCommand` on desktop, `reorderBricks` on web. BlueBrick has `BringTextToFront`, `SendTextToBack`, `BringRulerToFront` and `SendRulerToBack`.
 5. **A ruler's offset or a circle's radius can't be dragged on the map.** BlueBrick's `ScaleRuler` does this. Ours sets both in the Edit Ruler dialog only.
-6. **Detach is only in the dialog.** BlueBrick has Detach on the map's context menu (`MapPanel.cs:1018`). Ours has it in the Edit Ruler dialog only: `ui/EditDialogs.cpp:266-283` on desktop, `EditRulerDialog.tsx:100` on web.
+6. ~~**Detach is only in the dialog.**~~ Fixed on desktop: the map's context menu offers Detach Ruler Endpoint 1 / 2 or Detach Ruler Centre for a picked ruler's attached ends (`MapPanel.cs:1018`).
 
 ## Actions
 
@@ -60,7 +60,7 @@ These are confirmed in both apps unless a row says otherwise. They are the gaps 
 | MoveRulers | same: `MoveRulerItemCommand` (`MapViewDrag.cpp:583`) | same: `moveRulerItem` |
 | MoveRulerControlPoint | same: `MoveRulerEndpointCommand` | same: `moveRulerEndpoint` |
 | AttachRulerToBrick | same: context menu (`ui/MapViewContextMenu.cpp:250-270`) | same: `attachRulerEndpoint` |
-| DetachRuler | **differs.** Dialog only, no context-menu entry (gap 6) | **differs.** Dialog only |
+| DetachRuler | same: the context menu's Detach entries (`ui/MapViewContextMenu.cpp`) and the dialog | **differs.** Dialog only |
 | ScaleRuler | **differs.** Offset and radius are dialog-only (gap 5) | **differs.** Dialog only |
 | RotateRulers | same: `rotatedRuler` + `ReplaceAnnotationsCommand` from `MapView::rotateSelected` | see `references/PARITY.md` |
 | BringRulerToFront / SendRulerToBack | **missing** (gap 4) | **missing** |
@@ -81,7 +81,7 @@ These are confirmed in both apps unless a row says otherwise. They are the gaps 
 | Select Path | same: `MapView::selectPath` | same |
 | Group / Ungroup | same | same |
 | Attach (ruler) | same: per endpoint | same |
-| Detach (ruler) | **missing** from the menu (gap 6) | **missing** from the menu |
+| Detach (ruler) | same: one entry per attached end | **missing** from the menu |
 | Use as Model | **missing.** Nothing picks the clicked part in the parts library | **missing** |
 | Properties | same | same |
 | Scroll bars | n/a: there are no scroll bars | n/a |
