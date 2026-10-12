@@ -23,6 +23,8 @@ QString sidecarBlobHash(const QJsonValue& blob);
 
 // The sidecar as everyone's edits left it: `blob` with its modules and
 // anchored labels taken from `items` when they go with this blob.
+// False when a module or label has no id or shares one (read the blob as is).
+bool sidecarIdsUnique(const QJsonObject& blob);
 QJsonObject mergedSidecarCache(const QJsonObject& blob, const QJsonObject& items);
 
 // What `sidecarItems` should hold for `blob`: one entry per module and

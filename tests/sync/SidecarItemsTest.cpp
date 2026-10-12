@@ -136,3 +136,16 @@ TEST(SidecarItems, ConcurrentEditsToDifferentLabelsAndModulesAllSurvive) {
         EXPECT_EQ(merged->sidecar.modules.front().name, QStringLiteral("Harbour"));
     }
 }
+
+TEST(SidecarItems, ASidecarWithRepeatedOrMissingIdsIsReadWhole) {
+    // As the web's readSidecarCache: per-id items can't hold such entries.
+    const QJsonObject odd = QJsonDocument::fromJson(R"({"schemaVersion":1,"bbmHashSha256":"",
+        "modules":[{"id":"dup","name":"One","members":[]},{"id":"dup","name":"Two","members":[]},{"name":"No id","members":[]}],
+        "anchoredLabels":[{"text":"No id"}]})").object();
+    EXPECT_FALSE(sync::sidecarIdsUnique(odd));
+    QJsonObject items = sync::sidecarItemsFor(odd);
+    items.insert(QStringLiteral("__blob"), sync::sidecarBlobHash(odd));
+    EXPECT_EQ(sync::mergedSidecarCache(odd, items), odd);
+    const QJsonObject fine = QJsonDocument::fromJson(R"({"modules":[{"id":"a","members":[]}]})").object();
+    EXPECT_TRUE(sync::sidecarIdsUnique(fine));
+}
