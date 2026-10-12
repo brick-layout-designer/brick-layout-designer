@@ -15,7 +15,7 @@ It was first audited on 2026-10-10.
 
 These are confirmed in both apps unless a row says otherwise. They are the gaps that matter most, in order:
 
-1. **Text cells can't be moved.** BlueBrick drags text (`MoveText`); our two apps only let you edit a text cell's text. There is no text drag in `ui/MapViewDrag.cpp` (desktop), and the web comment at `EditorPage.tsx` ("text cells don't drag") says the same.
+1. ~~**Text cells can't be moved.**~~ Fixed: both apps drag text (`MoveText`). The box's top-left corner snaps to the grid; Alt frees it.
 2. **Rotating a part that is connected to other track.** BlueBrick's `RotateBrick` steps the selection around its connection to the fixed track, through the free connections in turn, so the part stays connected (`Actions/Bricks/RotateBrick.cs`). Ours turns the part about its own centre, which breaks the connection.
 3. **Rotate CW / CCW skips text and rulers.** It works on parts only: `MapView::rotateSelected` on desktop, `rotateBricksAboutCentroid` on web. BlueBrick has `RotateText` and `RotateRulers`.
 4. **Bring to Front / Send to Back skips text and rulers.** It works on parts only: `MapView::bringSelectionToFront` / `sendSelectionToBack` and `ReorderBricksCommand` on desktop, `reorderBricks` on web. BlueBrick has `BringTextToFront`, `SendTextToBack`, `BringRulerToFront` and `SendRulerToBack`.
@@ -68,7 +68,7 @@ These are confirmed in both apps unless a row says otherwise. They are the gaps 
 | DeleteText | same: `DeleteTextCellCommand` | same: `deleteTextCell` |
 | DuplicateText | same: mixed-selection copy / paste | same |
 | EditText | same: Edit Text dialog (`EditTextCellTextCommand`) | same: `editTextCellFull` |
-| MoveText | **missing** (gap 1) | **missing** |
+| MoveText | same: `MoveTextCellCommand` (`edit/TextCommands.h`), dragged with the selection in `ui/MapViewDrag.cpp`; arrow keys too | same: text drag in `EditorPage.tsx` |
 | RotateText | **missing** (gap 3) | **missing** |
 | BringTextToFront / SendTextToBack | **missing** (gap 4) | **missing** |
 

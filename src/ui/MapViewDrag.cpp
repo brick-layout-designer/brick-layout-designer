@@ -20,6 +20,8 @@
 #include "../edit/EditCommands.h"
 #include "../edit/LabelCommands.h"
 #include "../edit/RulerCommands.h"
+#include "../edit/TextCommands.h"
+#include "../core/LayerText.h"
 #include "../parts/BrickPlacement.h"
 #include "../parts/PartsLibrary.h"
 #include "../rendering/SceneBuilder.h"
@@ -47,6 +49,7 @@ using detail::kBrickDataLayerIndex;
 using detail::kBrickDataGuid;
 using detail::isBrickItem;
 using detail::isRulerItem;
+using detail::isTextItem;
 using detail::isLabelItem;
 using detail::studToPx;
 
@@ -155,13 +158,13 @@ void MapView::captureDragStart() {
     QSet<QString> rulerSeen;
     QSet<QString> labelSeen;
     for (QGraphicsItem* it : scene()->selectedItems()) {
-        if (isRulerItem(it) || isLabelItem(it)) {
+        if (isRulerItem(it) || isLabelItem(it) || isTextItem(it)) {
             // A label on a picked part rides with it.
             bool riding = false;
             for (QGraphicsItem* p = it->parentItem(); p && !riding; p = p->parentItem()) riding = p->isSelected();
             if (!riding) annoItemsAtPress_.emplace_back(it, it->pos());
         }
-        if (isRulerItem(it)) {
+        if (isRulerItem(it) || isTextItem(it)) {
             const QString guid = it->data(kBrickDataGuid).toString();
             if (guid.isEmpty() || rulerSeen.contains(guid)) continue;
             rulerSeen.insert(guid);
@@ -170,6 +173,7 @@ void MapView::captureDragStart() {
             r.layerIndex = it->data(kBrickDataLayerIndex).toInt();
             r.guid = guid;
             r.scenePosAtPress = it->scenePos();
+            r.text = isTextItem(it);
             rulerDragStart_.push_back(r);
         } else if (isLabelItem(it)) {
             const QString lid = it->data(kBrickDataGuid).toString();
@@ -187,7 +191,7 @@ void MapView::captureDragStart() {
     if (!dragStart_.empty() || annoItemsAtPress_.empty()) return;
     QGraphicsItem* lead = nullptr;
     for (QGraphicsItem* it : scene()->items(dragPressScene_)) {
-        if ((isRulerItem(it) || isLabelItem(it)) && it->isSelected()) {
+        if ((isRulerItem(it) || isLabelItem(it) || isTextItem(it)) && it->isSelected()) {
             lead = it;
             break;
         }
@@ -201,6 +205,12 @@ void MapView::captureDragStart() {
     const QString guid = lead->data(kBrickDataGuid).toString();
     if (li < 0 || li >= static_cast<int>(map_->layers().size())) return;
     const auto* L = map_->layers()[li].get();
+    if (L && L->kind() == core::LayerKind::Text) {
+        // Text snaps by its box's top-left corner (BlueBrick MoveText).
+        for (const auto& cell : static_cast<const core::LayerText&>(*L).textCells)
+            if (cell.guid == guid) annoSnapRef_ = cell.displayArea.topLeft();
+        return;
+    }
     if (!L || L->kind() != core::LayerKind::Ruler) return;
     for (const auto& any : static_cast<const core::LayerRuler&>(*L).rulers) {
         if (any.kind == core::RulerKind::Linear && any.linear.guid == guid) annoSnapRef_ = any.linear.point1;
@@ -561,13 +571,14 @@ void MapView::commitDragIfMoved() {
     if (!rulerDragStart_.empty() || !labelDragStart_.empty()) {
         const double pxToStud = 1.0 / studToPx();
         std::vector<std::tuple<int, QString, QPointF>> rulerCmds;
+        std::vector<std::tuple<int, QString, QPointF>> textCmds;
         std::vector<std::pair<QString, QPointF>>       labelCmds;
         for (const auto& r : rulerDragStart_) {
             if (!r.anyPiece) continue;
             const QPointF d = r.anyPiece->scenePos() - r.scenePosAtPress;
             if (std::abs(d.x()) < 0.5 && std::abs(d.y()) < 0.5) continue;
-            rulerCmds.emplace_back(r.layerIndex, r.guid,
-                                    QPointF(d.x() * pxToStud, d.y() * pxToStud));
+            (r.text ? textCmds : rulerCmds)
+                .emplace_back(r.layerIndex, r.guid, QPointF(d.x() * pxToStud, d.y() * pxToStud));
         }
         for (const auto& l : labelDragStart_) {
             if (!l.item) continue;
@@ -576,11 +587,14 @@ void MapView::commitDragIfMoved() {
             labelCmds.emplace_back(l.labelId,
                                     QPointF(d.x() * pxToStud, d.y() * pxToStud));
         }
-        if (!rulerCmds.empty() || !labelCmds.empty()) {
+        if (!rulerCmds.empty() || !labelCmds.empty() || !textCmds.empty()) {
             undoStack_->beginMacro(tr("Drag"));
             macro.stack = undoStack_.get();
             for (const auto& [li, g, d] : rulerCmds) {
                 undoStack_->push(new edit::MoveRulerItemCommand(*map_, li, g, d));
+            }
+            for (const auto& [li, g, d] : textCmds) {
+                undoStack_->push(new edit::MoveTextCellCommand(*map_, li, g, d));
             }
             for (const auto& [id, d] : labelCmds) {
                 undoStack_->push(new edit::MoveAnchoredLabelCommand(*map_, id, d));
@@ -778,7 +792,8 @@ void MapView::refreshLiveFollowers() {
     for (const auto& s : dragStart_) moving.insert(s.guid);
     // Ruler layers being dragged themselves keep their items (the drag holds them).
     QSet<int> keep;
-    for (const auto& r : rulerDragStart_) keep.insert(r.layerIndex);
+    for (const auto& r : rulerDragStart_)
+        if (!r.text) keep.insert(r.layerIndex);
     withLivePose([&](const core::Map& posed) { builder_->rebuildFollowers(posed, moving, keep); });
     applyViewFilter();
     emit liveDragMoved();

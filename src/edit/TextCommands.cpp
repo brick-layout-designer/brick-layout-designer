@@ -100,4 +100,23 @@ void EditTextCellTextCommand::undo() {
     }
 }
 
+// ----- MoveTextCellCommand -----
+
+MoveTextCellCommand::MoveTextCellCommand(core::Map& map, int layerIndex, QString cellGuid, QPointF deltaStuds,
+                                         QUndoCommand* parent)
+    : QUndoCommand(parent), map_(map), layerIndex_(layerIndex), cellGuid_(std::move(cellGuid)), delta_(deltaStuds) {
+    setText(QObject::tr("Move text"));
+}
+
+void MoveTextCellCommand::shift(QPointF by) {
+    if (auto* L = textLayer(map_, layerIndex_)) {
+        const int i = indexByGuid(*L, cellGuid_);
+        if (i >= 0) L->textCells[i].displayArea.translate(by);
+    }
+}
+
+void MoveTextCellCommand::redo() { shift(delta_); }
+
+void MoveTextCellCommand::undo() { shift(-delta_); }
+
 }
