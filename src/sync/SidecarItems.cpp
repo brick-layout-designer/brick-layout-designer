@@ -127,7 +127,8 @@ bool sidecarIdsUnique(const QJsonObject& blob) {
         const QJsonValue list = blob.value(QString::fromLatin1(kind.field));
         if (!list.isArray()) continue;
         QSet<QString> seen;
-        for (const QJsonValue& v : list.toArray()) {
+        const QJsonArray entries = list.toArray();
+        for (const auto& v : entries) {
             const QJsonValue id = v.toObject().value(QLatin1String("id"));
             if (!id.isString() || seen.contains(id.toString())) return false;
             seen.insert(id.toString());
