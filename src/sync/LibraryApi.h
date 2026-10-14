@@ -221,6 +221,9 @@ public:
     void layouts(std::function<void(const QList<LayoutEntry>&)> done, Fail failed);
     void venues(std::function<void(const QList<VenueEntry>&)> done, Fail failed);
     void customParts(std::function<void(const QList<ServerPart>&)> done, Fail failed);
+    // A new version of the server's custom part `id` (PUT /api/custom-parts/:id): the
+    // body PartsUpload::uploadBody() makes. Its owner stays as it is.
+    void replaceCustomPart(const QString& id, const QJsonObject& body, std::function<void()> done, Fail failed);
     // A copy of a layout as a file: the whole layout as a .bld-layout
     // (`native`, servers with layoutDownload), else its .bbm.
     void layoutFile(const QString& id, bool native, std::function<void(const QByteArray&)> done, Fail failed);

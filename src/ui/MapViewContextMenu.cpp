@@ -19,6 +19,7 @@
 #include "../core/Map.h"
 #include "../edit/RulerCommands.h"
 #include "EditDialogs.h"
+#include "../parts/PartsLibrary.h"
 #include "../rendering/SceneBuilder.h"
 #include "MapViewInternal.h"
 #include "TouchActionBar.h"
@@ -139,6 +140,14 @@ void MapView::contextMenuEvent(QContextMenuEvent* e) {
                 if (!partNumber.isEmpty())
                     connect(menu.addAction(tr("Use as Model")), &QAction::triggered, this,
                             [this, partNumber] { emit useAsModelRequested(partNumber); });
+                // A part made from a model: swap in another model for it.
+                if (const auto meta = partNumber.isEmpty() ? std::nullopt : parts_.metadata(partNumber);
+                    meta && meta->importSource) {
+                    auto* other = menu.addAction(tr("Replace with Another File..."));
+                    other->setObjectName(QStringLiteral("ctxReplaceImported"));
+                    connect(other, &QAction::triggered, this,
+                            [this, partNumber] { emit replaceImportedPartRequested(partNumber); });
+                }
             } else if (isRulerItem(only)) {
                 auto* prop = menu.addAction(tr("Properties..."));
                 connect(prop, &QAction::triggered, [this, li, guid]{

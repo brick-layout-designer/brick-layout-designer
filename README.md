@@ -134,8 +134,9 @@ clubs that plan a layout together.
 - Turn LDraw, Studio (`.io`) and LDD (`.lxf` / `.lxfml`) models into library
   parts: a top-down picture at 32 px per stud (plus an 8 px per stud `.gif`
   for vanilla BlueBrick), with connection points found from the track pieces
-  inside. Batch import, re-import from the source, and a preview to rotate the
-  part and drop connection points.
+  inside. Batch import, re-import from the original file (or swap in another
+  file, keeping the part number), and a preview to rotate the part and drop
+  connection points.
 
 **Easy to use**
 - A welcome card and short guided tours, ⓘ help buttons beside settings,

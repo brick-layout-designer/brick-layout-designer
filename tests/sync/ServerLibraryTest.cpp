@@ -20,6 +20,7 @@
 #include "sync/Credit.h"
 #include "ui/MainWindow.h"
 #include "ui/ConfirmDialog.h"
+#include "ui/ImportPipeline.h"
 #include "ui/MapView.h"
 #include "ui/ModuleLibraryDialogs.h"
 #include "ui/ModulesPanel.h"
@@ -45,6 +46,7 @@
 #include <QFrame>
 #include <QGraphicsItem>
 #include <QGraphicsScene>
+#include <QImage>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QLabel>
@@ -58,6 +60,7 @@
 #include <QStandardPaths>
 #include <QTabWidget>
 #include <QTcpServer>
+#include <QTemporaryDir>
 #include <QTcpSocket>
 #include <QTimer>
 #include <QToolButton>
@@ -808,6 +811,7 @@ class Win : public ui::MainWindow {
 public:
     using ui::MainWindow::MainWindow;
     using ui::MainWindow::setTokenStore;
+    using ui::MainWindow::offerToUpdateServerParts;
 };
 
 }  // namespace
@@ -1339,4 +1343,52 @@ TEST_F(ServerModulesLive, AHintFromTheServerListsTheModulesAgain) {
     ASSERT_TRUE(waitFor([&] { return library_->module(QStringLiteral("m3")); }));
     EXPECT_GE(count(http_, "GET", "/api/events"), 1);
     EXPECT_EQ(lastRequest(http_, "GET", "/api/events")->authorization, QByteArray("Bearer bld_pat_win"));
+}
+
+// A part you re-imported or replaced, and the server has your copy of it:
+// one click updates the server's copy too (and only one you may change).
+TEST_F(ServerModulesWindow, AChangedImportedPartIsUpdatedOnTheServerToo) {
+    QTemporaryDir home;
+    QSettings().setValue(QStringLiteral("modules/libraryPath"), home.path());
+    for (const char* key : { "Station", "Shed" }) {
+        ui::PreparedPart part;
+        part.source = home.filePath(QStringLiteral("station.ldr"));
+        part.sprite = QImage(32, 16, QImage::Format_ARGB32);
+        part.sprite.fill(Qt::red);
+        part.widthStuds = 4;
+        part.heightStuds = 2;
+        QString err;
+        ASSERT_FALSE(ui::writeImportedPart(part, QLatin1String(key), home.filePath(QStringLiteral("imports")), {}, false, &err)
+                         .isEmpty()) << err.toStdString();
+    }
+    const auto serverPart = [](const char* id, const char* number, const char* role) {
+        return QJsonObject{ { QStringLiteral("id"), QLatin1String(id) }, { QStringLiteral("partNumber"), QLatin1String(number) },
+                            { QStringLiteral("displayName"), QLatin1String(number) }, { QStringLiteral("role"), QLatin1String(role) } };
+    };
+    http_.reply("/api/custom-parts", 200,
+                { { QStringLiteral("parts"), QJsonArray{ serverPart("p1", "station", "owner"), serverPart("p2", "Shed", "viewer") } } });
+    http_.reply("/api/custom-parts/p1", 200, { { QStringLiteral("id"), QStringLiteral("p1") } });
+
+    window_->offerToUpdateServerParts({ QStringLiteral("Station"), QStringLiteral("Shed") });
+    const QString id = QStringLiteral("updated-part:") + http_.base().toString();
+    auto* notices = window_->notices();
+    ASSERT_TRUE(waitFor([&] { return notices->isShown(id); }));
+    QFrame* card = notices->card(id);
+    bool saysWhich = false;
+    for (auto* l : card->findChildren<QLabel*>()) saysWhich |= l->text().contains(QStringLiteral("“station” is on Club server"));
+    EXPECT_TRUE(saysWhich);
+    QPushButton* update = nullptr;
+    for (auto* b : card->findChildren<QPushButton*>())
+        if (b->text() == QStringLiteral("Update on the server")) update = b;
+    ASSERT_NE(update, nullptr);
+    update->click();
+    ASSERT_TRUE(waitFor([&] { return lastRequest(http_, "PUT", "/api/custom-parts/p1"); }));
+    const QJsonObject body = QJsonDocument::fromJson(lastRequest(http_, "PUT", "/api/custom-parts/p1")->body).object();
+    EXPECT_EQ(body.value(QStringLiteral("partNumber")).toString(), QStringLiteral("station"));  // as the server has it
+    EXPECT_FALSE(body.value(QStringLiteral("xmlBase64")).toString().isEmpty());
+    EXPECT_FALSE(body.value(QStringLiteral("spriteBase64")).toString().isEmpty());
+    // Shed is only shared with you to look at: not sent.
+    waitFor([] { return false; }, 100);
+    EXPECT_FALSE(lastRequest(http_, "PUT", "/api/custom-parts/p2"));
+    QSettings().remove(QStringLiteral("modules/libraryPath"));
 }

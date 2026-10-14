@@ -83,8 +83,10 @@ signals:
     // grid.
     void partDeleted();
 
-    // "Re-import from Source" on an imported part.
+    // "Re-import from Original File" on an imported part.
     void reimportRequested(const QString& key);
+    // "Replace with Another File" on an imported part.
+    void replaceRequested(const QString& key);
 
     // Touch: a part tapped (to place with a tap on the map), or dragged out
     // sideways by a finger. The panel keeps the finger, so it says where it

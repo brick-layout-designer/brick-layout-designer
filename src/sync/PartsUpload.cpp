@@ -252,18 +252,22 @@ void PartsUpload::upload(const QList<LocalPart>& parts, const QString& orgSlug) 
     uploadNext();
 }
 
+QJsonObject PartsUpload::uploadBody(const LocalPart& p) {
+    const PartPayload payload = payloadFor(p);
+    return { { QStringLiteral("partNumber"), p.key },
+             { QStringLiteral("displayName"), p.displayName },
+             { QStringLiteral("xmlBase64"), QString::fromLatin1(payload.xml.toBase64()) },
+             { QStringLiteral("spriteBase64"), QString::fromLatin1(payload.sprite.toBase64()) },
+             { QStringLiteral("spriteMime"), payload.mime } };
+}
+
 void PartsUpload::uploadNext() {
     if (queue_.isEmpty()) {
         emit uploaded(done_, failures_);
         return;
     }
     const LocalPart p = queue_.takeFirst();
-    const PartPayload payload = payloadFor(p);
-    QJsonObject body{ { QStringLiteral("partNumber"), p.key },
-                      { QStringLiteral("displayName"), p.displayName },
-                      { QStringLiteral("xmlBase64"), QString::fromLatin1(payload.xml.toBase64()) },
-                      { QStringLiteral("spriteBase64"), QString::fromLatin1(payload.sprite.toBase64()) },
-                      { QStringLiteral("spriteMime"), payload.mime } };
+    QJsonObject body = uploadBody(p);
     if (!orgSlug_.isEmpty()) body.insert(QStringLiteral("orgSlug"), orgSlug_);
     QUrl url = server_;
     url.setPath(QStringLiteral("/api/custom-parts"));

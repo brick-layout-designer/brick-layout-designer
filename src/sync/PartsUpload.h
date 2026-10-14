@@ -5,6 +5,7 @@
 // know are listed, and the ones the user confirms are uploaded as custom
 // parts, owned by them or an organisation. Nothing uploads unasked.
 
+#include <QJsonObject>
 #include <QList>
 #include <QNetworkAccessManager>
 #include <QObject>
@@ -54,6 +55,10 @@ public:
     // <PixelsPerStud> lowered to match. A .gif is 8 px a stud whatever the
     // XML says, so its XML is sent without <PixelsPerStud>.
     static PartPayload payloadFor(const LocalPart& part, qint64 maxBytes = kMaxPartBytes);
+
+    // The JSON a part is sent as (POST and PUT /api/custom-parts): its number,
+    // name, XML and sprite.
+    static QJsonObject uploadBody(const LocalPart& part);
 
     // Which of `local` the server's catalog (GET /api/parts/catalog) lacks.
     void findMissing(const QList<LocalPart>& local);

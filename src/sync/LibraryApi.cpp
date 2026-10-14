@@ -321,6 +321,13 @@ void LibraryApi::customParts(std::function<void(const QList<ServerPart>&)> done,
     }, std::move(failed));
 }
 
+void LibraryApi::replaceCustomPart(const QString& id, const QJsonObject& body, std::function<void()> done,
+                                   Fail failed) {
+    sendJson("PUT", QStringLiteral("/api/custom-parts/%1").arg(idPath(id)), body, [done = std::move(done)](const QJsonObject&) {
+        if (done) done();
+    }, std::move(failed));
+}
+
 void LibraryApi::layoutFile(const QString& id, bool native, std::function<void(const QByteArray&)> done, Fail failed) {
     send("GET", QStringLiteral("/api/layouts/%1/%2").arg(idPath(id), native ? QStringLiteral("export.bld-layout") : QStringLiteral("export.bbm")),
          {}, {}, [done = std::move(done)](QNetworkReply* r) {

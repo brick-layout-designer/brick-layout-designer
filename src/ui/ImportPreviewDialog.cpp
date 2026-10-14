@@ -292,6 +292,7 @@ ImportPreviewDialog::ImportPreviewDialog(PreparedPart part,
         || suggested.size() > 80)
         suggested = QFileInfo(part_.source).completeBaseName();
     nameEdit_ = new QLineEdit(suggested, this);
+    nameEdit_->setObjectName(QStringLiteral("partName"));
     form->addRow(tr("Save as:"), nameEdit_);
     categoryBox_ = new QComboBox(this);
     categoryBox_->setEditable(true);

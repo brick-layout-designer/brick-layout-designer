@@ -5,6 +5,7 @@ add_executable(bld_ui_tests
     MapViewTest.cpp
     RotateOracleTest.cpp
     ImportPipelineTest.cpp
+    ImportReplaceTest.cpp
     LDrawMapTest.cpp
     BrickPlacementTest.cpp
     ConnectivityTest.cpp
