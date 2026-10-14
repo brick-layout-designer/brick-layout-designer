@@ -200,3 +200,108 @@ TEST(MeshRasterize, OpaqueStillHidesWhatIsBelow) {
     const QImage img = import::rasterizeMeshTopDown(m, opt).image.convertToFormat(QImage::Format_ARGB32);
     EXPECT_EQ(img.pixelColor(8, 8), QColor(0, 200, 0));
 }
+
+// Outlines (Aaron, on a big Studio import: "there are a lot of noisy
+// lines"). Rendered as the importer does: 32 px/stud, supersampled 4x.
+namespace {
+
+import::RasterizeOptions outlinedOptions() {
+    import::RasterizeOptions opt;
+    opt.pxPerStud = 32;
+    opt.marginPx = 0;
+    opt.ssaa = 4;
+    opt.wireframe = true;
+    return opt;
+}
+
+void addEdge(geom::Mesh& m, geom::Vec3 a, geom::Vec3 b) {
+    geom::Edge e;
+    e.v[0] = a;
+    e.v[1] = b;
+    m.edges.push_back(e); // no color: the default dark outline
+}
+
+int lumaOf(QColor c) {
+    return (c.red() * 299 + c.green() * 587 + c.blue() * 114) / 1000;
+}
+
+// The darkest pixel across a horizontal line near image row `y`, at column
+// `x` (a 1 px line can land between two rows).
+int darkestAcross(const QImage& img, int x, int y) {
+    int dark = 255;
+    for (int yy = y - 2; yy <= y + 2; ++yy) dark = std::min(dark, lumaOf(img.pixelColor(x, yy)));
+    return dark;
+}
+
+QImage outlined(const geom::Mesh& m, bool wireframe = true) {
+    import::RasterizeOptions opt = outlinedOptions();
+    opt.wireframe = wireframe;
+    return import::rasterizeMeshTopDown(m, opt).image.convertToFormat(QImage::Format_ARGB32);
+}
+
+const QColor kGround(200, 200, 200);
+const QColor kBrick(250, 210, 0);
+
+} // namespace
+
+TEST(MeshRasterizeOutlines, AnEdgeUnderABrickIsHiddenAllTheWayAcross) {
+    // A line on the ground runs 16 studs; a brick covers its middle six.
+    // Both ends peek out, which used to draw the whole line across the
+    // brick's top.
+    geom::Mesh m;
+    addRect(m, 0, 0, 320, 160, 0, kGround);
+    addRect(m, 100, 40, 220, 120, 24, kBrick);
+    addEdge(m, { 0, 0, 80 }, { 320, 0, 80 });
+    const QImage img = outlined(m);
+    // Stud 8 of 16 along, 4 down: the middle of the brick, on the line.
+    EXPECT_GT(darkestAcross(img, 8 * 32, 4 * 32), lumaOf(kBrick) - 20) << "no line across the brick's top";
+    EXPECT_LT(darkestAcross(img, 2 * 32, 4 * 32), lumaOf(kGround) - 60)
+        << "the line still draws on the ground";
+}
+
+TEST(MeshRasterizeOutlines, AHalfCoveredEdgeDrawsOnlyWhereItIsSeen) {
+    geom::Mesh m;
+    addRect(m, 0, 0, 160, 160, 0, kGround);
+    addRect(m, 80, 0, 160, 160, 24, kBrick); // covers the right half
+    addEdge(m, { 0, 0, 80 }, { 160, 0, 80 });
+    const QImage img = outlined(m);
+    EXPECT_LT(darkestAcross(img, 1 * 32, 4 * 32), lumaOf(kGround) - 60) << "the open half";
+    EXPECT_LT(darkestAcross(img, 3 * 32, 4 * 32), lumaOf(kGround) - 60);
+    EXPECT_GT(darkestAcross(img, 5 * 32, 4 * 32), lumaOf(kBrick) - 20) << "the covered half";
+    EXPECT_GT(darkestAcross(img, 7 * 32, 4 * 32), lumaOf(kBrick) - 20);
+}
+
+TEST(MeshRasterizeOutlines, AnEdgeUnderASeeThroughTileIsFaint) {
+    geom::Mesh plain;
+    addRect(plain, 0, 0, 160, 160, 0, kGround);
+    addRect(plain, 0, 0, 160, 80, 8, QColor(255, 255, 255, 128)); // Trans-Clear tile over the top half
+    geom::Mesh m = plain;
+    addEdge(m, { 0, 0, 40 }, { 160, 0, 40 });   // under the tile
+    addEdge(m, { 0, 0, 120 }, { 160, 0, 120 }); // in the open
+    const QImage without = outlined(plain);
+    const QImage img = outlined(m);
+    const int open = darkestAcross(without, 64, 6 * 32) - darkestAcross(img, 64, 6 * 32);
+    const int under = darkestAcross(without, 64, 2 * 32) - darkestAcross(img, 64, 2 * 32);
+    EXPECT_GT(open, 60);
+    EXPECT_LE(under, open * 6 / 10) << "the tile dims what is under it, outlines too";
+}
+
+TEST(MeshRasterizeOutlines, ABricksOwnTopEdgesStillDraw) {
+    geom::Mesh m;
+    addRect(m, 0, 0, 160, 160, 0, kGround);
+    addRect(m, 40, 40, 120, 120, 24, kBrick);
+    // The brick top's outline, and its bottom outline on the ground, which
+    // lies under the same lines from above.
+    for (const double y : { 24.0, 0.0 }) {
+        addEdge(m, { 40, y, 40 }, { 120, y, 40 });
+        addEdge(m, { 120, y, 40 }, { 120, y, 120 });
+        addEdge(m, { 120, y, 120 }, { 40, y, 120 });
+        addEdge(m, { 40, y, 120 }, { 40, y, 40 });
+    }
+    const QImage plain = outlined(m, false);
+    const QImage img = outlined(m);
+    // The brick's top edge at z = 2 studs, in the middle of its width.
+    EXPECT_LT(darkestAcross(img, 4 * 32, 2 * 32), darkestAcross(plain, 4 * 32, 2 * 32) - 60);
+    // Inside the brick top, away from its edges, nothing is drawn.
+    EXPECT_EQ(img.pixelColor(4 * 32, 4 * 32), plain.pixelColor(4 * 32, 4 * 32));
+}
