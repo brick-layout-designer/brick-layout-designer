@@ -17,8 +17,11 @@
 #include <gtest/gtest.h>
 
 #include <QAbstractButton>
+#include <QAction>
 #include <QApplication>
+#include <QCheckBox>
 #include <QContextMenuEvent>
+#include <QDialog>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
@@ -75,13 +78,19 @@ bool waitFor(const std::function<bool()>& done, int ms = 5000) {
 // Answers whatever the app asks while it lives, as a person would: the
 // import preview (with the name typed, if any) is saved, a question is
 // answered with the next button named in `buttons`, and the moved-files
-// list gets "Choose the file…" for `choose`.
+// list gets "Choose the file…" for `choose`. With `sameForAll`, a question's
+// "do the same for the others" is ticked first; with `okTheRest`, a notice
+// left once the buttons are used up is closed with OK. Batch Import's
+// options are taken as they are.
 struct Person {
     QString typeName;
     QStringList buttons;
     QString choose;
+    bool sameForAll = false;
+    bool okTheRest = false;
     int previews = 0;
     QStringList asked;  // the questions' texts
+    QStringList told;   // the notices closed with OK
     QTimer timer;
     bool chosen = false;
 
@@ -93,11 +102,24 @@ struct Person {
                 ++previews;
                 preview->accept();
             } else if (auto* box = qobject_cast<QMessageBox*>(w)) {
-                if (buttons.isEmpty()) return;
+                if (buttons.isEmpty()) {
+                    if (okTheRest && box->button(QMessageBox::Ok)) {
+                        told << box->text();
+                        box->button(QMessageBox::Ok)->click();
+                    }
+                    return;
+                }
                 asked << box->text();
+                if (sameForAll && box->checkBox()) {
+                    asked.back() += QLatin1Char('\n') + box->checkBox()->text();
+                    box->checkBox()->setChecked(true);
+                }
                 auto* b = box->findChild<QAbstractButton*>(buttons.takeFirst());
                 if (b) b->click();
                 else box->reject();
+            } else if (auto* options = qobject_cast<QDialog*>(w);
+                       options && options->objectName() == QStringLiteral("batchImportOptions")) {
+                options->accept();
             } else if (w && w->objectName() == QStringLiteral("movedOriginals") && !chosen) {
                 // Clicked from the event loop: the preview it opens is answered here too.
                 // (Part numbers are the same in any case.)
@@ -117,6 +139,7 @@ class Win : public ui::MainWindow {
 public:
     using ui::MainWindow::MainWindow;
     using ui::MainWindow::askModelFile;
+    using ui::MainWindow::askModelFiles;
     using ui::MainWindow::importModelFile;
     using ui::MainWindow::onReimportChangedParts;
 };
@@ -359,4 +382,69 @@ TEST_F(ImportReplace, AMovedOriginalFileCanBeFoundAgain) {
     EXPECT_EQ(originalFile(QStringLiteral("Station")), QFileInfo(back).absoluteFilePath());
     EXPECT_EQ(widthStuds(QStringLiteral("Station")), 8);
     EXPECT_TRUE(waitFor([&] { return placed(QStringLiteral("Station")).size() == 1; }));
+}
+
+TEST_F(ImportReplace, BatchImportAsksAboutTakenNamesOnceWhenToldToDoTheSame) {
+    // Station and Depot are already parts (8 studs long); Yard is new.
+    const QString first = models_.filePath(QStringLiteral("first"));
+    const QString station = QDir(first).filePath(QStringLiteral("Station.ldr"));
+    const QString depot = QDir(first).filePath(QStringLiteral("Depot.ldr"));
+    writeFile(station, "1 7 0 0 0 1 0 0 0 1 0 0 0 1 tt.dat\n1 7 80 0 0 1 0 0 0 1 0 0 0 1 tt.dat\n");
+    writeFile(depot, "1 7 0 0 0 1 0 0 0 1 0 0 0 1 tt.dat\n1 7 80 0 0 1 0 0 0 1 0 0 0 1 tt.dat\n");
+    importAs(station, QStringLiteral("Station"));
+    importAs(depot, QStringLiteral("Depot"));
+    ASSERT_EQ(widthStuds(QStringLiteral("Station")), 8);
+    ASSERT_EQ(widthStuds(QStringLiteral("Depot")), 8);
+    const auto importedParts = [&] {
+        QStringList out;
+        for (const QString& k : lib_.keys())
+            if (const auto meta = lib_.metadata(k); meta && meta->importSource) out << k;
+        return out;
+    };
+    const QStringList before = importedParts();
+    ASSERT_EQ(before.size(), 2);
+
+    // The batch: shorter Station and Depot (4 studs), and Yard.
+    const QString batch = models_.filePath(QStringLiteral("batch"));
+    const QStringList files = { QDir(batch).filePath(QStringLiteral("Station.ldr")),
+                                QDir(batch).filePath(QStringLiteral("Depot.ldr")),
+                                QDir(batch).filePath(QStringLiteral("Yard.ldr")) };
+    for (const QString& f : files) writeFile(f, "1 7 0 0 0 1 0 0 0 1 0 0 0 1 tt.dat\n");
+    int pickerOpened = 0;
+    window_->askModelFiles = [&](const QString&) {
+        ++pickerOpened;
+        return files;
+    };
+
+    // Tools › Import › Batch Import: the first taken name asks; "do the same" ticked, Replace.
+    QAction* batchAct = nullptr;
+    for (QAction* a : window_->findChildren<QAction*>())
+        if (a->text() == QStringLiteral("&Batch Import...")) batchAct = a;
+    ASSERT_NE(batchAct, nullptr);
+    Person me;
+    me.buttons = { QStringLiteral("clashReplace") };
+    me.sameForAll = true;
+    me.okTheRest = true;
+    batchAct->trigger();
+    EXPECT_EQ(pickerOpened, 1);
+    ASSERT_EQ(me.asked.size(), 1);
+    EXPECT_TRUE(me.asked.front().contains(QStringLiteral("Station"))) << me.asked.front().toStdString();
+    EXPECT_TRUE(me.asked.front().contains(QStringLiteral("the other 1 part")))
+        << me.asked.front().toStdString();
+    ASSERT_EQ(me.told.size(), 1);
+    EXPECT_TRUE(me.told.front().contains(QStringLiteral("3 of 3"))) << me.told.front().toStdString();
+
+    // Both updated in place: same part numbers, the new models, no copies.
+    EXPECT_EQ(widthStuds(QStringLiteral("Station")), 4);
+    EXPECT_EQ(widthStuds(QStringLiteral("Depot")), 4);
+    EXPECT_EQ(originalFile(QStringLiteral("Station")), QFileInfo(files[0]).absoluteFilePath());
+    EXPECT_EQ(originalFile(QStringLiteral("Depot")), QFileInfo(files[1]).absoluteFilePath());
+    EXPECT_FALSE(lib_.metadata(QStringLiteral("Station-2")));
+    EXPECT_FALSE(lib_.metadata(QStringLiteral("Depot-2")));
+    // The third is a new part.
+    QStringList added = importedParts();
+    for (const QString& k : before) added.removeAll(k);
+    ASSERT_EQ(added.size(), 1) << added.join(QLatin1Char(' ')).toStdString();
+    EXPECT_EQ(originalFile(added.front()), QFileInfo(files[2]).absoluteFilePath());
+    EXPECT_EQ(widthStuds(added.front()), 4);
 }

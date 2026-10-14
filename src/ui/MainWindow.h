@@ -120,6 +120,9 @@ protected:
     // Which model file to import (empty: cancelled), starting in `dir`;
     // tests answer instead of the file picker.
     std::function<QString(const QString& title, const QString& dir)> askModelFile;
+    // Which model files Batch Import reads (empty: cancelled); tests answer
+    // instead of the file picker.
+    std::function<QStringList(const QString& title)> askModelFiles;
 
 private slots:
     void onNew();
