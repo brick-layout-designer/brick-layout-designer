@@ -512,7 +512,7 @@ void MainWindow::onBatchImport() {
     // Names already taken are asked about one by one, or once for all of them.
     int clashesLeft = 0;
     for (const QString& f : files) clashesLeft += importClashWith(QFileInfo(f).fileName()).isEmpty() ? 0 : 1;
-    std::optional<bool> replaceAll;  // set: "do the same for the others"
+    int sameForAll = -1;  // "do the same for the others": 1 replace, 0 keep both, -1 ask
 
     const ImportSettings settings = currentImportSettings();
     const QString author = mapView_->currentMap() ? mapView_->currentMap()->author : QString();
@@ -541,8 +541,8 @@ void MainWindow::onBatchImport() {
         bool over = false;
         if (const QString clash = importClashWith(name); !clash.isEmpty()) {
             --clashesLeft;
-            if (replaceAll) {
-                over = *replaceAll;
+            if (sameForAll >= 0) {
+                over = sameForAll == 1;
             } else {
                 bool same = false;
                 const auto choice = askImportClash(name, clash, clashesLeft, &same);
@@ -551,7 +551,7 @@ void MainWindow::onBatchImport() {
                     break;
                 }
                 over = !choice->isEmpty();
-                if (same) replaceAll = over;
+                if (same) sameForAll = over ? 1 : 0;
             }
             if (over) key = writeOverImportedPart(part, clash, name, &err);
         }
