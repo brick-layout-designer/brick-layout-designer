@@ -32,6 +32,7 @@
 #include <QApplication>
 #include <QBuffer>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QImage>
 #include <QSettings>
 #include <QFile>
@@ -39,6 +40,7 @@
 #include <QFileInfo>
 #include <QLineEdit>
 #include <QMessageBox>
+#include <QPointer>
 #include <QPushButton>
 #include <QStandardPaths>
 #include <QTemporaryDir>
@@ -54,17 +56,30 @@ namespace {
 const QString kCorpus = QStringLiteral(BLD_BBM_CORPUS_DIR);
 
 // Answers the modal dialogs that open while `run` runs, in order; a dialog
-// beyond the answers is closed and counted as unexpected.
+// beyond the answers is closed and counted as unexpected. A dialog answered
+// may close later (a queued accept()): the next step waits until it's gone,
+// so it is never taken for the next dialog. One still open 5 s after its
+// answer fails the test and is closed.
 struct Answers {
     std::vector<std::function<void(QWidget*)>> steps;
     int unexpected = 0;
     void during(const std::function<void()>& run) {
         std::size_t next = 0;
+        QPointer<QWidget> answered;
+        QElapsedTimer sinceAnswer;
         QTimer poll;
         poll.setInterval(20);
         QObject::connect(&poll, &QTimer::timeout, [&] {
+            if (answered && answered->isVisible()) {
+                if (sinceAnswer.elapsed() < 5000) return;
+                ADD_FAILURE() << "a dialog stayed open after its answer";
+                answered->close();
+            }
+            answered = nullptr;
             QWidget* modal = QApplication::activeModalWidget();
             if (!modal || !modal->isVisible()) return;
+            answered = modal;
+            sinceAnswer.start();
             if (next < steps.size()) steps[next++](modal);
             else {
                 ++unexpected;

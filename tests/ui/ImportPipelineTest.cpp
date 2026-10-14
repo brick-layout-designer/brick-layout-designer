@@ -177,8 +177,7 @@ TEST(ImportPipeline, WriteKeepsOrReplacesExistingPart) {
 }
 
 TEST(ImportPreviewDialog, RotateAndDropConnection) {
-    ui::ImportPreviewDialog dlg(samplePart(), { QStringLiteral("imports") }, QStringLiteral("Track"),
-        [](const QString& name, const QString&) { return name == QStringLiteral("sample"); });
+    ui::ImportPreviewDialog dlg(samplePart(), { QStringLiteral("imports") }, QStringLiteral("Track"));
     auto* list = dlg.findChild<QListWidget*>();
     ASSERT_TRUE(list);
     list->item(0)->setCheckState(Qt::Unchecked);
@@ -192,7 +191,6 @@ TEST(ImportPreviewDialog, RotateAndDropConnection) {
     EXPECT_NEAR(r.connections[0].yStuds, 2.0, 1e-9);
     EXPECT_EQ(dlg.category(), QStringLiteral("Track"));
     EXPECT_EQ(dlg.partName(), QStringLiteral("sample"));
-    EXPECT_FALSE(dlg.replaceExisting());  // offered, but not ticked
     // Remembered for a re-import, in the final (rotated) frame.
     EXPECT_EQ(r.quarterTurns, 1);
     ASSERT_EQ(r.droppedConnections.size(), 1);
@@ -320,7 +318,7 @@ TEST(ImportPreviewDialog, ModelIsFittedAsSoonAsItShowsAndOnResize) {
     wide.widthStuds = 40;
     wide.heightStuds = 4;
     wide.connections.clear();
-    ui::ImportPreviewDialog dlg(wide, { QStringLiteral("imports") }, QStringLiteral("imports"), {});
+    ui::ImportPreviewDialog dlg(wide, { QStringLiteral("imports") }, QStringLiteral("imports"));
     auto* view = dlg.findChild<QGraphicsView*>();
     ASSERT_TRUE(view);
     dlg.show();
@@ -732,10 +730,10 @@ TEST(ImportPreviewDialog, TheNameStartsAsTheModelsOwn) {
     ui::PreparedPart p = samplePart();
     p.source = QStringLiteral("/x/70620_ninjago_city.io");
     p.title = QStringLiteral("Ninjago City");
-    ui::ImportPreviewDialog named(p, { QStringLiteral("imports") }, QStringLiteral("imports"), {});
+    ui::ImportPreviewDialog named(p, { QStringLiteral("imports") }, QStringLiteral("imports"));
     EXPECT_EQ(named.partName(), QStringLiteral("Ninjago City"));
     p.title = QStringLiteral("Untitled Model");
-    ui::ImportPreviewDialog untitled(p, { QStringLiteral("imports") }, QStringLiteral("imports"), {});
+    ui::ImportPreviewDialog untitled(p, { QStringLiteral("imports") }, QStringLiteral("imports"));
     EXPECT_EQ(untitled.partName(), QStringLiteral("70620_ninjago_city"));
 }
 
@@ -875,7 +873,7 @@ TEST(ImportAlign, BoundingBoxCentresTheModelAndTheMarginFollowsTheBase) {
 }
 
 TEST(ImportPreviewDialog, TheNudgeStepGoesDownToASixteenthOfAStud) {
-    ui::ImportPreviewDialog dlg(fullPart(), { QStringLiteral("imports") }, QStringLiteral("imports"), {});
+    ui::ImportPreviewDialog dlg(fullPart(), { QStringLiteral("imports") }, QStringLiteral("imports"));
     auto* step = dlg.findChild<QComboBox*>(QStringLiteral("nudgeStep"));
     ASSERT_TRUE(step);
     step->setCurrentIndex(step->findData(0.0625));
@@ -890,14 +888,14 @@ TEST(ImportPreviewDialog, TheNudgeStepGoesDownToASixteenthOfAStud) {
     EXPECT_EQ(dlg.nudgeStuds(), QPointF(-0.4375, 0.0625));
     // The next import remembers the step; put it back for the other tests.
     {
-        ui::ImportPreviewDialog next(fullPart(), { QStringLiteral("imports") }, QStringLiteral("imports"), {});
+        ui::ImportPreviewDialog next(fullPart(), { QStringLiteral("imports") }, QStringLiteral("imports"));
         EXPECT_DOUBLE_EQ(next.nudgeStep(), 0.5);
     }
     step->setCurrentIndex(step->findData(0.25));
 }
 
 TEST(ImportPreviewDialog, ArrowKeysNudgeAndTheSizeShowsLive) {
-    ui::ImportPreviewDialog dlg(fullPart(), { QStringLiteral("imports") }, QStringLiteral("imports"), {});
+    ui::ImportPreviewDialog dlg(fullPart(), { QStringLiteral("imports") }, QStringLiteral("imports"));
     auto* view = dlg.findChild<QGraphicsView*>();
     ASSERT_TRUE(view);
     QTest::keyClick(view, Qt::Key_Right);
@@ -967,7 +965,7 @@ TEST(ImportAlign, AReimportKeepsTheAlignmentNudgeAndDroppedPoints) {
 }
 
 TEST(ImportPreviewDialog, AReimportOpensWithTheAlignmentItWasImportedWith) {
-    ui::ImportPreviewDialog dlg(fullPart(), { QStringLiteral("imports") }, QStringLiteral("imports"), {});
+    ui::ImportPreviewDialog dlg(fullPart(), { QStringLiteral("imports") }, QStringLiteral("imports"));
     dlg.presetAlignment(ui::ImportAlign::BottomLayer, { 0.125, 0 });
     EXPECT_EQ(dlg.nudgeStuds(), QPointF(0.125, 0));
     auto* box = dlg.findChild<QComboBox*>(QStringLiteral("alignTo"));
@@ -995,7 +993,7 @@ TEST(ImportCredit, TheModelsAuthorIsCreditedAndKeptInThePart) {
     ui::PreparedPart p = fullPart();
     p.source = model;
     p.designer = read.author;
-    ui::ImportPreviewDialog dlg(p, { QStringLiteral("imports") }, QStringLiteral("imports"), {});
+    ui::ImportPreviewDialog dlg(p, { QStringLiteral("imports") }, QStringLiteral("imports"));
     auto* who = dlg.findChild<QLineEdit*>(QStringLiteral("designer"));
     auto* link = dlg.findChild<QLineEdit*>(QStringLiteral("designerUrl"));
     ASSERT_TRUE(who && link);
@@ -1025,7 +1023,7 @@ TEST(ImportCredit, TheModelsAuthorIsCreditedAndKeptInThePart) {
 
 TEST(ImportCredit, NoNameMeansNoCredit) {
     ui::PreparedPart p = fullPart();
-    ui::ImportPreviewDialog dlg(p, { QStringLiteral("imports") }, QStringLiteral("imports"), {});
+    ui::ImportPreviewDialog dlg(p, { QStringLiteral("imports") }, QStringLiteral("imports"));
     dlg.findChild<QLineEdit*>(QStringLiteral("designerUrl"))->setText(QStringLiteral("https://example.com"));
     const auto r = dlg.result();
     EXPECT_TRUE(r.designer.isEmpty());

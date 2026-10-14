@@ -188,7 +188,7 @@ void MainWindow::importModelFile(const QString& path) {
     const QString root = importedPartsRoot();
     const QString lastCategory = QSettings().value(kLastCategoryKey, QDir(root).dirName()).toString();
     // A name that's taken is asked about after the preview (replace or keep both).
-    ImportPreviewDialog dlg(std::move(part), importCategories(root), lastCategory, {}, this);
+    ImportPreviewDialog dlg(std::move(part), importCategories(root), lastCategory, this);
     if (dlg.exec() != QDialog::Accepted) {
         statusBar()->showMessage(tr("Import cancelled."), 3000);
         return;
@@ -384,7 +384,7 @@ bool MainWindow::reimportFrom(const QString& key, const QString& path, bool inte
     if (interactive) {
         const QString root = importedPartsRoot();
         const QString category = QDir(dir).dirName();
-        ImportPreviewDialog dlg(std::move(part), importCategories(root), category, {}, this);
+        ImportPreviewDialog dlg(std::move(part), importCategories(root), category, this);
         dlg.presetForReimport(name, category);
         dlg.presetAlignment(align, src.nudgeStuds);
         if (!sameFile) dlg.setWindowTitle(tr("Replace %1 with %2").arg(name, QFileInfo(path).fileName()));
@@ -485,14 +485,19 @@ void MainWindow::findMovedOriginals(const QStringList& keys) {
 }
 
 void MainWindow::onBatchImport() {
-    const QStringList files = QFileDialog::getOpenFileNames(this, tr("Batch Import"), {},
-        tr("Models (*.ldr *.dat *.mpd *.io *.lxf *.lxfml);;All files (*)"));
+    const QString title = tr("Batch Import");
+    const QStringList files =
+        askModelFiles
+            ? askModelFiles(title)
+            : QFileDialog::getOpenFileNames(
+                  this, title, {}, tr("Models (*.ldr *.dat *.mpd *.io *.lxf *.lxfml);;All files (*)"));
     if (files.isEmpty()) return;
 
     // Where they go.
     const QString root = importedPartsRoot();
     QDialog opts(this);
-    opts.setWindowTitle(tr("Batch Import"));
+    opts.setObjectName(QStringLiteral("batchImportOptions"));
+    opts.setWindowTitle(title);
     auto* form = new QFormLayout(&opts);
     form->addRow(new QLabel(tr("Import %n file(s) as custom parts.", nullptr, files.size()), &opts));
     auto* category = new QComboBox(&opts);
@@ -519,6 +524,9 @@ void MainWindow::onBatchImport() {
     QProgressDialog progress(tr("Importing..."), tr("Cancel"), 0, static_cast<int>(files.size()), this);
     progress.setWindowModality(Qt::WindowModal);
     progress.setMinimumDuration(0);
+    // Shown now, not from its timer: that timer would fire while a name
+    // question is open and put the progress over the question.
+    progress.show();
     CancelToken token;
     connect(&progress, &QProgressDialog::canceled, this, [&token]{ token.cancel(); });
     const HeavyRunner runHeavy = [&token](const QString&, const std::function<void(CancelToken&)>& work) {
