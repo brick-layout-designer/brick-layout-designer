@@ -188,7 +188,7 @@ void MainWindow::importModelFile(const QString& path) {
     const QString root = importedPartsRoot();
     const QString lastCategory = QSettings().value(kLastCategoryKey, QDir(root).dirName()).toString();
     // A name that's taken is asked about after the preview (replace or keep both).
-    ImportPreviewDialog dlg(std::move(part), importCategories(root), lastCategory, {}, this);
+    ImportPreviewDialog dlg(std::move(part), importCategories(root), lastCategory, this);
     if (dlg.exec() != QDialog::Accepted) {
         statusBar()->showMessage(tr("Import cancelled."), 3000);
         return;
@@ -384,7 +384,7 @@ bool MainWindow::reimportFrom(const QString& key, const QString& path, bool inte
     if (interactive) {
         const QString root = importedPartsRoot();
         const QString category = QDir(dir).dirName();
-        ImportPreviewDialog dlg(std::move(part), importCategories(root), category, {}, this);
+        ImportPreviewDialog dlg(std::move(part), importCategories(root), category, this);
         dlg.presetForReimport(name, category);
         dlg.presetAlignment(align, src.nudgeStuds);
         if (!sameFile) dlg.setWindowTitle(tr("Replace %1 with %2").arg(name, QFileInfo(path).fileName()));

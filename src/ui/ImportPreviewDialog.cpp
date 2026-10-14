@@ -1,6 +1,5 @@
 #include "ImportPreviewDialog.h"
 
-#include <QCheckBox>
 #include <QComboBox>
 #include <QDialogButtonBox>
 #include <QFileInfo>
@@ -147,12 +146,9 @@ ImportAlign gLastAlign = ImportAlign::Automatic;
 double gLastNudgeStep = 0.25;
 }  // namespace
 
-ImportPreviewDialog::ImportPreviewDialog(PreparedPart part,
-                                         const QStringList& categories,
-                                         const QString& defaultCategory,
-                                         std::function<bool(const QString&, const QString&)> partExists,
-                                         QWidget* parent)
-    : QDialog(parent), part_(std::move(part)), partExists_(std::move(partExists)) {
+ImportPreviewDialog::ImportPreviewDialog(PreparedPart part, const QStringList& categories,
+                                         const QString& defaultCategory, QWidget* parent)
+    : QDialog(parent), part_(std::move(part)) {
     setWindowTitle(tr("Preview: %1").arg(part_.kindLabel));
     resize(900, 640);
     auto* root = new QVBoxLayout(this);
@@ -310,8 +306,6 @@ ImportPreviewDialog::ImportPreviewDialog(PreparedPart part,
     designerUrlEdit_->setObjectName(QStringLiteral("designerUrl"));
     designerUrlEdit_->setPlaceholderText(tr("A link to their page or the model (optional)"));
     form->addRow(tr("Link:"), designerUrlEdit_);
-    replaceBox_ = new QCheckBox(this);
-    form->addRow(QString(), replaceBox_);
     root->addLayout(form);
 
     auto* bb = new QDialogButtonBox(this);
@@ -321,7 +315,6 @@ ImportPreviewDialog::ImportPreviewDialog(PreparedPart part,
     connect(bb, &QDialogButtonBox::rejected, this, &QDialog::reject);
     const auto validate = [this, acceptBtn]{
         acceptBtn->setEnabled(!partName().isEmpty() && !category().isEmpty());
-        refreshReplace();
     };
     connect(nameEdit_, &QLineEdit::textChanged, this, validate);
     connect(categoryBox_, &QComboBox::currentTextChanged, this, validate);
@@ -416,14 +409,6 @@ void ImportPreviewDialog::refreshSprite() {
     }
 }
 
-void ImportPreviewDialog::refreshReplace() {
-    const bool exists = partExists_ && !partName().isEmpty()
-                        && partExists_(partName(), category());
-    replaceBox_->setVisible(exists);
-    replaceBox_->setText(tr("Replace the existing part “%1” in %2 (otherwise it is saved as a copy)")
-                             .arg(partName(), category()));
-}
-
 PreparedPart ImportPreviewDialog::result() const {
     PreparedPart out = part_;
     out.designer = designerEdit_->text().trimmed();
@@ -450,17 +435,11 @@ void ImportPreviewDialog::presetAlignment(ImportAlign align, QPointF nudgeStuds)
 void ImportPreviewDialog::presetForReimport(const QString& name, const QString& category) {
     nameEdit_->setText(name);
     categoryBox_->setCurrentText(category);
-    replaceBox_->setChecked(true);
-    refreshReplace();
     setWindowTitle(tr("Re-import %1").arg(name));
 }
 
 QString ImportPreviewDialog::partName() const { return nameEdit_->text().trimmed(); }
 
 QString ImportPreviewDialog::category() const { return categoryBox_->currentText().trimmed(); }
-
-bool ImportPreviewDialog::replaceExisting() const {
-    return !replaceBox_->isHidden() && replaceBox_->isChecked();
-}
 
 }  // namespace bld::ui
