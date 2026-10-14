@@ -2,8 +2,6 @@
 
 #include <QColor>
 #include <QMargins>
-#include <QPainter>
-#include <QPen>
 
 #include <algorithm>
 #include <cmath>
@@ -44,6 +42,18 @@ inline quint32 packPremul(QColor c) {
            (static_cast<quint32>(r) << 16) |
            (static_cast<quint32>(g) <<  8) |
             static_cast<quint32>(b);
+}
+
+// Premultiplied "over": `top` plus what is below, dimmed by how much `top`
+// covers (`keep` = 255 - top's alpha).
+inline quint32 over(quint32 below, quint32 top, quint32 keep) {
+    quint32 out = 0;
+    for (int shift = 0; shift < 32; shift += 8) {
+        const quint32 b = (below >> shift) & 0xFFu;
+        const quint32 t = (top >> shift) & 0xFFu;
+        out |= std::min(255u, t + (b * keep + 127u) / 255u) << shift;
+    }
+    return out;
 }
 
 }  // namespace
@@ -196,8 +206,8 @@ RasterizeResult rasterizeMeshTopDown(const geom::Mesh& mesh,
     // for lighting.
     // Opaque triangles first, through the depth buffer; then see-through
     // ones (Trans-Clear windows, water) from the lowest up, blended over
-    // what is below them so it shows through. They don't take the depth
-    // buffer, so they never hide a part or the edges drawn later.
+    // what is below them so it shows through, outlines included. They don't
+    // take the depth buffer, so they never hide a part.
     std::vector<const geom::Triangle*> seeThrough;
     const auto rasterize = [&](const geom::Triangle& tri, bool blend) {
         double px[3], py[3], wy[3];
@@ -271,21 +281,79 @@ RasterizeResult rasterizeMeshTopDown(const geom::Mesh& mesh,
                     f.argb   = argb;
                     continue;
                 }
-                // Premultiplied "over": this color plus what is below,
-                // dimmed by how much this one covers.
-                quint32 out = 0;
-                for (int shift = 0; shift < 32; shift += 8) {
-                    const quint32 below = (f.argb >> shift) & 0xFFu;
-                    const quint32 top = (argb >> shift) & 0xFFu;
-                    out |= std::min(255u, top + (below * keep + 127u) / 255u) << shift;
-                }
-                f.argb = out;
+                f.argb = over(f.argb, argb, keep);
             }
         }
     };
     for (const auto& tri : mesh.tris) {
         if (tri.color.alpha() < 255) seeThrough.push_back(&tri);
         else rasterize(tri, false);
+    }
+
+    // Outlines: stud rims (LDD-synthesised) and brick-top silhouettes
+    // (LDraw type-2 edges) trace the visible top of the model with thin
+    // dark lines. Drawn into the supersampled buffer, each sample depth
+    // tested on its own, so a line shows only where it lies on (or above)
+    // the visible surface: a line under a brick is hidden right across it,
+    // even where its ends peek out. Drawn before the see-through parts, so
+    // a Trans-Clear window dims the lines under it as it dims the bricks.
+    if (opt.wireframe) {
+        // ~1 px wide at 32 px/stud, never thinner than one sample.
+        const double halfWidth = std::max(0.5, std::max(0.5, opt.pxPerStud / 32.0) * ssaa / 2.0);
+        const double r2 = halfWidth * halfWidth;
+        // A line on a surface passes, give or take the depth across its
+        // width on a slope; a plate (8 LDU) above it hides it.
+        const double tolerance = 1.0 + halfWidth / (superPxPerStud * opt.studsPerLdu);
+        const auto toSuper = [&](const geom::Vec3& v) {
+            return QPointF((v.x * opt.studsPerLdu - canvasX0) * superPxPerStud + superMarginPx,
+                           (v.z * opt.studsPerLdu - canvasZ0) * superPxPerStud + superMarginPx);
+        };
+        for (const auto& e : mesh.edges) {
+            QColor c = e.color;
+            if (!c.isValid()) c = QColor(40, 40, 40);
+            else c.setAlpha(160);
+            const quint32 argb = packPremul(c);
+            const quint32 keep = 255u - static_cast<quint32>(c.alpha());
+            const QPointF a = toSuper(e.v[0]), b = toSuper(e.v[1]);
+            const double dx = b.x() - a.x(), dy = b.y() - a.y();
+            const double len2 = dx * dx + dy * dy;
+            // A vertical edge seen from above is a point; the lines around
+            // it already draw that corner.
+            if (len2 < 1e-9) continue;
+            const double ya = e.v[0].y, yb = e.v[1].y;
+            // One sample of the line's width: inside it, and seen?
+            const auto plot = [&](int xx, int yy) {
+                if (xx < 0 || xx >= W || yy < 0 || yy >= H) return;
+                const double sx = xx + 0.5 - a.x(), sy = yy + 0.5 - a.y();
+                const double t = std::clamp((sx * dx + sy * dy) / len2, 0.0, 1.0);
+                const double ox = sx - t * dx, oy = sy - t * dy;
+                if (ox * ox + oy * oy > r2) return;
+                Frag& f = buf[static_cast<size_t>(yy) * W + static_cast<size_t>(xx)];
+                if (f.yWorld - (ya + t * (yb - ya)) > tolerance) return;
+                f.argb = over(f.argb, argb, keep);
+            };
+            // Walk the long axis; across it, the samples within the line's
+            // width, so each sample is visited once.
+            const bool alongX = std::abs(dx) >= std::abs(dy);
+            const double lo = alongX ? std::min(a.x(), b.x()) : std::min(a.y(), b.y());
+            const double hi = alongX ? std::max(a.x(), b.x()) : std::max(a.y(), b.y());
+            const double slope = alongX ? dy / dx : dx / dy;
+            const double across = halfWidth * std::sqrt(1.0 + slope * slope);
+            const int limit = alongX ? W : H;
+            const int first = std::max(0, static_cast<int>(std::floor(lo - halfWidth)));
+            const int last = std::min(limit - 1, static_cast<int>(std::ceil(hi + halfWidth)));
+            for (int i = first; i <= last; ++i) {
+                const double along = std::clamp(i + 0.5, lo, hi);
+                const double centre =
+                    alongX ? a.y() + (along - a.x()) * slope : a.x() + (along - a.y()) * slope;
+                const int j0 = static_cast<int>(std::floor(centre - across - 0.5));
+                const int j1 = static_cast<int>(std::ceil(centre + across - 0.5));
+                for (int j = j0; j <= j1; ++j) {
+                    if (alongX) plot(i, j);
+                    else plot(j, i);
+                }
+            }
+        }
     }
     const auto highest = [](const geom::Triangle* t) { return std::max({ t->v[0].y, t->v[1].y, t->v[2].y }); };
     std::stable_sort(seeThrough.begin(), seeThrough.end(),
@@ -308,64 +376,6 @@ RasterizeResult rasterizeMeshTopDown(const geom::Mesh& mesh,
     out.image = (ssaa > 1)
         ? img.scaled(finalW, finalH, Qt::IgnoreAspectRatio, Qt::SmoothTransformation)
         : std::move(img);
-
-    // Wireframe overlay. Stud rims (LDD-synthesised) and brick-top
-    // silhouettes (LDraw type-2 edges) trace the visible top of the
-    // model with thin dark lines. Depth-tested against the supersampled
-    // buffer so an edge that lies under a brick above it is skipped.
-    if (opt.wireframe && !mesh.edges.empty() && !out.image.isNull()) {
-        QPainter p(&out.image);
-        p.setRenderHint(QPainter::Antialiasing);
-        QPen pen;
-        pen.setWidthF(std::max(0.5, opt.pxPerStud / 32.0));
-        pen.setCapStyle(Qt::RoundCap);
-        // Final-image (x,y) → supersampled depth-buffer Y at that pixel.
-        const double scaleSX = double(W) / out.image.width();
-        const double scaleSZ = double(H) / out.image.height();
-        auto bufDepthAt = [&](double finalX, double finalY) -> float {
-            const int sx = static_cast<int>(finalX * scaleSX);
-            const int sz = static_cast<int>(finalY * scaleSZ);
-            if (sx < 0 || sx >= W || sz < 0 || sz >= H) {
-                return -std::numeric_limits<float>::infinity();
-            }
-            return buf[static_cast<size_t>(sz) * W + static_cast<size_t>(sx)].yWorld;
-        };
-        for (const auto& e : mesh.edges) {
-            const double xs0 = e.v[0].x * opt.studsPerLdu;
-            const double zs0 = e.v[0].z * opt.studsPerLdu;
-            const double xs1 = e.v[1].x * opt.studsPerLdu;
-            const double zs1 = e.v[1].z * opt.studsPerLdu;
-            const double x0 = (xs0 - canvasX0) * opt.pxPerStud + opt.marginPx;
-            const double y0 = (zs0 - canvasZ0) * opt.pxPerStud + opt.marginPx;
-            const double x1 = (xs1 - canvasX0) * opt.pxPerStud + opt.marginPx;
-            const double y1 = (zs1 - canvasZ0) * opt.pxPerStud + opt.marginPx;
-
-            // Depth test: skip edges that are occluded by a brick
-            // above them. Sample three points along the edge and
-            // require all three to be visible (within tolerance) so
-            // partly-occluded edges still render where they're seen.
-            const double midY = 0.5 * (e.v[0].y + e.v[1].y);
-            int visibleSamples = 0;
-            for (int s = 0; s < 3; ++s) {
-                const double t = (s + 1) / 4.0;  // 0.25, 0.5, 0.75
-                const double sx = x0 + (x1 - x0) * t;
-                const double sy = y0 + (y1 - y0) * t;
-                const double sampY = e.v[0].y + (e.v[1].y - e.v[0].y) * t;
-                const float bufY = bufDepthAt(sx, sy);
-                if (!std::isfinite(bufY) || bufY - sampY <= 1.0) ++visibleSamples;
-            }
-            if (visibleSamples == 0) continue;
-            (void)midY;
-
-            QColor c = e.color;
-            if (!c.isValid()) c = QColor(40, 40, 40);
-            else c.setAlpha(160);
-            pen.setColor(c);
-            p.setPen(pen);
-            p.drawLine(QPointF(x0, y0), QPointF(x1, y1));
-        }
-        p.end();
-    }
 
     return out;
 }
