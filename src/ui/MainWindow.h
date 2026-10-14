@@ -39,6 +39,7 @@ namespace bld::ui {
 
 struct ModuleLibraryInfo;
 struct ConfirmOptions;
+struct PreparedPart;
 
 class MapView;
 class LayerPanel;
@@ -99,10 +100,26 @@ protected:
     // Re-run the import of an imported part from its recorded source file
     // (with the same rotation and removed connection points), through the
     // preview when `interactive`, replacing the part in place.
+    // When the file has moved, interactive asks for it (as Replace with
+    // Another File does).
     bool reimportPart(const QString& key, bool interactive);
     // Tools > Import > Re-import Changed Parts: every imported part whose
-    // source file changed since it was imported.
+    // source file changed since it was imported, then the ones whose file
+    // has moved (find each, or skip them).
     void onReimportChangedParts();
+    // Replace with Another File (an imported part's menu, in the Parts panel
+    // or on the map): the part made again from a model the user picks,
+    // through the preview, keeping its part number, name, folder, rotation,
+    // alignment and removed connection points. That file is its original
+    // file from then on. Every layout using the part shows the new one.
+    bool replaceImportedPart(const QString& key);
+    // After imported parts changed in place: when the server you're signed
+    // in to (or the live layout's) has copies you may change, a notice
+    // offers to update them there too.
+    void offerToUpdateServerParts(const QStringList& keys);
+    // Which model file to import (empty: cancelled), starting in `dir`;
+    // tests answer instead of the file picker.
+    std::function<QString(const QString& title, const QString& dir)> askModelFile;
 
 private slots:
     void onNew();
@@ -230,6 +247,23 @@ public:
     // the server, one click away.
     void offerToSendImportedPart(const QString& key);
 private:
+    // The import of the existing part `key` again, from `path`: its
+    // original file or another one.
+    bool reimportFrom(const QString& key, const QString& path, bool interactive);
+    // What to do when a new import's name or part number is an existing
+    // imported part's. `rest` > 0 offers "Do the same for the other N"
+    // (*applyToAll). Keep both: empty; Replace: that part's key;
+    // Cancel: nullopt.
+    std::optional<QString> askImportClash(const QString& name, const QString& key, int rest, bool* applyToAll);
+    // The imported part a new import named `name` would clash with, if any.
+    QString importClashWith(const QString& name) const;
+    // A part number for `name` that no part has yet (name, name-2, ...).
+    QString freeImportKey(const QString& name, const QString& dir) const;
+    // Imported parts whose original file has moved: choose each, or skip.
+    void findMovedOriginals(const QStringList& keys);
+    // Write a prepared import over the existing imported part `key`, in its
+    // folder, as `name`; then the part is read again and every layout redraws.
+    QString writeOverImportedPart(const PreparedPart& part, const QString& key, const QString& name, QString* error);
 
     QString currentFilePath_;
     // The opened layout file's manifest (its unknown fields are written back)

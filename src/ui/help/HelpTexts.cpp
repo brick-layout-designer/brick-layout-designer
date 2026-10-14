@@ -453,6 +453,23 @@ constexpr Raw kDesktopOnly[] = {
                                      "Start a layout in a venue, put a module in the layout that’s open, or "
                                      "bring a custom part into your parts. The Catalog and Collections tabs "
                                      "have what people shared for everyone.") },
+    // Bringing in models (Tools › Import)
+    { "import.clash", "",
+      QT_TRANSLATE_NOOP("HelpTexts", "Replace or keep both"),
+      QT_TRANSLATE_NOOP("HelpTexts", "You already have a part with this name. Update it, or add this model "
+                                     "as a new part."),
+      QT_TRANSLATE_NOOP("HelpTexts", "Replace the existing part keeps its number, so every layout that "
+                                     "uses it shows the new model straight away. Keep both adds this model "
+                                     "with a -2 after its name, and the old part stays as it was. To swap "
+                                     "the model of a part later, right-click it in the Parts panel or on the "
+                                     "map and pick Replace with Another File.") },
+    { "import.moved", "",
+      QT_TRANSLATE_NOOP("HelpTexts", "The original file moved"),
+      QT_TRANSLATE_NOOP("HelpTexts", "The model this part was made from isn’t where it was. Show the app "
+                                     "where it is now."),
+      QT_TRANSLATE_NOOP("HelpTexts", "Pick the model in its new place, or any other model, and the part is "
+                                     "made again from it with the same number, turn and alignment. From then "
+                                     "on, Re-import uses the file you picked.") },
     // Preferences (Edit > Preferences...)
     { "prefs.budgetUnlimited", "",
       QT_TRANSLATE_NOOP("HelpTexts", "Parts without a budget"),

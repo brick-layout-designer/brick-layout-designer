@@ -288,6 +288,8 @@ signals:
     void makeModuleRequested();
     // "Use as Model" on a part's menu: pick that part in the parts list.
     void useAsModelRequested(const QString& partNumber);
+    // "Replace with Another File" on an imported part's menu.
+    void replaceImportedPartRequested(const QString& partNumber);
 
 protected:
     // Touch (pinch, two-finger pan, tap, drag, long press) and trackpad

@@ -313,6 +313,8 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
     connect(partsBrowser_, &PartsBrowser::reimportRequested, this, [this](const QString& key){
         reimportPart(key, true);
     });
+    connect(partsBrowser_, &PartsBrowser::replaceRequested, this, &MainWindow::replaceImportedPart);
+    connect(mapView_, &MapView::replaceImportedPartRequested, this, &MainWindow::replaceImportedPart);
     connect(partsBrowser_, &PartsBrowser::partDeleted, this, [this]{
         QStringList paths;
         const QString vendored = defaultVendoredPartsRoot();

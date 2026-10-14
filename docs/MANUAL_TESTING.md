@@ -610,8 +610,15 @@ folder with `db.lif`), and an optional newer LDD `ldraw.xml`
       part has only the checked ones.
 - [ ] Category picker lists `imports` and its sub-folders; a new name
       creates a folder and a new Parts-panel category.
-- [ ] Re-importing under an existing name offers "Replace"; replacing
-      updates copies already on the map, otherwise a `-2` copy is saved.
+- [ ] Importing under an existing imported part's name or number asks
+      "Replace the existing part" or "Keep both"; replacing updates copies
+      already on the map (no new copy is placed), keeping both saves a `-2`.
+- [ ] Right-click an imported part (Parts panel, or placed on the map) →
+      Replace with Another File...: same part number, new picture on the
+      map at once; the next Re-import reads the new file.
+- [ ] Move a model file away, then Re-import from Original File...: it
+      offers "Choose the file…" instead of a dead end. Re-import Changed
+      Parts lists moved ones to choose or skip.
 
 ### 14.5 Batch import
 - [ ] Tools → Import → Batch Import... select several model files, pick

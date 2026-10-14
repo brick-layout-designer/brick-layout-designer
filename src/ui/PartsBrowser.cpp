@@ -302,12 +302,18 @@ void PartsBrowser::showPartMenu(const QPoint& pos) {
     auto meta = lib_.metadata(key);
     if (meta && meta->importSource) {
         menu.addSeparator();
-        auto* again = menu.addAction(tr("Re-import from Source..."));
+        // Moved or deleted, it still asks: the next step offers to find it.
+        auto* again = menu.addAction(tr("Re-import from Original File..."));
+        again->setObjectName(QStringLiteral("act.part.reimport"));
         const bool there = QFileInfo::exists(meta->importSource->path);
-        again->setEnabled(there);
-        again->setToolTip(there ? meta->importSource->path
-                                : tr("%1 no longer exists").arg(meta->importSource->path));
+        again->setToolTip(there ? tr("Read %1 again").arg(QDir::toNativeSeparators(meta->importSource->path))
+                                : tr("The original file has moved. You can choose where it is now."));
         connect(again, &QAction::triggered, this, [this, key]{ emit reimportRequested(key); });
+        auto* other = menu.addAction(tr("Replace with Another File..."));
+        other->setObjectName(QStringLiteral("act.part.replace"));
+        other->setToolTip(tr("Use a different model for this part. Its number stays the same, so every "
+                             "layout that uses it shows the new one."));
+        connect(other, &QAction::triggered, this, [this, key]{ emit replaceRequested(key); });
     }
     if (meta && !meta->xmlFilePath.isEmpty()
         && meta->xmlFilePath.contains(QStringLiteral("/imports/"))) {
