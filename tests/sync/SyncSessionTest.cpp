@@ -318,3 +318,55 @@ TEST(SyncSession, AnAppTooOldForTheServerStopsForGood) {
     EXPECT_EQ(session.status(), Status::Offline);
     EXPECT_TRUE(server.peers.empty());
 }
+
+// Opening one live layout after another: the second is only itself, here
+// and on its server (it once had the first merged in).
+TEST(SyncSession, OpeningAnotherLayoutDoesNotMergeTheOneOpenBefore) {
+    QTemporaryDir cacheA;
+    QTemporaryDir cacheB;
+    FakeServer first;
+    FakeServer second;
+    first.remoteEdit([](core::Map& m) { firstBrick(m).orientation = 45.0f; });
+    second.remoteEdit([](core::Map& m) { firstBrick(m).orientation = 90.0f; });
+    const QRectF secondArea = firstBrickArea(second.doc);
+
+    sync::SyncSession session;
+    session.setCacheDir(cacheA.path());
+    session.open(first.url(), {}, false);
+    ASSERT_TRUE(waitFor([&] { return session.status() == Status::Synced; }));
+    auto map = session.currentMap();
+    firstBrick(*map).displayArea.translate(8, 0);
+    session.localEdit(*map);
+    ASSERT_TRUE(waitFor([&] { return firstBrickArea(first.doc) == firstBrick(*map).displayArea; }));
+    session.close();
+
+    session.setCacheDir(cacheB.path());
+    session.open(second.url(), {}, false);
+    ASSERT_TRUE(waitFor([&] { return session.status() == Status::Synced; }));
+    waitFor([] { return false; }, 300);  // anything we'd wrongly send has reached the server
+    EXPECT_EQ(firstBrick(*session.currentMap()).orientation, 90.0f);
+    EXPECT_EQ(firstBrick(*session.currentMap()).displayArea, secondArea);
+    EXPECT_EQ(firstBrick(*sync::mapFromDocJson(second.doc.toJson())).orientation, 90.0f);
+    EXPECT_EQ(firstBrickArea(second.doc), secondArea);
+    session.close();
+
+    // And the first opens from its own cache as itself.
+    sync::SyncSession again;
+    again.setCacheDir(cacheA.path());
+    again.open(QUrl(QStringLiteral("ws://127.0.0.1:1/ws/layout/L1")), {}, false);
+    EXPECT_TRUE(again.loaded());
+    EXPECT_EQ(firstBrick(*again.currentMap()).orientation, 45.0f);
+    again.close();
+}
+
+TEST(SyncDoc, ResetForgetsTheDocument) {
+    FakeServer server;
+    sync::SyncDoc doc;
+    ASSERT_TRUE(doc.applyUpdate(server.doc.encodeState()));
+    ASSERT_TRUE(sync::mapFromDocJson(doc.toJson()));
+    doc.reset();
+    sync::SyncDoc fresh;
+    EXPECT_EQ(doc.toJson(), fresh.toJson());
+    ASSERT_TRUE(doc.applyUpdate(server.doc.encodeState()));
+    EXPECT_EQ(firstBrickArea(doc), firstBrickArea(server.doc));
+}

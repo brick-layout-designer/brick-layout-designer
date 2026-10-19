@@ -20,6 +20,10 @@
 
 namespace bld::sync {
 
+namespace {
+constexpr char kDocCache[] = "layout.ydoc";
+}  // namespace
+
 SyncSession::SyncSession(QObject* parent)
     : QObject(parent), clientId_(QRandomGenerator::global()->bounded(1u, 0x7fffffffu)), peers_(clientId_),
       client_(doc_) {
@@ -76,6 +80,13 @@ SyncSession::~SyncSession() = default;
 
 void SyncSession::open(const QUrl& socketUrl, const QString& token, bool readOnly) {
     readOnly_ = readOnly;
+    // Nothing of the layout open before: kept, it would merge into this one
+    // and go to its server.
+    doc_.reset();
+    loaded_ = false;
+    pending_ = false;
+    offline_.reset();
+    peers_.clear();
     loadCache();
     client_.open(socketUrl, token);
 }
@@ -101,7 +112,10 @@ bool writeAll(const QString& path, const QByteArray& data) {
 
 void SyncSession::loadCache() {
     if (cacheDir_.isEmpty()) return;
-    QFile doc(QDir(cacheDir_).filePath(QStringLiteral("doc.bin")));
+    // doc.bin was written by versions that kept the layout open before in
+    // the document, so it may hold two layouts merged: not read again.
+    QFile::remove(QDir(cacheDir_).filePath(QStringLiteral("doc.bin")));
+    QFile doc(QDir(cacheDir_).filePath(QString::fromLatin1(kDocCache)));
     // A layout seen before opens from here while the connection comes up.
     if (doc.open(QIODevice::ReadOnly) && doc_.applyUpdate(doc.readAll())) loaded_ = true;
     QFile offline(QDir(cacheDir_).filePath(QStringLiteral("offline.json")));
@@ -116,7 +130,7 @@ void SyncSession::loadCache() {
 }
 
 void SyncSession::saveDoc() {
-    if (!cacheDir_.isEmpty() && loaded_) writeAll(QDir(cacheDir_).filePath(QStringLiteral("doc.bin")), doc_.encodeState());
+    if (!cacheDir_.isEmpty() && loaded_) writeAll(QDir(cacheDir_).filePath(QString::fromLatin1(kDocCache)), doc_.encodeState());
 }
 
 void SyncSession::saveOffline() {
