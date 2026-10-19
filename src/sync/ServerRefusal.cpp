@@ -95,6 +95,12 @@ QString liveCloseText(int code, const QString& reason) {
                   "then open the layout again");
     if (code == 1008 && reason == QLatin1String("account_restricted"))
         return tr("your account is on hold (read only) while a privacy request is looked at. Ask the site admin");
+    // The server's merge guard (apps/server/src/ws/mergeGuard.ts): an update
+    // that would bring another layout's layers into this one.
+    if (code == 1008 && reason == QLatin1String("layout_merge_refused"))
+        return tr("your changes weren't taken because they looked like another layout's parts being merged into "
+                  "this one. Nothing is lost: your copy stays open here, so save it (File > Save As) and tell the "
+                  "site admin");
     if (code == 4429 && reason == QLatin1String("limit_reached"))
         return tr("too many people have this layout open right now; try again in a little while");
     return {};

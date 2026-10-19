@@ -441,6 +441,20 @@ TEST(ServerRefusal, ExplainsAnAccountBeingDeletedOrOnHold) {
     EXPECT_TRUE(liveCloseText(1008, QStringLiteral("token_revoked")).isEmpty());
 }
 
+// The server's merge guard refused an update: say what happened, and that
+// the copy here is kept and can be saved.
+TEST(ServerRefusal, ExplainsARefusedMergeAndThatTheCopyIsKept) {
+    const QString text = liveCloseText(1008, QStringLiteral("layout_merge_refused"));
+    ASSERT_FALSE(text.isEmpty());
+    // Dropped into "The server ended the live session (…)": lower case first.
+    EXPECT_TRUE(text.at(0).isLower()) << text.toStdString();
+    EXPECT_TRUE(text.contains(QStringLiteral("another layout's parts"))) << text.toStdString();
+    EXPECT_TRUE(text.contains(QStringLiteral("Nothing is lost"))) << text.toStdString();
+    EXPECT_TRUE(text.contains(QStringLiteral("File > Save As"))) << text.toStdString();
+    // Only for 1008.
+    EXPECT_TRUE(liveCloseText(4404, QStringLiteral("layout_merge_refused")).isEmpty());
+}
+
 // Every HTTP caller shows the account's state instead of asking to sign in again.
 TEST(ServerApi, ShowsTheAccountStateInsteadOfSignIn) {
     FakeHttp http;

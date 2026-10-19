@@ -130,6 +130,10 @@ void MainWindow::setupLiveMenu(QMenu* file) {
     connect(live_, &LiveLayout::localEdited, this, &MainWindow::offerPlacedParts, Qt::QueuedConnection);
     connect(live_, &LiveLayout::ended, this, [this](const QString& reason) {
         if (prefsSync_) prefsSync_->stop();
+        // The copy left here is the person's work and no longer on the
+        // server: unsaved until they save it, so closing or opening another
+        // layout asks first.
+        mapView_->undoStack()->resetClean();
         updateLiveUi();
         QMessageBox::information(
             this, tr("Live layout closed"),
