@@ -10,6 +10,7 @@
 #include "TokenStore.h"
 #include "CompareDialog.h"
 #include "edit/EditCommands.h"
+#include "import/LayoutFile.h"
 #include "parts/PartsLibrary.h"
 #include "ui/LiveLayout.h"
 #include "ui/LoadingCard.h"
@@ -30,6 +31,10 @@
 #include <QCryptographicHash>
 #include <QUuid>
 #include <QDir>
+#include <QFileDialog>
+#include <QFileInfo>
+#include <QLineEdit>
+#include <QTemporaryDir>
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -122,6 +127,19 @@ std::function<void(QWidget*)> box(const QString& about, const QString& button) {
         ASSERT_NE(b, nullptr) << w->metaObject()->className();
         EXPECT_TRUE(b->text().contains(about)) << b->text().toStdString();
         press(button)(w);
+    };
+}
+
+// The file picker, answered with `path`.
+std::function<void(QWidget*)> chooseFile(const QString& path) {
+    return [path](QWidget* w) {
+        auto* dialog = qobject_cast<QFileDialog*>(w);
+        ASSERT_NE(dialog, nullptr) << w->metaObject()->className();
+        dialog->setDirectory(QFileInfo(path).absolutePath());
+        auto* name = dialog->findChild<QLineEdit*>(QStringLiteral("fileNameEdit"));
+        ASSERT_NE(name, nullptr);
+        name->setText(QFileInfo(path).fileName());
+        QMetaObject::invokeMethod(dialog, "accept", Qt::QueuedConnection);
     };
 }
 
@@ -695,6 +713,60 @@ TEST_F(MainWindowLive, LiveOnTheOnlyServerItBecomesMainAndKeepsItsSettings) {
         return std::any_of(http_.requests.cbegin(), http_.requests.cend(),
                            [](const auto& r) { return r.path == "/api/me/preferences"; });
     }));
+}
+
+// The server's merge guard closes the socket (1008 layout_merge_refused):
+// no reconnecting, the window says why in plain words, and the layout with
+// my edits stays open as an unsaved copy that File > Save keeps.
+TEST_F(MainWindowLive, ARefusedMergeKeepsMyCopyOpenUnsavedAndSaveKeepsIt) {
+    core::Map& m = *view_->currentMap();
+    const QPointF at = brickAt(m, 0).displayArea.topLeft();
+    view_->undoStack()->push(new edit::MoveBricksCommand(m, { { brickRef(m, 0), at, at + QPointF(0, 8) } }));
+    ASSERT_TRUE(waitFor([&] { return brickArea(ws_.doc, 0) == original_.translated(0, 8); }));
+    // Another edit, and the server refuses it.
+    core::Map& now = *view_->currentMap();
+    const QPointF other = brickAt(now, 1).displayArea.topLeft();
+    view_->undoStack()->push(new edit::MoveBricksCommand(now, { { brickRef(now, 1), other, other + QPointF(16, 0) } }));
+    const std::size_t connections = ws_.authHeaders.size();
+
+    Answers closed{ { box(QStringLiteral("Nothing is lost: your copy stays open here"), QStringLiteral("OK")) } };
+    closed.during([&] {
+        ws_.dropAll(QWebSocketProtocol::CloseCodePolicyViolated, QStringLiteral("layout_merge_refused"));
+        ASSERT_TRUE(waitFor([&] { return closed.done() && !live_->active(); }));
+    });
+    EXPECT_EQ(closed.unexpected, 0);
+
+    // It doesn't reconnect (the reconnect delay here is 50 ms).
+    waitFor([] { return false; }, 400);
+    EXPECT_EQ(ws_.authHeaders.size(), connections);
+    EXPECT_TRUE(ws_.peers.empty());
+
+    // My edits are still here, and the copy is unsaved.
+    ASSERT_NE(view_->currentMap(), nullptr);
+    EXPECT_EQ(brickAt(*view_->currentMap(), 0).displayArea, original_.translated(0, 8));
+    EXPECT_EQ(brickAt(*view_->currentMap(), 1).displayArea.topLeft(), other + QPointF(16, 0));
+    EXPECT_FALSE(view_->undoStack()->isClean());
+    EXPECT_TRUE(window_->windowTitle().contains(QStringLiteral(" *"))) << window_->windowTitle().toStdString();
+    EXPECT_FALSE(window_->windowTitle().contains(QStringLiteral("Live on"))) << window_->windowTitle().toStdString();
+
+    // File > Save asks where (it's no longer a server layout) and keeps it.
+    QAction* save = nullptr;
+    for (QAction* a : window_->findChildren<QAction*>())
+        if (a->text() == QStringLiteral("&Save")) save = a;
+    ASSERT_NE(save, nullptr);
+    QTemporaryDir dir;
+    const QString path = dir.filePath(QStringLiteral("kept.bld-layout"));
+    Answers saving{ { chooseFile(path) } };
+    saving.during([&] {
+        QTimer::singleShot(0, save, &QAction::trigger);
+        ASSERT_TRUE(waitFor([&] { return saving.done() && QFile::exists(path) && view_->undoStack()->isClean(); }));
+    });
+    EXPECT_EQ(saving.unexpected, 0);
+    EXPECT_FALSE(window_->windowTitle().contains(QStringLiteral(" *"))) << window_->windowTitle().toStdString();
+    const auto saved = import::readLayoutFile(path, dir.filePath(QStringLiteral("assets")));
+    ASSERT_TRUE(saved.ok()) << saved.error.toStdString();
+    EXPECT_EQ(brickAt(*saved.map, 0).displayArea, original_.translated(0, 8));
+    EXPECT_EQ(brickAt(*saved.map, 1).displayArea.topLeft(), other + QPointF(16, 0));
 }
 
 // Journey 7: a desktop member's show day, one chain on one live layout.

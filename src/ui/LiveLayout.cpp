@@ -272,6 +272,9 @@ void LiveLayout::onLocalStep() {
     // stack doesn't keep this step (its commands would outlive the map
     // the next reload replaces).
     QTimer::singleShot(0, this, [this] {
+        // Ended meanwhile (the server closed): the step stays, so the copy
+        // left open still counts as changed (clear() would mark it clean).
+        if (!active_) return;
         clearing_ = true;
         view_.undoStack()->clear();
         clearing_ = false;
