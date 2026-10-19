@@ -320,7 +320,9 @@ struct SyncDoc::Impl {
     }
 };
 
-SyncDoc::SyncDoc() : d_(std::make_unique<Impl>()) {
+SyncDoc::SyncDoc() : d_(std::make_unique<Impl>()) { init(); }
+
+void SyncDoc::init() {
     d_->doc = ydoc_new();
     // Root types must be declared before use; DocJson.cpp reads the same ones.
     d_->meta = ymap(d_->doc, "meta");
@@ -335,6 +337,14 @@ SyncDoc::SyncDoc() : d_(std::make_unique<Impl>()) {
     for (const Branch* root : { d_->meta, d_->layers, d_->layerData, d_->sidecarItems })
         yundo_manager_add_scope(d_->undo, d_->doc, root);
     yundo_manager_add_origin(d_->undo, sizeof(kLocalOrigin) - 1, kLocalOrigin);
+}
+
+// Empty again, with a new client id: what a SyncDoc is when made.
+void SyncDoc::reset() {
+    yundo_manager_destroy(d_->undo);
+    ydoc_destroy(d_->doc);
+    d_ = std::make_unique<Impl>();
+    init();
 }
 
 SyncDoc::~SyncDoc() {

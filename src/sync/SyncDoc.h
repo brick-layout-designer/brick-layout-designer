@@ -27,6 +27,9 @@ public:
     // Apply a Yjs v1 update (the server's state, or a peer's change). One
     // that fails UpdateGuard's checks is refused before yrs reads it.
     bool applyUpdate(const QByteArray& update, QString* error = nullptr);
+    // Forget everything: an empty document, as when made. Before a
+    // different layout is read into it, so the two don't merge.
+    void reset();
 
     // The whole document as a v1 update, and its state vector.
     QByteArray encodeState() const;
@@ -60,6 +63,7 @@ public:
     bool canRedo() const;
 
 private:
+    void init();
     struct Impl;
     std::unique_ptr<Impl> d_;
 };
