@@ -3,6 +3,7 @@
 #include "SidecarItems.h"
 
 #include "DocJsonDetail.h"
+#include "DocShape.h"
 #include "UpdateGuard.h"
 #include "WebModelWriter.h"
 
@@ -46,9 +47,89 @@ QSet<qsizetype> longestIncreasingRun(const QList<qsizetype>& seq) {
 
 
 // Keys of a layer's Y.Map that hold Y.Arrays: of Y.Maps (items matched by
-// id) or of plain values (replaced as a whole).
-const char* const kItemArrays[] = { "bricks", "groups", "textCells" };
-const char* const kPlainArrays[] = { "areas", "rulerItems" };
+// id) or of plain values (replaced as a whole). Ruler items are plain
+// objects in doc shape 1 and Y.Maps in shape 2 (DocShape.h).
+const char* const kItemArrays[] = { "bricks", "groups", "textCells", "rulerItems" };
+const char* const kPlainArrays[] = { "areas" };
+
+// Item arrays drawn by z in doc shape 2: a reorder sets z, never moves.
+bool isZArray(const QString& k) { return k == QLatin1String("bricks") || k == QLatin1String("rulerItems"); }
+
+QStringList idsOf(const QJsonArray& items) {
+    QStringList out;
+    for (const auto& v : items) out << v.toObject().value(QLatin1String("id")).toString();
+    return out;
+}
+
+bool uniqueIds(const QStringList& ids) {
+    return QSet<QString>(ids.begin(), ids.end()).size() == ids.size() && !ids.contains(QString());
+}
+
+// Whether writing `want` over `cur` (a bricks or rulers array) needs z: it
+// already has some, or the kept entries change order, or a new one goes
+// anywhere but on top.
+bool needsZ(const QJsonArray& cur, const QJsonArray& want) {
+    if (hasZOrder(cur)) return true;
+    const QStringList curIds = idsOf(cur), wantIds = idsOf(want);
+    const QSet<QString> curSet(curIds.begin(), curIds.end()), wantSet(wantIds.begin(), wantIds.end());
+    QStringList keptNow, keptWant;
+    for (const QString& id : curIds) if (wantSet.contains(id)) keptNow << id;
+    qsizetype firstNew = -1, lastKept = -1;
+    for (qsizetype i = 0; i < wantIds.size(); ++i) {
+        if (curSet.contains(wantIds[i])) {
+            keptWant << wantIds[i];
+            lastKept = i;
+        } else if (firstNew < 0) {
+            firstNew = i;
+        }
+    }
+    return keptNow != keptWant || (firstNew >= 0 && firstNew < lastKept);
+}
+
+QJsonArray withoutZ(const QJsonArray& items) {
+    QJsonArray out;
+    for (const auto& v : items) {
+        QJsonObject o = v.toObject();
+        o.remove(QStringLiteral("z"));
+        out.append(o);
+    }
+    return out;
+}
+
+// Cells relative to an offset.
+QJsonArray shifted(const QJsonArray& cells, int dx, int dy) {
+    QJsonArray out;
+    for (const auto& v : cells) {
+        QJsonObject c = v.toObject();
+        c.insert(QStringLiteral("x"), c.value(QLatin1String("x")).toInt() + dx);
+        c.insert(QStringLiteral("y"), c.value(QLatin1String("y")).toInt() + dy);
+        out.append(c);
+    }
+    return out;
+}
+
+// When `want` is `cur` with every cell moved by the same whole cells (an
+// area sheet moved), that move.
+std::optional<std::pair<int, int>> sheetMove(const QJsonArray& cur, const QJsonArray& want) {
+    if (cur.isEmpty() || cur.size() != want.size()) return std::nullopt;
+    struct C { int x, y; quint32 color; };
+    const auto cellsOf = [](const QJsonArray& a) {
+        QList<C> out;
+        for (const auto& v : a) {
+            const QJsonObject o = v.toObject();
+            out.append({ o.value(QLatin1String("x")).toInt(), o.value(QLatin1String("y")).toInt(),
+                         static_cast<quint32>(o.value(QLatin1String("color")).toString().toLongLong(nullptr, 16)) });
+        }
+        std::sort(out.begin(), out.end(), [](const C& a, const C& b) { return a.x < b.x || (a.x == b.x && a.y < b.y); });
+        return out;
+    };
+    const QList<C> a = cellsOf(cur), b = cellsOf(want);
+    const int dx = b[0].x - a[0].x, dy = b[0].y - a[0].y;
+    if (dx == 0 && dy == 0) return std::nullopt;
+    for (qsizetype i = 0; i < a.size(); ++i)
+        if (b[i].x - a[i].x != dx || b[i].y - a[i].y != dy || a[i].color != b[i].color) return std::nullopt;
+    return std::make_pair(dx, dy);
+}
 
 bool isArrayKey(const QString& k) {
     for (const char* a : kItemArrays) if (k == QLatin1String(a)) return true;
@@ -223,6 +304,63 @@ struct SyncDoc::Impl {
     Arena arena;
     int ops = 0;  // changes made by the current writeMap
 
+    // Before an edit that needs doc shape 2 (DocShape.h): turn a ruler
+    // sheet's plain entries into Y.Maps and mark the doc 2, in a step of its
+    // own that undo never takes back. Builds that read only shape 1 then
+    // refuse the doc rather than misread it.
+    void shapePass(const QJsonObject& cur, const QJsonObject& want) {
+        const QJsonObject curData = cur.value(QLatin1String("layerData")).toObject();
+        const QJsonObject wantData = want.value(QLatin1String("layerData")).toObject();
+        txn = ydoc_write_transaction(doc, 0, nullptr);
+        bool mark = false;
+        for (auto it = wantData.begin(); it != wantData.end(); ++it) {
+            const QJsonObject w = it.value().toObject(), c = curData.value(it.key()).toObject();
+            const QString type = w.value(QLatin1String("type")).toString();
+            const QByteArray key = it.key().toUtf8();
+            Output layer(ymap_get(layerData, txn, key.constData()));
+            if (!layer || layer->tag != Y_MAP || c.value(QLatin1String("type")).toString() != type) {
+                // A new ruler sheet is written with Y.Map rulers.
+                if (type == QLatin1String("ruler") && !w.value(QLatin1String("rulerItems")).toArray().isEmpty()) mark = true;
+                continue;
+            }
+            const Branch* l = youtput_read_ymap(layer.get());
+            if (type == QLatin1String("ruler")) {
+                const QJsonArray cr = c.value(QLatin1String("rulerItems")).toArray(), wr = w.value(QLatin1String("rulerItems")).toArray();
+                if (same(withoutZ(inZOrder(cr)), wr)) continue;
+                mark = true;
+                Output items(ymap_get(l, txn, "rulerItems"));
+                if (!items || items->tag != Y_ARRAY) continue;
+                const Branch* arr = youtput_read_yarray(items.get());
+                for (uint32_t i = yarray_len(arr); i-- > 0;) {
+                    Output o(yarray_get(arr, txn, i));
+                    if (o && o->tag == Y_MAP) continue;
+                    if (static_cast<qsizetype>(i) >= cr.size()) continue;
+                    yarray_remove_range(arr, txn, i, 1);
+                    const YInput m = arena.itemMap(cr[i].toObject());
+                    yarray_insert_range(arr, txn, i, &m, 1);
+                }
+            } else if (type == QLatin1String("brick")) {
+                const QJsonArray cb = c.value(QLatin1String("bricks")).toArray(), wb = w.value(QLatin1String("bricks")).toArray();
+                if (needsZ(cb, wb)) mark = true;
+            } else if (type == QLatin1String("area")) {
+                const QJsonObject off = c.value(QLatin1String("cellOffset")).toObject();
+                const QJsonArray rel = shifted(w.value(QLatin1String("areas")).toArray(), -off.value(QLatin1String("x")).toInt(),
+                                               -off.value(QLatin1String("y")).toInt());
+                if (sheetMove(c.value(QLatin1String("areas")).toArray(), rel)) mark = true;
+            }
+        }
+        if (mark) {
+            const QJsonValue v = cur.value(QLatin1String("meta")).toObject().value(QLatin1String("schemaVersion"));
+            if (!v.isDouble() || v.toInt() < kDocShapeInPlace) {
+                const YInput sv = yinput_float(kDocShapeInPlace);
+                ymap_insert(meta, txn, "schemaVersion", &sv);
+            }
+        }
+        ytransaction_commit(txn);
+        txn = nullptr;
+        arena = Arena();
+    }
+
     // Set changed fields of an item or layer map in place.
     void setFields(const Branch* map, const QJsonObject& cur, const QJsonObject& want, bool skipArrays) {
         for (auto it = want.begin(); it != want.end(); ++it) {
@@ -296,19 +434,100 @@ struct SyncDoc::Impl {
         }
     }
 
+    // An area sheet: cells are kept relative to its cellOffset (doc shape
+    // 2). Moving the whole sheet sets the offset; any other change writes
+    // the cells (relative) as before.
+    void syncArea(const Branch* layer, const Branch* arr, const QJsonObject& curLayer, const QJsonArray& cur,
+                  const QJsonArray& want) {
+        const QJsonObject off = curLayer.value(QLatin1String("cellOffset")).toObject();
+        const int ox = off.value(QLatin1String("x")).toInt(), oy = off.value(QLatin1String("y")).toInt();
+        const QJsonArray rel = shifted(want, -ox, -oy);
+        if (same(cur, rel)) return;
+        if (const auto move = sheetMove(cur, rel)) {
+            const QJsonValue next = QJsonObject{ { QStringLiteral("x"), ox + move->first }, { QStringLiteral("y"), oy + move->second } };
+            const YInput v = arena.plain(next);
+            ymap_insert(layer, txn, "cellOffset", &v);
+            ++ops;
+            return;
+        }
+        ++ops;
+        yarray_remove_range(arr, txn, 0, yarray_len(arr));
+        auto& items = arena.plains(rel);
+        if (!items.empty()) yarray_insert_range(arr, txn, 0, items.data(), static_cast<uint32_t>(items.size()));
+    }
+
+    // Whether every entry of the array is a Y.Map.
+    bool allMaps(const Branch* arr) {
+        const uint32_t n = yarray_len(arr);
+        for (uint32_t i = 0; i < n; ++i) {
+            Output o(yarray_get(arr, txn, i));
+            if (!o || o->tag != Y_MAP) return false;
+        }
+        return true;
+    }
+
+    // Bricks or rulers in doc shape 2: delete, update in place, add new
+    // ones on the end, and put them in order by setting z, never by moving
+    // an entry (a moved entry is a copy, which loses someone else's delete
+    // or edit of it at the same moment).
+    void syncByZ(const Branch* arr, const QJsonArray& cur, const QJsonArray& want) {
+        const QStringList curIds = idsOf(cur);
+        const QSet<QString> wantSet = [&] { const QStringList w = idsOf(want); return QSet<QString>(w.begin(), w.end()); }();
+        QJsonArray kept;
+        for (qsizetype i = cur.size() - 1; i >= 0; --i) {
+            if (wantSet.contains(curIds[i])) continue;
+            yarray_remove_range(arr, txn, static_cast<uint32_t>(i), 1);
+            ++ops;
+        }
+        for (qsizetype i = 0; i < cur.size(); ++i) if (wantSet.contains(curIds[i])) kept.append(cur[i]);
+        QHash<QString, qsizetype> at;  // id -> index in the array now
+        const QStringList keptIds = idsOf(kept);
+        for (qsizetype i = 0; i < keptIds.size(); ++i) at.insert(keptIds[i], i);
+        QList<ZEntry> order;
+        for (const auto& v : inZOrder(kept)) order.append({ v.toObject().value(QLatin1String("id")).toString(), zOf(v) });
+        QHash<QString, double> z;
+        for (const auto& [id, value] : assignZ(order, idsOf(want))) z.insert(id, value);
+        uint32_t end = static_cast<uint32_t>(kept.size());
+        for (const auto& v : want) {
+            QJsonObject w = v.toObject();
+            const QString id = w.value(QLatin1String("id")).toString();
+            if (at.contains(id)) {
+                Output o(yarray_get(arr, txn, static_cast<uint32_t>(at.value(id))));
+                if (!o || o->tag != Y_MAP) continue;
+                const Branch* m = youtput_read_ymap(o.get());
+                setFields(m, kept[at.value(id)].toObject(), w, false);
+                if (z.contains(id)) {
+                    const YInput zv = yinput_float(z.value(id));
+                    ymap_insert(m, txn, "z", &zv);
+                    ++ops;
+                }
+            } else {
+                if (z.contains(id)) w.insert(QStringLiteral("z"), z.value(id));
+                const YInput item = arena.itemMap(w);
+                yarray_insert_range(arr, txn, end++, &item, 1);
+                ++ops;
+            }
+        }
+    }
+
     void syncLayer(const Branch* map, const QJsonObject& cur, const QJsonObject& want) {
         setFields(map, cur, want, true);
         for (auto it = want.begin(); it != want.end(); ++it) {
             if (!isArrayKey(it.key())) continue;
             const QByteArray key = it.key().toUtf8();
             Output existing(ymap_get(map, txn, key.constData()));
-            const bool plainList = it.key() == QLatin1String("areas") || it.key() == QLatin1String("rulerItems");
+            const QJsonArray curList = cur.value(it.key()).toArray(), wantList = it.value().toArray();
             if (!existing || existing->tag != Y_ARRAY) {
                 const YInput v = arena.arrayOrPlain(it.key(), it.value());
                 ymap_insert(map, txn, arena.str(it.key()), &v);
                 ++ops;
-            } else if (!plainList) {
-                syncItems(youtput_read_yarray(existing.get()), cur.value(it.key()).toArray(), it.value().toArray());
+            } else if (it.key() == QLatin1String("areas")) {
+                syncArea(map, youtput_read_yarray(existing.get()), cur, curList, wantList);
+            } else if (isZArray(it.key()) && uniqueIds(idsOf(curList)) && uniqueIds(idsOf(wantList))
+                       && allMaps(youtput_read_yarray(existing.get())) && needsZ(curList, wantList)) {
+                syncByZ(youtput_read_yarray(existing.get()), curList, wantList);
+            } else if (it.key() != QLatin1String("rulerItems") || allMaps(youtput_read_yarray(existing.get()))) {
+                syncItems(youtput_read_yarray(existing.get()), curList, wantList);
             } else if (!same(cur.value(it.key()), it.value())) {
                 ++ops;
                 const Branch* arr = youtput_read_yarray(existing.get());
@@ -395,10 +614,11 @@ QJsonObject SyncDoc::toJson() const { return detail::rootsToJson(d_->doc); }
 
 QByteArray SyncDoc::writeMap(const core::Map& map) {
     const QJsonObject want = docJsonFromMap(map);
-    const QJsonObject cur = toJson();
     const QByteArray before = stateVector();
 
     Impl& d = *d_;
+    d.shapePass(toJson(), want);
+    const QJsonObject cur = toJson();
     d.ops = 0;
     d.txn = ydoc_write_transaction(d.doc, sizeof(kLocalOrigin) - 1, kLocalOrigin);
     const QJsonObject curMeta = cur.value(QLatin1String("meta")).toObject();
