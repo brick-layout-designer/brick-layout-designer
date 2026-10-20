@@ -10,7 +10,7 @@ src=$(cd "$(dirname "$0")/.." && pwd)
 cmake -S "$src" -B "$build" -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
       -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
       -DBLD_FUZZ=ON -DBUILD_TESTING=OFF ${BLD_FUZZ_CMAKE_ARGS:-} > /dev/null
-targets=(bbm sidecar venue part_xml budget ldraw_map tdl ncp ldraw_import lxfml studio ydoc sync_message)
+targets=(bbm sidecar venue part_xml budget ldraw_map tdl ncp ldraw_import lxfml lxf ldd_geom lif layout_file studio ydoc sync_message)
 cmake --build "$build" --target bld_fuzz_seeds "${targets[@]/#/fuzz_}"
 
 seeds="$build/fuzz-seeds"
@@ -32,6 +32,10 @@ corpus tdl "$oracle"/*.tdl
 corpus ncp "$oracle"/*.ncp
 corpus ldraw_import "$oracle"/*.ldr "$oracle"/*.mpd
 corpus lxfml "$seeds"/lxfml/*
+corpus lxf "$seeds"/lxf/*
+corpus ldd_geom "$seeds"/ldd_geom/*
+corpus lif "$seeds"/lif/*
+corpus layout_file "$src"/fixtures/layouts/*.bld-layout
 corpus studio "$seeds"/studio/* "$src"/fixtures/studio/*.io
 corpus ydoc "$src"/fixtures/sync/*.ydoc "$src"/fixtures/fuzz-regressions/ydoc-*
 # Server messages: sync step 1 (an empty state vector), step 2 (a whole

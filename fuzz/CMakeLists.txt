@@ -1,7 +1,7 @@
 # libFuzzer harnesses for the file parsers (fuzz/README.md). Configure with
 # clang and -DBLD_FUZZ=ON; the whole build is then instrumented.
 
-set(BLD_FUZZ_TARGETS bbm sidecar venue part_xml budget ldraw_map tdl ncp ldraw_import lxfml studio)
+set(BLD_FUZZ_TARGETS bbm sidecar venue part_xml budget ldraw_map tdl ncp ldraw_import lxfml lxf ldd_geom lif layout_file studio)
 
 foreach(t IN LISTS BLD_FUZZ_TARGETS)
     add_executable(fuzz_${t} FuzzTarget.cpp)

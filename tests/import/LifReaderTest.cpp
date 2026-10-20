@@ -38,6 +38,30 @@ TEST(LifReader, RejectsTruncatedHeader) {
     EXPECT_FALSE(r.open(p));
 }
 
+// Folders nested far deeper than any real archive: refused, not a
+// recursion that runs out of stack.
+TEST(LifReader, RejectsDeeplyNestedFolders) {
+    QByteArray b(120, 0);
+    b.replace(0, 4, "LIFF");
+    b[75] = 20;  // TOC at 20 + 64 = 84; its count sits at 84 + 36 = 120
+    // Each level: count 1, one folder entry with an empty name, then the
+    // next level's count 20 bytes on.
+    QByteArray level(20, 0);
+    level[3] = 1;  // count
+    level[5] = 1;  // type: folder
+    for (int i = 0; i < 100000; ++i) b += level;
+    QTemporaryDir tmp;
+    const QString p = QDir(tmp.path()).absoluteFilePath(QStringLiteral("deep.lif"));
+    QFile f(p);
+    ASSERT_TRUE(f.open(QIODevice::WriteOnly));
+    f.write(b);
+    f.close();
+
+    import::LifReader r;
+    EXPECT_FALSE(r.open(p));
+    EXPECT_TRUE(r.errorString().contains(QStringLiteral("nested"))) << r.errorString().toStdString();
+}
+
 // End-to-end smoke test against a real Assets.lif. Skipped unless the
 // BLD_LDD_ASSETS_LIF env var points at a valid file — the assets are
 // proprietary and can't be checked in. To run locally:

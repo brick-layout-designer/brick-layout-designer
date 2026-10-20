@@ -70,6 +70,12 @@ LDDGeomReadResult readLDDGeom(const QByteArray& bytes) {
     (void)hasBones;  // bone data is at the tail and skipped — we only need pos+tri.
 
     // Position buffer.
+    // Positions and normals, 12 bytes each, must fit before anything is
+    // reserved: a 16-byte header can claim four billion vertices.
+    if (qsizetype(vCount) * 24 > bytes.size() - off) {
+        r.error = QStringLiteral("Truncated vertex data (%1 vertices)").arg(vCount);
+        return r;
+    }
     std::vector<geom::Vec3> positions;
     positions.reserve(vCount);
     for (quint32 i = 0; i < vCount; ++i) {

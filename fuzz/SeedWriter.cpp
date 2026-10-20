@@ -1,5 +1,5 @@
 // Writes starting inputs for the fuzzers that have no fixture files:
-//   bld_fuzz_seeds <dir>   ->  <dir>/{sidecar,venue,budget,lxfml,studio}/...
+//   bld_fuzz_seeds <dir>   ->  <dir>/{sidecar,venue,budget,lxfml,lxf,ldd_geom,lif,studio}/...
 // fuzz/run.sh adds the fixtures (maps, parts, budgets) and runs them.
 
 #include "core/Sidecar.h"
@@ -10,6 +10,8 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
+
+#include <cstring>
 #include <private/qzipwriter_p.h>
 
 using namespace bld;
@@ -49,7 +51,7 @@ int main(int argc, char** argv) {
     QCoreApplication app(argc, argv);
     if (argc != 2) return 2;
     const QDir root(QString::fromLocal8Bit(argv[1]));
-    for (const char* sub : { "sidecar", "venue", "budget", "lxfml", "studio" }) root.mkpath(QLatin1String(sub));
+    for (const char* sub : { "sidecar", "venue", "budget", "lxfml", "lxf", "ldd_geom", "lif", "studio" }) root.mkpath(QLatin1String(sub));
 
     core::Sidecar sidecar;
     core::AnchoredLabel label;
@@ -76,6 +78,50 @@ int main(int argc, char** argv) {
 
     QFile lx(root.filePath(QStringLiteral("lxfml/seed.lxfml")));
     if (lx.open(QIODevice::WriteOnly)) lx.write(kLxfml);
+
+    // LDD .lxf: the same model zipped, as LDD saves it.
+    {
+        QZipWriter lxf(root.filePath(QStringLiteral("lxf/seed.lxf")));
+        lxf.addFile(QStringLiteral("IMAGE100.LXFML"), QByteArray(kLxfml));
+        lxf.close();
+    }
+
+    // LDD .g: one triangle (header, positions, normals, indices).
+    {
+        QByteArray g("10GB");
+        const auto u32 = [&g](quint32 v) {
+            for (int i = 0; i < 4; ++i) g.append(static_cast<char>((v >> (8 * i)) & 0xFF));
+        };
+        u32(3);
+        u32(3);
+        u32(0);
+        const float verts[] = { 0, 0, 0, 1, 0, 0, 0, 0, 1 };
+        for (const float v : verts) {
+            quint32 raw = 0;
+            std::memcpy(&raw, &v, 4);
+            u32(raw);
+        }
+        for (int i = 0; i < 9; ++i) u32(0);
+        u32(0);
+        u32(1);
+        u32(2);
+        QFile f(root.filePath(QStringLiteral("ldd_geom/seed.g")));
+        if (f.open(QIODevice::WriteOnly)) f.write(g);
+    }
+
+    // LDD .lif: one 4-byte file "a" (LifReader's layout: the TOC at
+    // u32be(72) + 64, a 36-byte root header, then the entries).
+    {
+        QByteArray lif(142, 0);
+        lif.replace(0, 4, "LIFF");
+        lif[75] = 20;   // TOC at 84
+        lif[123] = 1;   // one entry
+        lif[129] = 2;   // a file
+        lif[133] = 'a'; // its name, UTF-16BE
+        lif[141] = 24;  // its size + 20
+        QFile f(root.filePath(QStringLiteral("lif/seed.lif")));
+        if (f.open(QIODevice::WriteOnly)) f.write(lif);
+    }
 
     // Studio .io: a zip with the model as model.ldr.
     QZipWriter zip(root.filePath(QStringLiteral("studio/seed.io")));

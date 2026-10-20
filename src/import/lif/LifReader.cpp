@@ -97,8 +97,16 @@ bool LifReader::parseTableOfContents() {
 
     // Lambda is recursive via std::function so we can capture by
     // reference and call ourselves.
+    // LDD's own archives nest a handful of folders deep; a damaged one
+    // must not recurse until the stack runs out.
+    constexpr int kMaxDepth = 64;
+    int depth = 0;
     using Recurse = std::function<qint64(const QString&, qint64)>;
     Recurse recurse = [&](const QString& prefix, qint64 offset) -> qint64 {
+        if (depth > kMaxDepth) {
+            errorString_ = QStringLiteral("Folders nested too deep at %1").arg(prefix);
+            return offset;
+        }
         if (prefix.isEmpty()) {
             offset += 36;
         } else {
@@ -138,7 +146,10 @@ bool LifReader::parseTableOfContents() {
                 // Directory: walk its children. The python increments
                 // packedOffset by 20 for the dir header itself.
                 packedOffset += 20;
+                ++depth;
                 offset = recurse(fullPath, offset);
+                --depth;
+                if (!errorString_.isEmpty()) return offset;
             } else if (entryType == 2) {
                 // File entry. The python reads the file size from a
                 // u32 at the CURRENT offset (post-name) — the value
