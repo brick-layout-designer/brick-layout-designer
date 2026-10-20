@@ -46,6 +46,7 @@
 #include <QTemporaryDir>
 #include <QTest>
 #include <QTimer>
+#include <QUndoStack>
 
 #include <functional>
 
@@ -174,6 +175,22 @@ TEST_F(MainWindowFile, AboutLinksToTheSourceOfBothApps) {
     }
     EXPECT_TRUE(text.contains(QStringLiteral("https://github.com/brick-layout-designer/brick-layout-designer\"")));
     EXPECT_TRUE(text.contains(QStringLiteral("https://github.com/brick-layout-designer/collaborative-brick-layout-designer\"")));
+}
+
+// An edit made right after another is autosaved within seconds too, not
+// left for the minute tick.
+TEST_F(MainWindowFile, AutosaveTakesInEveryEditOfABurst) {
+    ASSERT_TRUE(window_->openFile(bbm_));
+    QUndoStack* undo = window_->findChild<ui::MapView*>()->undoStack();
+    const QString autosave = ui::MainWindow::autosavePath();
+    QFile::remove(autosave);
+    undo->push(new QUndoCommand(QStringLiteral("first")));
+    // Whatever the first edit wrote is gone; the second must still reach disk.
+    QTest::qWait(300);
+    QFile::remove(autosave);
+    undo->push(new QUndoCommand(QStringLiteral("second")));
+    EXPECT_TRUE(QTest::qWaitFor([&] { return QFile::exists(autosave); }, 8000));
+    QFile::remove(autosave);
 }
 
 TEST_F(MainWindowFile, SavingABbmOffersTheOneFileFormat) {

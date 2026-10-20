@@ -491,6 +491,7 @@ private:
     // the undo stack is dirty. On startup, if an autosave file is newer than
     // the last-opened file, we offer to restore it (see restoreAutosaveIfAny).
     class QTimer* autosaveTimer_ = nullptr;
+    class QTimer* autosaveSoon_ = nullptr;  // the save a few seconds after an edit
     void performAutosave();
     void performAutosaveThrottled();  // called on every undo-stack change
 public:
