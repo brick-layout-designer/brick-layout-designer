@@ -10,7 +10,7 @@
     "downloadUrl": "https://github.com/brick-layout-designer/brick-layout-designer/releases/latest",
     "userAgentPattern": "^BrickLayoutDesigner/([0-9][0-9A-Za-z.+-]{0,31}) \\(desktop\\)"
   },
-  "doc": { "schemaVersion": 1, "minReadable": 1 },
+  "doc": { "schemaVersion": 2, "createdAs": 1, "minReadable": 1, "why": { "2": "Ruler items are Y.Maps, area sheets have a cellOffset, parts and rulers are ordered by z, so concurrent edits merge. A layout is made in shape createdAs and moves to 2 when an edit needs it; builds that read only 1 then refuse it." } },
   "sidecar": { "schemaVersion": 1 },
   "layoutFile": { "version": 1 },
   "protocols": ["y-websocket/1"],

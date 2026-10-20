@@ -1,5 +1,7 @@
 #include "WebModel.h"
 
+#include "DocShape.h"
+
 #include "SidecarItems.h"
 
 #include "saveload/SidecarIO.h"
@@ -109,7 +111,8 @@ std::unique_ptr<core::Layer> layer(const QJsonObject& o, QString* error) {
     } else if (type == QLatin1String("brick")) {
         auto l = std::make_unique<core::LayerBrick>();
         l->displayBrickElevation = boolean(o, "displayBrickElevation");
-        for (const auto& v : arr(o, "bricks")) {
+        // Drawn by z when the sheet has any (doc shape 2, DocShape.h).
+        for (const auto& v : inZOrder(arr(o, "bricks"))) {
             const QJsonObject b = v.toObject();
             core::Brick brick;
             item(brick, b);
@@ -148,11 +151,13 @@ std::unique_ptr<core::Layer> layer(const QJsonObject& o, QString* error) {
     } else if (type == QLatin1String("area")) {
         auto l = std::make_unique<core::LayerArea>();
         l->areaCellSizeInStud = integer(o, "areaCellSize");
+        // Cells are kept relative to the sheet's offset (doc shape 2).
+        const QJsonObject off = obj(o, "cellOffset");
         for (const auto& v : arr(o, "areas")) {
             const QJsonObject a = v.toObject();
             core::AreaCell cell;
-            cell.x = integer(a, "x");
-            cell.y = integer(a, "y");
+            cell.x = integer(a, "x") + integer(off, "x");
+            cell.y = integer(a, "y") + integer(off, "y");
             // The .bbm's hex ARGB text, kept as is (LayerIO.cpp).
             cell.color = QColor::fromRgba(static_cast<quint32>(str(a, "color").toLongLong(nullptr, 16)));
             l->cells.push_back(cell);
@@ -160,7 +165,7 @@ std::unique_ptr<core::Layer> layer(const QJsonObject& o, QString* error) {
         out = std::move(l);
     } else if (type == QLatin1String("ruler")) {
         auto l = std::make_unique<core::LayerRuler>();
-        for (const auto& v : arr(o, "rulerItems")) {
+        for (const auto& v : inZOrder(arr(o, "rulerItems"))) {
             const QJsonObject r = v.toObject();
             core::LayerRuler::AnyRuler any;
             if (str(r, "kind") == QLatin1String("circular")) {
