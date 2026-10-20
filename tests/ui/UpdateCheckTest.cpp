@@ -78,6 +78,11 @@ TEST(UpdateCheck, ReadsAReleaseAndItsImportantMarker) {
     EXPECT_TRUE(r.important);
     EXPECT_EQ(r.notes, QStringLiteral("Fixes a sign-in problem. [Security]"));
     EXPECT_EQ(r.url, QStringLiteral("https://github.com/brick-layout-designer/brick-layout-designer/releases/latest"));
+    // Only a web page is kept as the release's link.
+    EXPECT_EQ(ui::readRelease(QJsonObject{ { QStringLiteral("html_url"), QStringLiteral("file:///tmp/x") } }).url,
+              QStringLiteral("https://github.com/brick-layout-designer/brick-layout-designer/releases/latest"));
+    EXPECT_EQ(ui::readRelease(QJsonObject{ { QStringLiteral("html_url"), QStringLiteral("https://github.com/a/b/releases/tag/v2") } }).url,
+              QStringLiteral("https://github.com/a/b/releases/tag/v2"));
     EXPECT_TRUE(ui::isImportantRelease(QStringLiteral("[important] please update")));
     EXPECT_FALSE(ui::isImportantRelease(QStringLiteral("An important new tool")));
 }

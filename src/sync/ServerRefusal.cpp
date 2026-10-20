@@ -1,5 +1,7 @@
 #include "ServerRefusal.h"
 
+#include "ServerApi.h"
+
 #include <QCoreApplication>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -20,7 +22,7 @@ ServerRefusal readRefusal(int status, const QByteArray& body, const QString& net
     r.code = o.value(QLatin1String("error")).toString();
     r.message = o.value(QLatin1String("message")).toString().trimmed();
     r.limit = o.value(QLatin1String("limit")).toString();
-    r.downloadUrl = o.value(QLatin1String("downloadUrl")).toString();
+    r.downloadUrl = ServerApi::webLink(o.value(QLatin1String("downloadUrl")).toString()).toString();
     r.minimum = o.value(QLatin1String("minimum")).toString();
     return r;
 }

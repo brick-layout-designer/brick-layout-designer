@@ -118,6 +118,10 @@ public:
     // this machine (http://localhost, 127.0.0.1, [::1]). No scheme means
     // https. nullopt (and *error) otherwise.
     static std::optional<QUrl> normalizeBase(const QString& input, QString* error = nullptr);
+    // A link the server (or a release feed) sent, as one the browser may
+    // open: https, or http for this machine only, as for server addresses.
+    // An empty QUrl for anything else.
+    static QUrl webLink(const QString& text);
 
     void setBase(const QUrl& base) { base_ = base; }
     QUrl base() const { return base_; }

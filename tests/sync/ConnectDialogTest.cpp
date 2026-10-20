@@ -5,6 +5,7 @@
 
 #include <optional>
 #include "ConnectDialog.h"
+#include "core/Version.h"
 #include "ServerList.h"
 #include "FakeHttp.h"
 #include "TokenStore.h"
@@ -224,6 +225,44 @@ TEST(ConnectDialog, AnAppTooOldForTheServerIsAskedToUpdateBeforeSigningIn) {
     update->click();
     ASSERT_EQ(h.opened.size(), 1);
     EXPECT_EQ(h.opened.first(), QUrl(QStringLiteral("https://example.org/get")));
+}
+
+// A sign-in page that isn't a web page is never opened; the code is still
+// shown so the person can sign in by hand.
+TEST(ConnectDialog, OpensOnlyAWebPageForSignIn) {
+    Harness h;
+    h.http.reply("/api/auth/device/code", 200,
+                 { { QStringLiteral("device_code"), QStringLiteral("dev") },
+                   { QStringLiteral("user_code"), QStringLiteral("BCDF-GHJK") },
+                   { QStringLiteral("verification_uri"), QStringLiteral("file:///etc/passwd") },
+                   { QStringLiteral("verification_uri_complete"), QStringLiteral("x-custom://open?c=1") },
+                   { QStringLiteral("expires_in"), 600 },
+                   { QStringLiteral("interval"), 1 } });
+    h.http.reply("/api/auth/device/token", 400,
+                 { { QStringLiteral("error"), QStringLiteral("authorization_pending") } });
+    h.dialog.connectToServer();
+    ASSERT_TRUE(waitFor([&] { return h.page() == 1; }));
+    EXPECT_EQ(h.dialog.findChild<QLabel*>(QStringLiteral("userCode"))->text(), QStringLiteral("BCDF-GHJK"));
+    QCoreApplication::processEvents();
+    EXPECT_TRUE(h.opened.isEmpty());
+}
+
+// The same for the download link of a server that needs a newer version.
+TEST(ConnectDialog, DownloadOpensOnlyAWebPage) {
+    const QString before = QCoreApplication::applicationVersion();
+    QCoreApplication::setApplicationVersion(QStringLiteral("1.1.0"));
+    Harness h;
+    QJsonObject v = version();
+    v.insert(QStringLiteral("desktop"), QJsonObject{ { QStringLiteral("minimum"), QStringLiteral("1.2.0") },
+                                                     { QStringLiteral("downloadUrl"), QStringLiteral("file:///tmp/x.exe") } });
+    h.http.clear("/api/version");
+    h.http.reply("/api/version", 200, v);
+    h.dialog.connectToServer();
+    ASSERT_TRUE(waitFor([&] { return h.message().contains(QStringLiteral("1.2.0")); }));
+    QCoreApplication::setApplicationVersion(before);
+    h.dialog.findChild<QPushButton*>(QStringLiteral("downloadUpdate"))->click();
+    ASSERT_EQ(h.opened.size(), 1);
+    EXPECT_EQ(h.opened.first(), QUrl(core::desktopDownloadUrl()));
 }
 
 TEST(ConnectDialog, SignOutForgetsTheToken) {

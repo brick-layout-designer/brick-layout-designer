@@ -1,5 +1,8 @@
 #include "NoticeArea.h"
 
+#include "ServerApi.h"
+
+#include <QDesktopServices>
 #include <QEvent>
 #include <QGraphicsDropShadowEffect>
 #include <QHBoxLayout>
@@ -79,7 +82,12 @@ void NoticeArea::showNotice(const QString& id, const QString& title, const QStri
         auto* notesText = new QLabel(details, notes);
         notesText->setWordWrap(true);
         notesText->setTextFormat(Qt::MarkdownText);
-        notesText->setOpenExternalLinks(true);
+        // Links in the notes open in the browser, web pages only.
+        notesText->setTextInteractionFlags(Qt::TextBrowserInteraction);
+        connect(notesText, &QLabel::linkActivated, notesText, [](const QString& link) {
+            const QUrl url = sync::ServerApi::webLink(link);
+            if (url.isValid()) QDesktopServices::openUrl(url);
+        });
         notesText->setAlignment(Qt::AlignTop | Qt::AlignLeft);
         notes->setWidget(notesText);
         notes->hide();

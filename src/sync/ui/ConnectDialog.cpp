@@ -317,7 +317,8 @@ ConnectDialog::ConnectDialog(ServerApi& api, TokenStore& tokens, std::function<v
         code_->setText(dc.userCode);
         pages_->setCurrentIndex(CodePage);
         showMessage({});
-        openUrl_(dc.verificationUriComplete.isValid() ? dc.verificationUriComplete : dc.verificationUri);
+        const QUrl page = dc.verificationUriComplete.isValid() ? dc.verificationUriComplete : dc.verificationUri;
+        if (page.isValid()) openUrl_(page);
     });
     connect(&api_, &ServerApi::signedIn, this, [this](const QString& token) {
         tokens_.save(server_, token);

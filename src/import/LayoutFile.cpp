@@ -22,6 +22,8 @@
 #include <QSaveFile>
 #include <QSet>
 
+#include <algorithm>
+
 namespace bld::import {
 
 namespace {
@@ -31,6 +33,15 @@ const QString kLayout = QStringLiteral("layout.bbm");
 const QString kSidecar = QStringLiteral("sidecar.json");
 const QString kFormat = QStringLiteral("bld-layout");
 const QString kParts = QStringLiteral("parts/");
+// How much of a layout file is unpacked: far more than real files hold,
+// little enough that a damaged file can't fill the memory.
+constexpr qint64 kMiB = qint64(1) << 20;
+constexpr qint64 kMaxManifest = 1 * kMiB;
+constexpr qint64 kMaxLayout = 256 * kMiB;
+constexpr qint64 kMaxSidecar = 64 * kMiB;
+constexpr qint64 kMaxBackground = 256 * kMiB;
+constexpr qint64 kMaxPartFile = 64 * kMiB;
+constexpr qint64 kMaxPartFiles = 512 * kMiB;  // all of them together
 const QStringList kSpriteSuffixes{ QStringLiteral("png"), QStringLiteral("gif"), QStringLiteral("jpg"),
                                    QStringLiteral("jpeg") };
 
@@ -114,11 +125,11 @@ QJsonObject LayoutSource::toJson() const {
 LayoutFileResult readLayoutFileBytes(const QByteArray& bytes, const QString& assetDir) {
     LayoutFileResult r;
     const SafeZip zip(bytes);
-    const auto entry = [&](const QString& name) -> std::optional<QByteArray> {
+    const auto entry = [&](const QString& name, qint64 maxSize) -> std::optional<QByteArray> {
         const auto* e = zip.find(name);
-        return e ? zip.read(*e) : std::nullopt;
+        return e ? zip.read(*e, maxSize) : std::nullopt;
     };
-    const auto manifestBytes = zip.isValid() ? entry(kManifest) : std::nullopt;
+    const auto manifestBytes = zip.isValid() ? entry(kManifest, kMaxManifest) : std::nullopt;
     const QJsonObject manifest =
         manifestBytes ? QJsonDocument::fromJson(*manifestBytes).object() : QJsonObject();
     if (manifest.value(QLatin1String("format")).toString() != kFormat) {
@@ -131,7 +142,7 @@ LayoutFileResult readLayoutFileBytes(const QByteArray& bytes, const QString& ass
         r.warnings << tr("The file was made by a newer version of Brick Layout Designer; "
                          "anything this version doesn't know is left out.");
 
-    const auto bbm = entry(kLayout);
+    const auto bbm = entry(kLayout, kMaxLayout);
     if (!bbm) {
         r.error = tr("The layout file has no readable layout in it.");
         return r;
@@ -147,7 +158,7 @@ LayoutFileResult readLayoutFileBytes(const QByteArray& bytes, const QString& ass
     if (!loaded.error.isEmpty()) r.warnings << loaded.error;
 
     if (zip.find(kSidecar)) {
-        const auto sidecarBytes = entry(kSidecar);
+        const auto sidecarBytes = entry(kSidecar, kMaxSidecar);
         const QJsonDocument doc =
             sidecarBytes ? QJsonDocument::fromJson(*sidecarBytes) : QJsonDocument();
         if (!doc.isObject()) {
@@ -160,7 +171,7 @@ LayoutFileResult readLayoutFileBytes(const QByteArray& bytes, const QString& ass
             const QString file =
                 root.value(QLatin1String("backgroundImage")).toObject().value(QLatin1String("file")).toString();
             if (!file.isEmpty()) {
-                const auto image = entry(file);
+                const auto image = entry(file, kMaxBackground);
                 const QString target =
                     QDir(assetDir).filePath(QString::fromLatin1(saveload::sha256Hex(image.value_or(QByteArray())))
                                             + QLatin1Char('.') + imageSuffix(file));
@@ -178,12 +189,18 @@ LayoutFileResult readLayoutFileBytes(const QByteArray& bytes, const QString& ass
             }
         }
     }
+    qint64 partBytes = 0;
     for (const auto& e : zip.entries()) {
         if (!e.name.startsWith(kParts) || e.isDir) continue;
         const QString name = e.name.mid(kParts.size());
-        const auto data = isLayoutPartFileName(name) ? zip.read(e) : std::nullopt;
-        if (data) r.partFiles.insert(name, *data);
-        else r.warnings << tr("The part file %1 in the layout could not be read.").arg(name);
+        const qint64 room = std::min(kMaxPartFile, kMaxPartFiles - partBytes);
+        const auto data = isLayoutPartFileName(name) ? zip.read(e, room) : std::nullopt;
+        if (data) {
+            r.partFiles.insert(name, *data);
+            partBytes += data->size();
+        } else {
+            r.warnings << tr("The part file %1 in the layout could not be read.").arg(name);
+        }
     }
     r.map = std::move(loaded.map);
     return r;
