@@ -56,7 +56,7 @@ std::optional<QUrl> ServerApi::normalizeBase(const QString& input, QString* erro
 }
 
 QUrl ServerApi::webLink(const QString& text) {
-    const QUrl url(text.trimmed(), QUrl::StrictMode);
+    QUrl url(text.trimmed(), QUrl::StrictMode);
     const QString scheme = url.scheme().toLower();
     if (!url.isValid() || url.host().isEmpty()) return {};
     if (scheme == QLatin1String("https") || (scheme == QLatin1String("http") && isThisMachine(url.host()))) return url;
