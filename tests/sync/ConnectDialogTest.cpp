@@ -262,7 +262,7 @@ TEST(ConnectDialog, DownloadOpensOnlyAWebPage) {
     QCoreApplication::setApplicationVersion(before);
     h.dialog.findChild<QPushButton*>(QStringLiteral("downloadUpdate"))->click();
     ASSERT_EQ(h.opened.size(), 1);
-    EXPECT_EQ(h.opened.first(), QUrl(core::desktopDownloadUrl()));
+    EXPECT_EQ(h.opened.first(), QUrl(bld::core::desktopDownloadUrl()));
 }
 
 TEST(ConnectDialog, SignOutForgetsTheToken) {
