@@ -2,6 +2,7 @@
 #include "VenueJson.h"
 
 #include <QFile>
+#include <QSaveFile>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -12,12 +13,13 @@ bool writeVenueFile(const QString& path, const core::Venue& v, QString* errOut) 
     QJsonObject root = venueToJson(v);
     root[QStringLiteral("schema")] = QStringLiteral("bld-venue/1");
 
-    QFile f(path);
-    if (!f.open(QIODevice::WriteOnly | QIODevice::Text)) {
+    // All or nothing: a failed save leaves the file that was there.
+    QSaveFile f(path);
+    const QByteArray bytes = QJsonDocument(root).toJson();
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Text) || f.write(bytes) != bytes.size() || !f.commit()) {
         if (errOut) *errOut = f.errorString();
         return false;
     }
-    f.write(QJsonDocument(root).toJson());
     return true;
 }
 

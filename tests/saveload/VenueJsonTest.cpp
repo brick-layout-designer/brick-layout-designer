@@ -60,6 +60,17 @@ TEST(VenueJson, SharedGrandLobbyFixtureRoundTripsExactly) {
     EXPECT_EQ(saveload::sidecarToJson(sc).value(QLatin1String("venue")).toObject(), expected);
 }
 
+// A save that can't be written says so (it used to report success when the
+// disk filled up), and never leaves half a file behind.
+TEST(VenueJson, AFailedSaveSaysSo) {
+    const auto v = saveload::readVenueFile(QStringLiteral(BLD_VENUE_FIXTURE));
+    ASSERT_TRUE(v);
+    if (!QFile::exists(QStringLiteral("/dev/full"))) GTEST_SKIP() << "no /dev/full here";
+    QString error;
+    EXPECT_FALSE(saveload::writeVenueFile(QStringLiteral("/dev/full"), *v, &error));
+    EXPECT_FALSE(error.isEmpty());
+}
+
 TEST(VenueJson, KeepsUnknownFieldsAtEveryLevel) {
     const QJsonObject newer{
         { QStringLiteral("name"), QStringLiteral("Hall") },
