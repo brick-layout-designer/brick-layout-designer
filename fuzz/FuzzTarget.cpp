@@ -5,9 +5,12 @@
 
 #include "core/Map.h"
 #include "core/Sidecar.h"
+#include "import/LayoutFile.h"
+#include "import/ldd/LDDGeomReader.h"
 #include "edit/Budget.h"
 #include "import/ldd/LDDReader.h"
 #include "import/ldraw/LDrawReader.h"
+#include "import/lif/LifReader.h"
 #include "import/mapformats/FourDBrixMap.h"
 #include "import/mapformats/LDrawMap.h"
 #include "import/mapformats/TrackDesignerMap.h"
@@ -100,6 +103,16 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
         import::readLDraw(writeInput(data, size, "ldr"));
     } else if (is("lxfml")) {
         import::readLDD(writeInput(data, size, "lxfml"));
+    } else if (is("lxf")) {
+        import::readLDD(writeInput(data, size, "lxf"));
+    } else if (is("ldd_geom")) {
+        import::readLDDGeom(bytes);
+    } else if (is("lif")) {
+        import::LifReader lif;
+        if (lif.open(writeInput(data, size, "lif")))
+            for (const QString& name : lif.fileList()) lif.read(name);
+    } else if (is("layout_file")) {
+        import::readLayoutFileBytes(bytes, scratch + QStringLiteral("/assets"));
     } else if (is("studio")) {
         import::readStudioIo(writeInput(data, size, "io"));
     } else {

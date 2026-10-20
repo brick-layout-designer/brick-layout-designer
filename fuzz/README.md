@@ -15,6 +15,10 @@ AddressSanitizer and UndefinedBehaviorSanitizer:
 | `ncp` | 4DBrix maps (read, then written back) |
 | `ldraw_import` | LDraw models for part import |
 | `lxfml` | LDD models |
+| `lxf` | LDD `.lxf` archives (the model, zipped) |
+| `ldd_geom` | LDD `.g` part geometry |
+| `lif` | LDD `.lif` asset archives (every file read back) |
+| `layout_file` | native `.bld-layout` files (the zip, its layout, sidecar, background and parts) |
 | `studio` | Studio `.io` archives |
 | `ydoc` | live-sync documents (Yjs updates through `sync::UpdateGuard` into yrs: `summarizeDoc`, `SyncDoc::applyUpdate`), seeds `fixtures/sync/*.ydoc` and `fixtures/fuzz-regressions/ydoc-*` |
 | `sync_message` | y-websocket messages from the server (`sync::protocol::decode`) |

@@ -83,6 +83,19 @@ TEST(LDDGeomReader, RejectsIndexOutOfRange) {
     EXPECT_TRUE(r.error.contains(QStringLiteral("out of range")));
 }
 
+// A header claiming four billion vertices is refused before anything is
+// allocated for them (it used to ask for ~48 GB and die).
+TEST(LDDGeomReader, RejectsHugeVertexCountWithoutAllocating) {
+    QByteArray b;
+    b.append("10GB", 4);
+    appendU32(b, 0xFFFFFFFFu);  // vertex count
+    appendU32(b, 3);            // index count
+    appendU32(b, 0);            // options
+    auto r = import::readLDDGeom(b);
+    EXPECT_FALSE(r.ok);
+    EXPECT_TRUE(r.error.contains(QStringLiteral("Truncated"))) << r.error.toStdString();
+}
+
 // Smoke test against a real .g shipped with LU or LDD. Gated by env
 // var so CI without those installs skips. Run locally via:
 //   BLD_LDD_GEOM_FILE=/path/to/3001.g ctest -R LDDGeomReader.RealFile
