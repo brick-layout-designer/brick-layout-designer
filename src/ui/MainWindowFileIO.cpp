@@ -41,6 +41,7 @@
 #include <QCloseEvent>
 #include <QCoreApplication>
 #include <QDateTime>
+#include <QTimer>
 #include <QDir>
 #include <QFile>
 #include <QCheckBox>
@@ -57,7 +58,6 @@
 #include <QTime>
 #include <QUndoStack>
 
-#include <atomic>
 
 namespace bld::ui {
 
@@ -68,10 +68,9 @@ constexpr const char* kRecentListKey = "recent/list";
 constexpr const char* kRecentServersKey = "recent/servers";
 constexpr int         kRecentMax     = 12;
 
-// 5-second throttle for the undo-stack-triggered autosave — near-realtime
-// crash protection without thrashing the disk on bursts of edits.
-std::atomic<qint64> gLastAutosaveMs{0};
-constexpr qint64 kAutosaveThrottleMs = 5000;
+// The undo-stack-triggered autosave waits this long after an edit, so a
+// burst of edits is one write and no edit waits longer than this.
+constexpr int kAutosaveDelayMs = 5000;
 }  // namespace
 
 // ---------- Title -----------------------------------------------------------
@@ -815,14 +814,18 @@ void MainWindow::performAutosave() {
     }
 }
 
-// Called on every undo-stack mutation. Rate-limits so rapid edits don't
-// thrash the disk; the cap means at most ~5 s of work is at risk on a crash.
+// Called on every undo-stack mutation: one save a few seconds after the
+// first edit of a burst, which takes in every edit made until then, so at
+// most ~5 s of work is at risk on a crash. (It used to save the first edit
+// and drop the rest until the 60 s tick.)
 void MainWindow::performAutosaveThrottled() {
-    const qint64 now = QDateTime::currentMSecsSinceEpoch();
-    const qint64 last = gLastAutosaveMs.load(std::memory_order_relaxed);
-    if (now - last < kAutosaveThrottleMs) return;
-    gLastAutosaveMs.store(now, std::memory_order_relaxed);
-    performAutosave();
+    if (!autosaveSoon_) {
+        autosaveSoon_ = new QTimer(this);
+        autosaveSoon_->setSingleShot(true);
+        autosaveSoon_->setInterval(kAutosaveDelayMs);
+        connect(autosaveSoon_, &QTimer::timeout, this, &MainWindow::performAutosave);
+    }
+    if (!autosaveSoon_->isActive()) autosaveSoon_->start();
 }
 
 bool MainWindow::restoreAutosaveIfAny(const QString& lastFile) {
