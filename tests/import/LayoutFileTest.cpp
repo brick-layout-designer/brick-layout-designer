@@ -429,6 +429,27 @@ TEST(LayoutFile, PartFileNamesStayInTheirFolder) {
     EXPECT_EQ(r.warnings.size(), 1);
 }
 
+// A part file far bigger than any real one (it packs down to almost
+// nothing) is left out with a warning instead of being unpacked.
+TEST(LayoutFile, LimitsHowBigAPartFileMayUnpack) {
+    QTemporaryDir dir;
+    auto map = mapUsing({});
+    QBuffer bbm;
+    bbm.open(QIODevice::WriteOnly);
+    ASSERT_TRUE(saveload::writeBbm(*map, bbm).ok);
+    ZipWriter w;
+    w.add(QStringLiteral("manifest.json"), R"({"format":"bld-layout","version":1})");
+    w.add(QStringLiteral("layout.bbm"), bbm.data());
+    w.add(QStringLiteral("parts/HUGE.1.png"), QByteArray(65 << 20, '\0'));
+    w.add(QStringLiteral("parts/GOOD.1.xml"), leafXml("x"));
+    const QByteArray file = w.finish();
+    EXPECT_LT(file.size(), 1 << 20);
+    const auto r = readLayoutFileBytes(file, dir.path());
+    ASSERT_TRUE(r.ok());
+    EXPECT_EQ(r.partFiles.keys(), QStringList{ QStringLiteral("GOOD.1.xml") });
+    EXPECT_EQ(r.warnings.size(), 1);
+}
+
 // fixtures/layouts/with-parts.bld-layout, which the web app opens too: one
 // brick of CLDTEST.1, a part of the user's own that the file carries.
 // BLD_UPDATE_FIXTURES=1 writes it again.

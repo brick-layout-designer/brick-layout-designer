@@ -21,6 +21,14 @@
 
 using namespace bld::ui;
 
+// A name that looks like markup is shown as typed, never rendered.
+TEST(ConfirmDialog, ShowsNamesAsPlainText) {
+    ConfirmDialog d(ConfirmDialog::deleteOptions(QStringLiteral("<b>Yard</b><img src=\"x.png\">"), ConfirmDialog::moduleWording()));
+    auto* title = d.findChild<QLabel*>(QStringLiteral("confirmTitle"));
+    EXPECT_EQ(title->textFormat(), Qt::PlainText);
+    EXPECT_TRUE(title->text().contains(QStringLiteral("<b>Yard</b>")));
+}
+
 TEST(ConfirmDialog, SaysWhatGoesWhatStaysAndWhetherItComesBack) {
     DeleteWording w = ConfirmDialog::moduleWording();
     ConfirmDialog d(ConfirmDialog::deleteOptions(QStringLiteral("Bench"), w));

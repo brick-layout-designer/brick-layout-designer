@@ -1,5 +1,6 @@
 #include "UpdateCheck.h"
 
+#include "ServerApi.h"
 #include "core/Version.h"
 
 #include <QCoreApplication>
@@ -43,7 +44,8 @@ ReleaseInfo readRelease(const QJsonObject& release) {
     ReleaseInfo r;
     r.version = release.value(QStringLiteral("tag_name")).toString().trimmed();
     r.version.remove(QRegularExpression(QStringLiteral("^[vV]")));
-    r.url = release.value(QStringLiteral("html_url")).toString(core::desktopDownloadUrl());
+    const QUrl page = sync::ServerApi::webLink(release.value(QStringLiteral("html_url")).toString());
+    r.url = page.isValid() ? page.toString() : core::desktopDownloadUrl();
     const QString body = release.value(QStringLiteral("body")).toString().trimmed();
     r.important = isImportantRelease(body);
     r.notes = body.size() > 1500 ? body.left(1500) + QStringLiteral("…") : body;

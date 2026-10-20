@@ -16,6 +16,7 @@ ConfirmDialog::ConfirmDialog(const ConfirmOptions& opts, QWidget* parent) : QDia
     col->setSpacing(10);
     auto* title = new QLabel(opts.title, this);
     title->setObjectName(QStringLiteral("confirmTitle"));
+    title->setTextFormat(Qt::PlainText);  // it carries names
     title->setWordWrap(true);
     QFont f = title->font();
     f.setPointSizeF(f.pointSizeF() * 1.25);

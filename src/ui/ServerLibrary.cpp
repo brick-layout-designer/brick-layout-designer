@@ -52,6 +52,7 @@ void showLibraryPicture(QLabel* label, const QImage& img) {
 
 QLabel* libraryMutedLabel(const QString& text, QWidget* parent) {
     auto* l = new QLabel(text, parent);
+    l->setTextFormat(Qt::PlainText);  // names from the server, never markup
     l->setProperty("muted", true);
     l->setWordWrap(true);
     return l;
@@ -440,6 +441,7 @@ QWidget* ServerModulesTab::makeRow(const sync::ServerModule& m) {
     text->setSpacing(2);
     auto* top = new QHBoxLayout();
     auto* title = new QLabel(m.title, frame);
+    title->setTextFormat(Qt::PlainText);
     title->setObjectName(QStringLiteral("rowTitle"));
     title->setProperty("rowTitle", true);
     title->setWordWrap(true);
@@ -836,6 +838,7 @@ QWidget* CatalogTab::itemRow(const sync::CatalogItem& it) {
     auto* text = new QVBoxLayout();
     text->setSpacing(2);
     auto* title = new QLabel(it.title, frame);
+    title->setTextFormat(Qt::PlainText);
     title->setProperty("rowTitle", true);
     title->setWordWrap(true);
     text->addWidget(title);
@@ -908,6 +911,7 @@ QWidget* CatalogTab::collectionRow(const sync::CatalogCollection& c) {
         text->addWidget(pill, 0, Qt::AlignLeft);
     }
     auto* title = new QLabel(c.title, frame);
+    title->setTextFormat(Qt::PlainText);
     title->setProperty("rowTitle", true);
     title->setWordWrap(true);
     text->addWidget(title);

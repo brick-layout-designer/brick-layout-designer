@@ -55,6 +55,14 @@ std::optional<QUrl> ServerApi::normalizeBase(const QString& input, QString* erro
     return url;
 }
 
+QUrl ServerApi::webLink(const QString& text) {
+    QUrl url(text.trimmed(), QUrl::StrictMode);
+    const QString scheme = url.scheme().toLower();
+    if (!url.isValid() || url.host().isEmpty()) return {};
+    if (scheme == QLatin1String("https") || (scheme == QLatin1String("http") && isThisMachine(url.host()))) return url;
+    return {};
+}
+
 QUrl ServerApi::layoutSocketUrl(const QString& layoutId) const {
     QUrl url = base_;
     url.setScheme(base_.scheme() == QLatin1String("https") ? QStringLiteral("wss") : QStringLiteral("ws"));
@@ -166,7 +174,7 @@ void ServerApi::fetchVersion() {
         const QJsonObject desktop = o.value(QLatin1String("desktop")).toObject();
         info.desktopMinimum = desktop.value(QLatin1String("minimum")).toString();
         info.desktopRecommended = desktop.value(QLatin1String("recommended")).toString();
-        info.downloadUrl = desktop.value(QLatin1String("downloadUrl")).toString();
+        info.downloadUrl = webLink(desktop.value(QLatin1String("downloadUrl")).toString()).toString();
         info.docMinReadable = o.value(QLatin1String("doc")).toObject().value(QLatin1String("minReadable")).toInt();
         if (o.value(QLatin1String("features")).isArray()) {
             QStringList features;
@@ -315,8 +323,8 @@ void ServerApi::startSignIn(const QString& clientName) {
         intervalSeconds_ = std::max(1, o.value(QLatin1String("interval")).toInt(5));
         DeviceCode code;
         code.userCode = o.value(QLatin1String("user_code")).toString();
-        code.verificationUri = QUrl(o.value(QLatin1String("verification_uri")).toString());
-        code.verificationUriComplete = QUrl(o.value(QLatin1String("verification_uri_complete")).toString());
+        code.verificationUri = webLink(o.value(QLatin1String("verification_uri")).toString());
+        code.verificationUriComplete = webLink(o.value(QLatin1String("verification_uri_complete")).toString());
         code.expiresInSeconds = o.value(QLatin1String("expires_in")).toInt();
         signInDeadline_ = QDateTime::currentDateTimeUtc().addMSecs(static_cast<qint64>(code.expiresInSeconds * msPerSecond_));
         emit signInCode(code);

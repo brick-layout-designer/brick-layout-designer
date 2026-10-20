@@ -63,6 +63,24 @@ TEST(ServerApi, AddressesNeedHttpsExceptOnThisMachine) {
     EXPECT_EQ(api.layoutSocketUrl(QStringLiteral("abc-1")), QUrl(QStringLiteral("ws://localhost:3000/ws/layout/abc-1")));
 }
 
+// Links the server sends are opened in the browser only when they are web
+// pages: https, or http on this machine, as for server addresses.
+TEST(ServerApi, OnlyWebLinksFromTheServerAreKept) {
+    EXPECT_EQ(ServerApi::webLink(QStringLiteral("https://x.org/device?c=1")), QUrl(QStringLiteral("https://x.org/device?c=1")));
+    EXPECT_EQ(ServerApi::webLink(QStringLiteral("HTTPS://x.org/get")), QUrl(QStringLiteral("https://x.org/get")));
+    EXPECT_TRUE(ServerApi::webLink(QStringLiteral("http://localhost:3000/device")).isValid());
+    EXPECT_TRUE(ServerApi::webLink(QStringLiteral("http://127.0.0.1:3000/device")).isValid());
+    for (const char* bad : { "http://x.org/device", "file:///etc/passwd", "file://server/share/x.exe", "smb://x.org/share",
+                             "javascript:alert(1)", "ms-settings:", "x-custom://open", "/relative/path", "https://", "",
+                             "data:text/html,hi" })
+        EXPECT_FALSE(ServerApi::webLink(QString::fromUtf8(bad)).isValid()) << bad;
+
+    // Where the server's answers carry links, the others are dropped.
+    EXPECT_TRUE(readRefusal(426, R"({"error":"update_required","downloadUrl":"file:///x"})").downloadUrl.isEmpty());
+    EXPECT_EQ(readRefusal(426, R"({"error":"update_required","downloadUrl":"https://x.org/get"})").downloadUrl,
+              QStringLiteral("https://x.org/get"));
+}
+
 TEST(ServerApi, ChecksTheServerSpeaksOurProtocolAndSchema) {
     FakeHttp http;
     ServerApi api;
