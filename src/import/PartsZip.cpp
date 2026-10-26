@@ -41,7 +41,7 @@ PartsZipResult addPartsFromZip(const QString& zipPath, const QString& destRoot,
     }
     if (info.size() > limits.maxArchiveBytes) {
         out.error = tr("The zip is too big to be a parts folder (over %1 MB).")
-                        .arg(limits.maxArchiveBytes / (1024 * 1024));
+                        .arg(limits.maxArchiveBytes / (qint64{ 1024 } * 1024));
         return out;
     }
     const auto zip = SafeZip::open(zipPath);
@@ -92,7 +92,7 @@ PartsZipResult addPartsFromZip(const QString& zipPath, const QString& destRoot,
         total += e.size;
         if (total > limits.maxTotalBytes) {
             out.error = tr("The zip unpacks to more than %1 MB, too much for a parts folder.")
-                            .arg(limits.maxTotalBytes / (1024 * 1024));
+                            .arg(limits.maxTotalBytes / (qint64{ 1024 } * 1024));
             return out;
         }
         const QString abs = resolveArchiveEntryPath(destRoot, name);
