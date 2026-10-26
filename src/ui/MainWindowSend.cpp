@@ -273,7 +273,7 @@ void MainWindow::saveVenueToServer(const core::Venue& venue) {
     if (askSaveToServer) {
         where = askSaveToServer(QStringLiteral("venue"), venue.name);
     } else {
-        SaveToServerDialog dialog(tr("venue"), venue.name, serverLibrary_->label(), serverLibrary_->orgs(), defaultSaveOwner(), this);
+        SaveToServerDialog dialog(tr("venue"), sync::AddKind::Venue, venue.name, serverLibrary_->label(), serverLibrary_->orgs(), defaultSaveOwner(), this);
         if (dialog.exec() == QDialog::Accepted) where = std::make_pair(dialog.name(), dialog.orgSlug());
     }
     if (!where) return;
@@ -302,7 +302,7 @@ void MainWindow::saveModuleFileToServer(const QString& bbmPath) {
     if (askSaveToServer) {
         where = askSaveToServer(QStringLiteral("module"), name);
     } else {
-        SaveToServerDialog dialog(tr("module"), name, serverLibrary_->label(), serverLibrary_->orgs(), defaultSaveOwner(), this);
+        SaveToServerDialog dialog(tr("module"), sync::AddKind::Module, name, serverLibrary_->label(), serverLibrary_->orgs(), defaultSaveOwner(), this);
         if (dialog.exec() == QDialog::Accepted) where = std::make_pair(dialog.name(), dialog.orgSlug());
     }
     if (!where) return;

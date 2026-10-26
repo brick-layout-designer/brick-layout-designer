@@ -447,9 +447,7 @@ void LibraryApi::orgs(std::function<void(const QList<OrgEntry>&)> done, Fail fai
     sendJson("GET", QStringLiteral("/api/orgs"), {}, [done = std::move(done)](const QJsonObject& o) {
         QList<OrgEntry> out;
         for (const auto& v : o.value(QLatin1String("orgs")).toArray()) {
-            const QJsonObject e = v.toObject();
-            out << OrgEntry{ e.value(QLatin1String("slug")).toString(), e.value(QLatin1String("name")).toString(),
-                             e.value(QLatin1String("myRole")).toString(), e.value(QLatin1String("canAdd")).toBool(true) };
+            out << OrgEntry::fromJson(v.toObject());
         }
         if (done) done(out);
     }, std::move(failed));

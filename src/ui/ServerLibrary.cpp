@@ -134,18 +134,13 @@ void ServerLibrary::setState(State s, const QString& why) {
 
 QString ServerLibrary::refusalText(const sync::ServerRefusal& r) {
     const QString code = r.code;
+    // A club's roles said no: which permission to ask a club admin for.
+    if (!r.permission.isEmpty()) return sync::describe(r);
     if (code == QLatin1String("forbidden"))
         return tr("You can't do that with this module. Ask its owner, or your club's admins, for editor rights.");
-    if (code == QLatin1String("not_an_org_member")) return tr("You're not a member of that club.");
-    if (code == QLatin1String("only_club_admins_can_add"))
-        return tr("In this club, only admins and managers can add modules and parts.");
     if (code == QLatin1String("catalog_off")) return tr("The catalog isn't turned on on this server.");
     if (code == QLatin1String("not_found")) return tr("It isn't there any more. Someone may have deleted it.");
-    if (code == QLatin1String("insufficient_scope") || code == QLatin1String("token_not_allowed"))
-        return tr("This sign-in can't do that. Sign in again (File › Servers…) to give the app the rights it needs.");
-    if (code.startsWith(QLatin1String("demo_account")))
-        return tr("The demo account can't do that.");
-    if (r.status == 401) return tr("Your sign-in has run out. Sign in again.");
+    // A club that doesn't take it, a sign-in that can't do it, the demo account.
     return sync::describe(r);
 }
 
@@ -639,20 +634,23 @@ CatalogTab::CatalogTab(ServerLibrary& library, QWidget* parent, bool loadWhenSho
     QScroller::grabGesture(scroll->viewport(), QScroller::TouchGesture);
     col->addWidget(scroll, 1);
 
-    chooseOwner = [this](const QString& title) -> std::optional<QString> {
-        // Only the clubs that will take it (one that keeps adding to its admins is left out).
+    chooseOwner = [this](const QString& title, const QList<sync::OrgEntry>& clubs,
+                         const QString& leftOut) -> std::optional<QString> {
         QStringList names{ tr("Me") };
         QStringList slugs{ QString() };
-        for (const auto& o : library_.orgs()) {
-            if (!o.canAdd) continue;
+        for (const auto& o : clubs) {
             names << o.name;
             slugs << o.slug;
         }
-        if (names.size() == 1) return QString();
-        bool ok = false;
-        const QString picked = QInputDialog::getItem(this, title, tr("Add to"), names, 0, false, &ok);
-        if (!ok) return std::nullopt;
-        const auto i = names.indexOf(picked);
+        QInputDialog ask(this);
+        ask.setWindowTitle(title);
+        ask.setComboBoxItems(names);
+        ask.setComboBoxEditable(false);
+        // A club left out says why, under the choice (wrapped, it can be long).
+        ask.setLabelText(leftOut.isEmpty() ? tr("Add to") : tr("Add to (%1)").arg(leftOut));
+        if (auto* label = ask.findChild<QLabel*>()) label->setWordWrap(true);
+        if (ask.exec() != QDialog::Accepted) return std::nullopt;
+        const auto i = names.indexOf(ask.textValue());
         return i <= 0 ? QString() : slugs.at(i);
     };
 
@@ -942,9 +940,17 @@ void CatalogTab::openCollection(const sync::CatalogCollection& c) {
     reload();
 }
 
-std::optional<QString> CatalogTab::owner(const QString& title) {
-    if (library_.orgs().isEmpty() || !chooseOwner) return QString();
-    return chooseOwner(title);
+std::optional<QString> CatalogTab::owner(const QString& title, const QList<sync::AddKind>& kinds) {
+    // Only the clubs whose roles let you add all of it.
+    QList<sync::OrgEntry> clubs = library_.orgs();
+    QStringList leftOut;
+    for (const sync::AddKind kind : kinds) {
+        const QString note = sync::leftOutNote(clubs, kind);
+        if (!note.isEmpty()) leftOut << note;
+        clubs = sync::clubsThatTake(clubs, kind);
+    }
+    if (clubs.isEmpty() || !chooseOwner) return QString();
+    return chooseOwner(title, clubs, leftOut.join(QLatin1Char(' ')));
 }
 
 void CatalogTab::addItem(const sync::CatalogItem& it, QPushButton* button) {
@@ -954,7 +960,11 @@ void CatalogTab::addItem(const sync::CatalogItem& it, QPushButton* button) {
     const auto dest = owner(isModule   ? tr("Add to my modules")
                             : isLayout ? tr("Open a copy")
                             : isVenue  ? tr("Use this venue")
-                                       : tr("Add to my parts"));
+                                       : tr("Add to my parts"),
+                            { isModule   ? sync::AddKind::Module
+                              : isLayout ? sync::AddKind::Layout
+                              : isVenue  ? sync::AddKind::Venue
+                                         : sync::AddKind::Part });
     if (!dest) return;
     button->setEnabled(false);
     auto alive = std::make_shared<bool>(true);
@@ -989,7 +999,10 @@ void CatalogTab::addItem(const sync::CatalogItem& it, QPushButton* button) {
 }
 
 void CatalogTab::addAll(const sync::CatalogCollection& c) {
-    const auto dest = owner(tr("Add all"));
+    QList<sync::AddKind> kinds;
+    if (c.modules > 0) kinds << sync::AddKind::Module;
+    if (c.parts > 0) kinds << sync::AddKind::Part;
+    const auto dest = owner(tr("Add all"), kinds);
     if (!dest) return;
     const bool parts = c.parts > 0;
     library_.api().addCollection(c.id, *dest, [this, parts](const sync::CollectionAddResult& r) {

@@ -566,8 +566,8 @@ void ConnectDialog::setPublishContent(const QByteArray& bbm, const QByteArray& s
 void ConnectDialog::showOrgs(const QList<OrgEntry>& orgs) {
     owner_->clear();
     owner_->addItem(tr("Me"), QString());
-    for (const auto& o : orgs)
-        if (o.canAdd) owner_->addItem(o.name, o.slug);
+    // Only the clubs whose roles let you start layouts there.
+    for (const auto& o : clubsThatTake(orgs, AddKind::Layout)) owner_->addItem(o.name, o.slug);
     // Start at the club the lists were last showing, else Me.
     const int shown = owner_->findData(rememberedShow());
     owner_->setCurrentIndex(shown > 0 ? shown : 0);
@@ -576,7 +576,8 @@ void ConnectDialog::showOrgs(const QList<OrgEntry>& orgs) {
     publishServer_->setText(entry ? entry->label() : server_.host());
     publishBtn_->setEnabled(true);
     pages_->setCurrentIndex(PublishPage);
-    showMessage({});
+    // A club of yours that isn't offered says why, and what to ask for.
+    showMessage(leftOutNote(orgs, AddKind::Layout));
 }
 
 void ConnectDialog::publishNow() {

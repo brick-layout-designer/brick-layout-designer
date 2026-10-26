@@ -32,9 +32,11 @@ namespace bld::ui {
 class SaveToServerDialog : public QDialog {
     Q_OBJECT
 public:
-    // `what`: "venue", "module", "part". `server`: what you call it.
-    // `initialOwner`: a club's slug to start at (the Show filter's), or empty for Me.
-    SaveToServerDialog(const QString& what, const QString& initialName, const QString& server,
+    // `what`: "venue", "module", "part"; `kind` the same, for which clubs
+    // take it (each kind needs its own permission in a club). `server`: what
+    // you call it. `initialOwner`: a club's slug to start at (the Show
+    // filter's), or empty for Me.
+    SaveToServerDialog(const QString& what, sync::AddKind kind, const QString& initialName, const QString& server,
                        const QList<sync::OrgEntry>& orgs, const QString& initialOwner, QWidget* parent = nullptr);
 
     QString name() const;
@@ -46,6 +48,8 @@ public:
     QLineEdit* nameEdit() const { return name_; }
     QComboBox* owner() const { return owner_; }
     QLabel* error() const { return error_; }
+    // Which of your clubs aren't offered, and the permission to ask for.
+    QLabel* leftOut() const { return leftOut_; }
     // Asked before saving into a club (tests answer instead).
     std::function<bool(const QString& club)> confirmClub;
 
@@ -53,6 +57,7 @@ private:
     QLineEdit* name_ = nullptr;
     QComboBox* owner_ = nullptr;
     QLabel* error_ = nullptr;
+    QLabel* leftOut_ = nullptr;
 };
 
 class ShareToCatalogDialog : public QDialog {

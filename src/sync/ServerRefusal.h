@@ -18,6 +18,8 @@ struct ServerRefusal {
     QString code;        // the body's "error", e.g. limit_reached
     QString message;     // the body's "message", when the server sent one
     QString limit;       // which limit (limit_reached only), e.g. storagePerClub
+    // The club permission that was missing (a 403 from a club's roles), e.g. edit_modules.
+    QString permission;
     QString networkError;
     // update_required (426) only: the oldest version the server accepts, and where to get it.
     QString minimum;
@@ -46,8 +48,17 @@ bool isUpdateRequired(const ServerRefusal& r);
 // not a reason to sign in again.
 bool isFirewallBlock(const ServerRefusal& r);
 
-// The failure means this sign-in can't do it: sign in again.
+// The failure means this sign-in can't do it: sign in again. Only a 401
+// (a token revoked or run out) or a token without the rights this needs
+// (403 insufficient_scope); any other 403 is a no from the server (your
+// role, a club's permissions), and signing in again wouldn't change it.
 bool needsSignIn(const ServerRefusal& r);
+
+// A club permission in plain words, as the web's role editor names it:
+// edit_modules -> "Add or edit modules". Unknown ones come back as they are.
+QString permissionLabel(const QString& permission);
+// "Ask a club admin for the Add or edit modules permission."
+QString askForPermission(const QString& permission);
 
 // What to show for a failed request, in plain words: the firewall message,
 // a limit's own sentence, "The server answered 500", or Qt's network error.

@@ -18,6 +18,59 @@ QByteArray userAgent() {
         .toUtf8();
 }
 
+QString addPermissionFor(AddKind kind) {
+    switch (kind) {
+    case AddKind::Module: return QStringLiteral("edit_modules");
+    case AddKind::Part: return QStringLiteral("add_parts");
+    case AddKind::Layout:
+    case AddKind::Venue: break;
+    }
+    return QStringLiteral("start_layouts");
+}
+
+bool OrgEntry::canAddKind(AddKind kind) const {
+    // Servers before club roles: one switch for everything.
+    if (!permissions) return canAdd;
+    if (kind == AddKind::Venue && permissions->contains(QLatin1String("manage_venues"))) return true;
+    return permissions->contains(addPermissionFor(kind));
+}
+
+OrgEntry OrgEntry::fromJson(const QJsonObject& o) {
+    OrgEntry e{ o.value(QLatin1String("slug")).toString(), o.value(QLatin1String("name")).toString(),
+                o.value(QLatin1String("myRole")).toString(), o.value(QLatin1String("canAdd")).toBool(true), {} };
+    if (const QJsonValue p = o.value(QLatin1String("permissions")); p.isArray()) {
+        QStringList list;
+        for (const auto& v : p.toArray())
+            if (v.isString()) list << v.toString();
+        e.permissions = list;
+    }
+    return e;
+}
+
+QList<OrgEntry> clubsThatTake(const QList<OrgEntry>& orgs, AddKind kind) {
+    QList<OrgEntry> out;
+    for (const auto& o : orgs)
+        if (o.canAddKind(kind)) out << o;
+    return out;
+}
+
+QString leftOutNote(const QList<OrgEntry>& orgs, AddKind kind) {
+    QStringList names;
+    for (const auto& o : orgs)
+        if (!o.canAddKind(kind)) names << o.name;
+    if (names.isEmpty()) return {};
+    const QString what = kind == AddKind::Module ? ServerApi::tr("modules")
+                         : kind == AddKind::Part ? ServerApi::tr("parts")
+                         : kind == AddKind::Venue ? ServerApi::tr("venues")
+                                                  : ServerApi::tr("layouts");
+    const QString sentence =
+        names.size() == 1
+            ? ServerApi::tr("%1 isn't listed: your roles there can't add %2.").arg(names.constFirst(), what)
+            : ServerApi::tr("%1 and %2 aren't listed: your roles there can't add %3.")
+                  .arg(QStringList(names.mid(0, names.size() - 1)).join(QStringLiteral(", ")), names.constLast(), what);
+    return sentence + QLatin1Char(' ') + askForPermission(addPermissionFor(kind));
+}
+
 
 namespace {
 
@@ -271,11 +324,7 @@ void ServerApi::fetchOrgs() {
         if (!o) return;
         QList<OrgEntry> out;
         for (const auto& v : o->value(QLatin1String("orgs")).toArray()) {
-            const QJsonObject e = v.toObject();
-            out << OrgEntry{ e.value(QLatin1String("slug")).toString(),
-                             e.value(QLatin1String("name")).toString(),
-                             e.value(QLatin1String("myRole")).toString(),
-                             e.value(QLatin1String("canAdd")).toBool(true) };
+            out << OrgEntry::fromJson(v.toObject());
         }
         emit orgsReady(out);
     });

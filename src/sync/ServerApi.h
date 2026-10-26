@@ -96,18 +96,38 @@ struct VenueEntry {
     int heightStuds = 0;
 };
 
+// What is being saved to a club: each kind needs its own permission there.
+enum class AddKind { Layout, Module, Part, Venue };
+
 struct OrgEntry {
     QString slug;
     QString name;
     QString role; // your role: admin / manager / member
-    // May you save new things to it? False when the club keeps adding to
-    // its admins and managers and you're a member (servers before this: true).
+    // May you start new layouts in it? Servers before club roles: may you
+    // save new things to it at all (false when the club keeps adding to its
+    // admins and managers and you're a member); before that: true.
     bool canAdd = true;
+    // What your roles in the club let you do ("edit_modules", "add_parts",
+    // …: the server's access/clubPermissions.ts). Unset on servers before
+    // club roles, which only send canAdd.
+    std::optional<QStringList> permissions = std::nullopt;
     // Admins and managers look after the club's layouts, venues, modules
     // and parts; only admins change its settings.
     bool managesThings() const { return role == QLatin1String("admin") || role == QLatin1String("manager"); }
     bool isAdmin() const { return role == QLatin1String("admin"); }
+    // May you save this kind of thing to the club (the web's clubCanAdd)?
+    bool canAddKind(AddKind kind) const;
+    // An OrgEntry from GET /api/orgs.
+    static OrgEntry fromJson(const QJsonObject& o);
 };
+
+// The permission that adds a new thing of this kind to a club.
+QString addPermissionFor(AddKind kind);
+// The clubs that will take this kind of thing from you.
+QList<OrgEntry> clubsThatTake(const QList<OrgEntry>& orgs, AddKind kind);
+// "Olive Club isn't listed: your roles there can't add modules. Ask a club
+// admin for the Add or edit modules permission." Empty when none is left out.
+QString leftOutNote(const QList<OrgEntry>& orgs, AddKind kind);
 
 class ServerApi : public QObject {
     Q_OBJECT
