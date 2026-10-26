@@ -175,11 +175,14 @@ void MoveRulerItemCommand::redo() {
     for (auto& any : L->rulers) {
         const QString& g = (any.kind == core::RulerKind::Linear) ? any.linear.guid : any.circular.guid;
         if (g != rulerGuid_) continue;
+        // The box moves with it (it's what is picked, and what the .bbm saves).
         if (any.kind == core::RulerKind::Linear) {
             any.linear.point1 += delta_;
             any.linear.point2 += delta_;
+            any.linear.displayArea.translate(delta_);
         } else {
             any.circular.center += delta_;
+            any.circular.displayArea.translate(delta_);
         }
         break;
     }
@@ -191,11 +194,14 @@ void MoveRulerItemCommand::undo() {
     for (auto& any : L->rulers) {
         const QString& g = (any.kind == core::RulerKind::Linear) ? any.linear.guid : any.circular.guid;
         if (g != rulerGuid_) continue;
+        // The box moves with it (it's what is picked, and what the .bbm saves).
         if (any.kind == core::RulerKind::Linear) {
             any.linear.point1 -= delta_;
             any.linear.point2 -= delta_;
+            any.linear.displayArea.translate(-delta_);
         } else {
             any.circular.center -= delta_;
+            any.circular.displayArea.translate(-delta_);
         }
         break;
     }

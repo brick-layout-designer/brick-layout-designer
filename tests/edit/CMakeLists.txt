@@ -7,6 +7,7 @@ add_executable(bld_edit_tests
     AreaCommandsTest.cpp
     BudgetTest.cpp
     PartListTest.cpp
+    AnnotationUndoTest.cpp
     VenueDesignerTest.cpp
     SetsTest.cpp
 )
