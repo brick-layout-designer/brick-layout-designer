@@ -4,8 +4,8 @@
 // shared vectors are fixtures/contracts/doc-shape.json: the same order and
 // z as the web, and concurrent edits against a doc and an edit the web made.
 
-#include "Compat.h"
 #include "DocShape.h"
+#include "Compat.h"
 #include "SyncDoc.h"
 #include "WebModel.h"
 
@@ -32,7 +32,9 @@ QJsonObject contract() {
     return f.open(QIODevice::ReadOnly) ? QJsonDocument::fromJson(f.readAll()).object() : QJsonObject();
 }
 
-std::optional<double> optZ(const QJsonValue& v) { return v.isDouble() ? std::optional<double>(v.toDouble()) : std::nullopt; }
+std::optional<double> optZ(const QJsonValue& v) {
+    return v.isDouble() ? std::optional<double>(v.toDouble()) : std::nullopt;
+}
 
 std::unique_ptr<core::Map> mapOf(const sync::SyncDoc& doc) {
     QString err;
@@ -41,8 +43,7 @@ std::unique_ptr<core::Map> mapOf(const sync::SyncDoc& doc) {
     return map;
 }
 
-template <typename T>
-T* layerOf(core::Map& map, core::LayerKind kind) {
+template <typename T> T* layerOf(core::Map& map, core::LayerKind kind) {
     for (auto& l : map.layers())
         if (l->kind() == kind) return static_cast<T*>(l.get());
     return nullptr;
@@ -58,9 +59,11 @@ void desktopEdit(const QString& what, core::Map& map) {
     auto* area = layerOf<core::LayerArea>(map, core::LayerKind::Area);
     core::LayerBrick* bricks = nullptr;
     for (auto& l : map.layers())
-        if (l->kind() == core::LayerKind::Brick && l->guid == QLatin1String("brick-1")) bricks = static_cast<core::LayerBrick*>(l.get());
+        if (l->kind() == core::LayerKind::Brick && l->guid == QLatin1String("brick-1"))
+            bricks = static_cast<core::LayerBrick*>(l.get());
     ASSERT_TRUE(rulers && area && bricks);
-    const auto at0 = std::find_if(bricks->bricks.begin(), bricks->bricks.end(), [](const core::Brick& b) { return b.displayArea.x() == 0; });
+    const auto at0 = std::find_if(bricks->bricks.begin(), bricks->bricks.end(),
+                                  [](const core::Brick& b) { return b.displayArea.x() == 0; });
     if (what == QLatin1String("delete the ruler")) {
         rulers->rulers.clear();
     } else if (what == QLatin1String("move the ruler by (0, 5)")) {
@@ -109,7 +112,7 @@ void check(const sync::SyncDoc& d, const QJsonObject& want, const QString& name)
     }
 }
 
-}  // namespace
+} // namespace
 
 TEST(DocShapeContract, OrdersByZAsTheWebDoes) {
     const QJsonArray cases = contract().value(QLatin1String("orderByZ")).toArray();
@@ -129,7 +132,8 @@ TEST(DocShapeContract, ReordersWithTheSameZAsTheWeb) {
     for (const auto& c : cases) {
         QList<sync::ZEntry> cur;
         for (const auto& v : c.toObject().value(QLatin1String("cur")).toArray())
-            cur.append({ v.toObject().value(QLatin1String("id")).toString(), optZ(v.toObject().value(QLatin1String("z"))) });
+            cur.append({ v.toObject().value(QLatin1String("id")).toString(),
+                         optZ(v.toObject().value(QLatin1String("z"))) });
         QStringList want;
         for (const auto& v : c.toObject().value(QLatin1String("want")).toArray()) want << v.toString();
         QJsonObject got;
@@ -174,11 +178,17 @@ namespace {
 // The contract's base doc (shape 2: z-ordered parts, Y.Map rulers): two
 // desktops editing it at the same moment.
 QByteArray contractBase() {
-    return QByteArray::fromBase64(contract().value(QLatin1String("concurrent")).toArray().at(0).toObject()
-                                      .value(QLatin1String("base")).toString().toLatin1());
+    return QByteArray::fromBase64(contract()
+                                      .value(QLatin1String("concurrent"))
+                                      .toArray()
+                                      .at(0)
+                                      .toObject()
+                                      .value(QLatin1String("base"))
+                                      .toString()
+                                      .toLatin1());
 }
 
-}  // namespace
+} // namespace
 
 TEST(DocShape, TwoDesktopsDeletingAndMovingTheSameRulerLeaveItDeleted) {
     sync::SyncDoc a, b;
@@ -206,10 +216,9 @@ TEST(DocShape, TwoDesktopsMovingTheSameAreaSheetLeaveEachCellOnce) {
     const QByteArray fromA = a.writeMap(*mapA), fromB = b.writeMap(*mapB);
     ASSERT_TRUE(a.applyUpdate(fromB));
     ASSERT_TRUE(b.applyUpdate(fromA));
-    const auto& cellsA = layerOf<core::LayerArea>(*mapOf(a), core::LayerKind::Area)->cells;
-    EXPECT_EQ(cellsA.size(), 2u);
-    // Both see the same.
+    // Each cell once, and both see the same.
     auto ma = mapOf(a), mb = mapOf(b);
+    EXPECT_EQ(layerOf<core::LayerArea>(*ma, core::LayerKind::Area)->cells.size(), 2u);
     const auto& ca = layerOf<core::LayerArea>(*ma, core::LayerKind::Area)->cells;
     const auto& cb = layerOf<core::LayerArea>(*mb, core::LayerKind::Area)->cells;
     ASSERT_EQ(ca.size(), cb.size());
@@ -226,7 +235,8 @@ TEST(DocShape, BringToFrontWhileAnotherDesktopDeletesThePartLeavesItDeleted) {
     auto mapA = mapOf(a);
     auto mapB = mapOf(b);
     auto& ba = [&]() -> core::LayerBrick& {
-        for (auto& l : mapA->layers()) if (l->guid == QLatin1String("brick-1")) return static_cast<core::LayerBrick&>(*l);
+        for (auto& l : mapA->layers())
+            if (l->guid == QLatin1String("brick-1")) return static_cast<core::LayerBrick&>(*l);
         throw std::runtime_error("no sheet");
     }();
     // A brings the part at x 0 (at the back) to the front; B deletes it.
@@ -282,7 +292,8 @@ TEST(DocShape, ReadsAndMovesAShapeOneDocOnTheFirstEditThatNeedsIt) {
 // rulers into Y.Maps and marks the doc 2, losing nothing. After that, a
 // delete and a move of the same ruler at the same moment merge.
 TEST(DocShape, TurnsPlainObjectRulersIntoYMapsOnTheFirstRulerEdit) {
-    const QByteArray one = QByteArray::fromBase64(contract().value(QLatin1String("shapeOne")).toString().toLatin1());
+    const QByteArray one =
+        QByteArray::fromBase64(contract().value(QLatin1String("shapeOne")).toString().toLatin1());
     ASSERT_FALSE(one.isEmpty());
     sync::SyncDoc a, b;
     ASSERT_TRUE(a.applyUpdate(one));
@@ -294,8 +305,13 @@ TEST(DocShape, TurnsPlainObjectRulersIntoYMapsOnTheFirstRulerEdit) {
     EXPECT_EQ(ra->rulers[0].linear.guid, QStringLiteral("r1"));
     const QString sheet = ra->guid;
     const auto rulerItems = [&](const sync::SyncDoc& d) {
-        return d.toJson().value(QLatin1String("layerData")).toObject().value(sheet).toObject()
-            .value(QLatin1String("rulerItems")).toArray();
+        return d.toJson()
+            .value(QLatin1String("layerData"))
+            .toObject()
+            .value(sheet)
+            .toObject()
+            .value(QLatin1String("rulerItems"))
+            .toArray();
     };
     // A moves r1: the sheet turns into Y.Maps, r2 untouched.
     ra->rulers[0].linear.point1 += QPointF(0, 5);
@@ -304,7 +320,13 @@ TEST(DocShape, TurnsPlainObjectRulersIntoYMapsOnTheFirstRulerEdit) {
     const QByteArray converted = a.writeMap(*mapA);
     EXPECT_EQ(schemaOf(a), sync::kDocShapeInPlace);
     ASSERT_EQ(rulerItems(a).size(), 2);
-    EXPECT_EQ(rulerItems(a)[1].toObject().value(QLatin1String("point1")).toObject().value(QLatin1String("y")).toDouble(), 20.0);
+    EXPECT_EQ(rulerItems(a)[1]
+                  .toObject()
+                  .value(QLatin1String("point1"))
+                  .toObject()
+                  .value(QLatin1String("y"))
+                  .toDouble(),
+              20.0);
     ASSERT_TRUE(b.applyUpdate(one));
     ASSERT_TRUE(b.applyUpdate(converted));
     // Then A deletes r2 while B moves it.
@@ -331,7 +353,8 @@ TEST(DocShape, TurnsPlainObjectRulersIntoYMapsOnTheFirstRulerEdit) {
 // moment both turn the sheet into Y.Maps: each ruler then reads once, and
 // the next write removes the copies.
 TEST(DocShape, TwoConversionsAtOnceLeaveEachRulerOnce) {
-    const QByteArray one = QByteArray::fromBase64(contract().value(QLatin1String("shapeOne")).toString().toLatin1());
+    const QByteArray one =
+        QByteArray::fromBase64(contract().value(QLatin1String("shapeOne")).toString().toLatin1());
     sync::SyncDoc a, b;
     ASSERT_TRUE(a.applyUpdate(one));
     ASSERT_TRUE(b.applyUpdate(one));
@@ -345,10 +368,16 @@ TEST(DocShape, TwoConversionsAtOnceLeaveEachRulerOnce) {
     auto* sheet = layerOf<core::LayerRuler>(*merged, core::LayerKind::Ruler);
     ASSERT_EQ(sheet->rulers.size(), 2u);
     const auto count = [&](const sync::SyncDoc& d) {
-        return d.toJson().value(QLatin1String("layerData")).toObject().value(sheet->guid).toObject()
-            .value(QLatin1String("rulerItems")).toArray().size();
+        return d.toJson()
+            .value(QLatin1String("layerData"))
+            .toObject()
+            .value(sheet->guid)
+            .toObject()
+            .value(QLatin1String("rulerItems"))
+            .toArray()
+            .size();
     };
-    EXPECT_EQ(count(a), 4);  // both conversions' entries, until a write
+    EXPECT_EQ(count(a), 4); // both conversions' entries, until a write
     sheet->rulers[0].linear.lineThickness = 5.0f;
     ASSERT_FALSE(a.writeMap(*merged).isEmpty());
     EXPECT_EQ(count(a), 2);

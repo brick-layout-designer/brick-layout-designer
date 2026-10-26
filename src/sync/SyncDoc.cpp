@@ -45,7 +45,6 @@ QSet<qsizetype> longestIncreasingRun(const QList<qsizetype>& seq) {
     return out;
 }
 
-
 // Keys of a layer's Y.Map that hold Y.Arrays: of Y.Maps (items matched by
 // id) or of plain values (replaced as a whole). Ruler items are plain
 // objects in doc shape 1 and Y.Maps in shape 2 (DocShape.h).
@@ -53,7 +52,9 @@ const char* const kItemArrays[] = { "bricks", "groups", "textCells", "rulerItems
 const char* const kPlainArrays[] = { "areas" };
 
 // Item arrays drawn by z in doc shape 2: a reorder sets z, never moves.
-bool isZArray(const QString& k) { return k == QLatin1String("bricks") || k == QLatin1String("rulerItems"); }
+bool isZArray(const QString& k) {
+    return k == QLatin1String("bricks") || k == QLatin1String("rulerItems");
+}
 
 QStringList idsOf(const QJsonArray& items) {
     QStringList out;
@@ -73,7 +74,8 @@ bool needsZ(const QJsonArray& cur, const QJsonArray& want) {
     const QStringList curIds = idsOf(cur), wantIds = idsOf(want);
     const QSet<QString> curSet(curIds.begin(), curIds.end()), wantSet(wantIds.begin(), wantIds.end());
     QStringList keptNow, keptWant;
-    for (const QString& id : curIds) if (wantSet.contains(id)) keptNow << id;
+    for (const QString& id : curIds)
+        if (wantSet.contains(id)) keptNow << id;
     qsizetype firstNew = -1, lastKept = -1;
     for (qsizetype i = 0; i < wantIds.size(); ++i) {
         if (curSet.contains(wantIds[i])) {
@@ -112,15 +114,20 @@ QJsonArray shifted(const QJsonArray& cells, int dx, int dy) {
 // area sheet moved), that move.
 std::optional<std::pair<int, int>> sheetMove(const QJsonArray& cur, const QJsonArray& want) {
     if (cur.isEmpty() || cur.size() != want.size()) return std::nullopt;
-    struct C { int x, y; quint32 color; };
+    struct C {
+        int x, y;
+        quint32 color;
+    };
     const auto cellsOf = [](const QJsonArray& a) {
         QList<C> out;
         for (const auto& v : a) {
             const QJsonObject o = v.toObject();
-            out.append({ o.value(QLatin1String("x")).toInt(), o.value(QLatin1String("y")).toInt(),
-                         static_cast<quint32>(o.value(QLatin1String("color")).toString().toLongLong(nullptr, 16)) });
+            out.append(
+                { o.value(QLatin1String("x")).toInt(), o.value(QLatin1String("y")).toInt(),
+                  static_cast<quint32>(o.value(QLatin1String("color")).toString().toLongLong(nullptr, 16)) });
         }
-        std::sort(out.begin(), out.end(), [](const C& a, const C& b) { return a.x < b.x || (a.x == b.x && a.y < b.y); });
+        std::sort(out.begin(), out.end(),
+                  [](const C& a, const C& b) { return a.x < b.x || (a.x == b.x && a.y < b.y); });
         return out;
     };
     const QList<C> a = cellsOf(cur), b = cellsOf(want);
@@ -320,12 +327,15 @@ struct SyncDoc::Impl {
             Output layer(ymap_get(layerData, txn, key.constData()));
             if (!layer || layer->tag != Y_MAP || c.value(QLatin1String("type")).toString() != type) {
                 // A new ruler sheet is written with Y.Map rulers.
-                if (type == QLatin1String("ruler") && !w.value(QLatin1String("rulerItems")).toArray().isEmpty()) mark = true;
+                if (type == QLatin1String("ruler")
+                    && !w.value(QLatin1String("rulerItems")).toArray().isEmpty())
+                    mark = true;
                 continue;
             }
             const Branch* l = youtput_read_ymap(layer.get());
             if (type == QLatin1String("ruler")) {
-                const QJsonArray cr = c.value(QLatin1String("rulerItems")).toArray(), wr = w.value(QLatin1String("rulerItems")).toArray();
+                const QJsonArray cr = c.value(QLatin1String("rulerItems")).toArray(),
+                                 wr = w.value(QLatin1String("rulerItems")).toArray();
                 if (same(withoutZ(inZOrder(cr)), wr)) continue;
                 mark = true;
                 Output items(ymap_get(l, txn, "rulerItems"));
@@ -340,17 +350,20 @@ struct SyncDoc::Impl {
                     yarray_insert_range(arr, txn, i, &m, 1);
                 }
             } else if (type == QLatin1String("brick")) {
-                const QJsonArray cb = c.value(QLatin1String("bricks")).toArray(), wb = w.value(QLatin1String("bricks")).toArray();
+                const QJsonArray cb = c.value(QLatin1String("bricks")).toArray(),
+                                 wb = w.value(QLatin1String("bricks")).toArray();
                 if (needsZ(cb, wb)) mark = true;
             } else if (type == QLatin1String("area")) {
                 const QJsonObject off = c.value(QLatin1String("cellOffset")).toObject();
-                const QJsonArray rel = shifted(w.value(QLatin1String("areas")).toArray(), -off.value(QLatin1String("x")).toInt(),
-                                               -off.value(QLatin1String("y")).toInt());
+                const QJsonArray rel =
+                    shifted(w.value(QLatin1String("areas")).toArray(), -off.value(QLatin1String("x")).toInt(),
+                            -off.value(QLatin1String("y")).toInt());
                 if (sheetMove(c.value(QLatin1String("areas")).toArray(), rel)) mark = true;
             }
         }
         if (mark) {
-            const QJsonValue v = cur.value(QLatin1String("meta")).toObject().value(QLatin1String("schemaVersion"));
+            const QJsonValue v =
+                cur.value(QLatin1String("meta")).toObject().value(QLatin1String("schemaVersion"));
             if (!v.isDouble() || v.toInt() < kDocShapeInPlace) {
                 const YInput sv = yinput_float(kDocShapeInPlace);
                 ymap_insert(meta, txn, "schemaVersion", &sv);
@@ -444,7 +457,8 @@ struct SyncDoc::Impl {
         const QJsonArray rel = shifted(want, -ox, -oy);
         if (same(cur, rel)) return;
         if (const auto move = sheetMove(cur, rel)) {
-            const QJsonValue next = QJsonObject{ { QStringLiteral("x"), ox + move->first }, { QStringLiteral("y"), oy + move->second } };
+            const QJsonValue next = QJsonObject{ { QStringLiteral("x"), ox + move->first },
+                                                 { QStringLiteral("y"), oy + move->second } };
             const YInput v = arena.plain(next);
             ymap_insert(layer, txn, "cellOffset", &v);
             ++ops;
@@ -453,7 +467,8 @@ struct SyncDoc::Impl {
         ++ops;
         yarray_remove_range(arr, txn, 0, yarray_len(arr));
         auto& items = arena.plains(rel);
-        if (!items.empty()) yarray_insert_range(arr, txn, 0, items.data(), static_cast<uint32_t>(items.size()));
+        if (!items.empty())
+            yarray_insert_range(arr, txn, 0, items.data(), static_cast<uint32_t>(items.size()));
     }
 
     // A ruler there twice (two people turned the sheet into Y.Maps at the
@@ -492,19 +507,24 @@ struct SyncDoc::Impl {
     // or edit of it at the same moment).
     void syncByZ(const Branch* arr, const QJsonArray& cur, const QJsonArray& want) {
         const QStringList curIds = idsOf(cur);
-        const QSet<QString> wantSet = [&] { const QStringList w = idsOf(want); return QSet<QString>(w.begin(), w.end()); }();
+        const QSet<QString> wantSet = [&] {
+            const QStringList w = idsOf(want);
+            return QSet<QString>(w.begin(), w.end());
+        }();
         QJsonArray kept;
         for (qsizetype i = cur.size() - 1; i >= 0; --i) {
             if (wantSet.contains(curIds[i])) continue;
             yarray_remove_range(arr, txn, static_cast<uint32_t>(i), 1);
             ++ops;
         }
-        for (qsizetype i = 0; i < cur.size(); ++i) if (wantSet.contains(curIds[i])) kept.append(cur[i]);
-        QHash<QString, qsizetype> at;  // id -> index in the array now
+        for (qsizetype i = 0; i < cur.size(); ++i)
+            if (wantSet.contains(curIds[i])) kept.append(cur[i]);
+        QHash<QString, qsizetype> at; // id -> index in the array now
         const QStringList keptIds = idsOf(kept);
         for (qsizetype i = 0; i < keptIds.size(); ++i) at.insert(keptIds[i], i);
         QList<ZEntry> order;
-        for (const auto& v : inZOrder(kept)) order.append({ v.toObject().value(QLatin1String("id")).toString(), zOf(v) });
+        for (const auto& v : inZOrder(kept))
+            order.append({ v.toObject().value(QLatin1String("id")).toString(), zOf(v) });
         QHash<QString, double> z;
         for (const auto& [id, value] : assignZ(order, idsOf(want))) z.insert(id, value);
         uint32_t end = static_cast<uint32_t>(kept.size());
@@ -549,7 +569,8 @@ struct SyncDoc::Impl {
             } else if (isZArray(it.key()) && uniqueIds(idsOf(curList)) && uniqueIds(idsOf(wantList))
                        && allMaps(youtput_read_yarray(existing.get())) && needsZ(curList, wantList)) {
                 syncByZ(youtput_read_yarray(existing.get()), curList, wantList);
-            } else if (it.key() != QLatin1String("rulerItems") || allMaps(youtput_read_yarray(existing.get()))) {
+            } else if (it.key() != QLatin1String("rulerItems")
+                       || allMaps(youtput_read_yarray(existing.get()))) {
                 syncItems(youtput_read_yarray(existing.get()), curList, wantList);
             } else if (!same(cur.value(it.key()), it.value())) {
                 ++ops;

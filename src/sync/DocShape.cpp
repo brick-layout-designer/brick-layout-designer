@@ -20,8 +20,8 @@ QList<qsizetype> orderByZ(const QList<std::optional<double>>& zs) {
     QList<std::pair<double, qsizetype>> keys;
     keys.reserve(zs.size());
     for (qsizetype i = 0; i < zs.size(); ++i) {
-        if (zs[i]) last = *zs[i];
-        keys.append({ zs[i] ? *zs[i] : last, i });
+        last = zs[i].value_or(last);
+        keys.append({ last, i });
     }
     std::stable_sort(keys.begin(), keys.end(), [](const auto& a, const auto& b) {
         return a.first < b.first || (a.first == b.first && a.second < b.second);
@@ -33,7 +33,8 @@ QList<qsizetype> orderByZ(const QList<std::optional<double>>& zs) {
 }
 
 bool hasZOrder(const QJsonArray& items) {
-    for (const auto& v : items) if (zOf(v)) return true;
+    for (const auto& v : items)
+        if (zOf(v)) return true;
     return false;
 }
 
@@ -77,31 +78,35 @@ QList<std::pair<QString, double>> assignZ(const QList<ZEntry>& cur, const QStrin
     QSet<QString> keep;
     for (qsizetype k = tails.isEmpty() ? -1 : tails.last(); k >= 0; k = prev[k]) keep.insert(seqIds[k]);
 
+    // Kept entries always have a z; NaN stands for "none" below.
+    const double none = std::numeric_limits<double>::quiet_NaN();
+    const auto zAt = [&](const QString& id) { return zById.value(id).value_or(none); };
     QList<std::pair<QString, double>> out;
-    std::optional<double> below;
+    double below = none;
     qsizetype i = 0;
     while (i < want.size()) {
         if (keep.contains(want[i])) {
-            below = zById.value(want[i]);
+            below = zAt(want[i]);
             ++i;
             continue;
         }
         qsizetype j = i;
         while (j < want.size() && !keep.contains(want[j])) ++j;
-        const std::optional<double> above = j < want.size() ? zById.value(want[j]) : std::nullopt;
+        const double above = j < want.size() ? zAt(want[j]) : none;
         const qsizetype n = j - i;
+        const bool hasBelow = !std::isnan(below), hasAbove = !std::isnan(above);
         for (qsizetype k = 0; k < n; ++k) {
-            double z;
-            if (below && above) z = *below + (*above - *below) * static_cast<double>(k + 1) / static_cast<double>(n + 1);
-            else if (below) z = std::floor(*below) + static_cast<double>(k + 1);
-            else if (above) z = std::ceil(*above) - static_cast<double>(n - k);
-            else z = static_cast<double>(k);
-            const auto now = zById.value(want[i + k]);
-            if (!now || *now != z) out.append({ want[i + k], z });
+            double z = static_cast<double>(k);
+            if (hasBelow && hasAbove)
+                z = below + (above - below) * static_cast<double>(k + 1) / static_cast<double>(n + 1);
+            else if (hasBelow) z = std::floor(below) + static_cast<double>(k + 1);
+            else if (hasAbove) z = std::ceil(above) - static_cast<double>(n - k);
+            const double now = zAt(want[i + k]);
+            if (std::isnan(now) || now != z) out.append({ want[i + k], z });
         }
         i = j;
     }
     return out;
 }
 
-}  // namespace bld::sync
+} // namespace bld::sync

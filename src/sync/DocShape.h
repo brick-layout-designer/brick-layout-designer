@@ -55,4 +55,4 @@ struct ZEntry {
 // neighbours. Only the ones that change, in `want` order.
 QList<std::pair<QString, double>> assignZ(const QList<ZEntry>& cur, const QStringList& want);
 
-}  // namespace bld::sync
+} // namespace bld::sync

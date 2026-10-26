@@ -54,7 +54,8 @@ TEST(Compat, HoldsTheVersionsThisBuildUses) {
     ASSERT_FALSE(c.isEmpty());
     EXPECT_EQ(kDocSchemaVersion, c.value(QLatin1String("doc")).toObject().value(QLatin1String("schemaVersion")).toInt());
     EXPECT_EQ(kDocMinReadable, c.value(QLatin1String("doc")).toObject().value(QLatin1String("minReadable")).toInt());
-    EXPECT_EQ(kDocBaseSchema, c.value(QLatin1String("doc")).toObject().value(QLatin1String("createdAs")).toInt());
+    EXPECT_EQ(kDocBaseSchema,
+              c.value(QLatin1String("doc")).toObject().value(QLatin1String("createdAs")).toInt());
     EXPECT_EQ(core::Sidecar::kSchemaVersion,
               c.value(QLatin1String("sidecar")).toObject().value(QLatin1String("schemaVersion")).toInt());
     EXPECT_EQ(import::kLayoutFileVersion,
