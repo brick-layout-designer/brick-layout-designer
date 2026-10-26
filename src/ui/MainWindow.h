@@ -123,6 +123,14 @@ protected:
     // Which model files Batch Import reads (empty: cancelled); tests answer
     // instead of the file picker.
     std::function<QStringList(const QString& title)> askModelFiles;
+    // Tools > Parts > Add Parts from a Zip: a parts folder sent as a ZIP (a
+    // Brick Track Designer export) unpacked into the imports folder, keeping
+    // its folder, then the parts read again and the first set (or part)
+    // shown. False with `error` set when nothing was added.
+    bool addPartsFromZip(const QString& zipPath, QString* error = nullptr);
+    // Which ZIP Add Parts from a Zip reads (empty: cancelled); tests answer
+    // instead of the file picker.
+    std::function<QString()> askPartsZip;
 
 private slots:
     void onNew();

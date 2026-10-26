@@ -9,6 +9,7 @@
 #include "PartUsagePanel.h"
 #include "PartsBrowser.h"
 
+#include "../import/PartsZip.h"
 #include "../parts/PartsLibrary.h"
 
 #include <QFileInfo>
@@ -118,6 +119,38 @@ QString MainWindow::importedPartsRoot() const {
         : configured;
     if (base.isEmpty()) return {};
     return base + QStringLiteral("/imports");
+}
+
+bool MainWindow::addPartsFromZip(const QString& zipPath, QString* error) {
+    const QString root = importedPartsRoot();
+    if (root.isEmpty()) {
+        if (error) *error = tr("There is no folder on this computer to keep your own parts in.");
+        return false;
+    }
+    const import::PartsZipResult added = import::addPartsFromZip(zipPath, root);
+    if (!added.ok) {
+        if (error) *error = added.error;
+        return false;
+    }
+    onReloadLibrary();
+    // Show what came in: the set that places the whole design, else a part.
+    QString first;
+    for (const QString& key : added.partKeys) {
+        const auto meta = parts_.metadata(key);
+        if (!meta) continue;
+        if (first.isEmpty()) first = key;
+        if (meta->kind == parts::PartKind::Group) {
+            first = key;
+            break;
+        }
+    }
+    if (!first.isEmpty()) showPartInBrowser(first);
+    statusBar()->showMessage(
+        tr("Added %n part(s) from %1, in the Parts panel under “%2”.", nullptr,
+           static_cast<int>(added.partKeys.size()))
+            .arg(QFileInfo(zipPath).fileName(), added.folders.join(QStringLiteral("”, “"))),
+        8000);
+    return true;
 }
 
 void MainWindow::onReloadLibrary() {

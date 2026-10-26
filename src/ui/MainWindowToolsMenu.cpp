@@ -51,6 +51,21 @@ void MainWindow::setupToolsMenu() {
     auto* dlAct = partsMenu->addAction(tr("&Get More Parts..."));
     dlAct->setObjectName(QStringLiteral("act.parts.getMore"));
     dlAct->setToolTip(tr("Find part packs online and add them to your parts"));
+    auto* zipAct = partsMenu->addAction(tr("Add Parts from a &Zip..."));
+    zipAct->setObjectName(QStringLiteral("act.parts.addZip"));
+    zipAct->setToolTip(tr("Add a folder of parts sent as a zip, such as a Brick Track Designer export"));
+    connect(zipAct, &QAction::triggered, this, [this] {
+        const QString zip = askPartsZip
+                                ? askPartsZip()
+                                : QFileDialog::getOpenFileName(this, tr("Add Parts from a Zip"), {},
+                                                               tr("Zip files (*.zip);;All files (*)"));
+        if (zip.isEmpty()) return;
+        QString error;
+        if (!addPartsFromZip(zip, &error))
+            QMessageBox::warning(
+                this, tr("Add Parts from a Zip"),
+                tr("No parts were added from %1.\n\n%2").arg(QFileInfo(zip).fileName(), error));
+    });
     auto* libAct = partsMenu->addAction(tr("Parts &Folders..."));
     libAct->setObjectName(QStringLiteral("act.parts.folders"));
     libAct->setToolTip(tr("Choose the folders on this computer your parts come from"));
