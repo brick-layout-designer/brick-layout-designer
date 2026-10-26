@@ -21,10 +21,13 @@ namespace bld::core { class Map; }
 namespace bld::sync {
 
 struct LocalPart {
-    QString key;         // the part number, as the file is named (3001.8, MY.1)
+    QString key;         // the part number, as the file is named (3001.8, MY.1; a set without ".set")
     QString displayName; // the English description, else the key
     QString xmlPath;
-    QString spritePath; // .gif or .png beside the XML
+    QString spritePath; // .gif or .png beside the XML; empty for a set
+    // A set (<key>.set.xml, a <group> of other parts): sent as its XML only,
+    // to servers that take sets ("uploadSets").
+    bool isSet = false;
 };
 
 // What goes to the server for one part: its XML and a sprite that agree on
@@ -47,8 +50,13 @@ public:
     PartsUpload(QUrl server, QString token, QObject* parent = nullptr);
 
     // Parts in `dir` (and below) with a sprite beside them: the sprite the
-    // parts library draws (the .png for a hi-res part, else the .gif).
+    // parts library draws (the .png for a hi-res part, else the .gif). Sets
+    // (a .set.xml holding a <group> of sub-parts) are listed too, after the
+    // parts, with no sprite.
     static QList<LocalPart> scanFolder(const QString& dir);
+    // Whether the server takes sets (its features list "uploadSets"). Without
+    // it, findMissing never lists a set and upload skips them.
+    void setServerTakesSets(bool takes) { takesSets_ = takes; }
 
     // The XML and sprite to upload for `part`. A hi-res part sends its
     // .png; one too big for `maxBytes` is sent at a lower resolution, its
@@ -84,6 +92,7 @@ private:
     QString orgSlug_;
     int done_ = 0;
     QStringList failures_;
+    bool takesSets_ = false;
 };
 
 // The part numbers `map` uses, upper-cased: bricks, and set / group parts.

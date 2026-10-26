@@ -1194,6 +1194,49 @@ TEST_F(ServerWindowMain, YourPartsFromEveryPartsFolderAreOfferedButNotTheBundled
     EXPECT_TRUE(listed) << shown.join(QStringLiteral(", ")).toStdString();
 }
 
+TEST_F(ServerWindowMain, YourSetsAreOfferedToAServerThatTakesSets) {
+    // An unzipped Brick Track Designer export in the imports folder: a part and the set of it.
+    QTemporaryDir modules;
+    const QString yard = modules.path() + QStringLiteral("/imports/Yard");
+    QDir().mkpath(yard);
+    const auto write = [&](const QString& name, const QByteArray& data) {
+        QFile f(QDir(yard).filePath(name));
+        ASSERT_TRUE(f.open(QIODevice::WriteOnly));
+        f.write(data);
+    };
+    write(QStringLiteral("Yard.plate1.xml"), "<part><Description><en>Yard: plate1</en></Description></part>");
+    write(QStringLiteral("Yard.plate1.gif"), "GIF89a");
+    write(QStringLiteral("Yard.whole.set.xml"),
+          "<group><Description><en>Yard (all parts)</en></Description><SubPartList>"
+          "<SubPart id=\"Yard.plate1\"><position><x>0</x><y>0</y></position><angle>0</angle></SubPart>"
+          "</SubPartList></group>");
+    QSettings().setValue(QStringLiteral("modules/libraryPath"), modules.path());
+    http_.reply("/api/parts/catalog", 200, { { QStringLiteral("parts"), QJsonArray{} } });
+    const auto serverWith = [&](const QStringList& features) {
+        sync::ServerList list = sync::ServerList::load();
+        sync::ServerInfo info;
+        info.features = features;
+        list.remember(http_.base(), info);
+        list.save();
+    };
+    const QStringList older{ QStringLiteral("liveSync"), QStringLiteral("venues"),
+                             QStringLiteral("uploadParts") };
+    // A server that doesn't take sets: only the part.
+    serverWith(older);
+    ui::ServerWindow* w = openWindow();
+    const QStringList part{ QStringLiteral("Yard: plate1") };
+    const bool partOnly = waitFor([&] { return w->localShown(Tab::Parts) == part; });
+    // One that does: the set too.
+    serverWith(older + QStringList{ QStringLiteral("uploadSets") });
+    emit w->localRefreshWanted();
+    const QStringList both{ QStringLiteral("Yard (all parts)"), QStringLiteral("Yard: plate1") };
+    const bool withSet = waitFor([&] { return w->localShown(Tab::Parts) == both; });
+    const QStringList shown = w->localShown(Tab::Parts);
+    QSettings().remove(QStringLiteral("modules/libraryPath"));
+    EXPECT_TRUE(partOnly);
+    EXPECT_TRUE(withSet) << shown.join(QStringLiteral(", ")).toStdString();
+}
+
 TEST_F(ServerWindowMain, TheServersLiveHintsReachTheWindow) {
     ui::ServerWindow* w = openWindow();
     const int before = count(http_, "GET", "/api/venues");

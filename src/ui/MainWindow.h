@@ -471,6 +471,8 @@ private:
     // to the public catalog. Each asks where it goes (Me or a club) first.
     void refreshServerLocal();
     void checkMissingParts();
+    // Whether `server` takes sets of your parts (its features list "uploadSets").
+    static bool serverTakesSets(const QUrl& server);
     void sendLocalToServer(int tab, const QString& localId);
     void saveLayoutFileToServer();
     void uploadPartsTo(const QUrl& server, const QString& token, bool quiet, const QStringList& only = {});

@@ -483,3 +483,72 @@ TEST(PartsUpload, TheLocalPathOfAnImportStaysOnThisComputer) {
     EXPECT_FALSE(payload.xml.contains("ImportSource"));
     EXPECT_TRUE(payload.xml.contains("<ImportedFrom file=\"station.lxf\""));
 }
+
+TEST(PartsUpload, SetsGoAfterTheirPartsAsTheirXmlOnlyToServersThatTakeThem) {
+    // A Brick Track Designer export: parts with their .gif, and the set of them.
+    QTemporaryDir dir;
+    write(dir.filePath(QStringLiteral("Yard.plate1.xml")),
+          "<part><Description><en>Yard: plate1</en></Description></part>");
+    write(dir.filePath(QStringLiteral("Yard.plate1.gif")), "GIF");
+    write(dir.filePath(QStringLiteral("Yard.whole.set.xml")),
+          "<group><Description><en>Yard (all parts)</en></Description><SubPartList>"
+          "<SubPart id=\"Yard.plate1\"><position><x>0</x><y>0</y></position><angle>0</angle></SubPart>"
+          "</SubPartList></group>");
+    // Not a set: a .set.xml with no parts in it.
+    write(dir.filePath(QStringLiteral("Empty.set.xml")), "<group><SubPartList/></group>");
+    const auto local = PartsUpload::scanFolder(dir.path());
+    ASSERT_EQ(local.size(), 2);
+    EXPECT_EQ(local[0].key, QStringLiteral("Yard.plate1"));
+    EXPECT_FALSE(local[0].isSet);
+    EXPECT_EQ(local[1].key, QStringLiteral("Yard.whole"));
+    EXPECT_EQ(local[1].displayName, QStringLiteral("Yard (all parts)"));
+    EXPECT_TRUE(local[1].isSet);
+    EXPECT_TRUE(local[1].spritePath.isEmpty());
+
+    // Its body: the XML, no sprite.
+    const QJsonObject body = PartsUpload::uploadBody(local[1]);
+    EXPECT_EQ(body.value(QLatin1String("partNumber")).toString(), QStringLiteral("Yard.whole"));
+    EXPECT_FALSE(body.contains(QLatin1String("spriteBase64")));
+    EXPECT_FALSE(body.contains(QLatin1String("spriteMime")));
+    EXPECT_TRUE(QByteArray::fromBase64(body.value(QLatin1String("xmlBase64")).toString().toLatin1())
+                    .startsWith("<group>"));
+
+    FakeHttp http;
+    http.reply("/api/parts/catalog", 200, { { QStringLiteral("parts"), QJsonArray{} } });
+    http.reply("/api/custom-parts", 201, { { QStringLiteral("id"), QStringLiteral("p1") } });
+    const auto missingFrom = [&](bool takesSets) {
+        PartsUpload upload(http.base(), QStringLiteral("bld_pat_abc"));
+        upload.setServerTakesSets(takesSets);
+        QList<LocalPart> missing;
+        bool got = false;
+        QObject::connect(&upload, &PartsUpload::missingReady, [&](const QList<LocalPart>& m) {
+            missing = m;
+            got = true;
+        });
+        upload.findMissing(local);
+        EXPECT_TRUE(waitFor([&] { return got; }));
+        return missing;
+    };
+    // An older server: the set isn't offered.
+    EXPECT_EQ(missingFrom(false).size(), 1);
+    EXPECT_EQ(missingFrom(true).size(), 2);
+
+    // The set goes last (even when listed first), and only where sets are taken.
+    const auto sent = [&](bool takesSets) {
+        http.requests.clear();
+        PartsUpload upload(http.base(), QStringLiteral("bld_pat_abc"));
+        upload.setServerTakesSets(takesSets);
+        bool done = false;
+        QObject::connect(&upload, &PartsUpload::uploaded, [&](int, const QStringList&) { done = true; });
+        upload.upload({ local[1], local[0] }, QString());
+        EXPECT_TRUE(waitFor([&] { return done; }));
+        QStringList numbers;
+        for (const auto& r : http.requests)
+            if (r.method == "POST" && r.path == "/api/custom-parts")
+                numbers
+                    << QJsonDocument::fromJson(r.body).object().value(QLatin1String("partNumber")).toString();
+        return numbers;
+    };
+    EXPECT_EQ(sent(true), (QStringList{ QStringLiteral("Yard.plate1"), QStringLiteral("Yard.whole") }));
+    EXPECT_EQ(sent(false), QStringList{ QStringLiteral("Yard.plate1") });
+}

@@ -122,17 +122,21 @@ void PartsSync::onManifest(const QJsonObject& manifest) {
                       hash = p.value(QLatin1String("hash")).toString();
         const QString number = safeFileName(p.value(QLatin1String("partNumber")).toString());
         newCustomHashes_.insert(id, hash);
+        // A set (newer servers say so) is kept as <number>.set.xml, with no
+        // sprite: its parts draw it.
+        const bool isSet = p.value(QLatin1String("kind")).toString() == QLatin1String("set");
         const QString base = cache_.filePath(QStringLiteral("custom/") + number);
+        const QString xmlPath = base + (isSet ? QStringLiteral(".set.xml") : QStringLiteral(".xml"));
         // (A copy cached before it carried the server's key is fetched again.)
-        if (customHashes_.value(id) == hash && hasServerKey(base + QStringLiteral(".xml"), id)) {
+        if (customHashes_.value(id) == hash && hasServerKey(xmlPath, id)) {
             ++result_.unchanged;
             continue;
         }
         const auto url = [&](const char* key) {
             return server_.resolved(QUrl(p.value(QLatin1String(key)).toString()));
         };
-        queue_.push_back({ url("xmlUrl"), base + QStringLiteral(".xml"), {}, number, {}, {}, id });
-        queue_.push_back({ url("spriteUrl"), {}, {}, number, base, {}, id });
+        queue_.push_back({ url("xmlUrl"), xmlPath, {}, number, {}, {}, id });
+        if (!isSet) queue_.push_back({ url("spriteUrl"), {}, {}, number, base, {}, id });
     }
     // Libraries: skip the ones whose hash didn't change; list the others' files.
     for (const auto& v : manifest.value(QLatin1String("libraries")).toArray()) {

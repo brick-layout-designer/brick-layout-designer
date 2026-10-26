@@ -27,9 +27,10 @@
     { "id": "ownerTags", "label": "Showing whose layouts and venues they are" },
     { "id": "limits", "label": "Usage limits, with plain messages when one is reached" },
     { "id": "layoutDownload", "label": "Downloading a copy of a layout, venue sizes in the list" },
-    { "id": "catalogShare", "label": "Sharing to the public catalog from the desktop app" }
+    { "id": "catalogShare", "label": "Sharing to the public catalog from the desktop app" },
+    { "id": "uploadSets", "label": "Uploading sets of your own parts" }
   ],
-  "serverFeatures": ["liveSync", "signIn", "publish", "clubs", "venues", "partsManifest", "partFilesWithToken", "uploadParts", "preferences", "ownerTags", "limits", "layoutDownload", "catalogShare"],
+  "serverFeatures": ["liveSync", "signIn", "publish", "clubs", "venues", "partsManifest", "partFilesWithToken", "uploadParts", "preferences", "ownerTags", "limits", "layoutDownload", "catalogShare", "uploadSets"],
   "desktopUses": ["liveSync", "signIn", "publish", "clubs", "venues", "partsManifest", "partFilesWithToken", "uploadParts", "preferences", "ownerTags"],
   "assumedWhenUnlisted": ["liveSync", "signIn"],
   "cases": {
