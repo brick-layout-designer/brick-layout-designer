@@ -217,18 +217,57 @@ TEST(LibraryApi, AcknowledgesANoticeAndReadsTheList) {
     EXPECT_EQ(http.requests.back().method, QByteArray("POST"));
 }
 
+// A club's roles say no: the permission the server names, in plain words.
+// A server from before club roles names none.
 TEST(LibraryApi, ARefusalSaysWhy) {
     FakeHttp http;
+    http.reply("/api/modules", 403,
+               { { QStringLiteral("error"), QStringLiteral("only_club_admins_can_add") },
+                 { QStringLiteral("permission"), QStringLiteral("edit_modules") } });
     http.reply("/api/modules", 403, { { QStringLiteral("error"), QStringLiteral("only_club_admins_can_add") } });
     sync::LibraryApi api;
     api.setBase(http.base());
     QString why;
-    api.createModule(QStringLiteral("Yard"), QStringLiteral("train"), {}, [&](const sync::ServerRefusal& r) {
-        why = ui::ServerLibrary::refusalText(r);
-    });
-    ASSERT_TRUE(waitFor([&] { return !why.isEmpty(); }));
-    EXPECT_EQ(why, QStringLiteral("In this club, only admins and managers can add modules and parts."));
+    const auto create = [&] {
+        why.clear();
+        api.createModule(QStringLiteral("Yard"), QStringLiteral("train"), {}, [&](const sync::ServerRefusal& r) {
+            why = ui::ServerLibrary::refusalText(r);
+        });
+        return waitFor([&] { return !why.isEmpty(); });
+    };
+    ASSERT_TRUE(create());
+    EXPECT_EQ(why, QStringLiteral("Your roles in this club can't add that. Ask a club admin for the Add or edit modules "
+                                  "permission."));
     EXPECT_TRUE(http.requests.back().body.contains("\"orgSlug\":\"train\""));
+    ASSERT_TRUE(create());
+    EXPECT_EQ(why, QStringLiteral("This club only lets some of its members add things. Ask a club admin."));
+}
+
+// GET /api/orgs: each club's permissions, when the server has club roles.
+TEST(LibraryApi, ClubsCarryTheirPermissions) {
+    FakeHttp http;
+    http.reply("/api/orgs", 200,
+               { { QStringLiteral("orgs"),
+                   QJsonArray{ QJsonObject{ { QStringLiteral("slug"), QStringLiteral("crew") },
+                                            { QStringLiteral("name"), QStringLiteral("Track Crew") },
+                                            { QStringLiteral("myRole"), QStringLiteral("member") },
+                                            { QStringLiteral("canAdd"), false },
+                                            { QStringLiteral("permissions"),
+                                              QJsonArray{ QStringLiteral("view_items"), QStringLiteral("add_parts") } } },
+                               QJsonObject{ { QStringLiteral("slug"), QStringLiteral("old") },
+                                            { QStringLiteral("name"), QStringLiteral("Old Club") },
+                                            { QStringLiteral("myRole"), QStringLiteral("member") } } } } });
+    sync::LibraryApi api;
+    api.setBase(http.base());
+    QList<sync::OrgEntry> orgs;
+    api.orgs([&](const QList<sync::OrgEntry>& l) { orgs = l; }, {});
+    ASSERT_TRUE(waitFor([&] { return orgs.size() == 2; }));
+    ASSERT_TRUE(orgs[0].permissions);
+    EXPECT_EQ(*orgs[0].permissions, (QStringList{ QStringLiteral("view_items"), QStringLiteral("add_parts") }));
+    EXPECT_TRUE(orgs[0].canAddKind(sync::AddKind::Part));
+    EXPECT_FALSE(orgs[0].canAddKind(sync::AddKind::Module));
+    EXPECT_FALSE(orgs[1].permissions);
+    EXPECT_TRUE(orgs[1].canAddKind(sync::AddKind::Module));
 }
 
 // ---------- Live hints --------------------------------------------------------
@@ -655,11 +694,29 @@ TEST_F(LibraryTabs, CatalogAddsModulesAndPartsAndWholeCollections) {
     http_.reply("/api/catalog/collections/k1/add", 200,
                 { { QStringLiteral("added"), QJsonArray{ QJsonObject{}, QJsonObject{} } }, { QStringLiteral("skipped"), QJsonArray{ QStringLiteral("x") } },
                   { QStringLiteral("failed"), QJsonArray{} } });
+    // Club roles: Train Club takes modules and parts, Track Crew only parts.
+    const auto club = [](const char* slug, const char* name, const QStringList& permissions) {
+        return QJsonObject{ { QStringLiteral("slug"), QLatin1String(slug) }, { QStringLiteral("name"), QLatin1String(name) },
+                            { QStringLiteral("myRole"), QStringLiteral("member") }, { QStringLiteral("canAdd"), false },
+                            { QStringLiteral("permissions"), QJsonArray::fromStringList(permissions) } };
+    };
+    http_.clear("/api/orgs");
+    http_.reply("/api/orgs", 200,
+                { { QStringLiteral("orgs"), QJsonArray{ club("train", "Train Club", { QStringLiteral("edit_modules"), QStringLiteral("add_parts") }),
+                                                        club("crew", "Track Crew", { QStringLiteral("add_parts") }) } } });
     ui::CatalogTab tab(library_);
-    // Asked where it goes (you're in a club): to the club.
+    // Asked where it goes (a club of yours takes it): to the club. Only the
+    // clubs whose roles take that kind are offered; the others say why.
     QStringList asked;
-    tab.chooseOwner = [&](const QString& title) -> std::optional<QString> {
+    QList<QStringList> offered;
+    QStringList leftOut;
+    tab.chooseOwner = [&](const QString& title, const QList<sync::OrgEntry>& clubs,
+                          const QString& why) -> std::optional<QString> {
         asked << title;
+        QStringList names;
+        for (const auto& c : clubs) names << c.name;
+        offered << names;
+        leftOut << why;
         return QStringLiteral("train");
     };
     connectSignedIn();
@@ -672,6 +729,9 @@ TEST_F(LibraryTabs, CatalogAddsModulesAndPartsAndWholeCollections) {
     ASSERT_TRUE(waitFor([&] { return lastRequest(http_, "POST", "/api/catalog/items/i1/add"); }));
     EXPECT_TRUE(lastRequest(http_, "POST", "/api/catalog/items/i1/add")->body.contains("\"orgSlug\":\"train\""));
     EXPECT_EQ(asked.value(0), QStringLiteral("Add to my modules"));
+    EXPECT_EQ(offered.value(0), QStringList{ QStringLiteral("Train Club") });
+    EXPECT_EQ(leftOut.value(0), QStringLiteral("Track Crew isn't listed: your roles there can't add modules. Ask a club "
+                                               "admin for the Add or edit modules permission."));
     // A refresh (a live change, back in the window) rebuilds the rows but
     // keeps what Add did, instead of offering it again.
     const auto addText = [&] {
@@ -693,6 +753,8 @@ TEST_F(LibraryTabs, CatalogAddsModulesAndPartsAndWholeCollections) {
     EXPECT_EQ(tab.row(QStringLiteral("p1"))->findChild<QPushButton*>(QStringLiteral("catalogInsert")), nullptr);
     tab.row(QStringLiteral("p1"))->findChild<QPushButton*>(QStringLiteral("catalogAdd"))->click();
     ASSERT_TRUE(waitFor([&] { return partsAdded == 1; }));
+    EXPECT_EQ(offered.value(1), (QStringList{ QStringLiteral("Train Club"), QStringLiteral("Track Crew") }));
+    EXPECT_TRUE(leftOut.value(1).isEmpty());
 
     // Collections: Add all, and what happened.
     tab.setKind(ui::CatalogTab::Kind::Collections);
@@ -700,6 +762,8 @@ TEST_F(LibraryTabs, CatalogAddsModulesAndPartsAndWholeCollections) {
     tab.row(QStringLiteral("k1"))->findChild<QPushButton*>(QStringLiteral("collectionAddAll"))->click();
     ASSERT_TRUE(waitFor([&] { return tab.note()->text() == QStringLiteral("Added 2 items · already had 1"); }));
     EXPECT_EQ(partsAdded, 2);
+    // Modules and parts: only a club that takes both.
+    EXPECT_EQ(offered.value(2), QStringList{ QStringLiteral("Train Club") });
 }
 
 TEST_F(LibraryTabs, CatalogLayoutsAndVenuesShowWhenOnAndCopyThenOpen) {
@@ -727,7 +791,9 @@ TEST_F(LibraryTabs, CatalogLayoutsAndVenuesShowWhenOnAndCopyThenOpen) {
     http_.reply("/api/catalog/items/l1/add", 201, { { QStringLiteral("kind"), QStringLiteral("layout") }, { QStringLiteral("id"), QStringLiteral("L9") } });
     http_.reply("/api/catalog/items/v1/add", 201, { { QStringLiteral("kind"), QStringLiteral("venue") }, { QStringLiteral("id"), QStringLiteral("V9") } });
     ui::CatalogTab tab(library_);
-    tab.chooseOwner = [](const QString&) -> std::optional<QString> { return QString(); };
+    tab.chooseOwner = [](const QString&, const QList<sync::OrgEntry>&, const QString&) -> std::optional<QString> {
+        return QString();
+    };
     auto kindButton = [&](ui::CatalogTab::Kind k) {
         return tab.findChild<QPushButton*>(QStringLiteral("catalogKind%1").arg(static_cast<int>(k)));
     };

@@ -446,6 +446,55 @@ TEST(ConnectDialog, PublishOffersOnlyClubsThatTakeIt) {
     EXPECT_EQ(owner->itemText(2), QStringLiteral("Old Club"));
 }
 
+// Club roles: a club is offered when your roles there can start layouts
+// (its permissions, not canAdd), and one left out says why and what to ask for.
+TEST(ConnectDialog, PublishOffersClubsWhoseRolesStartLayoutsAndSaysWhoIsLeftOut) {
+    Harness h(ConnectDialog::Purpose::Publish);
+    h.tokens.save(h.http.base(), QStringLiteral("bld_pat_saved"));
+    const auto org = [](const char* slug, const char* name, bool canAdd, const QStringList& permissions) {
+        return QJsonObject{ { QStringLiteral("slug"), QLatin1String(slug) },
+                            { QStringLiteral("name"), QLatin1String(name) },
+                            { QStringLiteral("myRole"), QStringLiteral("member") },
+                            { QStringLiteral("canAdd"), canAdd },
+                            { QStringLiteral("permissions"), QJsonArray::fromStringList(permissions) } };
+    };
+    h.http.reply("/api/orgs", 200,
+                 { { QStringLiteral("orgs"),
+                     QJsonArray{ org("rail", "Rail Club", true, { QStringLiteral("view_items"), QStringLiteral("start_layouts") }),
+                                 org("crew", "Track Crew", false,
+                                     { QStringLiteral("view_items"), QStringLiteral("edit_modules"), QStringLiteral("add_parts") }) } } });
+    h.dialog.setPublishContent(QByteArrayLiteral("<Map/>"), {}, QStringLiteral("Yard"));
+    h.dialog.connectToServer();
+    ASSERT_TRUE(waitFor([&] { return h.page() == 3; }));
+    auto* owner = h.dialog.findChild<QComboBox*>(QStringLiteral("publishOwner"));
+    ASSERT_EQ(owner->count(), 2);
+    EXPECT_EQ(owner->itemText(1), QStringLiteral("Rail Club"));
+    EXPECT_EQ(h.message(), QStringLiteral("Track Crew isn't listed: your roles there can't add layouts. Ask a club admin "
+                                          "for the Start new club layouts permission."));
+}
+
+// A 403 from a club's roles isn't a sign-in problem: it says which
+// permission is missing, keeps the sign-in and stays on the publish page.
+TEST(ConnectDialog, PublishRefusedByAClubsRolesSaysWhyAndKeepsTheSignIn) {
+    Harness h(ConnectDialog::Purpose::Publish);
+    h.tokens.save(h.http.base(), QStringLiteral("bld_pat_saved"));
+    h.http.reply("/api/orgs", 200, { { QStringLiteral("orgs"), QJsonArray{} } });
+    h.http.reply("/api/layouts", 403,
+                 { { QStringLiteral("error"), QStringLiteral("only_club_admins_can_add") },
+                   { QStringLiteral("permission"), QStringLiteral("start_layouts") } });
+    h.dialog.setPublishContent(QByteArrayLiteral("<Map/>"), {}, QStringLiteral("Yard"));
+    h.dialog.connectToServer();
+    ASSERT_TRUE(waitFor([&] { return h.page() == 3; }));
+    h.dialog.publishNow();
+    ASSERT_TRUE(waitFor([&] { return h.message().startsWith(QStringLiteral("Could not publish")); }));
+    EXPECT_EQ(h.message(), QStringLiteral("Could not publish: Your roles in this club can't add that. Ask a club admin "
+                                          "for the Start new club layouts permission."));
+    EXPECT_EQ(h.page(), 3);
+    EXPECT_TRUE(h.opened.isEmpty());
+    EXPECT_EQ(h.tokens.tokens.size(), 1);
+    for (const auto& r : h.http.requests) EXPECT_NE(r.path, QByteArrayLiteral("/api/auth/device/code"));
+}
+
 TEST(ConnectDialog, PublishingWithAnOldSignInSignsInAgain) {
     Harness h(ConnectDialog::Purpose::Publish);
     h.tokens.save(h.http.base(), QStringLiteral("bld_pat_old"));

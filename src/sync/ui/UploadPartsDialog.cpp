@@ -55,8 +55,9 @@ UploadPartsDialog::UploadPartsDialog(ServerApi& api, PartsUpload& upload, const 
         return bld::ui::ConfirmDialog::ask(this, bld::ui::saveToClubOptions(club));
     };
     connect(&api_, &ServerApi::orgsReady, this, [this](const QList<OrgEntry>& orgs) {
-        for (const auto& o : orgs)
-            if (o.canAdd) owner_->addItem(o.name, o.slug);
+        // Only the clubs whose roles let you add parts; one left out says why.
+        for (const auto& o : clubsThatTake(orgs, AddKind::Part)) owner_->addItem(o.name, o.slug);
+        if (message_->text().isEmpty()) message_->setText(leftOutNote(orgs, AddKind::Part));
     });
     connect(&upload_, &PartsUpload::uploaded, this, [this](int count, const QStringList& failed) {
         uploaded_ = count;

@@ -398,7 +398,104 @@ TEST(ServerApi, PublishShowsTheServersLimitMessage) {
     api.publishLayout(QStringLiteral("T"), QByteArray("<Map/>"), {}, {});
     ASSERT_TRUE(waitFor([&] { return fails == 2; }));
     EXPECT_TRUE(unauthorized);
-    EXPECT_EQ(message, QStringLiteral("insufficient_scope"));
+    EXPECT_TRUE(message.startsWith(QStringLiteral("This sign-in can't do that."))) << message.toStdString();
+}
+
+// A 403 from a club's roles (or your role on the layout) is a no, not a
+// sign-in problem: it says which permission to ask for, and never asks to
+// sign in again. Only a 401 does, or a token without the scope.
+TEST(ServerApi, PublishRefusedByAClubsRolesSaysWhichPermissionAndNotSignIn) {
+    FakeHttp http;
+    ServerApi api;
+    api.setBase(http.base());
+    api.setToken(QStringLiteral("bld_pat_x"));
+    http.reply("/api/layouts", 403,
+               { { QStringLiteral("error"), QStringLiteral("only_club_admins_can_add") },
+                 { QStringLiteral("permission"), QStringLiteral("start_layouts") } });
+    http.reply("/api/layouts", 403, { { QStringLiteral("error"), QStringLiteral("forbidden") } });
+    http.reply("/api/layouts", 401, { { QStringLiteral("error"), QStringLiteral("invalid_token") } });
+    QString message;
+    bool unauthorized = true;
+    int fails = 0;
+    QObject::connect(&api, &ServerApi::requestFailed, [&](const QString&, const QString& m, bool u) {
+        message = m;
+        unauthorized = u;
+        ++fails;
+    });
+    api.publishLayout(QStringLiteral("T"), QByteArray("<Map/>"), {}, QStringLiteral("club"));
+    ASSERT_TRUE(waitFor([&] { return fails == 1; }));
+    EXPECT_FALSE(unauthorized);
+    EXPECT_EQ(message, QStringLiteral("Your roles in this club can't add that. Ask a club admin for the Start new club "
+                                      "layouts permission."));
+    api.publishLayout(QStringLiteral("T"), QByteArray("<Map/>"), {}, QStringLiteral("club"));
+    ASSERT_TRUE(waitFor([&] { return fails == 2; }));
+    EXPECT_FALSE(unauthorized);
+    EXPECT_EQ(message, QStringLiteral("You don't have permission to do that. Ask its owner, or a club admin, for access."));
+    api.publishLayout(QStringLiteral("T"), QByteArray("<Map/>"), {}, QStringLiteral("club"));
+    ASSERT_TRUE(waitFor([&] { return fails == 3; }));
+    EXPECT_TRUE(unauthorized);
+}
+
+TEST(ServerRefusal, NamesTheMissingClubPermissionInPlainWords) {
+    EXPECT_EQ(permissionLabel(QStringLiteral("edit_modules")), QStringLiteral("Add or edit modules"));
+    EXPECT_EQ(permissionLabel(QStringLiteral("add_parts")), QStringLiteral("Add parts"));
+    EXPECT_EQ(permissionLabel(QStringLiteral("manage_venues")), QStringLiteral("Manage venues"));
+    EXPECT_EQ(permissionLabel(QStringLiteral("something_new")), QStringLiteral("something_new"));
+    const auto parts = readRefusal(403, R"({"error":"only_club_admins_can_add","permission":"add_parts"})");
+    EXPECT_EQ(parts.permission, QStringLiteral("add_parts"));
+    EXPECT_FALSE(needsSignIn(parts));
+    EXPECT_EQ(describe(parts),
+              QStringLiteral("Your roles in this club can't add that. Ask a club admin for the Add parts permission."));
+    // Parts sync and upload show failureText: the same sentence, not "The server answered 403".
+    EXPECT_EQ(failureText(parts), describe(parts));
+    const auto invite = readRefusal(403, R"({"error":"forbidden","permission":"invite"})");
+    EXPECT_EQ(describe(invite),
+              QStringLiteral("Your roles in this club don't allow that. Ask a club admin for the Invite people permission."));
+    EXPECT_FALSE(needsSignIn(readRefusal(403, R"({"error":"forbidden"})")));
+    EXPECT_FALSE(needsSignIn(readRefusal(403, R"({"error":"token_not_allowed"})")));
+    EXPECT_TRUE(needsSignIn(readRefusal(401, R"({"error":"invalid_token"})")));
+    EXPECT_TRUE(needsSignIn(readRefusal(401, "")));
+}
+
+// Which clubs take which kind of thing: their permissions, or canAdd on a
+// server from before club roles.
+TEST(OrgEntry, EachKindNeedsItsOwnPermission) {
+    const auto club = [](const QStringList& permissions) {
+        return OrgEntry::fromJson(QJsonObject{ { QStringLiteral("slug"), QStringLiteral("c") },
+                                               { QStringLiteral("name"), QStringLiteral("Club") },
+                                               { QStringLiteral("canAdd"), false },
+                                               { QStringLiteral("permissions"), QJsonArray::fromStringList(permissions) } });
+    };
+    const OrgEntry crew = club({ QStringLiteral("view_items"), QStringLiteral("edit_modules") });
+    EXPECT_TRUE(crew.canAddKind(AddKind::Module));
+    EXPECT_FALSE(crew.canAddKind(AddKind::Part));
+    EXPECT_FALSE(crew.canAddKind(AddKind::Layout));
+    EXPECT_FALSE(crew.canAddKind(AddKind::Venue));
+    EXPECT_TRUE(club({ QStringLiteral("add_parts") }).canAddKind(AddKind::Part));
+    // Venues: Manage venues, or Start new club layouts.
+    EXPECT_TRUE(club({ QStringLiteral("manage_venues") }).canAddKind(AddKind::Venue));
+    EXPECT_TRUE(club({ QStringLiteral("start_layouts") }).canAddKind(AddKind::Venue));
+    EXPECT_TRUE(club({ QStringLiteral("start_layouts") }).canAddKind(AddKind::Layout));
+    // Older servers: canAdd for everything.
+    OrgEntry old{ QStringLiteral("o"), QStringLiteral("Old"), QStringLiteral("member") };
+    EXPECT_TRUE(old.canAddKind(AddKind::Part));
+    old.canAdd = false;
+    EXPECT_FALSE(old.canAddKind(AddKind::Module));
+
+    OrgEntry a = club({ QStringLiteral("add_parts") });
+    a.name = QStringLiteral("Ash");
+    OrgEntry b = club({});
+    b.name = QStringLiteral("Birch");
+    OrgEntry c = club({ QStringLiteral("edit_modules") });
+    c.name = QStringLiteral("Cedar");
+    EXPECT_EQ(clubsThatTake({ a, b, c }, AddKind::Module).size(), 1);
+    EXPECT_EQ(leftOutNote({ a, b, c }, AddKind::Module),
+              QStringLiteral("Ash and Birch aren't listed: your roles there can't add modules. Ask a club admin for the "
+                             "Add or edit modules permission."));
+    EXPECT_EQ(leftOutNote({ a, b, c }, AddKind::Venue),
+              QStringLiteral("Ash, Birch and Cedar aren't listed: your roles there can't add venues. Ask a club admin "
+                             "for the Start new club layouts permission."));
+    EXPECT_TRUE(leftOutNote({ c }, AddKind::Module).isEmpty());
 }
 
 TEST(ServerRefusal, ReadsLimitsReadOnlyAndRateLimits) {

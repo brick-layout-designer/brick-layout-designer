@@ -216,8 +216,12 @@ public:
     QLineEdit* search() const { return search_; }
     QLabel* note() const { return note_; }
     // Where an "Add" goes: "" for you, a club's slug, or nullopt when
-    // cancelled. Asked only when you're in a club (tests replace it).
-    std::function<std::optional<QString>(const QString& title)> chooseOwner;
+    // cancelled. Asked only when a club of yours takes it: `clubs` are the
+    // ones whose roles let you add it, `leftOut` says which aren't and the
+    // permission to ask for (tests replace it).
+    std::function<std::optional<QString>(const QString& title, const QList<sync::OrgEntry>& clubs,
+                                         const QString& leftOut)>
+        chooseOwner;
 
 protected:
     void showEvent(QShowEvent* e) override;
@@ -232,7 +236,7 @@ private:
     void addItem(const sync::CatalogItem& it, QPushButton* button);
     bool kindOn(Kind k) const;
     void addAll(const sync::CatalogCollection& c);
-    std::optional<QString> owner(const QString& title);
+    std::optional<QString> owner(const QString& title, const QList<sync::AddKind>& kinds);
 
     ServerLibrary& library_;
     Kind kind_ = Kind::Modules;

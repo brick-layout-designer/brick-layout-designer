@@ -744,7 +744,7 @@ TEST(SaveToServerDialog, OffersMeAndTheClubsThatTakeThingsAndAsksBeforeAClub) {
     sync::OrgEntry train{ QStringLiteral("train"), QStringLiteral("Train Club"), QStringLiteral("member") };
     sync::OrgEntry closed{ QStringLiteral("closed"), QStringLiteral("Closed Club"), QStringLiteral("member") };
     closed.canAdd = false;
-    ui::SaveToServerDialog d(QStringLiteral("venue"), QStringLiteral("Gym"), QStringLiteral("Club server"), { train, closed },
+    ui::SaveToServerDialog d(QStringLiteral("venue"), sync::AddKind::Venue, QStringLiteral("Gym"), QStringLiteral("Club server"), { train, closed },
                              QStringLiteral("train"));
     QStringList owners;
     for (int i = 0; i < d.owner()->count(); ++i) owners << d.owner()->itemText(i);
@@ -774,6 +774,38 @@ TEST(SaveToServerDialog, OffersMeAndTheClubsThatTakeThingsAndAsksBeforeAClub) {
     d.save();
     EXPECT_EQ(asked.size(), 2);
     EXPECT_TRUE(d.orgSlug().isEmpty());
+}
+
+// Club roles: a module goes to the clubs whose roles add or edit modules, a
+// venue to those that manage venues or start layouts, whatever canAdd says;
+// a club left out says why and which permission to ask for.
+TEST(SaveToServerDialog, OffersTheClubsWhoseRolesTakeThatKindAndSaysWhoIsLeftOut) {
+    const auto club = [](const char* slug, const char* name, const QStringList& permissions) {
+        sync::OrgEntry o{ QString::fromLatin1(slug), QString::fromLatin1(name), QStringLiteral("member") };
+        o.canAdd = false;
+        o.permissions = permissions;
+        return o;
+    };
+    const QList<sync::OrgEntry> orgs{ club("crew", "Track Crew", { QStringLiteral("view_items"), QStringLiteral("edit_modules") }),
+                                      club("hall", "Hall Team", { QStringLiteral("view_items"), QStringLiteral("manage_venues") }) };
+    const auto owners = [](const ui::SaveToServerDialog& d) {
+        QStringList out;
+        for (int i = 0; i < d.owner()->count(); ++i) out << d.owner()->itemText(i);
+        return out;
+    };
+    ui::SaveToServerDialog module(QStringLiteral("module"), sync::AddKind::Module, QStringLiteral("Yard"),
+                                  QStringLiteral("Club server"), orgs, QString());
+    EXPECT_EQ(owners(module), (QStringList{ QStringLiteral("Me"), QStringLiteral("Track Crew") }));
+    EXPECT_TRUE(module.leftOut()->isVisibleTo(&module));
+    EXPECT_EQ(module.leftOut()->text(), QStringLiteral("Hall Team isn't listed: your roles there can't add modules. Ask a "
+                                                       "club admin for the Add or edit modules permission."));
+    ui::SaveToServerDialog venue(QStringLiteral("venue"), sync::AddKind::Venue, QStringLiteral("Gym"),
+                                 QStringLiteral("Club server"), orgs, QString());
+    EXPECT_EQ(owners(venue), (QStringList{ QStringLiteral("Me"), QStringLiteral("Hall Team") }));
+    // Every club takes it: nothing to say.
+    ui::SaveToServerDialog all(QStringLiteral("module"), sync::AddKind::Module, QStringLiteral("Yard"),
+                               QStringLiteral("Club server"), { orgs[0] }, QString());
+    EXPECT_FALSE(all.leftOut()->isVisibleTo(&all));
 }
 
 TEST(ShareToCatalogDialog, SendsWhatTheWebSendsWithTheLayoutsPictureAndSaysWhatHappened) {

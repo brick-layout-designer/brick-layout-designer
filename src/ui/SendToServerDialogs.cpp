@@ -22,8 +22,9 @@ namespace bld::ui {
 
 // ---------- SaveToServerDialog ------------------------------------------------
 
-SaveToServerDialog::SaveToServerDialog(const QString& what, const QString& initialName, const QString& server,
-                                       const QList<sync::OrgEntry>& orgs, const QString& initialOwner, QWidget* parent)
+SaveToServerDialog::SaveToServerDialog(const QString& what, sync::AddKind kind, const QString& initialName,
+                                       const QString& server, const QList<sync::OrgEntry>& orgs,
+                                       const QString& initialOwner, QWidget* parent)
     : QDialog(parent) {
     setObjectName(QStringLiteral("SaveToServerDialog"));
     setWindowTitle(tr("Save to Server"));
@@ -40,14 +41,19 @@ SaveToServerDialog::SaveToServerDialog(const QString& what, const QString& initi
     owner_ = new QComboBox(this);
     owner_->setObjectName(QStringLiteral("saveOwner"));
     owner_->addItem(tr("Me"), QString());
-    // Only the clubs that will take it (one that keeps adding to its admins is left out).
-    for (const auto& o : orgs)
-        if (o.canAdd) owner_->addItem(o.name, o.slug);
+    // Only the clubs whose roles let you add it.
+    for (const auto& o : sync::clubsThatTake(orgs, kind)) owner_->addItem(o.name, o.slug);
     const int start = initialOwner.isEmpty() ? -1 : owner_->findData(initialOwner);
     owner_->setCurrentIndex(start > 0 ? start : 0);
     form->addRow(tr("Name"), name_);
     form->addRow(tr("Save to"), help::withHelp(owner_, QStringLiteral("publish.owner"), this));
     col->addLayout(form);
+    // A club of yours that isn't offered says why, and what to ask for.
+    leftOut_ = libraryMutedLabel(sync::leftOutNote(orgs, kind), this);
+    leftOut_->setObjectName(QStringLiteral("saveLeftOut"));
+    leftOut_->setWordWrap(true);
+    leftOut_->setVisible(!leftOut_->text().isEmpty());
+    col->addWidget(leftOut_);
     error_ = new QLabel(this);
     error_->setObjectName(QStringLiteral("saveError"));
     error_->setProperty("danger", true);

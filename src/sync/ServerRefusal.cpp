@@ -6,6 +6,8 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 
+#include <utility>
+
 namespace bld::sync {
 
 namespace {
@@ -22,6 +24,7 @@ ServerRefusal readRefusal(int status, const QByteArray& body, const QString& net
     r.code = o.value(QLatin1String("error")).toString();
     r.message = o.value(QLatin1String("message")).toString().trimmed();
     r.limit = o.value(QLatin1String("limit")).toString();
+    r.permission = o.value(QLatin1String("permission")).toString();
     r.downloadUrl = ServerApi::webLink(o.value(QLatin1String("downloadUrl")).toString()).toString();
     r.minimum = o.value(QLatin1String("minimum")).toString();
     return r;
@@ -45,9 +48,42 @@ bool isFirewallBlock(const ServerRefusal& r) {
 }
 
 bool needsSignIn(const ServerRefusal& r) {
-    if (isLimitRefusal(r) || isFirewallBlock(r) || isAccountState(r)) return false;
-    return r.status == 401 || r.status == 403;
+    if (r.status == 401) return true;
+    // A token without the rights this needs: a new sign-in asks for them.
+    return r.status == 403 && r.code == QLatin1String("insufficient_scope");
 }
+
+QString permissionLabel(const QString& permission) {
+    // The web's role editor (apps/web/src/orgs/clubPermissions.ts).
+    static const std::pair<const char*, const char*> labels[] = {
+        { "view_items", QT_TRANSLATE_NOOP("ServerRefusal", "View club items") },
+        { "edit_layouts", QT_TRANSLATE_NOOP("ServerRefusal", "Edit club layouts") },
+        { "start_layouts", QT_TRANSLATE_NOOP("ServerRefusal", "Start new club layouts") },
+        { "edit_modules", QT_TRANSLATE_NOOP("ServerRefusal", "Add or edit modules") },
+        { "add_parts", QT_TRANSLATE_NOOP("ServerRefusal", "Add parts") },
+        { "manage_venues", QT_TRANSLATE_NOOP("ServerRefusal", "Manage venues") },
+        { "delete_items", QT_TRANSLATE_NOOP("ServerRefusal", "Delete club items") },
+        { "send_catalog", QT_TRANSLATE_NOOP("ServerRefusal", "Send to the catalog") },
+        { "invite", QT_TRANSLATE_NOOP("ServerRefusal", "Invite people") },
+        { "manage_members", QT_TRANSLATE_NOOP("ServerRefusal", "Manage members and roles") },
+        { "export_data", QT_TRANSLATE_NOOP("ServerRefusal", "Download the club's data") },
+    };
+    for (const auto& [key, label] : labels)
+        if (permission == QLatin1String(key)) return tr(label);
+    return permission;
+}
+
+QString askForPermission(const QString& permission) {
+    return tr("Ask a club admin for the %1 permission.").arg(permissionLabel(permission));
+}
+
+namespace {
+// A 403 the server explained: who you are here (your role on the thing, a
+// club's permissions), not your sign-in.
+bool isPermissionRefusal(const ServerRefusal& r) {
+    return r.status == 403 && r.jsonBody && !needsSignIn(r) && !isLimitRefusal(r) && !isAccountState(r);
+}
+}  // namespace
 
 QString describe(const ServerRefusal& r) {
     if (isFirewallBlock(r))
@@ -73,13 +109,32 @@ QString describe(const ServerRefusal& r) {
         if (!r.message.isEmpty()) return r.message.left(400);
         return tr("This server needs a newer Brick Layout Designer. Please download the new version.");
     }
+    if (r.status == 401) return tr("Your sign-in has run out. Sign in again (File › Servers…).");
+    if (r.code == QLatin1String("insufficient_scope") || r.code == QLatin1String("token_not_allowed"))
+        return tr("This sign-in can't do that. Sign in again (File › Servers…) to give the app the rights it "
+                  "needs.");
+    if (r.code == QLatin1String("not_an_org_member")) return tr("You're not a member of that club.");
+    if (r.code.startsWith(QLatin1String("demo_account"))) return tr("The demo account can't do that.");
+    if (!r.permission.isEmpty()) {
+        const QString why = r.code == QLatin1String("only_club_admins_can_add")
+                                ? tr("Your roles in this club can't add that.")
+                                : tr("Your roles in this club don't allow that.");
+        return why + QLatin1Char(' ') + askForPermission(r.permission);
+    }
+    // Servers before club roles name no permission.
+    if (r.code == QLatin1String("only_club_admins_can_add"))
+        return tr("This club only lets some of its members add things. Ask a club admin.");
+    if (isPermissionRefusal(r))
+        return tr("You don't have permission to do that. Ask its owner, or a club admin, for access.");
     if (!r.code.isEmpty()) return r.code;
     if (r.status == 0) return r.networkError.isEmpty() ? tr("The server could not be reached.") : r.networkError;
     return tr("The server answered %1").arg(r.status);
 }
 
 QString failureText(const ServerRefusal& r) {
-    if (isFirewallBlock(r) || isLimitRefusal(r) || isAccountState(r) || isUpdateRequired(r) || r.status == 0) return describe(r);
+    if (isFirewallBlock(r) || isLimitRefusal(r) || isAccountState(r) || isUpdateRequired(r) || isPermissionRefusal(r) ||
+        r.status == 0)
+        return describe(r);
     return tr("The server answered %1").arg(r.status);
 }
 
