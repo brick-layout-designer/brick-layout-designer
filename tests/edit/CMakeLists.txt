@@ -10,6 +10,7 @@ add_executable(bld_edit_tests
     AnnotationUndoTest.cpp
     VenueDesignerTest.cpp
     SetsTest.cpp
+    ConnectionCheckTest.cpp
 )
 
 target_compile_definitions(bld_edit_tests PRIVATE BLD_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
@@ -17,6 +18,7 @@ target_compile_definitions(bld_edit_tests PRIVATE BLD_SOURCE_DIR="${CMAKE_SOURCE
 target_link_libraries(bld_edit_tests
     PRIVATE
         bld_edit
+        bld_import
         bld_saveload
         bld_parts
         bld_core

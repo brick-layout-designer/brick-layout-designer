@@ -32,6 +32,8 @@ add_library(bld_edit STATIC
     venue/VenueDesignerState.cpp
     venue/VenueDesignerState.h
     Connectivity.cpp
+    ConnectionCheck.cpp
+    ConnectionCheck.h
     PartList.cpp
     PartList.h
     FlexMove.cpp
