@@ -647,6 +647,26 @@ TEST_F(MapViewTest, DraggingEmptySpaceMovesTheGridOriginByCells) {
     EXPECT_EQ(static_cast<core::LayerGrid&>(*view_->currentMap()->layers()[gi]).cellIndexCorner, before);
 }
 
+// A grid of 0 studs (or less) is drawn a stud apart, as the cell indices
+// and the snapping take it.
+TEST_F(MapViewTest, AGridSizeBelowOneIsDrawnAsOneStud) {
+    auto* map = view_->currentMap();
+    int gi = -1;
+    for (int i = 0; i < static_cast<int>(map->layers().size()); ++i)
+        if (map->layers()[i]->kind() == core::LayerKind::Grid) { gi = i; break; }
+    ASSERT_GE(gi, 0);
+    auto& grid = static_cast<core::LayerGrid&>(*map->layers()[gi]);
+    view_->resize(400, 300);
+    for (const int size : { 0, -8 }) {
+        grid.gridSizeInStud = size;
+        grid.visible = true;
+        grid.displayGrid = true;
+        grid.displaySubGrid = true;
+        const QImage shot = view_->grab().toImage();
+        EXPECT_FALSE(shot.isNull()) << size;
+    }
+}
+
 int main(int argc, char** argv) {
     // Run off screen as ctest and CI do, also when started by hand from a
     // desktop session: a real compositor (Wayland) may refuse the popups and
