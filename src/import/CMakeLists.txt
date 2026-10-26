@@ -69,6 +69,8 @@ add_library(bld_import STATIC
 
     # Zip-slip guard shared by every archive extractor.
     ArchivePath.cpp
+    PartsZip.cpp
+    PartsZip.h
     zip/SafeZip.cpp
     zip/ZipWriter.cpp
     zip/ZipWriter.h

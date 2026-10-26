@@ -11,6 +11,7 @@ add_executable(bld_import_tests
     LifReaderTest.cpp
     MeshRasterizeTest.cpp
     SafeZipTest.cpp
+    PartsZipTest.cpp
     LayoutFileTest.cpp
     StudioReaderTest.cpp
     LDDGeomReaderTest.cpp

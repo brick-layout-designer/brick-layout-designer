@@ -375,8 +375,8 @@ TEST_F(HelpInMainWindow, PartsActionsLiveInOneToolsPartsMenu) {
     QStringList inParts;
     for (QAction* a : parts->actions())
         if (!a->isSeparator()) inParts << a->text().remove(QLatin1Char('&'));
-    EXPECT_EQ(inParts, (QStringList{ QStringLiteral("Get More Parts..."), QStringLiteral("Parts Folders..."),
-                                     QStringLiteral("Reload Parts") }));
+    EXPECT_EQ(inParts, (QStringList{ QStringLiteral("Get More Parts..."), QStringLiteral("Add Parts from a Zip..."),
+                                     QStringLiteral("Parts Folders..."), QStringLiteral("Reload Parts") }));
     for (QAction* a : parts->actions()) {
         if (!a->isSeparator()) {
             EXPECT_FALSE(a->toolTip().isEmpty()) << a->text().toStdString();
