@@ -875,6 +875,27 @@ TEST_F(MainWindowLive, AccessTakenAwaySaysWhyInPlainWordsAndKeepsTheCopy) {
     EXPECT_FALSE(view_->undoStack()->isClean());
 }
 
+// The copy of a live layout kept on this computer goes in a folder named
+// after its id when the id is in the server's format (a UUID), else after
+// the id's hash.
+TEST_F(MainWindowLive, ALiveLayoutsCopyFolderIsItsIdOrItsHash) {
+    const QString folder = liveCache() + QLatin1Char('/') + sync::ServerList::folderName(http_.base());
+    const auto copyIn = [&](const QString& name) {
+        return waitFor([&] { return QFile::exists(folder + QLatin1Char('/') + name + QStringLiteral("/layout.ydoc")); }, 4000);
+    };
+    const QString uuid = QStringLiteral("3f2504e0-4f89-41d3-9a0c-0305e82c3301");
+    window_->openLive({ http_.base(), QStringLiteral("bld_pat_test"), uuid, QStringLiteral("Show"), false, serverInfo() });
+    ASSERT_TRUE(waitFor([&] { return session().status() == Status::Synced && session().loaded(); }));
+    EXPECT_TRUE(copyIn(uuid));
+
+    const QString odd = QStringLiteral("not a uuid/with:odd*chars");
+    window_->openLive({ http_.base(), QStringLiteral("bld_pat_test"), odd, QStringLiteral("Odd"), false, serverInfo() });
+    ASSERT_TRUE(waitFor([&] { return session().status() == Status::Synced && session().loaded(); }));
+    const QString hash = QString::fromLatin1(QCryptographicHash::hash(odd.toUtf8(), QCryptographicHash::Sha256).toHex());
+    EXPECT_TRUE(copyIn(hash));
+    EXPECT_FALSE(QDir(folder + QStringLiteral("/not a uuid")).exists());
+}
+
 // Journey 7: a desktop member's show day, one chain on one live layout.
 // Live edit → offline edit while someone else edits → back in step, the
 // compare window, Apply → both edits on the server → the Module library
