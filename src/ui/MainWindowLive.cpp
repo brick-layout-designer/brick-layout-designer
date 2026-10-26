@@ -35,6 +35,8 @@
 
 #include <QAction>
 #include <QBuffer>
+#include <QCryptographicHash>
+#include <QRegularExpression>
 #include <QDir>
 #include <QCoreApplication>
 #include <QDateTime>
@@ -265,9 +267,15 @@ void MainWindow::openLive(const sync::ConnectResult& r) {
     currentFilePath_.clear();
     clearActiveView();
     // The layout and any offline edits are kept per server and layout.
+    // The folder is named after the id when it is in the server's format (a
+    // UUID, as every layout id the server makes is), else after its hash.
+    static const QRegularExpression uuidId(QStringLiteral("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"));
+    const QString idFolder = uuidId.match(r.layoutId).hasMatch()
+                                 ? r.layoutId
+                                 : QString::fromLatin1(QCryptographicHash::hash(r.layoutId.toUtf8(), QCryptographicHash::Sha256).toHex());
     const QString cacheDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
                              + QStringLiteral("/live/") + sync::ServerList::folderName(r.server) + QLatin1Char('/')
-                             + r.layoutId;
+                             + idFolder;
     // One of your servers, with this layout first among its recent ones.
     {
         sync::ServerList servers = sync::ServerList::load();
