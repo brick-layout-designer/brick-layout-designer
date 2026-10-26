@@ -83,7 +83,8 @@ void MapView::drawBackground(QPainter* painter, const QRectF& rect) {
         const auto& g = static_cast<const core::LayerGrid&>(*layer);
         if (!g.displayGrid && !g.displaySubGrid && !g.displayCellIndex) continue;
 
-        const double gridPx = g.gridSizeInStud * rendering::SceneBuilder::kPixelsPerStud;
+        // At least a stud, as the cell indices and the snap grid take it.
+        const double gridPx = std::max(1, g.gridSizeInStud) * rendering::SceneBuilder::kPixelsPerStud;
         const double subPx  = gridPx / std::max(g.subDivisionNumber, 2);
 
         const double left   = std::floor(rect.left()   / subPx) * subPx;
