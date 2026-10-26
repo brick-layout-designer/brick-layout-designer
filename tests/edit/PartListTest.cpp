@@ -150,6 +150,52 @@ TEST_F(PartListTest, HtmlEmbedsPicturesAndEscapes) {
     EXPECT_TRUE(html.contains(QStringLiteral("<tr class=\"total\">")));
 }
 
+TEST(PartList, DefuseFormulaLeavesNumbersAndPlainText) {
+    for (const char* kept : { "", "3001", "-5", "-0.5", "-.5", "5.", "Brick 2 x 4", "Total", "N/A", "a=b", "3,667" })
+        EXPECT_EQ(edit::defuseFormula(QString::fromUtf8(kept)), QString::fromUtf8(kept)) << kept;
+    for (const char* risky : { "=1+1", "+1", "-1+cmd", "-cmd", "@SUM(A1)", "\tx", "\rx", "-", "--5", "-5e3" })
+        EXPECT_EQ(edit::defuseFormula(QString::fromUtf8(risky)), QLatin1Char('\'') + QString::fromUtf8(risky)) << risky;
+}
+
+// A part number, a description or a layer name a spreadsheet would run as
+// a formula comes out as text; the numbers stay as they are.
+TEST(PartList, CsvDefusesFormulaLikeCells) {
+    edit::PartListGroup g;
+    g.name = QStringLiteral("@SUM(A1:A9)");
+    edit::PartListRow r;
+    r.part = QStringLiteral("=HYPERLINK(\"http://example.com\";\"x\")");
+    r.count = 2;
+    r.colorName = QStringLiteral("+1");
+    r.description = QStringLiteral("\t-cmd");
+    g.rows.push_back(r);
+    edit::PartListRow plain;
+    plain.part = QStringLiteral("3001");
+    plain.count = 3;
+    plain.colorName = QStringLiteral("Red");
+    plain.description = QStringLiteral("Brick 2 x 4");
+    g.rows.push_back(plain);
+    g.total.count = 5;
+    const QStringList csv = edit::partListCsv({ g }, false).split(QLatin1Char('\n'));
+    ASSERT_GE(csv.size(), 5);
+    EXPECT_EQ(csv[0], QStringLiteral("'@SUM(A1:A9)"));
+    EXPECT_EQ(csv[2], QStringLiteral("'=HYPERLINK(\"http://example.com\";\"x\"),2,'+1,'\t-cmd,N/A,N/A,N/A"));
+    EXPECT_EQ(csv[3], QStringLiteral("3001,3,Red,Brick 2 x 4,N/A,N/A,N/A"));
+    EXPECT_EQ(csv[4], QStringLiteral("Total,5,,,N/A,N/A,N/A"));
+
+    // With a budget: a missing count or usage stays a number.
+    edit::PartListGroup budgeted;
+    edit::PartListRow over;
+    over.part = QStringLiteral("-5");
+    over.count = 7;
+    over.budget = 5;
+    over.missing = 2;
+    over.usage = 140;
+    budgeted.rows.push_back(over);
+    budgeted.total = over;
+    const QStringList withBudget = edit::partListCsv({ budgeted }, true).split(QLatin1Char('\n'));
+    EXPECT_EQ(withBudget[1], QStringLiteral("-5,7,,,5,2,140"));
+}
+
 // Every .bbm under fixtures/ exported to CSV three ways (no budget, with
 // fixtures/bluebrick-oracle/budget.bbb, split per layer) matches the files in
 // fixtures/part-list-csv byte for byte. They were written from the export as

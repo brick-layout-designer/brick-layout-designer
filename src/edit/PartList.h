@@ -50,7 +50,13 @@ std::vector<PartListGroup> buildPartList(const core::Map& map, const parts::Part
 // embeds each part's picture from `picture` (empty image: none).
 QString partListText(const core::Map& map, const std::vector<PartListGroup>& groups,
                      const QString& title, bool hasBudget);
+// The CSV is BlueBrick's, except that a text cell a spreadsheet would run
+// as a formula gets a leading ' (defuseFormula).
 QString partListCsv(const std::vector<PartListGroup>& groups, bool hasBudget);
+// A cell that starts with =, +, -, @, a tab or a CR is run as a formula by
+// Excel, LibreOffice and Sheets, so it gets a leading ' (shown as text). A
+// plain number (5, -5, -0.5) is left as it is. The web's csvSafety.ts.
+QString defuseFormula(const QString& cell);
 QString partListHtml(const core::Map& map, const std::vector<PartListGroup>& groups,
                      const QString& title, bool hasBudget,
                      const std::function<QImage(const QString& partNumber)>& picture);
