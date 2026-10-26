@@ -1,0 +1,355 @@
+{
+  "about": "Update guard (web apps/server/src/ws/updateGuard.ts, desktop src/sync/UpdateGuard.cpp): each vector is an update (Yjs update v1) or a state vector, as hex, and whether both apps refuse it; when refused, `contains` (if given) is a word the reason holds. maxUpdateBytes and maxNesting are the limits both use.",
+  "maxUpdateBytes": 67108864,
+  "maxNesting": 256,
+  "vectors": [
+    {
+      "what": "the empty document",
+      "kind": "update",
+      "hex": "0000",
+      "refused": false
+    },
+    {
+      "what": "the empty state vector",
+      "kind": "stateVector",
+      "hex": "00",
+      "refused": false
+    },
+    {
+      "what": "a document the web writes (unicode, emoji, every value kind, nested types, formatted text, deletions)",
+      "kind": "update",
+      "hex": "011587ad4b002801046d657461057469746c6501773e466f7264796365203230323620e28094204261686e686f66205ac3bc7269636820e29c9320f09f988020e697a5e69cace8aa9e20d985d8b1d8add8a8d8a72101046d657461046c6f6e67012801046d657461046e756d730175097d007d417c3fc000007b3fb999999999999a7c4f0000007cd38000007b444b1ae4d6e2ef507b3e8421f5f40d83767b433fffffffffffff2801046d65746105666c61677301760401617801627901637e0164760101657501760101667701672301046d65746104626c6f6204000102ff2801046d65746103626967017aab54a98ceb1f0ad20701066c617965727301280087ad4b060a706172744e756d626572017706333030312e31280087ad4b06046e616d650177a006f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82270087ad4b06046c69737400080087ad4b09017701618187ad4b0a018887ad4b0b017701630401056e6f7465730348656c8487ad4b0f026c6f8487ad4b110c2077c3b6726c6420f09f918b4687ad4b0d04626f6c640474727565c687ad4b1187ad4b1204626f6c64046e756c6cc687ad4b0f87ad4b1004626f6c64046e756c6cc587ad4b1d87ad4b100d7b22696d616765223a2278227dc687ad4b1e87ad4b1004626f6c6404747275650187ad4b0201010b01",
+      "refused": false
+    },
+    {
+      "what": "its state vector",
+      "kind": "stateVector",
+      "hex": "0187ad4b20",
+      "refused": false
+    },
+    {
+      "what": "an edit the web writes (a set and a deletion)",
+      "kind": "update",
+      "hex": "010187ad4b2000010187ad4b03010106072001",
+      "refused": false
+    },
+    {
+      "what": "values nested 3 deep",
+      "kind": "update",
+      "hex": "010107002801046d6574610178017501750175017e00",
+      "refused": false
+    },
+    {
+      "what": "values nested 256 deep (the limit)",
+      "kind": "update",
+      "hex": "010107002801046d65746101780175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017e00",
+      "refused": false
+    },
+    {
+      "what": "bytes holding a NUL",
+      "kind": "update",
+      "hex": "010107002801046d657461017801740361006200",
+      "refused": false
+    },
+    {
+      "what": "a map nested in meta",
+      "kind": "update",
+      "hex": "010107002701046d65746101780100",
+      "refused": false
+    },
+    {
+      "what": "GC blocks of length 1 and 2",
+      "kind": "update",
+      "hex": "010205000001000200",
+      "refused": false
+    },
+    {
+      "what": "4 billion clients",
+      "kind": "update",
+      "hex": "ffffffff0f000000",
+      "refused": true,
+      "contains": "clients"
+    },
+    {
+      "what": "204 million blocks",
+      "kind": "update",
+      "hex": "018096a3610100",
+      "refused": true,
+      "contains": "blocks"
+    },
+    {
+      "what": "a 4 GB string",
+      "kind": "update",
+      "hex": "010107002801046d65746101780177ffffffff0f00",
+      "refused": true
+    },
+    {
+      "what": "250 million object entries",
+      "kind": "update",
+      "hex": "010107002801046d65746101780176ffffff7a00",
+      "refused": true
+    },
+    {
+      "what": "250 million array items",
+      "kind": "update",
+      "hex": "010107002801046d65746101780175ffffff7a00",
+      "refused": true
+    },
+    {
+      "what": "4 billion values",
+      "kind": "update",
+      "hex": "010107002801046d6574610178ffffffff0f00",
+      "refused": true
+    },
+    {
+      "what": "4 billion JSON values",
+      "kind": "update",
+      "hex": "010107002201046d6574610178feffffff0f00",
+      "refused": true
+    },
+    {
+      "what": "4 billion deleted ranges",
+      "kind": "update",
+      "hex": "000107ffffffff0f",
+      "refused": true
+    },
+    {
+      "what": "a number past 64 bits",
+      "kind": "update",
+      "hex": "ffffffffffffffffffffff",
+      "refused": true,
+      "contains": "64 bits"
+    },
+    {
+      "what": "a state vector claiming 4 billion clients",
+      "kind": "stateVector",
+      "hex": "ffffffff0f01",
+      "refused": true,
+      "contains": "clients"
+    },
+    {
+      "what": "values nested 257 deep",
+      "kind": "update",
+      "hex": "010107002801046d657461017801750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017501750175017e00",
+      "refused": true,
+      "contains": "nest"
+    },
+    {
+      "what": "a weak link",
+      "kind": "update",
+      "hex": "010107002701046d6574610178070000",
+      "refused": true,
+      "contains": "weak link"
+    },
+    {
+      "what": "an unknown content kind",
+      "kind": "update",
+      "hex": "010107002b01046d657461017800",
+      "refused": true
+    },
+    {
+      "what": "an unknown type",
+      "kind": "update",
+      "hex": "010107002701046d65746101780c00",
+      "refused": true
+    },
+    {
+      "what": "a NUL in a string",
+      "kind": "update",
+      "hex": "010107002801046d657461017801770361006200",
+      "refused": true,
+      "contains": "NUL"
+    },
+    {
+      "what": "a NUL in a map key",
+      "kind": "update",
+      "hex": "010107002801046d65746103780079017e00",
+      "refused": true,
+      "contains": "NUL"
+    },
+    {
+      "what": "an empty GC block",
+      "kind": "update",
+      "hex": "010205000001000000",
+      "refused": true,
+      "contains": "empty block"
+    },
+    {
+      "what": "a document cut in half",
+      "kind": "update",
+      "hex": "011587ad4b002801046d657461057469746c6501773e466f7264796365203230323620e28094204261686e686f66205ac3bc7269636820e29c9320f09f988020e697a5e69cace8aa9e20d985d8b1d8add8a8d8a72101046d657461046c6f6e67012801046d657461046e756d730175097d007d417c3fc000007b3fb999999999999a7c4f0000007cd38000007b444b1ae4d6e2ef507b3e8421f5f40d83767b433fffffffffffff2801046d65746105666c61677301760401617801627901637e0164760101657501760101667701672301046d65746104626c6f6204000102ff2801046d65746103626967017aab54a98ceb1f0ad20701066c617965727301280087ad4b060a706172744e756d626572017706333030312e31280087ad4b06046e616d650177a006f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f09f9a82f0",
+      "refused": true
+    },
+    {
+      "what": "fuzz-regressions/ydoc-claims-204-million-blocks.bin",
+      "kind": "update",
+      "hex": "018096a3610100",
+      "refused": true
+    },
+    {
+      "what": "fuzz-regressions/ydoc-claims-250-million-entries.bin",
+      "kind": "update",
+      "hex": "010107002801046d65746101780176ffffff7a00",
+      "refused": true
+    },
+    {
+      "what": "fuzz-regressions/ydoc-claims-4-billion-clients.bin",
+      "kind": "update",
+      "hex": "ffffffff0f000000",
+      "refused": true
+    },
+    {
+      "what": "fuzz-regressions/ydoc-empty-gc-block.bin",
+      "kind": "update",
+      "hex": "110101780176ff002d001000000000000000000000000000000000000000000000000100000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "refused": true,
+      "contains": "empty block"
+    },
+    {
+      "what": "fuzz-regressions/ydoc-nul-in-a-key.bin",
+      "kind": "update",
+      "hex": "010107002801046d65746103780079017e00",
+      "refused": true,
+      "contains": "NUL"
+    },
+    {
+      "what": "fuzz-regressions/ydoc-nul-in-a-string.bin",
+      "kind": "update",
+      "hex": "010107002801046d657461017801770361006200",
+      "refused": true,
+      "contains": "NUL"
+    }
+  ],
+  "gridSize": {
+    "about": "Grid sizes (server apps/server/src/ws/gridGuard.ts): a grid layer's gridSizeInStud must be a finite number from 1 to 2147483647. Each `update` vector is applied on `base` (the room's document: a grid layer G of 32 studs and a parts layer B); each `document` vector is a whole document on its own (a snapshot). `refused`: whether the server refuses it. Both apps read every one of them (the update guard passes them all); the desktop's ContractsTest checks that, and what grid size it reads.",
+    "base": "010b01002801046d6574610776657273696f6e017d092801046d657461057469746c65017704477269642701096c61796572446174610147012800010204747970650177046772696428000102046e616d6501770447726964280001020e6772696453697a65496e53747564017d2028000102117375624469766973696f6e4e756d626572017d042701096c6179657244617461014201280001070474797065017705627269636b28000107046e616d65017706427269636b730801066c61796572730277014777014200",
+    "vectors": [
+      {
+        "what": "the grid size set to 64",
+        "kind": "update",
+        "hex": "01010200a80105017d80010101010501",
+        "refused": false
+      },
+      {
+        "what": "the grid size set to 1",
+        "kind": "update",
+        "hex": "01010200a80105017d010101010501",
+        "refused": false
+      },
+      {
+        "what": "the grid size set to the largest 32-bit int",
+        "kind": "update",
+        "hex": "01010200a80105017dbfffffff0f0101010501",
+        "refused": false
+      },
+      {
+        "what": "the grid size set to 0",
+        "kind": "update",
+        "hex": "01010200a80105017d000101010501",
+        "refused": true
+      },
+      {
+        "what": "the grid size set to -8",
+        "kind": "update",
+        "hex": "01010200a80105017d480101010501",
+        "refused": true
+      },
+      {
+        "what": "the grid size set to 0.5",
+        "kind": "update",
+        "hex": "01010200a80105017c3f0000000101010501",
+        "refused": true
+      },
+      {
+        "what": "the grid size set to NaN",
+        "kind": "update",
+        "hex": "01010200a80105017b7ff80000000000000101010501",
+        "refused": true
+      },
+      {
+        "what": "the grid size set to Infinity",
+        "kind": "update",
+        "hex": "01010200a80105017c7f8000000101010501",
+        "refused": true
+      },
+      {
+        "what": "the grid size set past the largest 32-bit int",
+        "kind": "update",
+        "hex": "01010200a80105017c4f32d05e0101010501",
+        "refused": true
+      },
+      {
+        "what": "the grid size set to a string",
+        "kind": "update",
+        "hex": "01010200a8010501770233320101010501",
+        "refused": true
+      },
+      {
+        "what": "the grid size set to null",
+        "kind": "update",
+        "hex": "01010200a80105017e0101010501",
+        "refused": true
+      },
+      {
+        "what": "the grid size deleted",
+        "kind": "update",
+        "hex": "000101010501",
+        "refused": true
+      },
+      {
+        "what": "a parts layer turned into a grid without a size",
+        "kind": "update",
+        "hex": "01010200a80108017704677269640101010801",
+        "refused": true
+      },
+      {
+        "what": "a parts layer given a grid size of 0 (not a grid: not checked)",
+        "kind": "update",
+        "hex": "01010200280001070e6772696453697a65496e53747564017d0000",
+        "refused": false
+      },
+      {
+        "what": "a new grid layer of 16 studs",
+        "kind": "update",
+        "hex": "010402002701096c61796572446174610247320128000200047479706501770467726964280002000e6772696453697a65496e53747564017d1088010b017702473200",
+        "refused": false
+      },
+      {
+        "what": "a new grid layer without a size",
+        "kind": "update",
+        "hex": "010302002701096c6179657244617461024732012800020004747970650177046772696488010b017702473200",
+        "refused": true
+      },
+      {
+        "what": "a new grid layer of 0 studs",
+        "kind": "update",
+        "hex": "010402002701096c61796572446174610247320128000200047479706501770467726964280002000e6772696453697a65496e53747564017d0088010b017702473200",
+        "refused": true
+      },
+      {
+        "what": "an edit away from the grid (the title)",
+        "kind": "update",
+        "hex": "01010200a801010177064772696420320101010101",
+        "refused": false
+      },
+      {
+        "what": "a whole document with a grid of 32 studs",
+        "kind": "document",
+        "hex": "010503002801046d6574610776657273696f6e017d092701096c617965724461746101470128000301047479706501770467726964280003010e6772696453697a65496e53747564017d200801066c61796572730177014700",
+        "refused": false
+      },
+      {
+        "what": "a whole document with a grid of 0 studs",
+        "kind": "document",
+        "hex": "010503002801046d6574610776657273696f6e017d092701096c617965724461746101470128000301047479706501770467726964280003010e6772696453697a65496e53747564017d000801066c61796572730177014700",
+        "refused": true
+      },
+      {
+        "what": "a whole document with a grid of -Infinity studs",
+        "kind": "document",
+        "hex": "010503002801046d6574610776657273696f6e017d092701096c617965724461746101470128000301047479706501770467726964280003010e6772696453697a65496e53747564017cff8000000801066c61796572730177014700",
+        "refused": true
+      }
+    ]
+  }
+}

@@ -9,6 +9,9 @@
 //   - sidecar-hash.json: the sidecarItems blob hash of each vector
 //   - part-naming.json: a server custom part cached by PartsSync is found
 //     by its number and by the website's "custom:<id>" key
+//   - update-guard.json: the update guard refuses what the web's does, with
+//     the same limits; its gridSize vectors (grid sizes the server refuses)
+//     all read here
 //
 // BLD_WRITE_CONTRACTS=1 rewrites imported-part.xml and the rings in
 // imported-part.json from the code instead of checking them; copy the
@@ -17,6 +20,12 @@
 #include "FakeHttp.h"
 #include "PartsSync.h"
 #include "SidecarItems.h"
+#include "SyncDoc.h"
+#include "UpdateGuard.h"
+#include "WebModel.h"
+
+#include "core/LayerGrid.h"
+#include "core/Map.h"
 
 #include "import/ImportToPart.h"
 #include "parts/PartsLibrary.h"
@@ -298,4 +307,56 @@ TEST(Contracts, AServerCustomPartIsFoundByNumberAndByItsWebsiteKey) {
     ASSERT_TRUE(byUpperKey.has_value());
     EXPECT_EQ(byKey->xmlFilePath, byNumber->xmlFilePath);
     EXPECT_EQ(byUpperKey->xmlFilePath, byNumber->xmlFilePath);
+}
+
+namespace {
+QByteArray fromHex(const QJsonValue& v) { return QByteArray::fromHex(v.toString().toLatin1()); }
+}  // namespace
+
+TEST(Contracts, TheUpdateGuardRefusesWhatTheWebsDoes) {
+    const QJsonObject c = readJson(QStringLiteral("update-guard.json"));
+    EXPECT_EQ(c.value(QStringLiteral("maxUpdateBytes")).toInteger(), sync::guard::kMaxUpdateBytes);
+    EXPECT_EQ(c.value(QStringLiteral("maxNesting")).toInt(), sync::guard::kMaxNesting);
+    const QJsonArray vectors = c.value(QStringLiteral("vectors")).toArray();
+    ASSERT_GE(vectors.size(), 10);
+    for (const QJsonValue& v : vectors) {
+        const QJsonObject o = v.toObject();
+        const QByteArray bytes = fromHex(o.value(QStringLiteral("hex")));
+        const QString why = o.value(QStringLiteral("kind")).toString() == QLatin1String("stateVector")
+                                ? sync::guard::checkStateVector(bytes)
+                                : sync::guard::checkUpdate(bytes);
+        EXPECT_EQ(!why.isEmpty(), o.value(QStringLiteral("refused")).toBool())
+            << o.value(QStringLiteral("what")).toString().toStdString() << ": " << why.toStdString();
+    }
+}
+
+// Grid sizes the server refuses (gridSize): every vector still reads here
+// (the refusal is the server's; MapViewPaint draws a size below 1 as one
+// stud), and the ones it takes leave a size of 1 or more.
+TEST(Contracts, TheGridSizeVectorsReadAndDraw) {
+    const QJsonObject g = readJson(QStringLiteral("update-guard.json")).value(QStringLiteral("gridSize")).toObject();
+    const QByteArray base = fromHex(g.value(QStringLiteral("base")));
+    const QJsonArray vectors = g.value(QStringLiteral("vectors")).toArray();
+    ASSERT_GE(vectors.size(), 15);
+    for (const QJsonValue& v : vectors) {
+        const QJsonObject o = v.toObject();
+        const std::string what = o.value(QStringLiteral("what")).toString().toStdString();
+        const QByteArray update = fromHex(o.value(QStringLiteral("hex")));
+        EXPECT_TRUE(sync::guard::checkUpdate(update).isEmpty()) << what;
+        sync::SyncDoc doc;
+        if (o.value(QStringLiteral("kind")).toString() == QLatin1String("update")) {
+            ASSERT_TRUE(doc.applyUpdate(base)) << what;
+        }
+        ASSERT_TRUE(doc.applyUpdate(update)) << what;
+        QString error;
+        const auto map = sync::mapFromDocJson(doc.toJson(), &error);
+        ASSERT_TRUE(map) << what << ": " << error.toStdString();
+        for (const auto& layer : map->layers()) {
+            if (layer->kind() != core::LayerKind::Grid) continue;
+            const int size = static_cast<const core::LayerGrid&>(*layer).gridSizeInStud;
+            if (!o.value(QStringLiteral("refused")).toBool()) {
+                EXPECT_GE(size, 1) << what;
+            }
+        }
+    }
 }
