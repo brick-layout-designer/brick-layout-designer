@@ -100,7 +100,7 @@ TEST(ServerApi, ChecksTheServerSpeaksOurProtocolAndSchema) {
         s.protocols = { protocol };
         return s;
     };
-    EXPECT_FALSE(server(2, QStringLiteral("y-websocket/1")).compatible());
+    EXPECT_FALSE(server(kDocSchemaVersion + 1, QStringLiteral("y-websocket/1")).compatible());
     EXPECT_FALSE(server(1, QStringLiteral("y-websocket/2")).compatible());
 }
 

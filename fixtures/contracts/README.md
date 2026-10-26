@@ -15,15 +15,17 @@ change in one repo fails until the other has the same copy.
 - `update-guard.json`: updates and state vectors (hex) and whether the
   update guard refuses them (web apps/server/src/ws/updateGuard.ts, desktop
   src/sync/UpdateGuard.cpp), with the limits both use.
-  Its `gridSize` part: updates (on a base document) and whole documents,
-  and whether the server refuses them for a grid size both apps can't
-  draw (web apps/server/src/ws/gridGuard.ts); the desktop checks it reads
-  them all.
+- `doc-shape.json`: doc shape 2 (packages/ydoc shape.ts, desktop
+  sync/DocShape.cpp): the drawing order by z, the z a reorder sets, and
+  concurrent edits (a web update made on a base doc, and the edit the
+  desktop makes at the same time) with what the doc must hold after.
+  The web's `BLD_WRITE_CONTRACTS=1 vitest run src/editor/test/docShape.test.ts`
+  writes the concurrent ones.
 - `part-naming.json`: a server custom part, placed on the website as
   `custom:<id>`, which every export names by its part number and the
   desktop's parts cache finds by either.
 
 To change them: edit (or, for the imported part, run the desktop's
 `bld_sync_tests --gtest_filter='Contracts.*'` with `BLD_WRITE_CONTRACTS=1`),
-then `sha256sum imported-part.json imported-part.xml part-naming.json sidecar-hash.json update-guard.json > MANIFEST.sha256`
+then `sha256sum doc-shape.json imported-part.json imported-part.xml part-naming.json sidecar-hash.json update-guard.json > MANIFEST.sha256`
 and copy the folder to the other repo.
