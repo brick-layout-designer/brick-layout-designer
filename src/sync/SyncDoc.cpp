@@ -456,6 +456,26 @@ struct SyncDoc::Impl {
         if (!items.empty()) yarray_insert_range(arr, txn, 0, items.data(), static_cast<uint32_t>(items.size()));
     }
 
+    // A ruler there twice (two people turned the sheet into Y.Maps at the
+    // same moment): remove the later copies. Returns the list without them.
+    QJsonArray dropRepeats(const Branch* arr, const QJsonArray& cur) {
+        const QStringList ids = idsOf(cur);
+        QSet<QString> seen;
+        QList<qsizetype> repeats;
+        for (qsizetype i = 0; i < ids.size(); ++i) {
+            if (!ids[i].isEmpty() && seen.contains(ids[i])) repeats << i;
+            seen.insert(ids[i]);
+        }
+        if (repeats.isEmpty()) return cur;
+        QJsonArray out = cur;
+        for (qsizetype k = repeats.size() - 1; k >= 0; --k) {
+            yarray_remove_range(arr, txn, static_cast<uint32_t>(repeats[k]), 1);
+            out.removeAt(repeats[k]);
+            ++ops;
+        }
+        return out;
+    }
+
     // Whether every entry of the array is a Y.Map.
     bool allMaps(const Branch* arr) {
         const uint32_t n = yarray_len(arr);
@@ -516,7 +536,10 @@ struct SyncDoc::Impl {
             if (!isArrayKey(it.key())) continue;
             const QByteArray key = it.key().toUtf8();
             Output existing(ymap_get(map, txn, key.constData()));
-            const QJsonArray curList = cur.value(it.key()).toArray(), wantList = it.value().toArray();
+            QJsonArray curList = cur.value(it.key()).toArray();
+            const QJsonArray wantList = it.value().toArray();
+            if (existing && existing->tag == Y_ARRAY && it.key() == QLatin1String("rulerItems"))
+                curList = dropRepeats(youtput_read_yarray(existing.get()), curList);
             if (!existing || existing->tag != Y_ARRAY) {
                 const YInput v = arena.arrayOrPlain(it.key(), it.value());
                 ymap_insert(map, txn, arena.str(it.key()), &v);

@@ -14,6 +14,7 @@
 #include "core/Map.h"
 
 #include <QJsonArray>
+#include <QSet>
 
 #include <algorithm>
 #include <cmath>
@@ -176,8 +177,14 @@ std::unique_ptr<core::Layer> layer(const QJsonObject& o, QString* error) {
         out = std::move(l);
     } else if (type == QLatin1String("ruler")) {
         auto l = std::make_unique<core::LayerRuler>();
+        // A ruler there twice (two people turned the sheet into Y.Maps at the
+        // same moment) reads once; the web's repair removes the copy.
+        QSet<QString> seenRulers;
         for (const auto& v : inZOrder(arr(o, "rulerItems"))) {
             const QJsonObject r = v.toObject();
+            const QString rid = str(r, "id");
+            if (!rid.isEmpty() && seenRulers.contains(rid)) continue;
+            seenRulers.insert(rid);
             core::LayerRuler::AnyRuler any;
             if (str(r, "kind") == QLatin1String("circular")) {
                 any.kind = core::RulerKind::Circular;

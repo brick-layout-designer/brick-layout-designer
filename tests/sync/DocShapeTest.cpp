@@ -85,9 +85,10 @@ void check(const sync::SyncDoc& d, const QJsonObject& want, const QString& name)
     auto map = mapOf(d);
     ASSERT_TRUE(map);
     SCOPED_TRACE(name.toStdString());
-    if (want.contains(QLatin1String("rulers")))
+    if (want.contains(QLatin1String("rulers"))) {
         EXPECT_EQ(static_cast<int>(layerOf<core::LayerRuler>(*map, core::LayerKind::Ruler)->rulers.size()),
                   want.value(QLatin1String("rulers")).toInt());
+    }
     if (want.contains(QLatin1String("cells"))) {
         const auto& cells = layerOf<core::LayerArea>(*map, core::LayerKind::Area)->cells;
         ASSERT_EQ(static_cast<int>(cells.size()), want.value(QLatin1String("cells")).toInt());
@@ -274,4 +275,81 @@ TEST(DocShape, ReadsAndMovesAShapeOneDocOnTheFirstEditThatNeedsIt) {
     d.undo();
     EXPECT_EQ(schemaOf(d), sync::kDocShapeInPlace);
     EXPECT_NE(layerOf<core::LayerBrick>(*mapOf(d), core::LayerKind::Brick)->bricks.back().guid, top);
+}
+
+// A doc in shape 1 (the contract's shapeOne: plain-object rulers r1 and r2,
+// an area sheet, two parts) reads as it is; the first ruler edit turns the
+// rulers into Y.Maps and marks the doc 2, losing nothing. After that, a
+// delete and a move of the same ruler at the same moment merge.
+TEST(DocShape, TurnsPlainObjectRulersIntoYMapsOnTheFirstRulerEdit) {
+    const QByteArray one = QByteArray::fromBase64(contract().value(QLatin1String("shapeOne")).toString().toLatin1());
+    ASSERT_FALSE(one.isEmpty());
+    sync::SyncDoc a, b;
+    ASSERT_TRUE(a.applyUpdate(one));
+    EXPECT_EQ(schemaOf(a), sync::kDocBaseSchema);
+    auto mapA = mapOf(a);
+    auto* ra = layerOf<core::LayerRuler>(*mapA, core::LayerKind::Ruler);
+    ASSERT_TRUE(ra);
+    ASSERT_EQ(ra->rulers.size(), 2u);
+    EXPECT_EQ(ra->rulers[0].linear.guid, QStringLiteral("r1"));
+    const QString sheet = ra->guid;
+    const auto rulerItems = [&](const sync::SyncDoc& d) {
+        return d.toJson().value(QLatin1String("layerData")).toObject().value(sheet).toObject()
+            .value(QLatin1String("rulerItems")).toArray();
+    };
+    // A moves r1: the sheet turns into Y.Maps, r2 untouched.
+    ra->rulers[0].linear.point1 += QPointF(0, 5);
+    ra->rulers[0].linear.point2 += QPointF(0, 5);
+    ra->rulers[0].linear.displayArea.translate(0, 5);
+    const QByteArray converted = a.writeMap(*mapA);
+    EXPECT_EQ(schemaOf(a), sync::kDocShapeInPlace);
+    ASSERT_EQ(rulerItems(a).size(), 2);
+    EXPECT_EQ(rulerItems(a)[1].toObject().value(QLatin1String("point1")).toObject().value(QLatin1String("y")).toDouble(), 20.0);
+    ASSERT_TRUE(b.applyUpdate(one));
+    ASSERT_TRUE(b.applyUpdate(converted));
+    // Then A deletes r2 while B moves it.
+    mapA = mapOf(a);
+    auto& la = layerOf<core::LayerRuler>(*mapA, core::LayerKind::Ruler)->rulers;
+    la.erase(la.begin() + 1);
+    auto mapB = mapOf(b);
+    auto& r2 = layerOf<core::LayerRuler>(*mapB, core::LayerKind::Ruler)->rulers.at(1).linear;
+    r2.point1 += QPointF(3, 0);
+    r2.point2 += QPointF(3, 0);
+    const QByteArray fromA = a.writeMap(*mapA), fromB = b.writeMap(*mapB);
+    ASSERT_TRUE(a.applyUpdate(fromB));
+    ASSERT_TRUE(b.applyUpdate(fromA));
+    for (const auto* d : { &a, &b }) {
+        auto m = mapOf(*d);
+        const auto& rulers = layerOf<core::LayerRuler>(*m, core::LayerKind::Ruler)->rulers;
+        ASSERT_EQ(rulers.size(), 1u);
+        EXPECT_EQ(rulers[0].linear.guid, QStringLiteral("r1"));
+        EXPECT_EQ(rulers[0].linear.point1.y(), 5.0);
+    }
+}
+
+// Two desktops making the first ruler edit of a shape-1 doc at the same
+// moment both turn the sheet into Y.Maps: each ruler then reads once, and
+// the next write removes the copies.
+TEST(DocShape, TwoConversionsAtOnceLeaveEachRulerOnce) {
+    const QByteArray one = QByteArray::fromBase64(contract().value(QLatin1String("shapeOne")).toString().toLatin1());
+    sync::SyncDoc a, b;
+    ASSERT_TRUE(a.applyUpdate(one));
+    ASSERT_TRUE(b.applyUpdate(one));
+    auto mapA = mapOf(a), mapB = mapOf(b);
+    layerOf<core::LayerRuler>(*mapA, core::LayerKind::Ruler)->rulers[0].linear.lineThickness = 2.0f;
+    layerOf<core::LayerRuler>(*mapB, core::LayerKind::Ruler)->rulers[1].linear.lineThickness = 4.0f;
+    const QByteArray fromA = a.writeMap(*mapA), fromB = b.writeMap(*mapB);
+    ASSERT_TRUE(a.applyUpdate(fromB));
+    ASSERT_TRUE(b.applyUpdate(fromA));
+    auto merged = mapOf(a);
+    auto* sheet = layerOf<core::LayerRuler>(*merged, core::LayerKind::Ruler);
+    ASSERT_EQ(sheet->rulers.size(), 2u);
+    const auto count = [&](const sync::SyncDoc& d) {
+        return d.toJson().value(QLatin1String("layerData")).toObject().value(sheet->guid).toObject()
+            .value(QLatin1String("rulerItems")).toArray().size();
+    };
+    EXPECT_EQ(count(a), 4);  // both conversions' entries, until a write
+    sheet->rulers[0].linear.lineThickness = 5.0f;
+    ASSERT_FALSE(a.writeMap(*merged).isEmpty());
+    EXPECT_EQ(count(a), 2);
 }
