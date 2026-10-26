@@ -14,6 +14,7 @@
 #include <QCoreApplication>
 #include <QHash>
 #include <QLocale>
+#include <QRegularExpression>
 
 #include <algorithm>
 #include <cmath>
@@ -186,6 +187,18 @@ QString partListText(const core::Map& map, const std::vector<PartListGroup>& gro
     return out;
 }
 
+QString defuseFormula(const QString& cell) {
+    if (cell.isEmpty()) return cell;
+    const QChar first = cell.front();
+    if (first != QLatin1Char('=') && first != QLatin1Char('+') && first != QLatin1Char('-') &&
+        first != QLatin1Char('@') && first != QLatin1Char('\t') && first != QLatin1Char('\r'))
+        return cell;
+    // An ordinary decimal number, optionally negative (-5, -0.5, -.5), is data, not a formula.
+    static const QRegularExpression plainNumber(QStringLiteral("^-?(\\d+(\\.\\d*)?|\\.\\d+)$"));
+    if (plainNumber.match(cell).hasMatch()) return cell;
+    return QLatin1Char('\'') + cell;
+}
+
 QString partListCsv(const std::vector<PartListGroup>& groups, bool hasBudget) {
     const auto row = [&](const PartListRow& r, bool isTotal) {
         QStringList c = cells(r, isTotal, hasBudget);
@@ -193,11 +206,12 @@ QString partListCsv(const std::vector<PartListGroup>& groups, bool hasBudget) {
         c[0].replace(QLatin1Char(','), QLatin1Char(' '));
         if (hasBudget && (isTotal || r.usage >= 0))
             c[6] = c[6].mid(11).chopped(1);  // just the number, as BlueBrick
+        for (QString& cell : c) cell = defuseFormula(cell);
         return c.join(QLatin1Char(',')) + QLatin1Char('\n');
     };
     QString out;
     for (const auto& g : groups) {
-        if (!g.name.isEmpty()) out += g.name + QLatin1Char('\n');
+        if (!g.name.isEmpty()) out += defuseFormula(g.name) + QLatin1Char('\n');
         out += columnTitles().join(QLatin1Char(',')) + QLatin1Char('\n');
         for (const auto& r : g.rows) out += row(r, false);
         out += row(g.total, true);
