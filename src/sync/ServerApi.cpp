@@ -13,7 +13,7 @@ namespace bld::sync {
 
 QByteArray userAgent() {
     const QString version = QCoreApplication::applicationVersion();
-    return QStringLiteral("BrickLayoutDesigner/%1 (desktop)")
+    return QStringLiteral("CollaborativeBrickLayoutDesigner/%1 (desktop)")
         .arg(version.isEmpty() ? QStringLiteral("dev") : version)
         .toUtf8();
 }

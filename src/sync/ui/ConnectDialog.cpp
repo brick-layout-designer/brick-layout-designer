@@ -421,15 +421,15 @@ void ConnectDialog::onVersion(const ServerInfo& info) {
     const QString mine = QCoreApplication::applicationVersion();
     // Too old for this server: stop here, before signing in or syncing anything.
     if (info.standing(mine) == Standing::UpdateRequired) {
-        showUpdateNeeded(tr("This server needs Brick Layout Designer %1 or newer, and you have %2. "
+        showUpdateNeeded(tr("This server needs Collaborative Brick Layout Designer %1 or newer, and you have %2. "
                             "Download the new version, install it, then connect again.")
                              .arg(info.desktopMinimum, mine),
                          info.downloadUrl);
         return;
     }
     if (!info.compatible()) {
-        showUpdateNeeded(tr("This server keeps its layouts in a newer form than this version of Brick Layout "
-                            "Designer can read. Download the new version, then connect again."),
+        showUpdateNeeded(tr("This server keeps its layouts in a newer form than this version of Collaborative "
+                            "Brick Layout Designer can read. Download the new version, then connect again."),
                          info.downloadUrl);
         return;
     }
@@ -446,13 +446,13 @@ void ConnectDialog::onVersion(const ServerInfo& info) {
     list.save();
     // Signing in (File › Servers…): always a new sign-in, whatever is saved.
     if (purpose_ == Purpose::SignIn) {
-        api_.startSignIn(tr("Brick Layout Designer %1").arg(QCoreApplication::applicationVersion()).trimmed());
+        api_.startSignIn(tr("Collaborative Brick Layout Designer %1").arg(QCoreApplication::applicationVersion()).trimmed());
         return;
     }
     tokens_.load(server_, [this](const QString& token) {
         if (token.isEmpty()) {
             api_.startSignIn(
-                tr("Brick Layout Designer %1").arg(QCoreApplication::applicationVersion()).trimmed());
+                tr("Collaborative Brick Layout Designer %1").arg(QCoreApplication::applicationVersion()).trimmed());
             return;
         }
         haveToken(token);
@@ -478,7 +478,7 @@ void ConnectDialog::haveToken(const QString& token) {
 
 void ConnectDialog::signInAgain() {
     tokens_.remove(server_);
-    api_.startSignIn(tr("Brick Layout Designer %1").arg(QCoreApplication::applicationVersion()).trimmed());
+    api_.startSignIn(tr("Collaborative Brick Layout Designer %1").arg(QCoreApplication::applicationVersion()).trimmed());
 }
 
 void ConnectDialog::updateDeleteButton() {

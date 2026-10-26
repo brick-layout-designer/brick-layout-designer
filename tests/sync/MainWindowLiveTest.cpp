@@ -616,7 +616,7 @@ TEST_F(MainWindowLiveOlderServer, SaysToUpdateNamesWhatIsMissingAndDoesntAskForI
     ASSERT_TRUE(notices->isShown(QStringLiteral("server-update")));
     QWidget* update = notices->card(QStringLiteral("server-update"));
     EXPECT_EQ(update->findChild<QLabel*>(QStringLiteral("NoticeTitle"))->text(),
-              QStringLiteral("Please update Brick Layout Designer"));
+              QStringLiteral("Please update Collaborative Brick Layout Designer"));
     EXPECT_TRUE(update->findChild<QLabel*>(QStringLiteral("NoticeText"))->text().contains(QStringLiteral("99.0.0")));
 
     ASSERT_TRUE(notices->isShown(QStringLiteral("server-features")));

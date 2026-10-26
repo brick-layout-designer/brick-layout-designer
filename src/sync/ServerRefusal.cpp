@@ -107,7 +107,7 @@ QString describe(const ServerRefusal& r) {
     }
     if (isUpdateRequired(r)) {
         if (!r.message.isEmpty()) return r.message.left(400);
-        return tr("This server needs a newer Brick Layout Designer. Please download the new version.");
+        return tr("This server needs a newer Collaborative Brick Layout Designer. Please download the new version.");
     }
     if (r.status == 401) return tr("Your sign-in has run out. Sign in again (File › Servers…).");
     if (r.code == QLatin1String("insufficient_scope") || r.code == QLatin1String("token_not_allowed"))
@@ -140,12 +140,12 @@ QString failureText(const ServerRefusal& r) {
 
 QString liveCloseText(int code, const QString& reason) {
     if (code == 4415 && reason == QLatin1String("unreadable_doc"))
-        return tr("this layout was saved by a newer version of Brick Layout Designer. Please download the new "
+        return tr("this layout was saved by a newer version of Collaborative Brick Layout Designer. Please download the new "
                   "version (Help > Check for Updates) to keep working on it");
     if (code == 4416 && reason == QLatin1String("unreadable_update"))
         return tr("this layout's live update couldn't be read. Please reopen the layout to keep working on it live");
     if (code == 4426)
-        return tr("this version of Brick Layout Designer is too old for this server. Please download the new "
+        return tr("this version of Collaborative Brick Layout Designer is too old for this server. Please download the new "
                   "version (Help > Check for Updates)");
     if (code == 1008 && reason == QLatin1String("account_pending_deletion"))
         return tr("this account is being deleted. To keep it, sign in on the website before the date in your email; "

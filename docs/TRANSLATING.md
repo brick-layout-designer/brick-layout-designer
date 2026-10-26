@@ -1,4 +1,4 @@
-# Translating Brick Layout Designer
+# Translating Collaborative Brick Layout Designer
 
 ## Languages we ship
 

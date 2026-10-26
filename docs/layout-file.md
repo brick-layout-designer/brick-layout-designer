@@ -1,6 +1,6 @@
 # The layout file (`.bld-layout`)
 
-Brick Layout Designer saves a layout as a single `.bld-layout` file. Both the
+Collaborative Brick Layout Designer saves a layout as a single `.bld-layout` file. Both the
 desktop and the web app read and write it. A BlueBrick `.bbm` is still
 available as an export (File › Export as BlueBrick Map), and it keeps only
 what BlueBrick supports.

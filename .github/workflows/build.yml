@@ -54,7 +54,7 @@ jobs:
     name: Build (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
     env:
-      ARTIFACT: brick-layout-designer${{ inputs.artifact-suffix }}-${{ matrix.name }}
+      ARTIFACT: collaborative-brick-layout-designer${{ inputs.artifact-suffix }}-${{ matrix.name }}
       # A step's `if:` can't read that step's own `env:`, so the "are the
       # signing secrets configured?" checks are resolved here, at job level.
       HAS_MACOS_CERT:  ${{ inputs.sign && secrets.MACOS_CERTIFICATE != '' }}
@@ -273,11 +273,11 @@ jobs:
           ditto -c -k --keepParent "$APP" "$ARTIFACT.zip"
           # Drag-to-Applications disk image.
           mkdir -p dmg
-          cp -R "$APP" "dmg/Brick Layout Designer.app"
+          cp -R "$APP" "dmg/Collaborative Brick Layout Designer.app"
           ln -s /Applications dmg/Applications
           # hdiutil intermittently fails with "Resource busy" on hosted runners.
           for attempt in 1 2 3; do
-            hdiutil create -volname "Brick Layout Designer" -srcfolder dmg -ov -format UDZO "$ARTIFACT.dmg" && break
+            hdiutil create -volname "Collaborative Brick Layout Designer" -srcfolder dmg -ov -format UDZO "$ARTIFACT.dmg" && break
             [ "$attempt" = 3 ] && exit 1
             sleep 10
           done

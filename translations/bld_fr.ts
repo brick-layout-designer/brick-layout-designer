@@ -2267,7 +2267,7 @@ Target path:
     </message>
     <message>
         <location filename="../src/ui/MainWindowFileIO.cpp" line="77"/>
-        <source>%1%2%3 — Brick Layout Designer</source>
+        <source>%1%2%3 — Collaborative Brick Layout Designer</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2344,12 +2344,12 @@ Save anyway?</source>
     </message>
     <message>
         <location filename="../src/ui/MainWindowFileIO.cpp" line="409"/>
-        <source>About Brick Layout Designer</source>
+        <source>About Collaborative Brick Layout Designer</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowFileIO.cpp" line="410"/>
-        <source>&lt;h3&gt;Brick Layout Designer&lt;/h3&gt;&lt;p&gt;Cross-platform C++/Qt 6 fork of &lt;b&gt;BlueBrick&lt;/b&gt; by Alban Nanty and contributors.&lt;/p&gt;&lt;p&gt;Adds cross-layer modules, anchored text labels, and event venues on top of the vanilla &lt;i&gt;.bbm&lt;/i&gt; format (extra metadata stored in a sidecar &lt;i&gt;.bbm.bld&lt;/i&gt; so vanilla BlueBrick 1.9.2 keeps opening our files).&lt;/p&gt;&lt;p&gt;Licensed under GPL-3.0 — same as upstream BlueBrick.&lt;/p&gt;&lt;p&gt;Parts library: %1 parts indexed.&lt;/p&gt;</source>
+        <source>&lt;h3&gt;Collaborative Brick Layout Designer&lt;/h3&gt;&lt;p&gt;Cross-platform C++/Qt 6 fork of &lt;b&gt;BlueBrick&lt;/b&gt; by Alban Nanty and contributors.&lt;/p&gt;&lt;p&gt;Adds cross-layer modules, anchored text labels, and event venues on top of the vanilla &lt;i&gt;.bbm&lt;/i&gt; format (extra metadata stored in a sidecar &lt;i&gt;.bbm.bld&lt;/i&gt; so vanilla BlueBrick 1.9.2 keeps opening our files).&lt;/p&gt;&lt;p&gt;Licensed under GPL-3.0 — same as upstream BlueBrick.&lt;/p&gt;&lt;p&gt;Parts library: %1 parts indexed.&lt;/p&gt;</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

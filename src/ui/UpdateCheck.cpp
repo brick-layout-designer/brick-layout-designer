@@ -81,7 +81,7 @@ void UpdateCheck::check(bool interactive) {
     QNetworkRequest request{ QUrl(kLatestReleaseApi) };
     request.setRawHeader("Accept", "application/vnd.github+json");
     request.setHeader(QNetworkRequest::UserAgentHeader,
-                      QStringLiteral("BrickLayoutDesigner/%1").arg(QCoreApplication::applicationVersion()));
+                      QStringLiteral("CollaborativeBrickLayoutDesigner/%1").arg(QCoreApplication::applicationVersion()));
     request.setTransferTimeout(15000);
     QNetworkReply* reply = network_->get(request);
     connect(reply, &QNetworkReply::finished, this, [this, reply, interactive] {
@@ -105,7 +105,7 @@ void UpdateCheck::check(bool interactive) {
             return;
         }
         QMessageBox box(QMessageBox::Information, tr("Update available"),
-                        tr("Brick Layout Designer %1 is available (you have %2).").arg(release.version, current),
+                        tr("Collaborative Brick Layout Designer %1 is available (you have %2).").arg(release.version, current),
                         QMessageBox::NoButton, parent_);
         if (!release.notes.isEmpty()) box.setDetailedText(release.notes);
         auto* download = box.addButton(tr("Download…"), QMessageBox::AcceptRole);

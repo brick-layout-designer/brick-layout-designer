@@ -121,7 +121,7 @@ find_program(BLD_CARGO cargo HINTS "$ENV{CARGO_HOME}/bin" "$ENV{HOME}/.cargo/bin
 if(NOT BLD_CARGO)
     message(FATAL_ERROR
         "Rust (cargo) was not found.\n"
-        "Brick Layout Designer's server features (live layouts, server modules, the catalog) "
+        "Collaborative Brick Layout Designer's server features (live layouts, server modules, the catalog) "
         "read shared layouts with yrs, a Rust library, so building needs a Rust toolchain.\n"
         "Install it with rustup from https://rustup.rs (on Windows pick the MSVC toolchain), "
         "open a new terminal so cargo is on PATH, and configure again.")

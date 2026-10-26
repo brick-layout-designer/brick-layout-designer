@@ -1,6 +1,6 @@
 [Desktop Entry]
 Type=Application
-Name=Brick Layout Designer
+Name=Collaborative Brick Layout Designer
 GenericName=LEGO Layout Designer
 Comment=Cross-platform maintainer fork of BlueBrick — design LEGO train layouts
 Exec=brick-layout-designer %f

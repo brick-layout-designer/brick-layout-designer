@@ -2,7 +2,7 @@
 <!-- shared-mime-info definition for the MimeType= in brick-layout-designer.desktop. -->
 <mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
   <mime-type type="application/x-brick-layout-designer-layout">
-    <comment>Brick Layout Designer layout</comment>
+    <comment>Collaborative Brick Layout Designer layout</comment>
     <sub-class-of type="application/zip"/>
     <glob pattern="*.bld-layout"/>
   </mime-type>

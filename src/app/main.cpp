@@ -1,3 +1,4 @@
+#include "../core/NameMigration.h"
 #include "../parts/PartsLibrary.h"
 #include "../ui/MainWindow.h"
 #include "../ui/theme/AppPrefs.h"
@@ -10,6 +11,7 @@
 #include <QEvent>
 #include <QFile>
 #include <QFileOpenEvent>
+#include <QGuiApplication>
 #include <QLibraryInfo>
 #include <QLocale>
 #include <QLoggingCategory>
@@ -68,9 +70,14 @@ int main(int argc, char** argv) {
             "kf.*.debug=false\nkf.*.info=false\nkf.*.warning=false\n"
             "qt.*.debug=false\nqt.*.info=false"));
     }
-    QApplication::setOrganizationName(QStringLiteral("BrickLayoutDesigner"));
-    QApplication::setApplicationName(QStringLiteral("Brick Layout Designer"));
+    // Settings, data and cache folders are filed under these names.
+    const bld::core::AppName name = bld::core::currentAppName();
+    QApplication::setOrganizationName(name.organization);
+    QApplication::setApplicationName(name.application);
     QApplication::setApplicationVersion(QStringLiteral(BLD_VERSION));
+    // The .desktop file (Wayland's app id, the taskbar icon); like the
+    // binary, it keeps its name.
+    QGuiApplication::setDesktopFileName(QStringLiteral("brick-layout-designer"));
 
     QApplication app(argc, argv);
 
@@ -84,6 +91,13 @@ int main(int argc, char** argv) {
                                  QStringLiteral("Layout (.bld-layout) or BlueBrick map (.bbm) to open."),
                                  QStringLiteral("[file]"));
     parser.process(app);
+
+    // Before the first QSettings read, and after --version / --help (which
+    // exit, so the version test leaves your settings alone): the first start
+    // after the rename brings over the settings and data kept under the old
+    // name, and leaves those for an older version (core/NameMigration.h).
+    const bld::core::NameMigrationReport moved = bld::core::migrateFromName(bld::core::legacyAppName());
+    if (!moved.error.isEmpty()) qWarning("%s", qPrintable(moved.error));
 
     // Load the user-selected UI language's bld_<code>.qm plus Qt's own
     // qtbase_<code>.qm. Deployed builds carry qtbase_*.qm next to ours

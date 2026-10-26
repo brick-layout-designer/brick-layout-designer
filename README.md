@@ -1,4 +1,4 @@
-# Brick Layout Designer
+# Collaborative Brick Layout Designer
 
 > ### ⚠️ AI-assisted ("vibe-coded") project — use at your own risk
 >

@@ -325,7 +325,7 @@ protected:
     void setTokenStore(std::shared_ptr<bld::sync::TokenStore> store) { tokens_ = std::move(store); }
     bld::sync::TokenStore& tokenStore() { return *tokens_; }
 private:
-    std::shared_ptr<bld::sync::TokenStore> tokens_ = std::make_shared<bld::sync::KeychainTokenStore>();
+    std::shared_ptr<bld::sync::TokenStore> tokens_ = bld::sync::MigratingTokenStore::keychain();
     // Settings follow your account on the Main server (ServerList::settingsAccount):
     // with the live server's token when it is Main, else with Main's own.
     void startPrefsSync(const bld::sync::ConnectResult& r);

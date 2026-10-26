@@ -219,7 +219,7 @@ void MainWindow::saveLayoutFileToServer() {
                              ? askLayoutFileToSend()
                              : QFileDialog::getOpenFileName(this, tr("Save a file to the server"), {},
                                                             tr("All supported maps (*.bld-layout *.bbm *.ldr *.mpd *.tdl *.ncp);;"
-                                                               "Brick Layout Designer layout (*.bld-layout);;BlueBrick map (*.bbm)"));
+                                                               "Collaborative Brick Layout Designer layout (*.bld-layout);;BlueBrick map (*.bbm)"));
     if (path.isEmpty() || !maybeSave() || !openFile(path)) return;
     onPublishToServer();
 }

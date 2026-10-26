@@ -366,11 +366,11 @@ void MainWindow::openServerLayout(const sync::LayoutEntry& layout) {
         if (info.standing(mine) == sync::Standing::UpdateRequired || !info.compatible()) {
             QMessageBox::warning(this, tr("Open live"),
                                  info.standing(mine) == sync::Standing::UpdateRequired
-                                     ? tr("This server needs Brick Layout Designer %1 or newer, and you have %2. Download "
+                                     ? tr("This server needs Collaborative Brick Layout Designer %1 or newer, and you have %2. Download "
                                           "the new version, install it, then open the layout again.")
                                            .arg(info.desktopMinimum, mine)
-                                     : tr("This server keeps its layouts in a newer form than this version of Brick Layout "
-                                          "Designer can read. Download the new version, then open the layout again."));
+                                     : tr("This server keeps its layouts in a newer form than this version of Collaborative "
+                                          "Brick Layout Designer can read. Download the new version, then open the layout again."));
             return;
         }
         sync::ServerList list = sync::ServerList::load();
