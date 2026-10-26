@@ -155,8 +155,7 @@ void MainWindow::checkMissingParts() {
     const sync::ServerList list = sync::ServerList::load();
     if (const sync::ServerEntry* e = list.find(serverLibrary_->server()); e && e->features && !e->features->contains(QStringLiteral("uploadParts")))
         return;
-    const QString root = importedPartsRoot();
-    const auto local = root.isEmpty() ? QList<sync::LocalPart>() : sync::PartsUpload::scanFolder(root);
+    const auto local = scanOwnParts();
     if (local.isEmpty()) {
         missingParts_.clear();
         refreshServerLocal();
@@ -225,8 +224,7 @@ void MainWindow::saveLayoutFileToServer() {
 }
 
 void MainWindow::uploadPartsTo(const QUrl& server, const QString& token, bool quiet, const QStringList& only) {
-    const QString root = importedPartsRoot();
-    auto local = root.isEmpty() ? QList<sync::LocalPart>() : sync::PartsUpload::scanFolder(root);
+    auto local = scanOwnParts();
     if (!only.isEmpty()) local.erase(std::remove_if(local.begin(), local.end(), [&](const auto& p) { return !only.contains(p.key); }), local.end());
     if (local.isEmpty()) {
         if (!quiet) statusBar()->showMessage(tr("You have no parts of your own to upload."), 4000);

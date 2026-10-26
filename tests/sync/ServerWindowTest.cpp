@@ -1151,6 +1151,49 @@ TEST_F(ServerWindowMain, TheServerWindowListsWhatsOnlyHereAndFollowsTheFolders) 
     EXPECT_TRUE(boxes.isEmpty()) << boxes.join(QStringLiteral(", ")).toStdString();
 }
 
+TEST_F(ServerWindowMain, YourPartsFromEveryPartsFolderAreOfferedButNotTheBundledOrServerOnes) {
+    // A server that takes parts, and knows none of these.
+    {
+        sync::ServerList list = sync::ServerList::load();
+        sync::ServerInfo info;
+        info.features = QStringList{ QStringLiteral("liveSync"), QStringLiteral("venues"),
+                                     QStringLiteral("uploadParts") };
+        list.remember(http_.base(), info);
+        list.save();
+    }
+    http_.reply("/api/parts/catalog", 200, { { QStringLiteral("parts"), QJsonArray{} } });
+    const auto part = [](const QString& dir, const QString& key, const QString& name) {
+        QDir().mkpath(dir);
+        QFile xml(QDir(dir).filePath(key + QStringLiteral(".xml")));
+        ASSERT_TRUE(xml.open(QIODevice::WriteOnly));
+        xml.write(QStringLiteral("<part><Description><en>%1</en></Description></part>").arg(name).toUtf8());
+        QFile gif(QDir(dir).filePath(key + QStringLiteral(".gif")));
+        ASSERT_TRUE(gif.open(QIODevice::WriteOnly));
+        gif.write("GIF89a");
+    };
+    QTemporaryDir modules, added;
+    const QString serverParts = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
+                                + QStringLiteral("/server-parts/club");
+    part(modules.path() + QStringLiteral("/imports"), QStringLiteral("IMP.1"),
+         QStringLiteral("Imported bridge"));
+    // An unzipped Brick Track Designer folder, added in Parts Folders.
+    part(added.path() + QStringLiteral("/Yard"), QStringLiteral("Yard.track-plate1"),
+         QStringLiteral("Yard: track-plate1"));
+    part(serverParts, QStringLiteral("SRV.1"), QStringLiteral("From the server"));
+    QSettings().setValue(QStringLiteral("modules/libraryPath"), modules.path());
+    QSettings().setValue(QStringLiteral("partsLibrary/userPaths"), QStringList{ added.path(), serverParts });
+    ui::ServerWindow* w = openWindow();
+    const bool listed = waitFor([&] {
+        return w->localShown(Tab::Parts)
+               == (QStringList{ QStringLiteral("Imported bridge"), QStringLiteral("Yard: track-plate1") });
+    });
+    const QStringList shown = w->localShown(Tab::Parts);
+    QSettings().remove(QStringLiteral("modules/libraryPath"));
+    QSettings().remove(QStringLiteral("partsLibrary/userPaths"));
+    QDir(serverParts).removeRecursively();
+    EXPECT_TRUE(listed) << shown.join(QStringLiteral(", ")).toStdString();
+}
+
 TEST_F(ServerWindowMain, TheServersLiveHintsReachTheWindow) {
     ui::ServerWindow* w = openWindow();
     const int before = count(http_, "GET", "/api/venues");

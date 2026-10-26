@@ -83,6 +83,11 @@ protected:
     // every launch — modules library + "/imports" if configured,
     // otherwise AppDataLocation/imports as the universal fallback.
     QString importedPartsRoot() const;
+    // The user's own parts, the ones that may go to a server: the imported
+    // parts and the folders added in Parts Folders, but not the bundled
+    // library or the folders of parts downloaded from a server.
+    QStringList ownPartsRoots() const;
+    QList<bld::sync::LocalPart> scanOwnParts() const;
 
     // Register a freshly-written library part with the in-memory
     // parts library and the parts panel without re-scanning every
