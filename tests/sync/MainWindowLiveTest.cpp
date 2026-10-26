@@ -851,6 +851,30 @@ TEST_F(MainWindowLive, ARoleLoweredUnheardKeepsTheEditTheServerDroppedForSaving)
     EXPECT_FALSE(window_->findChild<ui::NoticeArea*>()->isShown(QStringLiteral("live-access")));
 }
 
+// Removed from the layout while it's open (a club admin took the role, the
+// owner stopped sharing): the box says so in plain words, not the server's
+// code, and the layout stays open as an unsaved copy.
+TEST_F(MainWindowLive, AccessTakenAwaySaysWhyInPlainWordsAndKeepsTheCopy) {
+    core::Map& m = *view_->currentMap();
+    const QPointF at = brickAt(m, 0).displayArea.topLeft();
+    view_->undoStack()->push(new edit::MoveBricksCommand(m, { { brickRef(m, 0), at, at + QPointF(0, 8) } }));
+    ASSERT_TRUE(waitFor([&] { return brickArea(ws_.doc, 0) == original_.translated(0, 8); }));
+    QString text;
+    Answers closed{ { [&](QWidget* w) {
+        if (auto* b = qobject_cast<QMessageBox*>(w)) text = b->text();
+        press(QStringLiteral("OK"))(w);
+    } } };
+    closed.during([&] {
+        ws_.dropAll(static_cast<QWebSocketProtocol::CloseCode>(4404), QStringLiteral("access_revoked"));
+        ASSERT_TRUE(waitFor([&] { return closed.done() && !live_->active(); }));
+    });
+    EXPECT_EQ(closed.unexpected, 0);
+    EXPECT_TRUE(text.contains(QStringLiteral("you can't open this layout any more"))) << text.toStdString();
+    EXPECT_FALSE(text.contains(QStringLiteral("access_revoked"))) << text.toStdString();
+    EXPECT_EQ(brickAt(*view_->currentMap(), 0).displayArea, original_.translated(0, 8));
+    EXPECT_FALSE(view_->undoStack()->isClean());
+}
+
 // Journey 7: a desktop member's show day, one chain on one live layout.
 // Live edit → offline edit while someone else edits → back in step, the
 // compare window, Apply → both edits on the server → the Module library

@@ -158,6 +158,16 @@ QString liveCloseText(int code, const QString& reason) {
         return tr("your changes weren't taken because they looked like another layout's parts being merged into "
                   "this one. Nothing is lost: your copy stays open here, so save it (File > Save As) and tell the "
                   "site admin");
+    // The layout went away, or who may open it changed (apps/server/src/ws/handler.ts, routes/ws.ts).
+    if (code == 4404 && reason == QLatin1String("layout_deleted")) return tr("this layout was deleted on the server");
+    if (code == 4404 && (reason == QLatin1String("access_revoked") || reason == QLatin1String("not_found")))
+        return tr("you can't open this layout any more: it was deleted, or its owner or a club admin changed who can "
+                  "open it");
+    // The sign-in ended: signed out elsewhere, or the sign-in was removed on the website.
+    if (code == 1008 && (reason == QLatin1String("token_revoked") || reason == QLatin1String("session_revoked") ||
+                         reason == QLatin1String("unauthorized")))
+        return tr("your sign-in on this server ended (signed out elsewhere, or removed on the website). Sign in again "
+                  "(File › Servers…), then open the layout again");
     if (code == 4429 && reason == QLatin1String("limit_reached"))
         return tr("too many people have this layout open right now; try again in a little while");
     return {};
