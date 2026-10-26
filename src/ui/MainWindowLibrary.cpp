@@ -153,6 +153,36 @@ bool MainWindow::addPartsFromZip(const QString& zipPath, QString* error) {
     return true;
 }
 
+QStringList MainWindow::ownPartsRoots() const {
+    const QString vendored = QDir::cleanPath(defaultVendoredPartsRoot());
+    const QString serverParts = QDir::cleanPath(
+        QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + QStringLiteral("/server-parts"));
+    QStringList roots;
+    if (const QString imports = importedPartsRoot(); !imports.isEmpty()) roots << QDir::cleanPath(imports);
+    for (const QString& p : loadUserLibraryPaths()) {
+        const QString path = QDir::cleanPath(p);
+        if (path.isEmpty() || roots.contains(path) || path == vendored) continue;
+        if (path == serverParts || path.startsWith(serverParts + QLatin1Char('/'))) continue;
+        roots << path;
+    }
+    return roots;
+}
+
+QList<sync::LocalPart> MainWindow::scanOwnParts() const {
+    QList<sync::LocalPart> parts;
+    QSet<QString> seen;
+    for (const QString& root : ownPartsRoots()) {
+        if (!QDir(root).exists()) continue;
+        // The first folder with a part number wins, as in the parts library.
+        for (const sync::LocalPart& p : sync::PartsUpload::scanFolder(root))
+            if (!seen.contains(p.key.toUpper())) {
+                seen.insert(p.key.toUpper());
+                parts << p;
+            }
+    }
+    return parts;
+}
+
 void MainWindow::onReloadLibrary() {
     QStringList allPaths;
     const QString vendored = defaultVendoredPartsRoot();

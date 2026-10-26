@@ -307,14 +307,7 @@ void MainWindow::openLive(const sync::ConnectResult& r) {
     liveLocalParts_.clear();
     // Your own parts: the imported ones and your library folders, not the
     // bundled library or the folders of server parts.
-    const QString vendored = defaultVendoredPartsRoot();
-    const QString serverParts = QDir::cleanPath(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
-                                                + QStringLiteral("/server-parts"));
-    QStringList roots{ importedPartsRoot() };
-    for (const QString& p : loadUserLibraryPaths())
-        if (!roots.contains(p) && p != vendored && !QDir::cleanPath(p).startsWith(serverParts)) roots << p;
-    for (const QString& root : std::as_const(roots))
-        if (!root.isEmpty() && QDir(root).exists()) liveLocalParts_ << sync::PartsUpload::scanFolder(root);
+    liveLocalParts_ = scanOwnParts();
     loadLivePartsCatalog();
     // Settings follow the account on this server while connected.
     if (!prefsSync_) {
