@@ -8,6 +8,7 @@
 #include "WebModel.h"
 
 #include "core/LayerBrick.h"
+#include "core/LayerGrid.h"
 #include "core/LayerText.h"
 #include "core/Map.h"
 #include "saveload/BbmReader.h"
@@ -18,6 +19,8 @@
 #include <QBuffer>
 #include <QFile>
 #include <QJsonArray>
+
+#include <limits>
 
 using namespace bld;
 
@@ -94,6 +97,36 @@ TEST(WebModel, RefusesADocWithoutAHeaderOrWithAnUnknownLayer) {
     const auto map = sync::mapFromDocJson(empty, &err);
     ASSERT_TRUE(map);
     EXPECT_TRUE(map->layers().empty());
+}
+
+// Whole numbers too big for an int (any writer may put any number in the
+// shared document) are clamped, not cast as they are (the fuzzer's find).
+TEST(WebModel, ReadsWholeNumbersTooBigForAnIntSafely) {
+    const QJsonObject doc{
+        { QStringLiteral("meta"), QJsonObject{ { QStringLiteral("version"), 9 } } },
+        { QStringLiteral("layers"), QJsonArray{ QStringLiteral("G"), QStringLiteral("B") } },
+        { QStringLiteral("layerData"),
+          QJsonObject{ { QStringLiteral("G"), QJsonObject{ { QStringLiteral("type"), QStringLiteral("grid") },
+                                                         { QStringLiteral("gridSizeInStud"), 1e300 },
+                                                         { QStringLiteral("cellIndexCorner"),
+                                                           QJsonObject{ { QStringLiteral("x"), -1e300 }, { QStringLiteral("y"), 5 } } } } },
+                       { QStringLiteral("B"),
+                         QJsonObject{ { QStringLiteral("type"), QStringLiteral("brick") },
+                                      { QStringLiteral("bricks"),
+                                        QJsonArray{ QJsonObject{ { QStringLiteral("id"), QStringLiteral("b1") },
+                                                                 { QStringLiteral("partNumber"), QStringLiteral("3001.1") },
+                                                                 { QStringLiteral("activeConnectionPointIndex"), 4e9 } } } } } } } },
+    };
+    QString err;
+    const auto map = sync::mapFromDocJson(doc, &err);
+    ASSERT_TRUE(map) << err.toStdString();
+    ASSERT_EQ(map->layers().size(), 2u);
+    const auto& grid = static_cast<const core::LayerGrid&>(*map->layers()[0]);
+    EXPECT_EQ(grid.gridSizeInStud, std::numeric_limits<int>::max());
+    EXPECT_EQ(grid.cellIndexCorner, QPoint(std::numeric_limits<int>::min(), 5));
+    const auto& bricks = static_cast<const core::LayerBrick&>(*map->layers()[1]);
+    ASSERT_EQ(bricks.bricks.size(), 1u);
+    EXPECT_EQ(bricks.bricks[0].activeConnectionPointIndex, std::numeric_limits<int>::max());
 }
 
 TEST(WebModel, ItemsKeepTheirDocumentIds) {

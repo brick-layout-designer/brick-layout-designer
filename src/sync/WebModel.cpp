@@ -13,6 +13,10 @@
 
 #include <QJsonArray>
 
+#include <algorithm>
+#include <cmath>
+#include <limits>
+
 namespace bld::sync {
 
 namespace {
@@ -22,7 +26,14 @@ using core::ColorSpec;
 QString str(const QJsonObject& o, const char* k) { return o.value(QLatin1String(k)).toString(); }
 double num(const QJsonObject& o, const char* k) { return o.value(QLatin1String(k)).toDouble(); }
 float flt(const QJsonObject& o, const char* k) { return static_cast<float>(num(o, k)); }
-int integer(const QJsonObject& o, const char* k) { return static_cast<int>(num(o, k)); }
+// A whole number from the document. Any writer may put any number there:
+// one an int can't hold (or not a number) is clamped, never cast as it is.
+int integer(const QJsonObject& o, const char* k) {
+    const double v = num(o, k);
+    if (std::isnan(v)) return 0;
+    return static_cast<int>(std::clamp(v, static_cast<double>(std::numeric_limits<int>::min()),
+                                       static_cast<double>(std::numeric_limits<int>::max())));
+}
 bool boolean(const QJsonObject& o, const char* k) { return o.value(QLatin1String(k)).toBool(); }
 QJsonObject obj(const QJsonObject& o, const char* k) { return o.value(QLatin1String(k)).toObject(); }
 QJsonArray arr(const QJsonObject& o, const char* k) { return o.value(QLatin1String(k)).toArray(); }
