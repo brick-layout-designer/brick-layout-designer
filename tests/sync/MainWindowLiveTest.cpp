@@ -164,6 +164,14 @@ public:
     using ui::MainWindow::MainWindow;
     using ui::MainWindow::openLive;
     using ui::MainWindow::onServerHint;
+    using ui::MainWindow::resumeLive;
+    // Signing in again without the browser: the token it would bring.
+    QString newToken;
+    int signIns = 0;
+    void signInToLiveServer() override {
+        ++signIns;
+        if (!newToken.isEmpty()) resumeLive(newToken);
+    }
     using ui::MainWindow::setTokenStore;
     using ui::MainWindow::manifestExtras;
 };
@@ -894,6 +902,45 @@ TEST_F(MainWindowLive, ALiveLayoutsCopyFolderIsItsIdOrItsHash) {
     const QString hash = QString::fromLatin1(QCryptographicHash::hash(odd.toUtf8(), QCryptographicHash::Sha256).toHex());
     EXPECT_TRUE(copyIn(hash));
     EXPECT_FALSE(QDir(folder + QStringLiteral("/not a uuid")).exists());
+}
+
+// The sign-in runs out while live (its token expired or was removed): the
+// socket can't connect again and nothing said why. Now the window asks the
+// server, hears 401 and says to sign in again; edits meanwhile are kept,
+// and once signed in the layout reconnects with the new token and they come
+// back for review.
+TEST_F(MainWindowLive, ASignInThatRanOutSaysToSignInAgainAndKeepsTheEdits) {
+    auto* notices = window_->findChild<ui::NoticeArea*>();
+    ASSERT_NE(notices, nullptr);
+    http_.reply("/api/layouts/L1", 401, QJsonObject{ { QStringLiteral("error"), QStringLiteral("invalid_token") } });
+    http_.upgrade = nullptr;  // the server refuses the handshake now
+    ws_.dropAll(QWebSocketProtocol::CloseCodeGoingAway);
+    ASSERT_TRUE(waitFor([&] { return notices->isShown(QStringLiteral("live-signin")); }));
+    EXPECT_TRUE(live_->active());
+    // An edit meanwhile is kept, as an offline edit.
+    core::Map& m = *view_->currentMap();
+    const QPointF at = brickAt(m, 0).displayArea.topLeft();
+    view_->undoStack()->push(new edit::MoveBricksCommand(m, { { brickRef(m, 0), at, at + QPointF(8, 0) } }));
+    ASSERT_TRUE(waitFor([&] { return session().offlineEdits().has_value(); }));
+
+    // Sign In...: back with a new token, in step, and the edit reviewed and applied.
+    window_->newToken = QStringLiteral("bld_pat_new");
+    http_.clear("/api/layouts/L1");
+    http_.upgrade = [this](QTcpSocket* s) { ws_.take(s); };
+    QPushButton* signIn = nullptr;
+    for (auto* b : notices->card(QStringLiteral("live-signin"))->findChildren<QPushButton*>())
+        if (b->text() == QStringLiteral("Sign In...")) signIn = b;
+    ASSERT_NE(signIn, nullptr);
+    Answers answers{ { compare(QStringLiteral("Apply")) } };
+    answers.during([&] {
+        signIn->click();
+        ASSERT_TRUE(waitFor([&] { return answers.done() && !session().offlineEdits(); }, 8000));
+    });
+    EXPECT_EQ(answers.unexpected, 0);
+    EXPECT_EQ(window_->signIns, 1);
+    EXPECT_EQ(ws_.authHeaders.back(), QStringLiteral("Bearer bld_pat_new"));
+    ASSERT_TRUE(waitFor([&] { return brickArea(ws_.doc, 0) == original_.translated(8, 0); }));
+    EXPECT_FALSE(notices->isShown(QStringLiteral("live-signin")));
 }
 
 // Journey 7: a desktop member's show day, one chain on one live layout.

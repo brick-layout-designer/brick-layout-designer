@@ -334,6 +334,13 @@ protected:
     // A live hint from the server (GET /api/events): something changed,
     // ask again. Protected so tests can send one.
     void onServerHint(const QJsonObject& hint);
+    // The live server's sign-in ran out (a 401 while live): sign in again
+    // there (the device sign-in), then resumeLive with the new token.
+    // Virtual so tests sign in without a browser.
+    virtual void signInToLiveServer();
+    // Connect the live layout again with a new token; its offline edits
+    // (kept on disk) come back for review once it's in step.
+    void resumeLive(const QString& token);
     // Where sign-in tokens are kept (the OS keychain; tests use memory).
     void setTokenStore(std::shared_ptr<bld::sync::TokenStore> store) { tokens_ = std::move(store); }
     bld::sync::TokenStore& tokenStore() { return *tokens_; }
@@ -404,6 +411,8 @@ private:
     // minute. Down to view only, the layout becomes read only here too.
     void checkLiveRole();
     void applyLiveRole(const QString& role);
+    // The 401 behind it: a notice to sign in again (the edits are kept).
+    void liveSignInNeeded();
     class QTimer* liveRoleCheck_ = nullptr;  // a burst of reasons asks once
     class QTimer* liveRolePoll_ = nullptr;
 
