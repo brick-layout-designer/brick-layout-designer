@@ -93,7 +93,7 @@ target_link_libraries(bld_inspect PRIVATE bld_saveload bld_core Qt6::Core)
 # Headless CLI that renders a .bbm to a PNG (uses QT_QPA_PLATFORM=offscreen).
 add_executable(bld_render bld_render.cpp)
 target_link_libraries(bld_render
-    PRIVATE bld_rendering bld_saveload bld_parts bld_core
+    PRIVATE bld_rendering bld_import bld_edit bld_saveload bld_parts bld_core
             Qt6::Core Qt6::Gui Qt6::Widgets)
 
 # Map conversion (.bbm / .ldr / .mpd / .tdl / .ncp) and comparison, as the

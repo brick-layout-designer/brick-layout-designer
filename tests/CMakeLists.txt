@@ -52,3 +52,11 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/fixtures/bbm-corpus/tight-corner.bbm")
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         PASS_REGULAR_EXPRESSION "Rendered .* \\(800x[0-9]+\\)")
 endif()
+
+# The connection check on a Brick Track Designer export: its set's joints
+# pair up and its four track ends are left open.
+add_test(NAME Cli.CheckConnectionsYard
+    COMMAND bld_render --check-connections "${CMAKE_SOURCE_DIR}/fixtures/btd-layout-parts/Yard.zip")
+set_tests_properties(Cli.CheckConnectionsYard PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    PASS_REGULAR_EXPRESSION "15 pairs, 4 open ends, 0 rough pairs")
