@@ -23,7 +23,7 @@ namespace bld::ui {
 namespace {
 
 const QString kLatestReleaseApi = QStringLiteral(
-    "https://api.github.com/repos/brick-layout-designer/brick-layout-designer/releases/latest");
+    "https://api.github.com/repos/collaborative-brick-layout-designer/desktop/releases/latest");
 const QString kStartupKey = QStringLiteral("updates/checkAtStartup");
 const QString kLastCheckKey = QStringLiteral("updates/lastCheck");
 const QString kSkippedKey = QStringLiteral("updates/skippedVersion");

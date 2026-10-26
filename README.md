@@ -117,7 +117,7 @@ clubs that plan a layout together.
 
 **Working with a club (optional, needs a server)**
 - Connect to one or more servers that run the
-  [web app](https://github.com/brick-layout-designer/collaborative-brick-layout-designer).
+  [web app](https://github.com/collaborative-brick-layout-designer/web).
   Open a layout live and see everyone's changes and cursors as they happen;
   undo only undoes your own changes.
 - Publish a local layout to a server (yours or a club's), keep editing it
@@ -150,7 +150,7 @@ clubs that plan a layout together.
 ## Install
 
 Download a release from
-[Releases](https://github.com/brick-layout-designer/brick-layout-designer/releases):
+[Releases](https://github.com/collaborative-brick-layout-designer/desktop/releases):
 
 | Platform | Files |
 |---|---|
@@ -278,7 +278,7 @@ Install Rust with [rustup](https://rustup.rs):
 Build:
 
 ```sh
-git clone --recurse-submodules https://github.com/brick-layout-designer/brick-layout-designer.git
+git clone --recurse-submodules https://github.com/collaborative-brick-layout-designer/desktop.git
 cd brick-layout-designer
 cmake -S . -B build -G Ninja
 cmake --build build

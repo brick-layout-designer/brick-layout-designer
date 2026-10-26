@@ -173,8 +173,8 @@ TEST_F(MainWindowFile, AboutLinksToTheSourceOfBothApps) {
     if (text.isEmpty()) {
         EXPECT_TRUE(QTest::qWaitFor([&] { readAbout(); return !text.isEmpty(); }, 2000));
     }
-    EXPECT_TRUE(text.contains(QStringLiteral("https://github.com/brick-layout-designer/brick-layout-designer\"")));
-    EXPECT_TRUE(text.contains(QStringLiteral("https://github.com/brick-layout-designer/collaborative-brick-layout-designer\"")));
+    EXPECT_TRUE(text.contains(QStringLiteral("https://github.com/collaborative-brick-layout-designer/desktop\"")));
+    EXPECT_TRUE(text.contains(QStringLiteral("https://github.com/collaborative-brick-layout-designer/web\"")));
 }
 
 // An edit made right after another is autosaved within seconds too, not

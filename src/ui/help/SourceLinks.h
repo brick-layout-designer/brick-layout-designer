@@ -11,9 +11,9 @@ class QWidget;
 
 namespace bld::ui::help {
 
-inline constexpr const char* kDesktopSourceUrl = "https://github.com/brick-layout-designer/brick-layout-designer";
+inline constexpr const char* kDesktopSourceUrl = "https://github.com/collaborative-brick-layout-designer/desktop";
 inline constexpr const char* kWebSourceUrl =
-    "https://github.com/brick-layout-designer/collaborative-brick-layout-designer";
+    "https://github.com/collaborative-brick-layout-designer/web";
 
 // "Source on GitHub: desktop app · web app", as rich text with both links.
 QString sourceLinksHtml();
