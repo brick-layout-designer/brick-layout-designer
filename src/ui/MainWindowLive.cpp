@@ -408,7 +408,7 @@ void MainWindow::showServerNotices(const sync::ServerInfo& info) {
     if (info.standing(mine) == sync::Standing::UpdateSuggested) {
         const QUrl url(info.downloadUrl.isEmpty() ? core::desktopDownloadUrl() : info.downloadUrl);
         notices_->showNotice(
-            QStringLiteral("server-update"), tr("Please update Brick Layout Designer"),
+            QStringLiteral("server-update"), tr("Please update Collaborative Brick Layout Designer"),
             tr("%1 works best with version %2 or newer, and you have %3. Everything still works for now.")
                 .arg(host, info.desktopRecommended, mine),
             { NoticeAction{ tr("Download"), [url] { QDesktopServices::openUrl(url); }, true },

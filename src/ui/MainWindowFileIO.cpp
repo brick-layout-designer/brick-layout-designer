@@ -93,7 +93,7 @@ void MainWindow::updateTitle() {
     if (budget_ && budget_->exists())
         budget = QStringLiteral(" — %1%2").arg(budget_->displayName(),
                                                   budget_->isModified() ? QStringLiteral(" *") : QString());
-    setWindowTitle(tr("%1%2%3 — Brick Layout Designer")
+    setWindowTitle(tr("%1%2%3 — Collaborative Brick Layout Designer")
                        .arg(name, dirty ? QStringLiteral(" *") : QString(), budget));
 }
 
@@ -117,11 +117,11 @@ bool isOtherMapFormat(const QString& path) {
 }
 
 const char* kOpenFilter = QT_TRANSLATE_NOOP("bld::ui::MainWindow",
-    "All supported maps (*.bld-layout *.bbm *.ldr *.mpd *.tdl *.ncp);;Brick Layout Designer layout (*.bld-layout);;"
+    "All supported maps (*.bld-layout *.bbm *.ldr *.mpd *.tdl *.ncp);;Collaborative Brick Layout Designer layout (*.bld-layout);;"
     "BlueBrick map (*.bbm);;"
     "LDraw (*.ldr);;LDraw multi-part (*.mpd);;TrackDesigner (*.tdl);;4DBrix nControl (*.ncp);;All files (*)");
 const char* kSaveFilter = QT_TRANSLATE_NOOP("bld::ui::MainWindow",
-    "Brick Layout Designer layout (*.bld-layout);;BlueBrick map (*.bbm);;LDraw (*.ldr);;LDraw multi-part (*.mpd);;TrackDesigner (*.tdl);;"
+    "Collaborative Brick Layout Designer layout (*.bld-layout);;BlueBrick map (*.bbm);;LDraw (*.ldr);;LDraw multi-part (*.mpd);;TrackDesigner (*.tdl);;"
     "4DBrix nControl (*.ncp)");
 
 // Where background images inside .bld-layout files are unpacked to.
@@ -456,7 +456,7 @@ bool MainWindow::chooseSaveFormat() {
     const QString native = info.dir().filePath(info.completeBaseName() + QStringLiteral(".bld-layout"));
     QMessageBox box(QMessageBox::Question, tr("Save layout"),
         tr("%1 is a %2 file.\n\n"
-           "Save it as a Brick Layout Designer layout (%3) to keep everything in one file: "
+           "Save it as a Collaborative Brick Layout Designer layout (%3) to keep everything in one file: "
            "labels, modules, the venue and the background image included.\n\n"
            "Keep it as %2 if you still open it in another program; File › Export › BlueBrick Map "
            "can make a .bbm copy at any time.")
@@ -714,8 +714,8 @@ void MainWindow::onExportPartList() {
 }
 
 void MainWindow::onAbout() {
-    QMessageBox::about(this, tr("About Brick Layout Designer"),
-        tr("<h3>Brick Layout Designer</h3>"
+    QMessageBox::about(this, tr("About Collaborative Brick Layout Designer"),
+        tr("<h3>Collaborative Brick Layout Designer</h3>"
            "<p>Cross-platform C++/Qt 6 fork of <b>BlueBrick</b> by Alban Nanty and contributors.</p>"
            "<p>Adds modules, labels, venues and live editing with your club, and saves everything "
            "in one <i>.bld-layout</i> file. It still opens and exports BlueBrick <i>.bbm</i> files.</p>"

@@ -133,13 +133,13 @@ LayoutFileResult readLayoutFileBytes(const QByteArray& bytes, const QString& ass
     const QJsonObject manifest =
         manifestBytes ? QJsonDocument::fromJson(*manifestBytes).object() : QJsonObject();
     if (manifest.value(QLatin1String("format")).toString() != kFormat) {
-        r.error = tr("This is not a Brick Layout Designer layout file.");
+        r.error = tr("This is not a Collaborative Brick Layout Designer layout file.");
         return r;
     }
     r.manifest = manifest;
     r.source = LayoutSource::fromJson(manifest.value(QLatin1String("source")));
     if (manifest.value(QLatin1String("version")).toInt() > kLayoutFileVersion)
-        r.warnings << tr("The file was made by a newer version of Brick Layout Designer; "
+        r.warnings << tr("The file was made by a newer version of Collaborative Brick Layout Designer; "
                          "anything this version doesn't know is left out.");
 
     const auto bbm = entry(kLayout, kMaxLayout);
@@ -387,7 +387,7 @@ QByteArray layoutFileBytes(const core::Map& map, QString* error, QStringList* wa
     manifest[QStringLiteral("format")] = kFormat;
     manifest[QStringLiteral("version")] = kLayoutFileVersion;
     manifest[QStringLiteral("generator")] =
-        QStringLiteral("Brick Layout Designer %1(desktop)")
+        QStringLiteral("Collaborative Brick Layout Designer %1(desktop)")
             .arg(QCoreApplication::applicationVersion().isEmpty()
                      ? QString()
                      : QCoreApplication::applicationVersion() + QLatin1Char(' '));

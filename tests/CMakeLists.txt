@@ -38,7 +38,7 @@ add_subdirectory(ui)
 add_test(NAME App.Version COMMAND bld_app --version)
 set_tests_properties(App.Version PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_COMMAND_LINE_PARSER_NO_GUI_MESSAGE_BOXES=1"
-    PASS_REGULAR_EXPRESSION "Brick Layout Designer ${PROJECT_VERSION}")
+    PASS_REGULAR_EXPRESSION "^Collaborative Brick Layout Designer ${PROJECT_VERSION}")
 
 # Headless load + render of a real corpus map through the CLI.
 if(EXISTS "${CMAKE_SOURCE_DIR}/fixtures/bbm-corpus/tight-corner.bbm")

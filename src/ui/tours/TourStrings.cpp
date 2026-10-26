@@ -10,7 +10,7 @@ namespace bld::ui::tours {
 namespace {
 
 const char* const kStrings[] = {
-    QT_TRANSLATE_NOOP("Tours", "Welcome to Brick Layout Designer"),
+    QT_TRANSLATE_NOOP("Tours", "Welcome to Collaborative Brick Layout Designer"),
     QT_TRANSLATE_NOOP("Tours", "Plan a LEGO layout for your next show, on your own or with your club."),
     QT_TRANSLATE_NOOP("Tours", "Start or open a layout"),
     QT_TRANSLATE_NOOP("Tours", "Begin with an empty map, or open a file from this app or BlueBrick."),

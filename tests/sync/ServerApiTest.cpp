@@ -346,7 +346,7 @@ TEST(ServerApi, AsksWhoTheTokenBelongsTo) {
 }
 
 TEST(ServerApi, NamesTheAppInEveryRequest) {
-    EXPECT_TRUE(userAgent().startsWith("BrickLayoutDesigner/"));
+    EXPECT_TRUE(userAgent().startsWith("CollaborativeBrickLayoutDesigner/"));
     EXPECT_TRUE(userAgent().endsWith(" (desktop)"));
     FakeHttp http;
     ServerApi api;

@@ -213,7 +213,7 @@ TEST(ConnectDialog, AnAppTooOldForTheServerIsAskedToUpdateBeforeSigningIn) {
     h.dialog.connectToServer();
     ASSERT_TRUE(waitFor([&] { return h.message().contains(QStringLiteral("1.2.0")); }));
     QCoreApplication::setApplicationVersion(before);
-    EXPECT_EQ(h.message(), QStringLiteral("This server needs Brick Layout Designer 1.2.0 or newer, and you have 1.1.0. "
+    EXPECT_EQ(h.message(), QStringLiteral("This server needs Collaborative Brick Layout Designer 1.2.0 or newer, and you have 1.1.0. "
                                           "Download the new version, install it, then connect again."));
     // Nothing signed in or fetched: only the version was asked.
     EXPECT_EQ(h.page(), 0);

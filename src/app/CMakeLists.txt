@@ -36,7 +36,7 @@ if(APPLE)
     set_source_files_properties("${_bld_icns}" PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
     set_target_properties(bld_app PROPERTIES
         MACOSX_BUNDLE_INFO_PLIST "${PROJECT_SOURCE_DIR}/packaging/macos/Info.plist.in"
-        MACOSX_BUNDLE_BUNDLE_NAME "Brick Layout Designer"
+        MACOSX_BUNDLE_BUNDLE_NAME "Collaborative Brick Layout Designer"
         MACOSX_BUNDLE_GUI_IDENTIFIER "io.github.brick-layout-designer"
         MACOSX_BUNDLE_ICON_FILE "brick-layout-designer.icns"
         MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"

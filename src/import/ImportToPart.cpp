@@ -139,7 +139,7 @@ QString writeImportedModelAsLibraryPart(
     w.writeStartDocument(QStringLiteral("1.0"));
     w.writeStartElement(QStringLiteral("part"));
     w.writeTextElement(QStringLiteral("Author"),
-        authorName.isEmpty() ? QStringLiteral("Brick Layout Designer import")
+        authorName.isEmpty() ? QStringLiteral("Collaborative Brick Layout Designer import")
                               : authorName);
     // The name people see: exactly what was typed in the import dialog.
     QString shownName = source ? source->displayName.trimmed() : QString();

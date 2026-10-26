@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  WiX v4 manifest for the Brick Layout Designer MSI.
+  WiX v4 manifest for the Collaborative Brick Layout Designer MSI.
 
   Minimal proper-installer shape:
-   - Installs everything under  %ProgramFiles%\Brick Layout Designer\
+   - Installs everything under  %ProgramFiles%\Collaborative Brick Layout Designer\
    - Creates a Start menu shortcut
    - Registers a shared "App Paths" entry so `brick-layout-designer`
      on cmd.exe finds the binary without full-path PATH surgery
@@ -23,8 +23,8 @@
   SmartScreen warning ("More info -> Run anyway" proceeds normally).
 -->
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
-  <Package Name="Brick Layout Designer"
-           Manufacturer="Brick Layout Designer contributors"
+  <Package Name="Collaborative Brick Layout Designer"
+           Manufacturer="Collaborative Brick Layout Designer contributors"
            Version="$(var.Version)"
            UpgradeCode="7d5c9ad0-1b8a-4c2f-8b1f-7e6c1a3b5f4d"
            Scope="perMachine"
@@ -39,11 +39,11 @@
 
     <!-- Standard "Application" shortcut in the Start menu. -->
     <StandardDirectory Id="ProgramMenuFolder">
-      <Directory Id="ApplicationProgramsFolder" Name="Brick Layout Designer" />
+      <Directory Id="ApplicationProgramsFolder" Name="Collaborative Brick Layout Designer" />
     </StandardDirectory>
 
     <StandardDirectory Id="ProgramFiles64Folder">
-      <Directory Id="INSTALLFOLDER" Name="Brick Layout Designer" />
+      <Directory Id="INSTALLFOLDER" Name="Collaborative Brick Layout Designer" />
     </StandardDirectory>
 
     <!-- Main app component: the exe + a Start menu shortcut.
@@ -56,12 +56,12 @@
               KeyPath="yes">
           <Shortcut Id="AppShortcut"
                     Directory="ApplicationProgramsFolder"
-                    Name="Brick Layout Designer"
+                    Name="Collaborative Brick Layout Designer"
                     WorkingDirectory="INSTALLFOLDER"
                     Advertise="yes" />
         </File>
         <ProgId Id="BrickLayoutDesigner.layout"
-                Description="Brick Layout Designer Layout"
+                Description="Collaborative Brick Layout Designer Layout"
                 Icon="BrickLayoutDesignerExe"
                 IconIndex="0">
           <Extension Id="bld-layout" ContentType="application/x-brick-layout-designer-layout">
@@ -94,7 +94,7 @@
       </Component>
     </ComponentGroup>
 
-    <Feature Id="MainFeature" Title="Brick Layout Designer" Level="1">
+    <Feature Id="MainFeature" Title="Collaborative Brick Layout Designer" Level="1">
       <ComponentGroupRef Id="MainAppComponents" />
       <!-- `HarvestedComponents` comes from scripts/harvest-wix.py: the
            staged support files (Qt runtime, parts library, translations). -->

@@ -851,7 +851,7 @@ void MainWindow::onSaveSelectionAsSet() {
 
     saveload::SetManifest manifest;
     manifest.author = map->author.isEmpty()
-        ? QStringLiteral("Brick Layout Designer")
+        ? QStringLiteral("Collaborative Brick Layout Designer")
         : map->author;
     manifest.canUngroup = true;
     manifest.subparts.reserve(picks.size());
@@ -1024,7 +1024,7 @@ void MainWindow::showUpdateNotice(const ReleaseInfo& release) {
         QStringLiteral("update"), tr("Version %1 is ready").arg(version),
         release.important ? tr("This update fixes a security problem. Please install it soon. You have version %1.")
                                 .arg(mine)
-                          : tr("A new version of Brick Layout Designer is ready to download. You have version %1.")
+                          : tr("A new version of Collaborative Brick Layout Designer is ready to download. You have version %1.")
                                 .arg(mine),
         actions, release.notes, release.important);
 }

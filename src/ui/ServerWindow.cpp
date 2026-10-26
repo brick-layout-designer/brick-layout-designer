@@ -170,7 +170,7 @@ ServerWindow::ServerWindow(ServerLibrary& library, QWidget* parent) : QWidget(pa
     confirm = [this](const ConfirmOptions& o) { return ConfirmDialog::ask(this, o); };
     askSavePath = [this](const QString& title, bool native) {
         const QString docs = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
-        const QString nativeFilter = tr("Brick Layout Designer layout (*.bld-layout)");
+        const QString nativeFilter = tr("Collaborative Brick Layout Designer layout (*.bld-layout)");
         const QString bbmFilter = tr("BlueBrick map (*.bbm)");
         QString chosen = native ? nativeFilter : bbmFilter;
         QString path = QFileDialog::getSaveFileName(

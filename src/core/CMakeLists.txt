@@ -2,6 +2,8 @@ add_library(bld_core STATIC
     Map.cpp
     Version.h
     Version.cpp
+    NameMigration.h
+    NameMigration.cpp
     Ids.h
     Geometry.h
     GridSnap.h

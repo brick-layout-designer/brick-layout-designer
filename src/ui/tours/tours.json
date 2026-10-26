@@ -2,7 +2,7 @@
   "_about": "Welcome card and guided tours. The same file is in both apps: apps/web/src/tours/tours.json in the web repo and src/ui/tours/tours.json in the desktop repo. Keep the two identical; each app's tests check its copy. A step with \"apps\" shows only in those apps (\"web\", \"desktop\").",
   "welcome": {
     "id": "welcome",
-    "title": "Welcome to Brick Layout Designer",
+    "title": "Welcome to Collaborative Brick Layout Designer",
     "text": "Plan a LEGO layout for your next show, on your own or with your club.",
     "actions": {
       "layout": { "label": "Start or open a layout", "text": "Begin with an empty map, or open a file from this app or BlueBrick." },

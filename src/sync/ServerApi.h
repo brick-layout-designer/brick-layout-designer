@@ -24,7 +24,8 @@ class QNetworkReply;
 
 namespace bld::sync {
 
-// "BrickLayoutDesigner/<version> (desktop)": the User-Agent of every request
+// "CollaborativeBrickLayoutDesigner/<version> (desktop)" (servers also accept
+// the "BrickLayoutDesigner/" of older versions): the User-Agent of every request
 // the desktop makes to a collaborative server, the live socket included, so
 // a server's filters can tell the app apart.
 QByteArray userAgent();

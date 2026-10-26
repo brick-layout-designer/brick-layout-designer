@@ -39,6 +39,8 @@ add_executable(bld_ui_tests
     ModuleEditTest.cpp
     ModuleSheetsTest.cpp
     ConfirmDialogTest.cpp
+    NameMigrationTest.cpp
+    BrandNameTest.cpp
 )
 
 target_compile_definitions(bld_ui_tests PRIVATE

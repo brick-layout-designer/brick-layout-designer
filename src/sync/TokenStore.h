@@ -10,6 +10,7 @@
 #include <QUrl>
 
 #include <functional>
+#include <memory>
 
 namespace bld::sync {
 
@@ -29,9 +30,39 @@ public:
 // (QtKeychain). Never falls back to storing the token in plain text.
 class KeychainTokenStore : public TokenStore {
 public:
+    // The keychain service the tokens are filed under, and the one the app
+    // used before it was called Collaborative Brick Layout Designer.
+    static inline const QString kService = QStringLiteral("Collaborative Brick Layout Designer server sign-in");
+    static inline const QString kLegacyService = QStringLiteral("Brick Layout Designer server sign-in");
+
+    explicit KeychainTokenStore(QString service = kService) : service_(std::move(service)) {}
     void load(const QUrl& server, std::function<void(const QString&)> done) override;
     void save(const QUrl& server, const QString& token) override;
     void remove(const QUrl& server) override;
+
+private:
+    QString service_;
+};
+
+// Reads through to the store an older version of the app wrote: a token
+// found only in `legacy` is copied to `current` and returned. It stays in
+// `legacy` too, so an older version still signs in after a downgrade.
+// Saving writes `current`; removing (signing out) clears both.
+class MigratingTokenStore : public TokenStore {
+public:
+    MigratingTokenStore(std::shared_ptr<TokenStore> current, std::shared_ptr<TokenStore> legacy)
+        : current_(std::move(current)), legacy_(std::move(legacy)) {}
+    void load(const QUrl& server, std::function<void(const QString&)> done) override;
+    void save(const QUrl& server, const QString& token) override;
+    void remove(const QUrl& server) override;
+
+    // The app's store: the keychain under the new service name, reading
+    // through to the old one.
+    static std::shared_ptr<TokenStore> keychain();
+
+private:
+    std::shared_ptr<TokenStore> current_;
+    std::shared_ptr<TokenStore> legacy_;
 };
 
 class MemoryTokenStore : public TokenStore {

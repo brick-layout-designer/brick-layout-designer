@@ -4,10 +4,6 @@
 
 namespace bld::sync {
 
-namespace {
-const QString kService = QStringLiteral("Brick Layout Designer server sign-in");
-}
-
 QString TokenStore::keyFor(const QUrl& server) {
     return server
         .adjusted(QUrl::RemovePath | QUrl::RemoveQuery | QUrl::RemoveFragment | QUrl::RemoveUserInfo
@@ -16,7 +12,7 @@ QString TokenStore::keyFor(const QUrl& server) {
 }
 
 void KeychainTokenStore::load(const QUrl& server, std::function<void(const QString&)> done) {
-    auto* job = new QKeychain::ReadPasswordJob(kService);
+    auto* job = new QKeychain::ReadPasswordJob(service_);
     job->setAutoDelete(true);
     job->setInsecureFallback(false);
     job->setKey(keyFor(server));
@@ -27,7 +23,7 @@ void KeychainTokenStore::load(const QUrl& server, std::function<void(const QStri
 }
 
 void KeychainTokenStore::save(const QUrl& server, const QString& token) {
-    auto* job = new QKeychain::WritePasswordJob(kService);
+    auto* job = new QKeychain::WritePasswordJob(service_);
     job->setAutoDelete(true);
     job->setInsecureFallback(false);
     job->setKey(keyFor(server));
@@ -36,11 +32,39 @@ void KeychainTokenStore::save(const QUrl& server, const QString& token) {
 }
 
 void KeychainTokenStore::remove(const QUrl& server) {
-    auto* job = new QKeychain::DeletePasswordJob(kService);
+    auto* job = new QKeychain::DeletePasswordJob(service_);
     job->setAutoDelete(true);
     job->setInsecureFallback(false);
     job->setKey(keyFor(server));
     job->start();
+}
+
+void MigratingTokenStore::load(const QUrl& server, std::function<void(const QString&)> done) {
+    current_->load(server, [current = current_, legacy = legacy_, server, done = std::move(done)](const QString& token) {
+        if (!token.isEmpty()) {
+            done(token);
+            return;
+        }
+        legacy->load(server, [current, server, done](const QString& old) {
+            if (!old.isEmpty()) current->save(server, old);
+            done(old);
+        });
+    });
+}
+
+void MigratingTokenStore::save(const QUrl& server, const QString& token) {
+    current_->save(server, token);
+}
+
+void MigratingTokenStore::remove(const QUrl& server) {
+    current_->remove(server);
+    legacy_->remove(server);
+}
+
+std::shared_ptr<TokenStore> MigratingTokenStore::keychain() {
+    return std::make_shared<MigratingTokenStore>(
+        std::make_shared<KeychainTokenStore>(KeychainTokenStore::kService),
+        std::make_shared<KeychainTokenStore>(KeychainTokenStore::kLegacyService));
 }
 
 } // namespace bld::sync
