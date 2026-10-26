@@ -6,10 +6,13 @@
 #include "core/Map.h"
 #include "parts/ColorNames.h"
 #include "parts/PartsLibrary.h"
+#include "saveload/BbmReader.h"
 
 #include <gtest/gtest.h>
 
 #include <QDir>
+#include <QDirIterator>
+#include <QFile>
 
 using namespace bld;
 
@@ -145,4 +148,47 @@ TEST_F(PartListTest, HtmlEmbedsPicturesAndEscapes) {
     EXPECT_TRUE(html.contains(QStringLiteral("a &lt; b<br/>next")));
     EXPECT_TRUE(html.contains(QStringLiteral("<td class=\"budget\">N/A</td>")));
     EXPECT_TRUE(html.contains(QStringLiteral("<tr class=\"total\">")));
+}
+
+// Every .bbm under fixtures/ exported to CSV three ways (no budget, with
+// fixtures/bluebrick-oracle/budget.bbb, split per layer) matches the files in
+// fixtures/part-list-csv byte for byte. They were written from the export as
+// BlueBrick lays it out, so real data must never change; only a text cell a
+// spreadsheet would run as a formula may. BLD_UPDATE_FIXTURES=1 writes them
+// again.
+TEST_F(PartListTest, CsvMatchesGoldens) {
+    if (!lib_.metadata(QStringLiteral("3811.1"))) GTEST_SKIP() << "the BlueBrickParts library isn't checked out";
+    const QString root = QStringLiteral(BLD_SOURCE_DIR "/fixtures");
+    const QString goldens = root + QStringLiteral("/part-list-csv");
+    const bool update = qEnvironmentVariableIsSet("BLD_UPDATE_FIXTURES");
+    if (update) QDir().mkpath(goldens);
+    const auto budget = edit::Budget::read(root + QStringLiteral("/bluebrick-oracle/budget.bbb"), &lib_);
+    ASSERT_TRUE(budget);
+
+    QStringList files;
+    QDirIterator it(root, { QStringLiteral("*.bbm") }, QDir::Files, QDirIterator::Subdirectories);
+    while (it.hasNext()) files << it.next();
+    files.sort();
+    ASSERT_GE(files.size(), 10);
+    struct Way { const char* suffix; bool budget; bool split; };
+    const Way ways[] = { { "plain", false, false }, { "budget", true, false }, { "layers", false, true } };
+    for (const QString& file : std::as_const(files)) {
+        const auto loaded = saveload::readBbm(file);
+        ASSERT_TRUE(loaded.ok()) << file.toStdString();
+        const QString name = QDir(root).relativeFilePath(file).replace(QLatin1Char('/'), QLatin1Char('_'));
+        for (const Way& way : ways) {
+            edit::PartListOptions o;
+            o.budget = way.budget ? &*budget : nullptr;
+            o.splitPerLayer = way.split;
+            const QByteArray csv = edit::partListCsv(edit::buildPartList(*loaded.map, lib_, o), way.budget).toUtf8();
+            QFile f(goldens + QLatin1Char('/') + name + QLatin1Char('.') + QLatin1String(way.suffix) + QStringLiteral(".csv"));
+            if (update) {
+                ASSERT_TRUE(f.open(QIODevice::WriteOnly)) << f.fileName().toStdString();
+                f.write(csv);
+                f.close();
+            }
+            ASSERT_TRUE(f.open(QIODevice::ReadOnly)) << f.fileName().toStdString();
+            EXPECT_EQ(f.readAll(), csv) << f.fileName().toStdString();
+        }
+    }
 }

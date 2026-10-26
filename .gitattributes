@@ -1,0 +1,2 @@
+# Byte-exact goldens: never converted to CRLF on a Windows checkout.
+fixtures/part-list-csv/*.csv -text
