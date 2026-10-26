@@ -12,7 +12,7 @@ endforeach()
 
 # Single source of truth for the version stamped into the binaries and every
 # package. Release CI overrides it from the git tag (-DBLD_VERSION=1.2.3).
-set(BLD_VERSION "1.3.0" CACHE STRING "Version stamped into binaries and packages")
+set(BLD_VERSION "2.0.0" CACHE STRING "Version stamped into binaries and packages")
 
 project(BrickLayoutDesigner
     VERSION ${BLD_VERSION}
