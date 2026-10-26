@@ -553,7 +553,18 @@ TEST(ServerRefusal, ExplainsAnAccountBeingDeletedOrOnHold) {
     // A live layout closed because of it says why.
     EXPECT_TRUE(liveCloseText(1008, QStringLiteral("account_pending_deletion")).contains(QStringLiteral("being deleted")));
     EXPECT_TRUE(liveCloseText(1008, QStringLiteral("account_restricted")).contains(QStringLiteral("on hold")));
-    EXPECT_TRUE(liveCloseText(1008, QStringLiteral("token_revoked")).isEmpty());
+}
+
+// Why the server ended a live layout, in plain words, never its code.
+TEST(ServerRefusal, SaysWhyALiveLayoutEndedInPlainWords) {
+    for (const char* reason : { "token_revoked", "session_revoked", "unauthorized" })
+        EXPECT_TRUE(liveCloseText(1008, QLatin1String(reason)).contains(QStringLiteral("Sign in again"))) << reason;
+    for (const char* reason : { "access_revoked", "not_found" })
+        EXPECT_TRUE(liveCloseText(4404, QLatin1String(reason)).startsWith(QStringLiteral("you can't open this layout any more")))
+            << reason;
+    EXPECT_EQ(liveCloseText(4404, QStringLiteral("layout_deleted")), QStringLiteral("this layout was deleted on the server"));
+    // Not a reason this server gives with that code.
+    EXPECT_TRUE(liveCloseText(4404, QStringLiteral("token_revoked")).isEmpty());
 }
 
 // The server's merge guard refused an update: say what happened, and that
