@@ -163,6 +163,7 @@ class TestWindow : public ui::MainWindow {
 public:
     using ui::MainWindow::MainWindow;
     using ui::MainWindow::openLive;
+    using ui::MainWindow::onServerHint;
     using ui::MainWindow::setTokenStore;
     using ui::MainWindow::manifestExtras;
 };
@@ -767,6 +768,87 @@ TEST_F(MainWindowLive, ARefusedMergeKeepsMyCopyOpenUnsavedAndSaveKeepsIt) {
     ASSERT_TRUE(saved.ok()) << saved.error.toStdString();
     EXPECT_EQ(brickAt(*saved.map, 0).displayArea, original_.translated(0, 8));
     EXPECT_EQ(brickAt(*saved.map, 1).displayArea.topLeft(), other + QPointF(16, 0));
+}
+
+namespace {
+QJsonObject layoutRole(const char* role) {
+    return { { QStringLiteral("layout"), QJsonObject{ { QStringLiteral("id"), QStringLiteral("L1") } } },
+             { QStringLiteral("role"), QLatin1String(role) } };
+}
+}  // namespace
+
+// A club admin lowers my role while the layout is open (web #368: the
+// server keeps the connection but drops my edits). The club hint makes the
+// window ask again: it becomes view only, says so, and puts back an edit
+// instead of sending it. Raised again, my edits reach the server.
+TEST_F(MainWindowLive, ARoleLoweredWhileOpenMakesItViewOnlyAndRaisedAgainEditable) {
+    auto* notices = window_->findChild<ui::NoticeArea*>();
+    ASSERT_NE(notices, nullptr);
+    ws_.dropEdits = true;
+    http_.reply("/api/layouts/L1", 200, layoutRole("viewer"));
+    window_->onServerHint(QJsonObject{ { QStringLiteral("kind"), QStringLiteral("club") },
+                                       { QStringLiteral("action"), QStringLiteral("update:members") } });
+    ASSERT_TRUE(waitFor([&] { return live_->readOnly() && session().status() == Status::Synced; }));
+    EXPECT_TRUE(live_->active());
+    EXPECT_TRUE(notices->isShown(QStringLiteral("live-access")));
+    EXPECT_TRUE(live_->statusText().contains(QStringLiteral("view only"))) << live_->statusText().toStdString();
+    // The server's layout, as it was: nothing of mine was dropped.
+    EXPECT_EQ(brickAt(*view_->currentMap(), 0).displayArea, original_);
+
+    // An edit (a menu command) is put back, not sent.
+    core::Map& m = *view_->currentMap();
+    const QPointF at = brickAt(m, 0).displayArea.topLeft();
+    view_->undoStack()->push(new edit::MoveBricksCommand(m, { { brickRef(m, 0), at, at + QPointF(8, 0) } }));
+    ASSERT_TRUE(waitFor([&] { return brickAt(*view_->currentMap(), 0).displayArea == original_; }));
+    EXPECT_EQ(brickArea(ws_.doc, 0), original_);
+
+    // Raised again (a share on top of the role): my edits go to everyone.
+    ws_.dropEdits = false;
+    http_.clear("/api/layouts/L1");
+    http_.reply("/api/layouts/L1", 200, layoutRole("editor"));
+    window_->onServerHint(QJsonObject{ { QStringLiteral("kind"), QStringLiteral("layout") },
+                                       { QStringLiteral("id"), QStringLiteral("L1") } });
+    ASSERT_TRUE(waitFor([&] { return !live_->readOnly(); }));
+    EXPECT_FALSE(live_->statusText().contains(QStringLiteral("view only")));
+    core::Map& now = *view_->currentMap();
+    const QPointF from = brickAt(now, 0).displayArea.topLeft();
+    view_->undoStack()->push(new edit::MoveBricksCommand(now, { { brickRef(now, 0), from, from + QPointF(8, 0) } }));
+    ASSERT_TRUE(waitFor([&] { return brickArea(ws_.doc, 0) == original_.translated(8, 0); }));
+}
+
+// Lowered before this desktop heard of it: the edit made meanwhile went to
+// the server, which dropped it. Once it knows, the live session ends and
+// the layout with that edit stays open as an unsaved copy (as #172 does
+// for a refused merge), saying why in plain words.
+TEST_F(MainWindowLive, ARoleLoweredUnheardKeepsTheEditTheServerDroppedForSaving) {
+    // Taken: before the change.
+    core::Map& m = *view_->currentMap();
+    const QPointF at = brickAt(m, 0).displayArea.topLeft();
+    view_->undoStack()->push(new edit::MoveBricksCommand(m, { { brickRef(m, 0), at, at + QPointF(0, 8) } }));
+    ASSERT_TRUE(waitFor([&] { return brickArea(ws_.doc, 0) == original_.translated(0, 8); }));
+    // Lowered: the next edit is sent and dropped.
+    ws_.dropEdits = true;
+    core::Map& now = *view_->currentMap();
+    const QPointF other = brickAt(now, 1).displayArea.topLeft();
+    view_->undoStack()->push(new edit::MoveBricksCommand(now, { { brickRef(now, 1), other, other + QPointF(16, 0) } }));
+    waitFor([] { return false; }, 150);
+    EXPECT_EQ(brickArea(ws_.doc, 1), otherOriginal_);
+
+    // The connection drops and comes back: back in step, it asks again.
+    http_.reply("/api/layouts/L1", 200, layoutRole("viewer"));
+    Answers closed{ { box(QStringLiteral("your latest changes weren't taken"), QStringLiteral("OK")) } };
+    closed.during([&] {
+        ws_.dropAll(QWebSocketProtocol::CloseCodeGoingAway);
+        ASSERT_TRUE(waitFor([&] { return closed.done() && !live_->active(); }, 8000));
+    });
+    EXPECT_EQ(closed.unexpected, 0);
+    // Mine stays here, unsaved; the server never got the dropped edit.
+    ASSERT_NE(view_->currentMap(), nullptr);
+    EXPECT_EQ(brickAt(*view_->currentMap(), 0).displayArea, original_.translated(0, 8));
+    EXPECT_EQ(brickAt(*view_->currentMap(), 1).displayArea.topLeft(), other + QPointF(16, 0));
+    EXPECT_FALSE(view_->undoStack()->isClean());
+    EXPECT_EQ(brickArea(ws_.doc, 1), otherOriginal_);
+    EXPECT_FALSE(window_->findChild<ui::NoticeArea*>()->isShown(QStringLiteral("live-access")));
 }
 
 // Journey 7: a desktop member's show day, one chain on one live layout.

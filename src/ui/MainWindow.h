@@ -318,6 +318,9 @@ protected:
     // Open a server layout live in this window. Protected so tests can open
     // one without the connect dialog.
     void openLive(const bld::sync::ConnectResult& r);
+    // A live hint from the server (GET /api/events): something changed,
+    // ask again. Protected so tests can send one.
+    void onServerHint(const QJsonObject& hint);
     // Where sign-in tokens are kept (the OS keychain; tests use memory).
     void setTokenStore(std::shared_ptr<bld::sync::TokenStore> store) { tokens_ = std::move(store); }
     bld::sync::TokenStore& tokenStore() { return *tokens_; }
@@ -382,6 +385,14 @@ private:
     QAction* disconnectAct_ = nullptr;
     QAction* liveUndoAct_ = nullptr;
     QAction* liveRedoAct_ = nullptr;
+    // Your access to the live layout can change while it's open (a club
+    // role, a share): asked again on the server's hints, when the live
+    // connection comes back, when you come back to the window, and every
+    // minute. Down to view only, the layout becomes read only here too.
+    void checkLiveRole();
+    void applyLiveRole(const QString& role);
+    class QTimer* liveRoleCheck_ = nullptr;  // a burst of reasons asks once
+    class QTimer* liveRolePoll_ = nullptr;
 
     // The server half of the Module library and your notices (MainWindowModules.cpp).
     void setupServerLibrary();
@@ -393,7 +404,6 @@ private:
     void updateServerStatus();
     QToolButton* serverStatus_ = nullptr;
     void signInToLibraryServer();
-    void onServerHint(const QJsonObject& hint);
     // Adds the server module to the open layout (its parts fetched first
     // when the library lacks them), at the middle of the map.
     void insertServerModule(const QString& moduleId);

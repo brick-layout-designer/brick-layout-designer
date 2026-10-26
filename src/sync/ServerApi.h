@@ -138,6 +138,10 @@ public:
     // layouts:create to publish): the user's organisations, and a new
     // layout from a .bbm and its sidecar, personal or in an org.
     void fetchOrgs();
+    // Your role on one layout now (GET /api/layouts/:id): layoutRoleReady
+    // with owner / editor / viewer, or an empty role when it isn't yours to
+    // open any more (404).
+    void fetchLayoutRole(const QString& layoutId);
     void publishLayout(const QString& title, const QByteArray& bbm, const QByteArray& sidecarJson,
                        const QString& orgSlug);
     // Delete a layout (its owner): deleted(), or requestFailed("delete", …)
@@ -173,6 +177,7 @@ signals:
     void layoutsReady(const QList<bld::sync::LayoutEntry>& layouts);
     void currentUserReady(const QString& userId, const QString& displayName);
     void orgsReady(const QList<bld::sync::OrgEntry>& orgs);
+    void layoutRoleReady(const QString& layoutId, const QString& role);
     void published(const QString& layoutId, const QString& title);
     void deleted(const QString& id);
     void returned(const QString& id);

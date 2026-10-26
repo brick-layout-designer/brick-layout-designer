@@ -29,6 +29,20 @@ LiveLayout::LiveLayout(MapView& view, QObject* parent) : QObject(parent), view_(
         emit statusTextChanged(statusText());
         emit offlineEditsReady();
     });
+    // Down to view only with edits the server didn't take: the session ends
+    // and they stay open here as an unsaved copy, as when the server closes it.
+    connect(&session_, &sync::SyncSession::editsNotTaken, this, [this] {
+        const auto kept = session_.notTaken();
+        if (!active_ || !kept) return;
+        close();
+        if (auto map = sync::merge::mapOf(*kept)) {
+            view_.loadMap(std::move(map));
+            emit mapReloaded();
+        }
+        emit ended(tr("your access to this layout changed to view only, so your latest changes weren't taken. "
+                      "Nothing is lost: your copy stays open here, so save it (File > Save As). Open the layout "
+                      "from the server again to view it live"));
+    });
     connect(&session_, &sync::SyncSession::ended, this, [this](int code, const QString& reason) {
         close();
         const QString friendly = sync::liveCloseText(code, reason);
@@ -195,6 +209,13 @@ bool LiveLayout::redo() {
     return done;
 }
 
+void LiveLayout::setReadOnly(bool readOnly) {
+    if (!active_ || readOnly == session_.readOnly()) return;
+    session_.setReadOnly(readOnly);
+    emit statusTextChanged(statusText());
+    emit undoStateChanged();
+}
+
 QString LiveLayout::statusText() const {
     if (!active_) return {};
     QString s;
@@ -220,6 +241,8 @@ QString LiveLayout::statusText() const {
 
 void LiveLayout::reload() {
     if (!active_) return;
+    // Starting again from the server's copy (access went down): nothing to show until it's in.
+    if (!session_.loaded() && !session_.offlineEdits()) return;
     QString error;
     auto map = session_.editorMap(&error);
     if (!map) return;

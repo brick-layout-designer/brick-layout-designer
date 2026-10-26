@@ -47,6 +47,10 @@ public:
     bool active() const { return active_; }
     QString title() const { return title_; }
     bool readOnly() const { return session_.readOnly(); }
+    // Our access changed while open: view only, or editor again
+    // (SyncSession::setReadOnly). Edits the server didn't take end the
+    // session with them left open as an unsaved copy (ended()).
+    void setReadOnly(bool readOnly);
 
     bool undo();
     bool redo();

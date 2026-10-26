@@ -18,6 +18,8 @@
 #include <QRandomGenerator>
 #include <QTimer>
 
+#include <utility>
+
 namespace bld::sync {
 
 namespace {
@@ -29,6 +31,7 @@ SyncSession::SyncSession(QObject* parent)
       client_(doc_) {
     connect(&client_, &SyncClient::statusChanged, this, [this](SyncClient::Status s) {
         if (s == SyncClient::Status::Synced) {
+            if (before_) checkNothingDropped();
             if (offline_) QTimer::singleShot(0, this, [this] {
                     if (offline_ && client_.status() == SyncClient::Status::Synced) emit offlineEditsReady();
                 });
@@ -80,6 +83,10 @@ SyncSession::~SyncSession() = default;
 
 void SyncSession::open(const QUrl& socketUrl, const QString& token, bool readOnly) {
     readOnly_ = readOnly;
+    socketUrl_ = socketUrl;
+    token_ = token;
+    before_.reset();
+    notTaken_.reset();
     // Nothing of the layout open before: kept, it would merge into this one
     // and go to its server.
     doc_.reset();
@@ -89,6 +96,45 @@ void SyncSession::open(const QUrl& socketUrl, const QString& token, bool readOnl
     peers_.clear();
     loadCache();
     client_.open(socketUrl, token);
+}
+
+void SyncSession::setReadOnly(bool readOnly) {
+    if (readOnly == readOnly_) return;
+    readOnly_ = readOnly;
+    // Up to editor: the server takes our edits from now on.
+    if (!readOnly) return;
+    // Down to view only. The server dropped our edits since the change, so
+    // the document we hold may have some it lacks: start again from its
+    // copy (not from the cache, which has them too), and keep what we
+    // showed until we know.
+    if (loaded_ || offline_) {
+        if (const auto shown = editorMap()) before_ = Before{ merge::snapshotOf(*shown), doc_.encodeState(), offline_.has_value() };
+    }
+    offline_.reset();
+    saveOffline();
+    saveDocTimer_->stop();
+    if (!cacheDir_.isEmpty()) QFile::remove(QDir(cacheDir_).filePath(QString::fromLatin1(kDocCache)));
+    client_.close();
+    doc_.reset();
+    loaded_ = false;
+    pending_ = false;
+    client_.open(socketUrl_, token_);
+}
+
+void SyncSession::checkNothingDropped() {
+    if (!before_) return;
+    const Before before = std::move(*before_);
+    before_.reset();
+    // Ours put on top of the server's copy: anything that changes is something it lacks.
+    SyncDoc mine;
+    mine.applyUpdate(doc_.encodeState());
+    const QJsonObject server = mine.toJson();
+    mine.applyUpdate(before.state);
+    if (!before.offline && mine.toJson() == server) return;
+    notTaken_ = before.shown;
+    QTimer::singleShot(0, this, [this] {
+        if (notTaken_) emit editsNotTaken();
+    });
 }
 
 void SyncSession::close() {

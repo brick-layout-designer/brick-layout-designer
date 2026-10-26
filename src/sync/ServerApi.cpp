@@ -263,6 +263,20 @@ void ServerApi::fetchCurrentUser() {
     });
 }
 
+void ServerApi::fetchLayoutRole(const QString& layoutId) {
+    QNetworkReply* r = get(QStringLiteral("/api/layouts/") + QString::fromLatin1(QUrl::toPercentEncoding(layoutId)));
+    connect(r, &QNetworkReply::finished, this, [this, r, layoutId] {
+        r->deleteLater();
+        if (r->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 404) {
+            emit layoutRoleReady(layoutId, QString());
+            return;
+        }
+        const auto o = okJson(r, QStringLiteral("layoutRole"));
+        if (!o) return;
+        emit layoutRoleReady(layoutId, o->value(QLatin1String("role")).toString());
+    });
+}
+
 void ServerApi::fetchOrgs() {
     QNetworkReply* r = get(QStringLiteral("/api/orgs"));
     connect(r, &QNetworkReply::finished, this, [this, r] {
