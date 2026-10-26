@@ -40,7 +40,7 @@ std::optional<int> compareVersions(const QString& a, const QString& b) {
 }
 
 QString desktopDownloadUrl() {
-    return QStringLiteral("https://github.com/brick-layout-designer/brick-layout-designer/releases/latest");
+    return QStringLiteral("https://github.com/collaborative-brick-layout-designer/desktop/releases/latest");
 }
 
 }  // namespace bld::core

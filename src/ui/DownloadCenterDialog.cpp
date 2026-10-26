@@ -135,7 +135,7 @@ QString DownloadCenterDialog::fetchUrl(const QUrl& url, QString* error) {
     // Match BlueBrick's user-agent so servers that filter on UA still
     // serve us a directory listing.
     req.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral(
-        "Mozilla/5.0 (compatible; BLD/1.0; +https://github.com/brick-layout-designer/brick-layout-designer)"));
+        "Mozilla/5.0 (compatible; BLD/1.0; +https://github.com/collaborative-brick-layout-designer/desktop)"));
     req.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                      QNetworkRequest::NoLessSafeRedirectPolicy);
     req.setTransferTimeout(kFetchTimeoutMs);
@@ -311,7 +311,7 @@ bool DownloadCenterDialog::downloadAndInstall(const Package& pkg, QString* error
     QNetworkAccessManager nam;
     QNetworkRequest req(QUrl(pkg.sourceUrl));
     req.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral(
-        "Mozilla/5.0 (compatible; BLD/1.0; +https://github.com/brick-layout-designer/brick-layout-designer)"));
+        "Mozilla/5.0 (compatible; BLD/1.0; +https://github.com/collaborative-brick-layout-designer/desktop)"));
     req.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                      QNetworkRequest::NoLessSafeRedirectPolicy);
     QNetworkReply* rep = nam.get(req);

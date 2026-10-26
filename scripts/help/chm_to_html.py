@@ -60,7 +60,7 @@ def index_page(entries):
 <h3>Contents</h3>
 <p>Collaborative Brick Layout Designer follows BlueBrick, so this is BlueBrick's own
 manual (by Alban Nanty and Alex McKenna). Where the two differ, see the
-<a href="https://github.com/brick-layout-designer/brick-layout-designer#readme" target="_blank">README</a>.</p>
+<a href="https://github.com/collaborative-brick-layout-designer/desktop#readme" target="_blank">README</a>.</p>
 <ul>
 %s
 </ul>

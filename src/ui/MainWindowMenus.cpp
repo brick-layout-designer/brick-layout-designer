@@ -645,7 +645,7 @@ void MainWindow::setupMenus() {
             }
         }
         help::openHelpPage(QUrl(QStringLiteral(
-            "https://github.com/brick-layout-designer/brick-layout-designer/tree/main/help/en")));
+            "https://github.com/collaborative-brick-layout-designer/desktop/tree/main/help/en")));
     });
     // The guided tours (the same ones, and the same words, as the web app).
     for (const tours::Tour* t : tours::desktopTours()) {
@@ -661,7 +661,7 @@ void MainWindow::setupMenus() {
         // is one, else English; the online copy if it wasn't installed.
         const QString index = help::helpPagePath(QStringLiteral("index.html"));
         help::openHelpPage(index.isEmpty() ? QUrl(QStringLiteral(
-            "https://github.com/brick-layout-designer/brick-layout-designer/tree/main/help/en"))
+            "https://github.com/collaborative-brick-layout-designer/desktop/tree/main/help/en"))
                                            : QUrl::fromLocalFile(index));
     });
     auto* keysAct = help->addAction(tr("&Keyboard Shortcuts"));

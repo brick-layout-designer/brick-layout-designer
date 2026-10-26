@@ -142,9 +142,9 @@ TEST(ConnectDialog, ShowsWhereTheSourceIsOnEveryPage) {
     ASSERT_NE(links, nullptr);
     EXPECT_TRUE(links->isVisible());
     EXPECT_TRUE(links->openExternalLinks());  // the system browser
-    EXPECT_TRUE(links->text().contains(QStringLiteral("href=\"https://github.com/brick-layout-designer/brick-layout-designer\"")));
+    EXPECT_TRUE(links->text().contains(QStringLiteral("href=\"https://github.com/collaborative-brick-layout-designer/desktop\"")));
     EXPECT_TRUE(links->text().contains(
-        QStringLiteral("href=\"https://github.com/brick-layout-designer/collaborative-brick-layout-designer\"")));
+        QStringLiteral("href=\"https://github.com/collaborative-brick-layout-designer/web\"")));
     // Still there on the sign-in code page.
     h.dialog.findChild<QStackedWidget*>()->setCurrentIndex(1);
     EXPECT_TRUE(links->isVisible());
