@@ -138,13 +138,17 @@ void MainWindow::setupLiveMenu(QMenu* file) {
     liveRolePoll_->setInterval(60000);
     connect(liveRolePoll_, &QTimer::timeout, liveRoleCheck_, qOverload<>(&QTimer::start));
     // Back in step (a reconnect): what we may do may have changed meanwhile.
+    // Away from it (a dropped connection): ask too, so a sign-in that ran
+    // out (the socket then can't connect at all) is noticed at once.
     connect(&live_->session(), &sync::SyncSession::statusChanged, this, [this](sync::SyncClient::Status s) {
-        if (s == sync::SyncClient::Status::Synced && live_->active()) liveRoleCheck_->start();
+        if ((s == sync::SyncClient::Status::Synced || s == sync::SyncClient::Status::Connecting) && live_->active())
+            liveRoleCheck_->start();
     });
     connect(live_, &LiveLayout::ended, this, [this](const QString& reason) {
         if (prefsSync_) prefsSync_->stop();
         liveRolePoll_->stop();
         notices_->hideNotice(QStringLiteral("live-access"));
+        notices_->hideNotice(QStringLiteral("live-signin"));
         // The copy left here is the person's work and no longer on the
         // server: unsaved until they save it, so closing or opening another
         // layout asks first.
@@ -328,6 +332,7 @@ void MainWindow::openLive(const sync::ConnectResult& r) {
     startPrefsSync(r);
     showServerNotices(r.info);
     notices_->hideNotice(QStringLiteral("live-access"));
+    notices_->hideNotice(QStringLiteral("live-signin"));
     liveRolePoll_->start();
     // The Server window and the Module library show the live layout's server.
     browseServer_ = r.server;
@@ -346,8 +351,41 @@ void MainWindow::checkLiveRole() {
                 // Still the same live layout.
                 if (live_->active() && server == liveServer_ && layoutId == liveLayoutId_) applyLiveRole(role);
             });
-    connect(api, &sync::ServerApi::requestFailed, api, &QObject::deleteLater);
+    connect(api, &sync::ServerApi::requestFailed, this,
+            [this, api, server = liveServer_](const QString&, const QString&, bool unauthorized) {
+                api->deleteLater();
+                if (unauthorized && live_->active() && server == liveServer_) liveSignInNeeded();
+            });
     api->fetchLayoutRole(liveLayoutId_);
+}
+
+void MainWindow::liveSignInNeeded() {
+    notices_->showNotice(
+        QStringLiteral("live-signin"), tr("Sign in again to keep working live"),
+        tr("Your sign-in to %1 has run out, so your changes can't reach the server. They're kept here, and sent "
+           "once you sign in again.")
+            .arg(liveServerName()),
+        { NoticeAction{ tr("Sign In..."),
+                        // Not inside the notice's own click.
+                        [this] { QTimer::singleShot(0, this, [this] { signInToLiveServer(); }); }, true } });
+}
+
+void MainWindow::signInToLiveServer() {
+    if (!live_->active()) return;
+    const QUrl url = liveServer_;
+    sync::ServerApi api;
+    sync::ConnectDialog dialog(api, *tokens_, [](const QUrl& u) { QDesktopServices::openUrl(u); }, this,
+                               sync::ConnectDialog::Purpose::SignIn);
+    dialog.setAddress(url.toString());
+    QTimer::singleShot(0, &dialog, &sync::ConnectDialog::connectToServer);
+    if (dialog.exec() != QDialog::Accepted) return;
+    const auto signedIn = dialog.result();
+    if (signedIn && live_->active() && url == liveServer_) resumeLive(signedIn->token);
+}
+
+void MainWindow::resumeLive(const QString& token) {
+    if (!live_->active() || token.isEmpty()) return;
+    openLive({ liveServer_, token, liveLayoutId_, live_->title(), live_->readOnly(), liveInfo_ });
 }
 
 void MainWindow::applyLiveRole(const QString& role) {
@@ -568,6 +606,7 @@ void MainWindow::onDisconnect() {
     live_->close();
     liveRolePoll_->stop();
     notices_->hideNotice(QStringLiteral("live-access"));
+    notices_->hideNotice(QStringLiteral("live-signin"));
     mapView_->hideOpening();
     if (partsDownloadCard_) partsDownloadCard_->finish();
     if (prefsSync_) prefsSync_->stop();
