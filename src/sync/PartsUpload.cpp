@@ -132,6 +132,23 @@ bool isPathUnder(const QString& path, const QString& root) {
     return p.startsWith(prefix, Qt::CaseInsensitive);
 }
 
+// A <group> root with at least one <SubPart>: what the server takes as a set.
+bool isSetXml(const QByteArray& xml) {
+    QXmlStreamReader r(xml);
+    bool group = false;
+    while (!r.atEnd()) {
+        r.readNext();
+        if (!r.isStartElement()) continue;
+        if (!group) {
+            if (r.name() != QLatin1String("group")) return false;
+            group = true;
+        } else if (r.name() == QLatin1String("SubPart")) {
+            return true;
+        }
+    }
+    return false;
+}
+
 } // namespace
 
 PartsUpload::PartsUpload(QUrl server, QString token, QObject* parent)
@@ -139,12 +156,23 @@ PartsUpload::PartsUpload(QUrl server, QString token, QObject* parent)
 }
 
 QList<LocalPart> PartsUpload::scanFolder(const QString& dir) {
-    QList<LocalPart> out;
+    QList<LocalPart> out, sets;
     QDirIterator it(dir, { QStringLiteral("*.xml") }, QDir::Files, QDirIterator::Subdirectories);
     while (it.hasNext()) {
         const QFileInfo xml(it.next());
         const QString base = xml.absolutePath() + QLatin1Char('/') + xml.completeBaseName();
         const QByteArray xmlBytes = readAll(xml.absoluteFilePath());
+        // A set: its parts draw it, so it has no sprite of its own.
+        if (xml.fileName().endsWith(QLatin1String(".set.xml"), Qt::CaseInsensitive) && isSetXml(xmlBytes)) {
+            QString key = xml.fileName();
+            key.chop(8);
+            const QString description = englishDescription(xmlBytes);
+            LocalPart set{ key, description.isEmpty() ? key : description, xml.absoluteFilePath(),
+                           QString() };
+            set.isSet = true;
+            sets << set;
+            continue;
+        }
         // The sprite PartsLibrary::scanFile draws: an import keeps its hi-res
         // .png (declared by <PixelsPerStud>) beside an 8 px a stud .gif for
         // vanilla BlueBrick. Sending the .gif with an XML that says 32 made
@@ -163,8 +191,10 @@ QList<LocalPart> PartsUpload::scanFolder(const QString& dir) {
                           description.isEmpty() ? xml.completeBaseName() : description,
                           xml.absoluteFilePath(), sprite };
     }
-    std::sort(out.begin(), out.end(), [](const LocalPart& a, const LocalPart& b) { return a.key < b.key; });
-    return out;
+    const auto byKey = [](const LocalPart& a, const LocalPart& b) { return a.key < b.key; };
+    std::sort(out.begin(), out.end(), byKey);
+    std::sort(sets.begin(), sets.end(), byKey);
+    return out + sets;
 }
 
 PartPayload PartsUpload::payloadFor(const LocalPart& part, qint64 maxBytes) {
@@ -175,6 +205,7 @@ PartPayload PartsUpload::payloadFor(const LocalPart& part, qint64 maxBytes) {
     static const QRegularExpression importSource(QStringLiteral("\\s*<ImportSource>.*?</ImportSource>"),
                                                  QRegularExpression::DotMatchesEverythingOption);
     out.xml = QString::fromUtf8(out.xml).remove(importSource).toUtf8();
+    if (part.isSet) return out; // its XML only
     out.sprite = readAll(part.spritePath);
     const int declared = declaredPxPerStud(out.xml);
     if (!part.spritePath.endsWith(QLatin1String(".png"), Qt::CaseInsensitive)) {
@@ -235,7 +266,7 @@ void PartsUpload::findMissing(const QList<LocalPart>& local) {
     getCatalog([this, local](const QSet<QString>& known) {
         QList<LocalPart> missing;
         for (const auto& p : local)
-            if (!known.contains(p.key.toUpper())) missing << p;
+            if (!known.contains(p.key.toUpper()) && (takesSets_ || !p.isSet)) missing << p;
         emit missingReady(missing);
     });
 }
@@ -245,7 +276,11 @@ void PartsUpload::fetchCatalog() {
 }
 
 void PartsUpload::upload(const QList<LocalPart>& parts, const QString& orgSlug) {
-    queue_ = parts;
+    queue_.clear();
+    // Parts before the sets made of them; no sets to a server that doesn't take them.
+    for (const bool sets : { false, true })
+        for (const LocalPart& p : parts)
+            if (p.isSet == sets && (takesSets_ || !p.isSet)) queue_ << p;
     orgSlug_ = orgSlug;
     done_ = 0;
     failures_.clear();
@@ -254,6 +289,10 @@ void PartsUpload::upload(const QList<LocalPart>& parts, const QString& orgSlug) 
 
 QJsonObject PartsUpload::uploadBody(const LocalPart& p) {
     const PartPayload payload = payloadFor(p);
+    if (p.isSet)
+        return { { QStringLiteral("partNumber"), p.key },
+                 { QStringLiteral("displayName"), p.displayName },
+                 { QStringLiteral("xmlBase64"), QString::fromLatin1(payload.xml.toBase64()) } };
     return { { QStringLiteral("partNumber"), p.key },
              { QStringLiteral("displayName"), p.displayName },
              { QStringLiteral("xmlBase64"), QString::fromLatin1(payload.xml.toBase64()) },

@@ -149,6 +149,12 @@ void MainWindow::refreshServerLocal() {
     serverWindow_->setLocalItems(Tab::Parts, parts);
 }
 
+bool MainWindow::serverTakesSets(const QUrl& server) {
+    const sync::ServerList list = sync::ServerList::load();
+    const sync::ServerEntry* e = list.find(server);
+    return e && e->features && e->features->contains(QStringLiteral("uploadSets"));
+}
+
 void MainWindow::checkMissingParts() {
     if (checkingParts_ || !serverLibrary_ || serverLibrary_->state() != ServerLibrary::State::Ready) return;
     // Only a server that takes parts (servers that don't say: all of them).
@@ -163,6 +169,7 @@ void MainWindow::checkMissingParts() {
     }
     checkingParts_ = true;
     auto* check = new sync::PartsUpload(serverLibrary_->server(), serverLibrary_->token(), this);
+    check->setServerTakesSets(serverTakesSets(serverLibrary_->server()));
     connect(check, &sync::PartsUpload::missingReady, this, [this, check](const QList<sync::LocalPart>& missing) {
         check->deleteLater();
         checkingParts_ = false;
@@ -231,6 +238,7 @@ void MainWindow::uploadPartsTo(const QUrl& server, const QString& token, bool qu
         return;
     }
     auto* upload = new sync::PartsUpload(server, token, this);
+    upload->setServerTakesSets(serverTakesSets(server));
     const auto checkFailed =
         connect(upload, &sync::PartsUpload::failed, this, [this, upload, quiet](const QString& message, bool) {
             if (!quiet) statusBar()->showMessage(tr("Could not check the server's parts: %1").arg(message), 6000);

@@ -242,3 +242,49 @@ TEST(PartsSync, ALayoutMadeOnTheWebsiteFindsTheServersCustomParts) {
     EXPECT_EQ(sync(http, dir.path()).downloaded, 2);
     EXPECT_EQ(sync(http, dir.path()).downloaded, 0);
 }
+
+TEST(PartsSync, AServersSetIsKeptAsASetFileWithoutASprite) {
+    // A set uploaded from a Brick Track Designer export: the manifest says so,
+    // and the desktop keeps it as <number>.set.xml beside its parts.
+    QTemporaryDir dir;
+    FakeHttp http;
+    http.reply(
+        "/api/parts/manifest", 200,
+        { { QStringLiteral("libraries"), QJsonArray{} },
+          { QStringLiteral("customParts"),
+            QJsonArray{
+                QJsonObject{ { QStringLiteral("id"), QStringLiteral("p1") },
+                             { QStringLiteral("partNumber"), QStringLiteral("Yard.plate1") },
+                             { QStringLiteral("hash"), QStringLiteral("H1") },
+                             { QStringLiteral("xmlUrl"), QStringLiteral("/api/custom-parts/p1/xml") },
+                             { QStringLiteral("spriteUrl"), QStringLiteral("/api/custom-parts/p1/sprite") } },
+                QJsonObject{
+                    { QStringLiteral("id"), QStringLiteral("s1") },
+                    { QStringLiteral("partNumber"), QStringLiteral("Yard.whole") },
+                    { QStringLiteral("kind"), QStringLiteral("set") },
+                    { QStringLiteral("hash"), QStringLiteral("H2") },
+                    { QStringLiteral("xmlUrl"), QStringLiteral("/api/custom-parts/s1/xml") },
+                    { QStringLiteral("spriteUrl"), QStringLiteral("/api/custom-parts/s1/sprite") } } } } });
+    http.replyRaw("/api/custom-parts/p1/xml", 200, "<part><Author>me</Author></part>", "application/xml");
+    http.replyRaw("/api/custom-parts/p1/sprite", 200, kGif, "image/gif");
+    http.replyRaw("/api/custom-parts/s1/xml", 200,
+                  "<group><SubPartList><SubPart id=\"Yard.plate1\"><position><x>0</x><y>0</y></position>"
+                  "<angle>0</angle></SubPart></SubPartList></group>",
+                  "application/xml");
+    const auto result = sync(http, dir.path());
+    EXPECT_TRUE(result.failed.isEmpty()) << result.failed.join(QStringLiteral("; ")).toStdString();
+    EXPECT_TRUE(QFile::exists(dir.filePath(QStringLiteral("custom/Yard.whole.set.xml"))));
+    EXPECT_FALSE(QFile::exists(dir.filePath(QStringLiteral("custom/Yard.whole.gif"))));
+    EXPECT_FALSE(QFile::exists(dir.filePath(QStringLiteral("custom/Yard.whole.xml"))));
+    for (const auto& r : http.requests) EXPECT_NE(r.path, QByteArray("/api/custom-parts/s1/sprite"));
+
+    bld::parts::PartsLibrary lib;
+    lib.addSearchPath(dir.filePath(QStringLiteral("custom")));
+    lib.scan();
+    const auto set = lib.metadata(QStringLiteral("Yard.whole"));
+    ASSERT_TRUE(set.has_value());
+    EXPECT_EQ(set->kind, bld::parts::PartKind::Group);
+    EXPECT_TRUE(lib.metadata(QStringLiteral("custom:s1")).has_value()); // as the website places it
+    // Unchanged next time.
+    EXPECT_EQ(sync(http, dir.path()).downloaded, 0);
+}

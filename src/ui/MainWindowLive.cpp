@@ -312,6 +312,9 @@ void MainWindow::openLive(const sync::ConnectResult& r) {
     // Your own parts: the imported ones and your library folders, not the
     // bundled library or the folders of server parts.
     liveLocalParts_ = scanOwnParts();
+    // Sets only to a server that takes them.
+    if (!r.info.has(QStringLiteral("uploadSets")))
+        liveLocalParts_.removeIf([](const sync::LocalPart& p) { return p.isSet; });
     loadLivePartsCatalog();
     // Settings follow the account on this server while connected.
     if (!prefsSync_) {
@@ -515,6 +518,7 @@ void MainWindow::offerPlacedParts() {
         QTimer::singleShot(0, this, [this, parts] {
             if (!live_->active()) return;
             auto* upload = new sync::PartsUpload(liveServer_, liveToken_, this);
+            upload->setServerTakesSets(liveInfo_.has(QStringLiteral("uploadSets")));
             sync::ServerApi api;
             api.setBase(liveServer_);
             api.setToken(liveToken_);
