@@ -18,6 +18,11 @@
 // - Remote changes wait while held (mid-drag) and arrive on release.
 // - Undo / redo revert only this desktop's own edits.
 // - A read-only session (view-only access) never sends edits.
+// - Access that changes while open (setReadOnly): up to editor, edits flow
+//   from then on; down to view only, the server keeps the connection but
+//   drops our edits, so the document starts again from the server's copy.
+//   Anything of ours the server lacks then (edits it dropped, offline
+//   edits) is kept for saving: editsNotTaken().
 
 #include "Awareness.h"
 #include "LayoutMerge.h"
@@ -50,6 +55,11 @@ public:
 
     SyncClient::Status status() const { return client_.status(); }
     bool readOnly() const { return readOnly_; }
+    // Our access changed while open (see above).
+    void setReadOnly(bool readOnly);
+    // What the editor showed when access went down to view only, if the
+    // server turned out to lack some of it (editsNotTaken); else nullopt.
+    const std::optional<merge::Snapshot>& notTaken() const { return notTaken_; }
     // The first sync has delivered the layout.
     bool loaded() const { return loaded_; }
     // Offline edits waiting to be resolved.
@@ -102,6 +112,9 @@ signals:
     // The server ended the session for good (access revoked, layout gone),
     // or the layout is in a form this version can't read (kUnreadableDocCode).
     void ended(int code, const QString& reason);
+    // Access went down to view only and the server's copy lacks some of our
+    // edits: they're in notTaken(), for saving.
+    void editsNotTaken();
 
 private:
     void remoteArrived();
@@ -111,6 +124,8 @@ private:
 
     void sendPresence();
     void dropStalePeers();
+    // Back in step after starting again read only: whether the server kept everything of ours.
+    void checkNothingDropped();
 
     quint32 clientId_;
     quint32 presenceClock_ = 0;
@@ -124,6 +139,16 @@ private:
     bool held_ = false;
     bool pending_ = false;
     std::optional<OfflineEdits> offline_;
+    QUrl socketUrl_;
+    QString token_;
+    // Started again read only: what we showed and held, until the server's copy is in.
+    struct Before {
+        merge::Snapshot shown;
+        QByteArray state;
+        bool offline = false;
+    };
+    std::optional<Before> before_;
+    std::optional<merge::Snapshot> notTaken_;
     QString cacheDir_;
     QTimer* saveDocTimer_ = nullptr;
 };

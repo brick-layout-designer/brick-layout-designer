@@ -126,6 +126,9 @@ public:
     std::vector<QByteArray> step1s;
     // When set, the answers to step 1 are these bytes instead.
     std::optional<QByteArray> step2Override;
+    // The connection is held to viewer (a role lowered while open): the
+    // server keeps it open but drops what it sends (its step 2, its updates).
+    bool dropEdits = false;
 
 private:
     void onMessage(QWebSocket* from, const QByteArray& message) {
@@ -155,6 +158,7 @@ private:
             for (QWebSocket* p : peers)
                 if (p != from) p->sendBinaryMessage(out);
         } else {
+            if (dropEdits) return;
             doc.applyUpdate(m->payload);
             for (QWebSocket* p : peers)
                 if (p != from) p->sendBinaryMessage(protocol::encode(Kind::Update, m->payload));

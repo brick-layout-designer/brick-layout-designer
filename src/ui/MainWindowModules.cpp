@@ -163,6 +163,8 @@ void MainWindow::setupServerLibrary() {
     connect(serverEvents_, &sync::EventStream::reconnected, this, [this] {
         serverLibrary_->refresh();
         refreshNotices();
+        // Hints may have been missed: one may have changed your access to the live layout.
+        if (live_ && live_->active() && liveRoleCheck_) liveRoleCheck_->start();
     });
     libraryRefresh_ = new QTimer(this);
     libraryRefresh_->setSingleShot(true);
@@ -170,6 +172,7 @@ void MainWindow::setupServerLibrary() {
     connect(libraryRefresh_, &QTimer::timeout, serverLibrary_, &ServerLibrary::refresh);
     // Back in the window: someone may have changed things on the web meanwhile.
     new sync::RefreshOnFocus(this, [this] {
+        if (live_ && live_->active() && liveRoleCheck_) liveRoleCheck_->start();
         if (serverLibrary_->state() == ServerLibrary::State::Ready || serverLibrary_->state() == ServerLibrary::State::Offline) {
             serverLibrary_->refresh();
             refreshNotices();
@@ -285,6 +288,14 @@ void MainWindow::signInToLibraryServer() {
 void MainWindow::onServerHint(const QJsonObject& hint) {
     if (serverWindow_) serverWindow_->hint(hint);
     const QString kind = hint.value(QLatin1String("kind")).toString();
+    // A club role, a share or your account changed: your access to the live
+    // layout may have too (the web refetches the open layout the same way).
+    if (live_ && live_->active() && liveRoleCheck_) {
+        const QString id = hint.value(QLatin1String("id")).toString();
+        if (kind == QLatin1String("club") || kind == QLatin1String("me") ||
+            (kind == QLatin1String("layout") && (id.isEmpty() || id == liveLayoutId_)))
+            liveRoleCheck_->start();
+    }
     if (kind == QLatin1String("warning")) {
         refreshNotices();
     } else if (kind == QLatin1String("module") || kind == QLatin1String("catalog") || kind == QLatin1String("club") ||

@@ -128,8 +128,21 @@ void MainWindow::setupLiveMenu(QMenu* file) {
     connect(live_, &LiveLayout::offlineEditsReady, this, &MainWindow::onReviewOfflineEdits);
     // Queued: after the edit's own signal handling, not inside it.
     connect(live_, &LiveLayout::localEdited, this, &MainWindow::offerPlacedParts, Qt::QueuedConnection);
+    liveRoleCheck_ = new QTimer(this);
+    liveRoleCheck_->setSingleShot(true);
+    liveRoleCheck_->setInterval(300);
+    connect(liveRoleCheck_, &QTimer::timeout, this, &MainWindow::checkLiveRole);
+    liveRolePoll_ = new QTimer(this);
+    liveRolePoll_->setInterval(60000);
+    connect(liveRolePoll_, &QTimer::timeout, liveRoleCheck_, qOverload<>(&QTimer::start));
+    // Back in step (a reconnect): what we may do may have changed meanwhile.
+    connect(&live_->session(), &sync::SyncSession::statusChanged, this, [this](sync::SyncClient::Status s) {
+        if (s == sync::SyncClient::Status::Synced && live_->active()) liveRoleCheck_->start();
+    });
     connect(live_, &LiveLayout::ended, this, [this](const QString& reason) {
         if (prefsSync_) prefsSync_->stop();
+        liveRolePoll_->stop();
+        notices_->hideNotice(QStringLiteral("live-access"));
         // The copy left here is the person's work and no longer on the
         // server: unsaved until they save it, so closing or opening another
         // layout asks first.
@@ -306,9 +319,51 @@ void MainWindow::openLive(const sync::ConnectResult& r) {
     }
     startPrefsSync(r);
     showServerNotices(r.info);
+    notices_->hideNotice(QStringLiteral("live-access"));
+    liveRolePoll_->start();
     // The Server window and the Module library show the live layout's server.
     browseServer_ = r.server;
     updateLibraryServer();
+    updateLiveUi();
+}
+
+void MainWindow::checkLiveRole() {
+    if (!live_->active() || liveToken_.isEmpty() || liveLayoutId_.isEmpty()) return;
+    auto* api = new sync::ServerApi(this);
+    api->setBase(liveServer_);
+    api->setToken(liveToken_);
+    connect(api, &sync::ServerApi::layoutRoleReady, this,
+            [this, api, server = liveServer_](const QString& layoutId, const QString& role) {
+                api->deleteLater();
+                // Still the same live layout.
+                if (live_->active() && server == liveServer_ && layoutId == liveLayoutId_) applyLiveRole(role);
+            });
+    connect(api, &sync::ServerApi::requestFailed, api, &QObject::deleteLater);
+    api->fetchLayoutRole(liveLayoutId_);
+}
+
+void MainWindow::applyLiveRole(const QString& role) {
+    // Not yours to open any more: the server closes the session itself.
+    if (role.isEmpty()) return;
+    const bool readOnly = role == QLatin1String("viewer");
+    if (readOnly == live_->readOnly()) return;
+    live_->setReadOnly(readOnly);
+    {
+        sync::ServerList servers = sync::ServerList::load();
+        servers.addRecent(liveServer_, { liveLayoutId_, live_->title(), readOnly, {} });
+        servers.save();
+    }
+    if (readOnly)
+        notices_->showNotice(
+            QStringLiteral("live-access"), tr("You can only view this layout now"),
+            tr("Your access to “%1” changed to view only, so changes can't be made here. Ask its owner, or a club "
+               "admin, if you need to edit it.")
+                .arg(live_->title()),
+            { NoticeAction{ tr("OK"), {} } });
+    else
+        notices_->showNotice(QStringLiteral("live-access"), tr("You can edit this layout now"),
+                             tr("Your access to “%1” changed: your changes go to everyone again.").arg(live_->title()),
+                             { NoticeAction{ tr("OK"), {} } });
     updateLiveUi();
 }
 
@@ -503,6 +558,8 @@ void MainWindow::showPartsSyncFailed(const QString& summary, const QStringList& 
 
 void MainWindow::onDisconnect() {
     live_->close();
+    liveRolePoll_->stop();
+    notices_->hideNotice(QStringLiteral("live-access"));
     mapView_->hideOpening();
     if (partsDownloadCard_) partsDownloadCard_->finish();
     if (prefsSync_) prefsSync_->stop();
