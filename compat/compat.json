@@ -2,10 +2,11 @@
   "about": "Which desktop apps and servers work together. Kept identical in the web repo (compat/compat.json) and the desktop repo (compat/compat.json); both test suites check their code against it. Change both copies in the same change.",
   "desktop": {
     "minimum": "1.2.0",
-    "recommended": "1.3.0",
+    "recommended": "1.4.0",
     "why": {
       "1.2.0": "The first version number any desktop that can connect to a server reports: 1.2.0 and earlier releases have no Connect to Server at all, and every live-sync build before 1.3.0 still calls itself 1.2.0.",
-      "1.3.0": "The first release with live sync, the token fix that lets it download a server's parts (needs server #140, which every server with the partFilesWithToken feature has), and these version checks."
+      "1.3.0": "The first release with live sync, the token fix that lets it download a server's parts (needs server #140, which every server with the partFilesWithToken feature has), and these version checks.",
+      "1.4.0": "The first release that reads doc shape 2: a layout edited on this server moves to shape 2, and older desktops then refuse to open it live."
     },
     "downloadUrl": "https://github.com/collaborative-brick-layout-designer/desktop/releases/latest",
     "userAgentPattern": "^(?:Collaborative)?BrickLayoutDesigner/([0-9][0-9A-Za-z.+-]{0,31}) \\(desktop\\)"
