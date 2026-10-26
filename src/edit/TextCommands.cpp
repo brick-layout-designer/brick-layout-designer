@@ -1,5 +1,6 @@
 #include "TextCommands.h"
 
+#include "../core/Ids.h"
 #include "../core/Layer.h"
 #include "../core/LayerText.h"
 #include "../core/Map.h"
@@ -32,6 +33,9 @@ int indexByGuid(const core::LayerText& L, const QString& guid) {
 AddTextCellCommand::AddTextCellCommand(core::Map& map, int layerIndex, core::TextCell cell,
                                        QUndoCommand* parent)
     : QUndoCommand(parent), map_(map), layerIndex_(layerIndex), cell_(std::move(cell)) {
+    // Undo finds the cell by its id: one without gets its own (as a ruler
+    // does), so undo can't take away another cell that has none.
+    if (cell_.guid.isEmpty()) cell_.guid = core::newBbmId();
     setText(QObject::tr("Add text '%1'").arg(cell_.text));
 }
 
