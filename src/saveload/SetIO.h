@@ -38,4 +38,11 @@ bool writeSetXml(const QString& filePath,
                  const SetManifest& manifest,
                  QString* error = nullptr);
 
+// Renames the set in `filePath`: its English name (<Description><en>) becomes
+// `name`, and the rest of the file stays as it was, so its file name (its part
+// number) and every layout that uses it are unchanged. A set without a
+// <Description> gets one. False with a message in `error` when the file can't
+// be read, isn't a set, or can't be written.
+bool renameSetXml(const QString& filePath, const QString& name, QString* error = nullptr);
+
 }  // namespace bld::saveload

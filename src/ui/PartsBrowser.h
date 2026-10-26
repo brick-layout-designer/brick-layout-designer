@@ -9,6 +9,7 @@
 #include <functional>
 
 class QComboBox;
+class QMenu;
 class QLineEdit;
 class QListWidget;
 class QListWidgetItem;
@@ -72,6 +73,15 @@ public:
     // "Browse the catalog on the web…" (builds that talk to a server).
     void setCatalogLinkVisible(bool visible);
 
+    // Your own parts folders (not the bundled library, not servers' parts):
+    // a set in one of them can be renamed and deleted from its menu.
+    void setOwnPartsRoots(std::function<QStringList()> roots);
+    // Whether `key` is a set you made: a .set.xml in one of your parts folders.
+    bool isOwnSet(const QString& key) const;
+    // Rename set…: the set's new name (empty: cancelled); tests answer
+    // instead of the question.
+    std::function<QString(const QString& current)> askSetName;
+
 signals:
     void partActivated(const QString& key);
     // "Browse the catalog on the web…" was clicked.
@@ -82,6 +92,8 @@ signals:
     // library rescan so the deleted entry stops appearing in the
     // grid.
     void partDeleted();
+    // A set you made was renamed or deleted: the parts are read again.
+    void ownSetsChanged();
 
     // "Re-import from Original File" on an imported part.
     void reimportRequested(const QString& key);
@@ -167,6 +179,8 @@ private:
     QTimer* saveSize_ = nullptr;
     theme::PrefsStore* prefs_ = nullptr;
     QString liveServerFolder_;
+    std::function<QStringList()> ownRoots_;
+    void addSetActions(QMenu& menu, const QString& key);
 };
 
 }

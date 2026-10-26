@@ -136,4 +136,11 @@ DeleteWording ConfirmDialog::customPartWording() {
     return w;
 }
 
+DeleteWording ConfirmDialog::setWording() {
+    DeleteWording w;
+    w.removes = tr("The set is deleted from your custom parts, so it can’t be placed again.");
+    w.keeps = tr("Layouts that use it keep the parts it put down.");
+    return w;
+}
+
 } // namespace bld::ui

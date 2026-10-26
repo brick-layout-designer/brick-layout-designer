@@ -166,3 +166,66 @@ TEST(SetIO, PreservesPrecisionOnMultiDecimalPositions) {
             << "subpart " << i;
     }
 }
+
+TEST(SetIO, RenameChangesOnlyTheEnglishName) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("Yard.set.xml"));
+    saveload::SetManifest m;
+    m.name = QStringLiteral("Yard");
+    m.author = QStringLiteral("Me");
+    m.subparts.push_back({ QStringLiteral("3001.1"), QPointF(1.5, -2), 90.0 });
+    ASSERT_TRUE(saveload::writeSetXml(path, m));
+    const auto before = [&] {
+        QFile f(path);
+        EXPECT_TRUE(f.open(QIODevice::ReadOnly));
+        return f.readAll();
+    }();
+
+    QString err;
+    ASSERT_TRUE(saveload::renameSetXml(path, QStringLiteral("Big yard & sidings <2>"), &err)) << err.toStdString();
+    const ParsedSet s = parseSet(path);
+    EXPECT_EQ(s.descriptionEn, QStringLiteral("Big yard & sidings <2>"));
+    EXPECT_EQ(s.author, QStringLiteral("Me"));
+    ASSERT_EQ(s.subparts.size(), 1);
+    EXPECT_EQ(s.subparts[0].id, QStringLiteral("3001.1"));
+
+    // Everything but the name is byte for byte what it was.
+    QFile f(path);
+    ASSERT_TRUE(f.open(QIODevice::ReadOnly));
+    QByteArray after = f.readAll();
+    after.replace("Big yard &amp; sidings &lt;2&gt;", "Yard");
+    EXPECT_EQ(after, before);
+}
+
+TEST(SetIO, RenameKeepsOtherLanguagesAndAddsADescriptionWhenThereIsNone) {
+    QTemporaryDir dir;
+    const QString withFr = dir.filePath(QStringLiteral("A.set.xml"));
+    const QString bare = dir.filePath(QStringLiteral("B.set.xml"));
+    const auto write = [](const QString& path, const QByteArray& data) {
+        QFile f(path);
+        ASSERT_TRUE(f.open(QIODevice::WriteOnly));
+        f.write(data);
+    };
+    write(withFr, "<group><Description><fr>Gare</fr><en>Station</en></Description><SubPartList>"
+                  "<SubPart id=\"3001.1\"><position><x>0</x><y>0</y></position><angle>0</angle></SubPart>"
+                  "</SubPartList></group>");
+    write(bare, "<group><SubPartList>"
+                "<SubPart id=\"3001.1\"><position><x>0</x><y>0</y></position><angle>0</angle></SubPart>"
+                "</SubPartList></group>");
+    ASSERT_TRUE(saveload::renameSetXml(withFr, QStringLiteral("Main station")));
+    ASSERT_TRUE(saveload::renameSetXml(bare, QStringLiteral("Siding")));
+    EXPECT_EQ(parseSet(withFr).descriptionEn, QStringLiteral("Main station"));
+    EXPECT_EQ(parseSet(bare).descriptionEn, QStringLiteral("Siding"));
+    EXPECT_EQ(parseSet(bare).subparts.size(), 1);
+    QFile f(withFr);
+    ASSERT_TRUE(f.open(QIODevice::ReadOnly));
+    EXPECT_TRUE(f.readAll().contains("<fr>Gare</fr>"));
+
+    // Not a set: refused, the file untouched.
+    const QString part = dir.filePath(QStringLiteral("P.xml"));
+    write(part, "<part><Description><en>Brick</en></Description></part>");
+    QString err;
+    EXPECT_FALSE(saveload::renameSetXml(part, QStringLiteral("X"), &err));
+    EXPECT_FALSE(err.isEmpty());
+}

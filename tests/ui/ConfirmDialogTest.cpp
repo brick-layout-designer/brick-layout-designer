@@ -97,6 +97,9 @@ TEST(ConfirmDialog, Words) {
     // The same words as the website's.
     EXPECT_EQ(ConfirmDialog::venueWording().keeps, QStringLiteral("Layouts made from it keep their own copy of the venue."));
     EXPECT_EQ(ConfirmDialog::customPartWording().keeps, QStringLiteral("Layouts that use it show a placeholder in its place."));
+    EXPECT_EQ(ConfirmDialog::setWording().removes,
+              QStringLiteral("The set is deleted from your custom parts, so it can’t be placed again."));
+    EXPECT_EQ(ConfirmDialog::setWording().keeps, QStringLiteral("Layouts that use it keep the parts it put down."));
     EXPECT_TRUE(ConfirmDialog::layoutWording().typeName);
 }
 

@@ -6,6 +6,7 @@
 #include "../core/Map.h"
 
 #include "../parts/PartsLibrary.h"
+#include "../saveload/SetIO.h"
 #include "theme/AppPrefs.h"
 #include "ServerList.h"
 
@@ -19,6 +20,7 @@
 #include <QMessageBox>
 #include <QDrag>
 #include <QFileInfo>
+#include <QInputDialog>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QKeySequence>
@@ -315,7 +317,10 @@ void PartsBrowser::showPartMenu(const QPoint& pos) {
                              "layout that uses it shows the new one."));
         connect(other, &QAction::triggered, this, [this, key]{ emit replaceRequested(key); });
     }
-    if (meta && !meta->xmlFilePath.isEmpty()
+    // A set you made: rename it, or delete it (its own items, not the imported part's).
+    const bool ownSet = isOwnSet(key);
+    if (ownSet) addSetActions(menu, key);
+    if (meta && !ownSet && !meta->xmlFilePath.isEmpty()
         && meta->xmlFilePath.contains(QStringLiteral("/imports/"))) {
         menu.addSeparator();
         auto* del = menu.addAction(tr("Delete imported part..."));
@@ -340,6 +345,63 @@ void PartsBrowser::showPartMenu(const QPoint& pos) {
     }
 
     menu.exec(grid_->mapToGlobal(pos));
+}
+
+void PartsBrowser::setOwnPartsRoots(std::function<QStringList()> roots) {
+    ownRoots_ = std::move(roots);
+}
+
+bool PartsBrowser::isOwnSet(const QString& key) const {
+    const auto meta = lib_.metadata(key);
+    if (!meta || meta->kind != parts::PartKind::Group || !ownRoots_) return false;
+    const QString path = QDir::cleanPath(QFileInfo(meta->xmlFilePath).absoluteFilePath());
+    if (!path.endsWith(QLatin1String(".set.xml"), Qt::CaseInsensitive)) return false;
+    for (const QString& root : ownRoots_()) {
+        const QString dir = QDir::cleanPath(QFileInfo(root).absoluteFilePath());
+        if (!dir.isEmpty() && path.startsWith(dir + QLatin1Char('/'), Qt::CaseInsensitive)) return true;
+    }
+    return false;
+}
+
+void PartsBrowser::addSetActions(QMenu& menu, const QString& key) {
+    const auto meta = lib_.metadata(key);
+    if (!meta) return;
+    QString name;
+    for (const auto& d : meta->descriptions)
+        if (d.language == QLatin1String("en")) name = d.text;
+    if (name.isEmpty()) name = key;
+    const QString xmlPath = meta->xmlFilePath;
+    const QString picture = meta->gifFilePath;
+    menu.addSeparator();
+    auto* rename = menu.addAction(tr("Rename set..."));
+    rename->setObjectName(QStringLiteral("act.set.rename"));
+    rename->setToolTip(tr("Give the set a new name. Layouts that use it don’t change."));
+    connect(rename, &QAction::triggered, this, [this, name, xmlPath] {
+        const QString typed = (askSetName ? askSetName(name)
+                                          : QInputDialog::getText(this, tr("Rename set"), tr("Set name:"),
+                                                                  QLineEdit::Normal, name))
+                                  .trimmed();
+        if (typed.isEmpty() || typed == name) return;
+        QString error;
+        if (!saveload::renameSetXml(xmlPath, typed, &error)) {
+            QMessageBox::warning(this, tr("Rename set"), tr("The set couldn’t be renamed: %1").arg(error));
+            return;
+        }
+        emit ownSetsChanged();
+    });
+    auto* del = menu.addAction(tr("Delete set..."));
+    del->setObjectName(QStringLiteral("act.set.delete"));
+    connect(del, &QAction::triggered, this, [this, name, xmlPath, picture] {
+        if (!ConfirmDialog::confirmDelete(this, name, ConfirmDialog::setWording())) return;
+        QFile::remove(xmlPath);
+        // A picture made for it (a .set.gif beside it), if there is one.
+        const QFileInfo set(xmlPath);
+        const QFileInfo pic(picture);
+        if (!picture.isEmpty() && pic.absolutePath() == set.absolutePath()
+            && pic.completeBaseName().compare(set.completeBaseName(), Qt::CaseInsensitive) == 0)
+            QFile::remove(picture);
+        emit ownSetsChanged();
+    });
 }
 
 QString PartsBrowser::categoryForPath(const QString& absPath) const {

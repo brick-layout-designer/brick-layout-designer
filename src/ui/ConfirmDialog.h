@@ -53,6 +53,8 @@ public:
     static DeleteWording moduleWording();
     static DeleteWording venueWording();
     static DeleteWording customPartWording();
+    // A set of parts (Save selection as set): its placed parts stay.
+    static DeleteWording setWording();
 
     static QString undoWithCtrlZ();
 

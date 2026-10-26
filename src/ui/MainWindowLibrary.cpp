@@ -183,6 +183,20 @@ QList<sync::LocalPart> MainWindow::scanOwnParts() const {
     return parts;
 }
 
+QStringList MainWindow::allLibraryPaths() const {
+    QStringList allPaths;
+    const QString vendored = defaultVendoredPartsRoot();
+    if (!vendored.isEmpty() && QDir(vendored).exists()) allPaths << vendored;
+    for (const QString& p : loadUserLibraryPaths()) {
+        if (!allPaths.contains(p) && QDir(p).exists()) allPaths << p;
+    }
+    const QString imports = importedPartsRoot();
+    if (!imports.isEmpty() && QDir(imports).exists() && !allPaths.contains(imports)) {
+        allPaths << imports;
+    }
+    return allPaths;
+}
+
 void MainWindow::onReloadLibrary() {
     QStringList allPaths;
     const QString vendored = defaultVendoredPartsRoot();

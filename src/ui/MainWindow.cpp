@@ -24,6 +24,7 @@
 #include "VenueLibraryPanel.h"
 #include "PartsBrowser.h"
 #include "PartUsagePanel.h"
+#include "SaveSetDialog.h"
 #include "help/HelpButton.h"
 #include "LiveLayout.h"
 
@@ -315,6 +316,13 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
     });
     connect(partsBrowser_, &PartsBrowser::replaceRequested, this, &MainWindow::replaceImportedPart);
     connect(mapView_, &MapView::replaceImportedPartRequested, this, &MainWindow::replaceImportedPart);
+    // Your sets (in your own parts folders) can be renamed and deleted from
+    // their menu; the parts are read again at once.
+    partsBrowser_->setOwnPartsRoots([this] { return ownPartsRoots(); });
+    connect(partsBrowser_, &PartsBrowser::ownSetsChanged, this, [this] {
+        rescanLibrary(allLibraryPaths());
+        partsBrowser_->rebuild();
+    });
     connect(partsBrowser_, &PartsBrowser::partDeleted, this, [this]{
         QStringList paths;
         const QString vendored = defaultVendoredPartsRoot();
@@ -863,10 +871,16 @@ void MainWindow::onSaveSelectionAsSet() {
         manifest.subparts.push_back(std::move(sp));
     }
 
-    const QString rawName = QInputDialog::getText(
-        this, tr("Save set"), tr("Set name:"),
-        QLineEdit::Normal, tr("New Set"));
-    if (rawName.isEmpty()) return;
+    // The name, and whether it goes to the server too (remembered).
+    const std::optional<SetServer> server = setUploadServer();
+    QSettings settings;
+    const QString alsoKey = QStringLiteral("sets/alsoOnServer");
+    SaveSetDialog dialog(static_cast<int>(picks.size()), server ? server->label : QString(),
+                         settings.value(alsoKey, true).toBool(), this);
+    if (!(runSaveSetDialog ? runSaveSetDialog(dialog) : dialog.exec() == QDialog::Accepted)) return;
+    const QString rawName = dialog.name();
+    const bool alsoOnServer = server && dialog.alsoOnServer();
+    if (server) settings.setValue(alsoKey, dialog.serverBox()->isChecked());
     manifest.name = rawName;
     // Filename sanitisation (same rules as save-selection-as-module).
     QString safeName = rawName;
@@ -880,19 +894,19 @@ void MainWindow::onSaveSelectionAsSet() {
     if (!safeName.endsWith(QStringLiteral(".set"), Qt::CaseInsensitive))
         safeName += QStringLiteral(".set");
 
-    // Default target: first configured user library path so placing +
-    // reloading round-trips. Falls back to project directory otherwise.
-    QSettings s;
-    QStringList userPaths = s.value(QStringLiteral("LibraryPaths/UserPaths"))
-                              .toStringList();
-    const QString startDir = userPaths.isEmpty()
-        ? QDir::homePath()
-        : userPaths.first();
+    // Default target: your first parts folder, else "My sets" in the
+    // imports folder, so the set is in your parts at once (and can be
+    // renamed or deleted from the Parts panel).
+    const QStringList userPaths = loadUserLibraryPaths();
+    const QString imports = importedPartsRoot();
+    const QString startDir = !userPaths.isEmpty() ? userPaths.first()
+                             : imports.isEmpty()  ? QDir::homePath()
+                                                  : imports + QStringLiteral("/My sets");
     QDir().mkpath(startDir);
-    QString target = QFileDialog::getSaveFileName(
-        this, tr("Save selection as set"),
-        QDir(startDir).filePath(safeName + QStringLiteral(".xml")),
-        tr("BlueBrick set (*.set.xml)"));
+    const QString suggested = QDir(startDir).filePath(safeName + QStringLiteral(".xml"));
+    QString target = askSetFile ? askSetFile(suggested)
+                                : QFileDialog::getSaveFileName(this, tr("Save selection as set"), suggested,
+                                                               tr("BlueBrick set (*.set.xml)"));
     if (target.isEmpty()) return;
     if (!target.endsWith(QStringLiteral(".set.xml"), Qt::CaseInsensitive)) {
         if (target.endsWith(QStringLiteral(".xml"), Qt::CaseInsensitive))
@@ -911,18 +925,17 @@ void MainWindow::onSaveSelectionAsSet() {
             .arg(rawName).arg(picks.size()).arg(target), 4000);
     // Rescan the library so the new set shows up immediately in the
     // Parts panel without needing a manual reload.
-    QStringList allPaths;
-    const QString vendored = defaultVendoredPartsRoot();
-    if (!vendored.isEmpty() && QDir(vendored).exists()) allPaths << vendored;
-    for (const QString& p : loadUserLibraryPaths()) {
-        if (!allPaths.contains(p) && QDir(p).exists()) allPaths << p;
-    }
-    const QString imports = importedPartsRoot();
-    if (!imports.isEmpty() && QDir(imports).exists() && !allPaths.contains(imports)) {
-        allPaths << imports;
-    }
-    rescanLibrary(allPaths);
+    rescanLibrary(allLibraryPaths());
     partsBrowser_->rebuild();
+
+    if (alsoOnServer) {
+        // As Upload to server sends a set: its XML, numbered by its file name.
+        QString key = QFileInfo(target).fileName();
+        key.chop(8);  // ".set.xml"
+        sync::LocalPart set{ key, rawName, target, QString() };
+        set.isSet = true;
+        uploadSet(*server, set);
+    }
 }
 
 // Build the per-source-layer batches for importing a module .bbm. Each

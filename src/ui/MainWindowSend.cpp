@@ -155,6 +155,40 @@ bool MainWindow::serverTakesSets(const QUrl& server) {
     return e && e->features && e->features->contains(QStringLiteral("uploadSets"));
 }
 
+std::optional<MainWindow::SetServer> MainWindow::setUploadServer() const {
+    if (serverLibrary_ && serverLibrary_->state() == ServerLibrary::State::Ready
+        && serverTakesSets(serverLibrary_->server()))
+        return SetServer{ serverLibrary_->server(), serverLibrary_->token(), serverLibrary_->label() };
+    // Live on a server that says it takes sets (one that doesn't say doesn't).
+    if (live_ && live_->active() && !liveToken_.isEmpty() && liveInfo_.features
+        && liveInfo_.features->contains(QStringLiteral("uploadSets"))) {
+        const sync::ServerList list = sync::ServerList::load();
+        const sync::ServerEntry* e = list.find(liveServer_);
+        return SetServer{ liveServer_, liveToken_, e ? e->label() : liveServer_.host() };
+    }
+    return std::nullopt;
+}
+
+void MainWindow::uploadSet(const SetServer& to, const sync::LocalPart& set) {
+    auto* upload = new sync::PartsUpload(to.server, to.token, this);
+    upload->setServerTakesSets(true);
+    // (A refusal comes as failures here too, after failed().)
+    connect(upload, &sync::PartsUpload::uploaded, this,
+            [this, upload, to, name = set.displayName](int count, const QStringList& failures) {
+                upload->deleteLater();
+                if (count == 0) {
+                    statusBar()->showMessage(tr("“%1” is saved on this computer, but it couldn’t go to %2: %3")
+                                                 .arg(name, to.label, failures.join(QStringLiteral("; "))),
+                                             10000);
+                    return;
+                }
+                statusBar()->showMessage(tr("“%1” is in your parts on %2 too.").arg(name, to.label), 6000);
+                if (live_->active() && to.server == liveServer_) loadLivePartsCatalog();
+                checkMissingParts();
+            });
+    upload->upload({ set }, QString());
+}
+
 void MainWindow::checkMissingParts() {
     if (checkingParts_ || !serverLibrary_ || serverLibrary_->state() != ServerLibrary::State::Ready) return;
     // Only a server that takes parts (servers that don't say: all of them).

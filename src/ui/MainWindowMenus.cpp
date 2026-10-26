@@ -627,8 +627,8 @@ void MainWindow::setupMenus() {
     auto* importModAct = modules->addAction(tr("&Import .bbm as Module..."));
     connect(importModAct, &QAction::triggered, this, &MainWindow::onImportBbmAsModule);
     auto* saveSetAct = modules->addAction(tr("Save Selection as &Set..."));
-    saveSetAct->setToolTip(tr("Export the current brick selection as a "
-                              "BrickTracks-style .set.xml drop-in for the parts library"));
+    saveSetAct->setObjectName(QStringLiteral("modules.saveSet"));
+    saveSetAct->setToolTip(tr("Save the picked parts as a set in your parts, to place again in one go"));
     connect(saveSetAct, &QAction::triggered, this, &MainWindow::onSaveSelectionAsSet);
 
     auto* help = menuBar()->addMenu(tr("&Help"));
