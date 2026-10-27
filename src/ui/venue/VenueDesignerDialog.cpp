@@ -247,6 +247,12 @@ VenueDesignerDialog::VenueDesignerDialog(core::Venue initial, const QString& sub
     auto* zoomOut = new QPushButton(QStringLiteral("−"), this);
     auto* zoomIn = new QPushButton(QStringLiteral("+"), this);
     auto* fitBtn = new QPushButton(tr("Fit"), this);
+    // What a screen reader says (and a tip says) for the two symbols.
+    zoomOut->setAccessibleName(tr("Zoom out"));
+    zoomOut->setToolTip(tr("Zoom out"));
+    zoomIn->setAccessibleName(tr("Zoom in"));
+    zoomIn->setToolTip(tr("Zoom in"));
+    fitBtn->setToolTip(tr("Show the whole venue"));
     for (auto* b : { zoomOut, zoomIn, fitBtn }) {
         b->setAutoDefault(false);
         status->addWidget(b);
@@ -337,7 +343,14 @@ void VenueDesignerDialog::keyPressEvent(QKeyEvent* e) {
     if (mod && e->key() == Qt::Key_Y) return dispatch(ev::act::Redo{});
     if (mod && e->key() == Qt::Key_D) return dispatch(ev::act::Duplicate{});
     if (mod) return QDialog::keyPressEvent(e);
-    if (e->key() == Qt::Key_Escape) return dispatch(ev::act::Escape{});
+    if (e->key() == Qt::Key_Escape) {
+        // Escape lets go of what's under way first (a drag, a drawing, a
+        // tool, the pick); with nothing left, it closes, as dialogs do.
+        const bool busy = state_.drag || !state_.draft.isEmpty() || state_.cut || !state_.typed.isEmpty()
+                          || !state_.calibration.isEmpty() || state_.tool != ev::Tool::Select || state_.selection;
+        if (busy) return dispatch(ev::act::Escape{});
+        return QDialog::keyPressEvent(e);  // reject(): asks about unsaved changes
+    }
     if (e->key() == Qt::Key_Return || e->key() == Qt::Key_Enter) return dispatch(ev::act::Enter{});
     const bool drawing = !state_.draft.isEmpty() || state_.cut;
     const QString t = e->text();
@@ -478,12 +491,13 @@ void VenueDesignerDialog::rebuildInspector() {
                          n.name = t.trimmed();
                          set(n);
                      }));
-        form->addRow(tr("Minimum walkway"), help::withHelp(lengthEdit(w, v.minWalkwayStuds, unit, [=, this](double s) {
-                                                  core::Venue n = venue();
-                                                  n.minWalkwayStuds = s;
-                                                  set(n);
-                                              }),
-                                              QStringLiteral("room.walkway"), w));
+        auto* walkway = lengthEdit(w, v.minWalkwayStuds, unit, [=, this](double s) {
+            core::Venue n = venue();
+            n.minWalkwayStuds = s;
+            set(n);
+        });
+        walkway->setAccessibleName(tr("Minimum walkway"));  // (its label names the row it sits in)
+        form->addRow(tr("Minimum walkway"), help::withHelp(walkway, QStringLiteral("room.walkway"), w));
         const auto rs = ev::roomSize(v);
         form->addRow(tr("Size"), new QLabel(rs ? QStringLiteral("%1 × %2").arg(ev::formatLength(rs->w, unit),
                                                                                ev::formatLength(rs->h, unit))
@@ -679,7 +693,9 @@ void VenueDesignerDialog::rebuildInspector() {
         if (state_.calibration.size() == 2) {
             auto* real = new QLineEdit(w);
             real->setPlaceholderText(tr("Real distance, e.g. 40' 4\""));
-            box->addWidget(new QLabel(tr("Real distance between the two points"), w));
+            auto* realLabel = new QLabel(tr("Real distance between the two points"), w);
+            realLabel->setBuddy(real);
+            box->addWidget(realLabel);
             box->addWidget(real);
             auto* apply = new QPushButton(tr("Scale the floor plan"), w);
             apply->setAutoDefault(false);

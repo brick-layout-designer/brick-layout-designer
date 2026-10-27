@@ -25,6 +25,7 @@ LibraryPathsDialog::LibraryPathsDialog(QStringList initial, QWidget* parent)
     auto* row = new QHBoxLayout();
 
     list_ = new QListWidget(this);
+    list_->setAccessibleName(tr("Parts folders"));
     for (const QString& p : initial) list_->addItem(p);
     list_->setSelectionMode(QAbstractItemView::SingleSelection);
     row->addWidget(list_, 1);

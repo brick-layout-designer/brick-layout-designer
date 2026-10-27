@@ -100,6 +100,8 @@ DownloadCenterDialog::DownloadCenterDialog(QString libraryRoot, QWidget* parent)
     auto* listLabel = new QLabel(tr("Available packages (already-installed versions filtered out):"), this);
     root->addWidget(listLabel);
     candidates_ = new QListWidget(this);
+    candidates_->setAccessibleName(tr("Available packages"));
+    listLabel->setBuddy(candidates_);
     candidates_->setSelectionMode(QAbstractItemView::NoSelection);
     root->addWidget(candidates_, 1);
 

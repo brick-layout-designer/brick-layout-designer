@@ -115,6 +115,8 @@ VenueDimensionsDialog::VenueDimensionsDialog(QWidget* parent) : QDialog(parent) 
         "closed automatically.")));
 
     auto* table = new QTableWidget(0, 4, this);
+    table->setAccessibleName(QObject::tr("Sides"));
+    table->setTabKeyNavigation(false);  // Tab moves on; the arrow keys move between cells
     const auto setHeader = [table](const QString& unit){
         table->setHorizontalHeaderLabels({ QObject::tr("Length (%1)").arg(unit),
                                             QObject::tr("Angle (°)"),
@@ -169,7 +171,9 @@ VenueDimensionsDialog::VenueDimensionsDialog(QWidget* parent) : QDialog(parent) 
         // Properties to reclassify.
         table->setCellWidget(r, 2, makeKindCombo(kind));
         // Label column: free-form text (e.g. "Main entrance").
-        table->setCellWidget(r, 3, new QLineEdit(label));
+        auto* labelEdit = new QLineEdit(label);
+        labelEdit->setAccessibleName(QObject::tr("Label of side %1").arg(r + 1));
+        table->setCellWidget(r, 3, labelEdit);
     };
     addRow();
 
@@ -203,7 +207,9 @@ VenueDimensionsDialog::VenueDimensionsDialog(QWidget* parent) : QDialog(parent) 
             table->setItem(r, 0, new QTableWidgetItem(QString::number(lenFt, 'f', 2)));
             table->setCellWidget(r, 1, makeAngleCombo(ang));
             table->setCellWidget(r, 2, makeKindCombo(core::EdgeKind::Wall));
-            table->setCellWidget(r, 3, new QLineEdit());
+            auto* labelEdit = new QLineEdit();
+            labelEdit->setAccessibleName(QObject::tr("Label of side %1").arg(r + 1));
+            table->setCellWidget(r, 3, labelEdit);
         };
         append(widthFt, 0.0);
         append(depthFt, 90.0);

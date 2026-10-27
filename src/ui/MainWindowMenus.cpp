@@ -137,6 +137,9 @@ void MainWindow::setupMenus() {
                 ? s.value(QStringLiteral("export/path")).toString()
                 : QFileInfo(currentFilePath_).baseName() + QStringLiteral(".png"), &dlg);
         auto* browseBtn = new QPushButton(tr("..."), &dlg);
+        pathEdit->setAccessibleName(tr("Output file"));
+        browseBtn->setAccessibleName(tr("Choose the output file"));
+        browseBtn->setToolTip(tr("Choose the output file"));
         auto* pathRow = new QHBoxLayout(); pathRow->addWidget(pathEdit); pathRow->addWidget(browseBtn);
         auto* pathWrap = new QWidget(&dlg); pathWrap->setLayout(pathRow);
         form->addRow(tr("Output file:"), pathWrap);

@@ -72,6 +72,9 @@ void MainWindow::setupMapMenu() {
         auto* pathEdit = new QLineEdit(m->sidecar.backgroundImagePath, &dlg);
         auto* browseBtn = new QPushButton(tr("..."), &dlg);
         auto* clearBtn  = new QPushButton(tr("Clear"), &dlg);
+        pathEdit->setAccessibleName(tr("Image path"));
+        browseBtn->setAccessibleName(tr("Choose the image"));
+        browseBtn->setToolTip(tr("Choose the image"));
         auto* row = new QHBoxLayout();
         row->addWidget(pathEdit); row->addWidget(browseBtn); row->addWidget(clearBtn);
         auto* rowWrap = new QWidget(&dlg); rowWrap->setLayout(row);
@@ -141,6 +144,7 @@ void MainWindow::setupMapMenu() {
         auto* dateE   = new QDateEdit(m->date, &dlg); dateE->setCalendarPopup(true);
         auto* commentE = new QPlainTextEdit(m->comment, &dlg);
         commentE->setMinimumHeight(100);
+        commentE->setTabChangesFocus(true);  // Tab goes on to OK, as in every other field
         form->addRow(tr("Author:"),  authorE);
         form->addRow(tr("LUG:"),     lugE);
         form->addRow(tr("Event:"),   eventE);

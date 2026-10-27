@@ -9,6 +9,9 @@
 
 #include <gtest/gtest.h>
 
+#include <cmath>
+#include <utility>
+
 #include <QApplication>
 #include <QJsonArray>
 #include <QSettings>
@@ -183,4 +186,61 @@ TEST_F(Theme, SettingsKeepTheirValuesAndTheServersJson) {
     EXPECT_EQ(merged.theme, ThemeChoice::Dark);
     EXPECT_FALSE(merged.largeText);
     EXPECT_EQ(merged.toursSeen, QStringList{ QStringLiteral("ok.1") });
+}
+
+namespace {
+
+// WCAG 2 contrast ratio of two colors (1 to 21).
+double contrast(const QColor& a, const QColor& b) {
+    const auto lum = [](const QColor& c) {
+        const auto ch = [](int v) {
+            const double x = v / 255.0;
+            return x <= 0.03928 ? x / 12.92 : std::pow((x + 0.055) / 1.055, 2.4);
+        };
+        return 0.2126 * ch(c.red()) + 0.7152 * ch(c.green()) + 0.0722 * ch(c.blue());
+    };
+    double x = lum(a), y = lum(b);
+    if (x < y) std::swap(x, y);
+    return (x + 0.05) / (y + 0.05);
+}
+
+}  // namespace
+
+// Text is readable in light and dark, with every accent: at least 4.5:1
+// (WCAG AA for normal text) for every pair of text and background the
+// palette and the stylesheet draw.
+TEST(Tokens, TextIsReadableInLightAndDarkWithEveryAccent) {
+    constexpr double kText = 4.5;
+    for (Mode m : { Mode::Light, Mode::Dark }) {
+        const Neutrals& n = neutrals(m);
+        const char* mode = m == Mode::Dark ? "dark" : "light";
+        const std::pair<const char*, std::pair<QColor, QColor>> plain[] = {
+            { "ink on bg", { n.ink, n.bg } },          { "ink on panel", { n.ink, n.panel } },
+            { "ink on soft", { n.ink, n.soft } },      { "muted on bg", { n.muted, n.bg } },
+            { "muted on panel", { n.muted, n.panel } }, { "muted on soft", { n.muted, n.soft } },
+            { "danger on bg", { n.danger, n.bg } },    { "danger on panel", { n.danger, n.panel } },
+            { "panel on danger (danger buttons)", { n.panel, n.danger } },
+            { "tour ink", { n.tourInk, n.tourBg } },   { "tour muted", { n.tourMuted, n.tourBg } },
+        };
+        for (const auto& [what, pair] : plain)
+            EXPECT_GE(contrast(pair.first, pair.second), kText) << mode << ": " << what;
+        for (const Accent& a : accents()) {
+            const QPalette p = buildPalette(m, a);
+            const auto check = [&](const char* what, const QColor& fg, const QColor& bg) {
+                EXPECT_GE(contrast(fg, bg), kText) << mode << ", " << a.id.toStdString() << ": " << what;
+            };
+            check("WindowText on Window", p.color(QPalette::WindowText), p.color(QPalette::Window));
+            check("Text on Base", p.color(QPalette::Text), p.color(QPalette::Base));
+            check("Text on AlternateBase", p.color(QPalette::Text), p.color(QPalette::AlternateBase));
+            check("ButtonText on Button", p.color(QPalette::ButtonText), p.color(QPalette::Button));
+            check("ToolTipText on ToolTipBase", p.color(QPalette::ToolTipText), p.color(QPalette::ToolTipBase));
+            check("HighlightedText on Highlight", p.color(QPalette::HighlightedText), p.color(QPalette::Highlight));
+            check("PlaceholderText on Base", p.color(QPalette::PlaceholderText), p.color(QPalette::Base));
+            check("Link on Base", p.color(QPalette::Link), p.color(QPalette::Base));
+            check("text on the accent (default buttons)", a.onMain, a.main);
+            check("accent text on panel", a.text(m), n.panel);
+            check("accent text on bg", a.text(m), n.bg);
+            check("accent text on its soft color (pills, checked tools)", a.text(m), a.soft(m));
+        }
+    }
 }

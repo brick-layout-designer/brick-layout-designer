@@ -55,6 +55,8 @@ VenueDialog::VenueDialog(const std::optional<core::Venue>& current, QWidget* par
 
     vbox->addWidget(new QLabel(tr("<b>Edges</b> (from the drawn outline — classify each segment)")));
     auto* edgeTable = new QTableWidget(this);
+    edgeTable->setAccessibleName(tr("Edges"));
+    edgeTable->setTabKeyNavigation(false);  // Tab moves on; the arrow keys move between cells
     edgeTable->setColumnCount(4);
     edgeTable->setHorizontalHeaderLabels({ tr("#"), tr("Kind"), tr("Door width (ft)"), tr("Label") });
     edgeTable->horizontalHeader()->setStretchLastSection(true);
@@ -83,6 +85,7 @@ VenueDialog::VenueDialog(const std::optional<core::Venue>& current, QWidget* par
                              [widthSpin](int k){ widthSpin->setEnabled(k == int(core::EdgeKind::Door)); });
 
             auto* labelEdit = new QLineEdit(e.label);
+            labelEdit->setAccessibleName(tr("Label of edge %1").arg(i + 1));
             edgeTable->setCellWidget(i, 3, labelEdit);
         }
         edgeTable->resizeColumnsToContents();

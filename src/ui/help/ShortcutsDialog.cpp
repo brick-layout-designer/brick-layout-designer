@@ -69,6 +69,7 @@ ShortcutsDialog::ShortcutsDialog(const QList<ShortcutGroup>& groups, QWidget* pa
     auto* outer = new QVBoxLayout(this);
     auto* scroll = new QScrollArea(this);
     scroll->setWidgetResizable(true);
+    scroll->setAccessibleName(tr("Keyboard shortcuts"));
     scroll->setFrameShape(QFrame::NoFrame);
     auto* page = new QWidget(scroll);
     scroll->setWidget(page);
