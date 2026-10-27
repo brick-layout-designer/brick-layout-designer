@@ -310,9 +310,9 @@ void MapView::refreshSelectionOverlay() {
     }
     // In a steady order: Qt's own changes from call to call, and outlines
     // in another order would read as new ones (and repaint).
-    QList<QGraphicsItem*> selected = scene()->selectedItems();
-    std::sort(selected.begin(), selected.end(), std::less<>());
-    for (QGraphicsItem* it : std::as_const(selected)) {
+    QList<QGraphicsItem*> inOrder = scene()->selectedItems();
+    std::sort(inOrder.begin(), inOrder.end(), std::less<>());
+    for (QGraphicsItem* it : std::as_const(inOrder)) {
         if (!it || it == selectionOverlay_) continue;
         if (detail::isBrickItem(it) && inPickedModule.contains(it->data(detail::kBrickDataGuid).toString()))
             continue;
