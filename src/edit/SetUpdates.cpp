@@ -38,13 +38,36 @@ const core::LayerBrick* brickLayer(const core::Map& map, int i) {
     return L && L->kind() == core::LayerKind::Brick ? static_cast<const core::LayerBrick*>(L) : nullptr;
 }
 
+// `outer`: the files of the sets around this one, as expandSet keeps them.
+QString versionWithin(parts::PartsLibrary& lib, const parts::PartMetadata& set, const TrackedSet& tracked,
+                      QStringList outer) {
+    QString own = parts::setVersion(set);
+    if (own.isEmpty()) return own;
+    outer << set.xmlFilePath;
+    QList<parts::InnerSetVersion> inner;
+    for (const auto& sp : set.subparts) {
+        const auto sub = lib.metadata(sp.subKey);
+        if (!sub || sub->kind != parts::PartKind::Group || outer.size() >= 16 || outer.contains(sub->xmlFilePath)
+            || (tracked && !tracked(*sub)))
+            continue;
+        const QString v = versionWithin(lib, *sub, tracked, outer);
+        if (!v.isEmpty()) inner.push_back({ sp.subKey, v });
+    }
+    return parts::nestedSetVersion(own, inner);
+}
+
 } // namespace
 
+QString trackedSetVersion(parts::PartsLibrary& lib, const parts::PartMetadata& set, const TrackedSet& tracked) {
+    return versionWithin(lib, set, tracked, {});
+}
+
 std::optional<core::PlacedSet> placedSetLink(parts::PartsLibrary& lib, const QString& key,
-                                             const QString& groupId, const QString& firstBrickGuid) {
+                                             const QString& groupId, const QString& firstBrickGuid,
+                                             const TrackedSet& tracked) {
     const auto meta = lib.metadata(key);
     if (!meta || groupId.isEmpty()) return std::nullopt;
-    const QString version = parts::setVersion(*meta);
+    const QString version = trackedSetVersion(lib, *meta, tracked);
     if (version.isEmpty()) return std::nullopt;
     core::PlacedSet link;
     link.groupId = groupId;
@@ -69,7 +92,7 @@ std::vector<SetUpdate> findSetUpdates(const core::Map& map, parts::PartsLibrary&
             if (!g) continue;
             const auto meta = lib.metadata(g->partNumber);
             if (meta && (!tracked || tracked(*meta))) {
-                const QString now = parts::setVersion(*meta);
+                const QString now = trackedSetVersion(lib, *meta, tracked);
                 if (!now.isEmpty() && now != link.version)
                     out.push_back({ link, i, g->partNumber, setName(*meta, g->partNumber), now });
             }
@@ -204,7 +227,9 @@ UpdatePlacedSetsCommand::UpdatePlacedSetsCommand(core::Map& map, parts::PartsLib
                         st.groups.end());
         st.groups.insert(st.groups.end(), fresh.groups.begin(), fresh.groups.end());
         // The link: the new version, and the new first part as its anchor.
-        if (auto link = placedSetLink(lib, u.setKey, u.link.groupId, ids.value(0))) {
+        if (auto link = placedSetLink(lib, u.setKey, u.link.groupId, ids.value(0), {})) {
+            // The version the update found, custom sets inside it included.
+            link->version = u.version;
             link->extras = u.link.extras;
             setsAfter_.erase(
                 std::remove_if(setsAfter_.begin(), setsAfter_.end(),
