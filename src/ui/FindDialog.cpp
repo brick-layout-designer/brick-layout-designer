@@ -79,6 +79,7 @@ FindDialog::FindDialog(MapView& view, QWidget* parent)
 
         view.deselectAll();
         int matches = 0;
+        QList<QGraphicsItem*> pick;
         for (const auto& it : view.scene()->items()) {
             const int li = it->data(0).toInt();
             const QString guid = it->data(1).toString();
@@ -88,7 +89,7 @@ FindDialog::FindDialog(MapView& view, QWidget* parent)
                 if (!L) continue;
                 for (const auto& c : static_cast<core::LayerText&>(*L).textCells) {
                     if (c.guid == guid && matchesText(needle, c.text, cs)) {
-                        it->setSelected(true); ++matches;
+                        pick.append(it); ++matches;
                         break;
                     }
                 }
@@ -97,12 +98,13 @@ FindDialog::FindDialog(MapView& view, QWidget* parent)
                 if (!L) continue;
                 for (const auto& b : static_cast<core::LayerBrick&>(*L).bricks) {
                     if (b.guid == guid && matchesText(needle, b.partNumber, cs)) {
-                        it->setSelected(true); ++matches;
+                        pick.append(it); ++matches;
                         break;
                     }
                 }
             }
         }
+        view.selectItems(pick, false);
         status->setText(QObject::tr("%1 match(es).").arg(matches));
     };
     connect(findBtn, &QPushButton::clicked, this, runSearch);

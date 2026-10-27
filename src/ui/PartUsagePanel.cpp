@@ -256,6 +256,7 @@ void PartUsagePanel::selectAllBricksOfCurrentRow() {
     auto* scene = mapView_->scene();
     if (!scene) return;
     int selected = 0;
+    QList<QGraphicsItem*> pick;
     for (QGraphicsItem* it : scene->items()) {
         if (it->data(kBrickDataKind).toString() != QStringLiteral("brick")) continue;
         const int layer = it->data(kBrickDataLayerIndex).toInt();
@@ -267,12 +268,13 @@ void PartUsagePanel::selectAllBricksOfCurrentRow() {
         const auto& BL = static_cast<const core::LayerBrick&>(*L);
         for (const auto& b : BL.bricks) {
             if (b.guid == guid && b.partNumber.toLower() == keyLower) {
-                it->setSelected(true);
+                pick.append(it);
                 ++selected;
                 break;
             }
         }
     }
+    mapView_->selectItems(pick, false);
     if (selected > 0) {
         // Frame them.
         const QRectF bbox = scene->selectionArea().boundingRect().isEmpty()

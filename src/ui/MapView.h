@@ -149,6 +149,13 @@ public:
     // Pick exactly these parts (by guid); the selection's group and module rules apply.
     void selectParts(const QSet<QString>& guids);
     void deselectAll();
+    // Pick these items (after clearing the selection, with `replace`) and
+    // say selectionChanged once. Qt says it for every item picked, and the
+    // view's handler reads the whole selection each time: picking a
+    // thousand parts one by one did about a million steps.
+    void selectItems(const QList<QGraphicsItem*>& items, bool replace = true);
+    // How many times the view has said selectionChanged (the perf tests count work).
+    int selectionChangeCount() const { return selectionChanges_; }
     bool clipboardEmpty() const { return clipboard_.empty(); }
 
     void bringSelectionToFront();
@@ -658,6 +665,7 @@ private:
     // Lives in the scene with a very high z-value so it's always on top.
     // Redrawn whenever scene()->selectionChanged fires.
     SelectionOverlay* selectionOverlay_ = nullptr;
+    int selectionChanges_ = 0;
     void refreshSelectionOverlay();
 
     // Set by the live connection-snap hook when the dragged brick is

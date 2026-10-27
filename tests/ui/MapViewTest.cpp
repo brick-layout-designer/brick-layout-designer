@@ -28,9 +28,11 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 
 #include <QApplication>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QGraphicsItem>
 #include <QGraphicsScene>
@@ -1018,4 +1020,68 @@ TEST(MapViewScaleRuler, DragTheOffsetAndTheRadiusOnTheMap) {
     EXPECT_FLOAT_EQ(rulerOf(view, 1).circular.radius, 4);
     view.undoStack()->undo();
     EXPECT_FLOAT_EQ(rulerOf(view, 0).linear.offsetDistance, 2);
+}
+
+// Perf: Select all on a layout of about a thousand parts (Fordyce 2026)
+// says selectionChanged once, not once per part. The view's handler reads
+// the whole selection each time, so a thousand separate picks did about a
+// million steps in one frame. Counts work, not time. So does the scene
+// rebuild after an edit, which picks the same parts again, and picking
+// parts by guid (Parts used, Find, a placed set, a paste).
+TEST(MapViewSelectAll, PicksAThousandPartsSayingSelectionChangedOnce) {
+    const QString fordyce = QString::fromUtf8(BLD_BBM_CORPUS_DIR) + QStringLiteral("/fordyce-2026.bbm");
+    if (!QFile::exists(fordyce)) GTEST_SKIP() << "fordyce-2026.bbm missing";
+    parts::PartsLibrary parts;
+    const QString partsRoot = QString::fromUtf8(BLD_PARTS_LIBRARY_ROOT);
+    if (QDir(partsRoot).exists()) {
+        parts.addSearchPath(partsRoot);
+        parts.scan();
+    }
+    auto loaded = saveload::readBbm(fordyce);
+    ASSERT_TRUE(loaded.ok());
+    // No groups: picking half picks exactly half (a grouped part picks its group).
+    for (const auto& L : loaded.map->layers())
+        if (L->kind() == core::LayerKind::Brick)
+            for (auto& b : static_cast<core::LayerBrick&>(*L).bricks) b.myGroupId.clear();
+    ui::MapView view(parts);
+    view.loadMap(std::move(loaded.map));
+    const int all = static_cast<int>(brickItems(*view.scene()).size());
+    ASSERT_GT(all, 900);
+
+    int sceneSays = 0;
+    QObject::connect(view.scene(), &QGraphicsScene::selectionChanged, [&] { ++sceneSays; });
+    int before = view.selectionChangeCount();
+    QElapsedTimer t;
+    t.start();
+    view.selectAll();
+    std::printf("select all of %d parts: %lld ms, selectionChanged said %d times\n", all, static_cast<long long>(t.elapsed()),
+                view.selectionChangeCount() - before);
+    EXPECT_EQ(static_cast<int>(selectedBrickGuids(*view.scene()).size()), all);
+    EXPECT_EQ(view.selectionChangeCount() - before, 1);
+    EXPECT_EQ(sceneSays, 1);
+
+    // The rebuild after an edit picks them all again, once.
+    before = view.selectionChangeCount();
+    view.rebuildScene();
+    EXPECT_EQ(static_cast<int>(selectedBrickGuids(*view.scene()).size()), all);
+    EXPECT_LE(view.selectionChangeCount() - before, 2);
+
+    // Picking by guid: half of them, once.
+    QSet<QString> half;
+    const QStringList guids = selectedBrickGuids(*view.scene());
+    for (int i = 0; i < guids.size(); i += 2) half.insert(guids[i]);
+    before = view.selectionChangeCount();
+    view.selectParts(half);
+    EXPECT_EQ(static_cast<int>(selectedBrickGuids(*view.scene()).size()), static_cast<int>(half.size()));
+    EXPECT_EQ(view.selectionChangeCount() - before, 1);
+
+    // Nothing new to pick: nothing said.
+    before = view.selectionChangeCount();
+    view.selectItems({}, false);
+    EXPECT_EQ(view.selectionChangeCount() - before, 0);
+
+    before = view.selectionChangeCount();
+    view.deselectAll();
+    EXPECT_TRUE(view.scene()->selectedItems().isEmpty());
+    EXPECT_EQ(view.selectionChangeCount() - before, 1);
 }

@@ -437,10 +437,12 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
         mapView_->deselectAll();
         if (alreadySelected) return;   // toggle off
 
+        QList<QGraphicsItem*> pick;
         for (QGraphicsItem* it : mapView_->scene()->items()) {
             if (it->data(2).toString().isEmpty()) continue;
-            if (mod->memberIds.contains(it->data(1).toString())) it->setSelected(true);
+            if (mod->memberIds.contains(it->data(1).toString())) pick.append(it);
         }
+        mapView_->selectItems(pick, false);
     });
 
     // Move module by a user-entered delta (studs). Already undoable.
