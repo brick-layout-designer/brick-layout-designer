@@ -21,7 +21,6 @@
 #include <QMessageBox>
 #include <QDrag>
 #include <QFileInfo>
-#include <QPointer>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QKeySequence>
@@ -384,12 +383,17 @@ void PartsBrowser::addSetActions(QMenu& menu, const QString& key) {
         RenameSetDialog dialog(name, this);
         // On a server too? Looked for while the dialog is open.
         auto copy = std::make_shared<std::optional<ServerSetCopy>>();
-        const QPointer<RenameSetDialog> open(&dialog);
+        // The dialog while it's open (an answer after it closes changes nothing).
+        auto open = std::make_shared<RenameSetDialog*>(&dialog);
+        struct Closed {
+            std::shared_ptr<RenameSetDialog*> open;
+            ~Closed() { *open = nullptr; }
+        } closed{ open };
         if (findServerSet)
             findServerSet(key, [copy, open](const ServerSetCopy& c) {
-                if (*copy || !open) return;
+                if (*copy || !*open) return;
                 *copy = c;
-                open->showServerOption(c.serverLabel);
+                (*open)->showServerOption(c.serverLabel);
             });
         if (!(runRenameSetDialog ? runRenameSetDialog(dialog) : dialog.exec() == QDialog::Accepted)) return;
         const QString typed = dialog.name();
