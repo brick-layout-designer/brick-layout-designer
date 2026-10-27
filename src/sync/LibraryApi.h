@@ -165,6 +165,8 @@ struct Notice {
 struct ClubRoleName {
     QString id;
     QString name;
+    QString key;             // admin / manager / member / viewer, or empty for a club's own role
+    QStringList permissions; // what the role allows (servers before club roles: empty)
 };
 
 // A member of a club, as the server shows them to you (GET
@@ -184,6 +186,10 @@ struct ClubMembers {
     QList<ClubMember> members;
     // The names of the roles a member holds, in the club's order.
     QStringList roleNames(const ClubMember& m) const;
+    // Strongest first, as the website's member list (byStrongestRole): anyone
+    // holding the Admin role, then by how many permissions their roles grant
+    // together, then by name.
+    QList<ClubMember> sorted() const;
 };
 
 class LibraryApi : public QObject {

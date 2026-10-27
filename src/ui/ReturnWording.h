@@ -20,8 +20,8 @@ inline ConfirmOptions returnOptions(const QString& word, const QString& title, c
     o.title = give ? tr("Give “%1” back to %2?").arg(title, who) : tr("Take “%1” back?").arg(title);
     o.removes = give ? tr("The %1 goes back to %2, who made it.").arg(word, who)
                      : tr("The %1 becomes yours again, and only yours.").arg(word);
-    o.keeps = tr("%1 keeps its own copy, credited to %2, so nothing the club built with it changes. Its "
-                 "admins and managers are told.")
+    o.keeps = tr("%1 keeps its own copy, credited to %2, so nothing the club built with it changes. "
+                 "Members with the Delete club items permission are told.")
                   .arg(club, who);
     o.undo = give ? tr("%1 can move it back to the club.").arg(who)
                   : tr("To share it again, move it back to the club.");

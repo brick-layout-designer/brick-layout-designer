@@ -65,7 +65,9 @@ struct MoveToClubWording {
 inline MoveToClubWording moveToClubWording(const QString& club, bool saving = false) {
     const auto tr = [](const char* s) { return QCoreApplication::translate("bld::sync::Credit", s); };
     return { saving ? tr("Save it to %1?").arg(club) : tr("Move it to %1?").arg(club),
-             tr("%1 will own this. Its admins and managers can change or delete it.").arg(club),
+             tr("%1 will own this. Members with the Delete club items permission can rename, share or "
+                "delete it.")
+                 .arg(club),
              tr("You stay credited as the author, and you can take it back while you’re a member.") };
 }
 

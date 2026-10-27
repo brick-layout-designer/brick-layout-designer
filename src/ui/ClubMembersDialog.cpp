@@ -225,10 +225,8 @@ void ClubMembersDialog::rebuild() {
     }
     const auto n = members_.members.size();
     count_->setText(!loaded_ ? QString() : n == 1 ? tr("1 member") : tr("%1 members").arg(n));
-    QList<sync::ClubMember> sorted = members_.members;
-    std::stable_sort(sorted.begin(), sorted.end(), [](const sync::ClubMember& a, const sync::ClubMember& b) {
-        return QString::localeAwareCompare(a.name, b.name) < 0;
-    });
+    // Strongest roles first, as the website lists them.
+    const QList<sync::ClubMember> sorted = members_.sorted();
     int at = 0;
     for (const sync::ClubMember& m : sorted) {
         QFrame* frame = libraryRowFrame(host_);
