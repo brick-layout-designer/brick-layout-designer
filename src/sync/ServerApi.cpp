@@ -36,6 +36,13 @@ bool OrgEntry::canAddKind(AddKind kind) const {
     return permissions->contains(addPermissionFor(kind));
 }
 
+bool OrgEntry::managesMembers() const {
+    if (isAdmin()) return true;
+    if (!permissions) return managesThings();
+    return permissions->contains(QLatin1String("invite"))
+           || permissions->contains(QLatin1String("manage_members"));
+}
+
 OrgEntry OrgEntry::fromJson(const QJsonObject& o) {
     OrgEntry e{ o.value(QLatin1String("slug")).toString(), o.value(QLatin1String("name")).toString(),
                 o.value(QLatin1String("myRole")).toString(), o.value(QLatin1String("canAdd")).toBool(true), {} };

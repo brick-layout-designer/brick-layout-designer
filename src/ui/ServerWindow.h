@@ -47,6 +47,7 @@ class QVBoxLayout;
 namespace bld::ui {
 
 class CatalogTab;
+class ClubMembersDialog;
 class LibraryStatusLine;
 class ServerLibrary;
 struct ConfirmOptions;
@@ -66,6 +67,8 @@ public:
     };
 
     ServerWindow(ServerLibrary& library, QWidget* parent = nullptr);
+    // Closes the club's Members window first (it tells this window when it goes).
+    ~ServerWindow() override;
 
     // Shows the window on that tab, in front.
     void showTab(Tab tab);
@@ -118,6 +121,12 @@ public:
     QLabel* clubLogoLink() const { return logoLink_; }
     // Where it goes: the club's Manage › Settings on the website; empty when not offered.
     QUrl clubLogoPage() const;
+    // "Members…" (shown for a club of yours picked in Show): its members, read only.
+    QPushButton* clubMembersButton() const { return membersButton_; }
+    // Opens the members of the club `slug` (one at a time), in front.
+    void showMembers(const QString& slug);
+    // The members window, while it is open (tests).
+    ClubMembersDialog* membersDialog() const;
 
 signals:
     // Another of your servers was picked.
@@ -188,6 +197,8 @@ private:
     void loadLists();
     void rebuildFilter();
     void updateLogoLink();
+    // The club picked in Show, when it is one of yours; else empty.
+    QString pickedClub() const;
     void rebuild();
     void rebuildLayouts();
     void rebuildVenues();
@@ -217,6 +228,8 @@ private:
     QWidget* filler_ = nullptr;
     QComboBox* show_ = nullptr;
     QLabel* logoLink_ = nullptr;
+    QPushButton* membersButton_ = nullptr;
+    ClubMembersDialog* members_ = nullptr; // while open (it deletes itself when closed)
     QLineEdit* search_ = nullptr;
     QTabWidget* tabs_ = nullptr;
     Page layoutsPage_, venuesPage_, modulesPage_, partsPage_;

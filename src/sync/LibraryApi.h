@@ -161,6 +161,31 @@ struct Notice {
     QString toClub;    // sent to a club you run: its name
 };
 
+// One of a club's roles, as its members list names it.
+struct ClubRoleName {
+    QString id;
+    QString name;
+};
+
+// A member of a club, as the server shows them to you (GET
+// /api/orgs/:slug/members): their name, the roles they hold (several, in
+// the club's order) and roughly when they were last active, which the
+// server sends only to those who may see it (empty otherwise).
+struct ClubMember {
+    QString userId;
+    QString name;
+    QStringList roleIds;
+    QString lastActive; // today / week / month / older, or empty
+    QDateTime joinedAt;
+};
+
+struct ClubMembers {
+    QList<ClubRoleName> roles; // the club's roles, in its order
+    QList<ClubMember> members;
+    // The names of the roles a member holds, in the club's order.
+    QStringList roleNames(const ClubMember& m) const;
+};
+
 class LibraryApi : public QObject {
     Q_OBJECT
 public:
@@ -248,6 +273,10 @@ public:
     void orgs(std::function<void(const QList<OrgEntry>&)> done, Fail failed);
 
     void notices(std::function<void(const QList<Notice>&)> done, Fail failed);
+
+    // A club's members and roles (read only; members are managed on the website).
+    void clubMembers(const QString& slug, std::function<void(const ClubMembers&)> done, Fail failed);
+    static ClubMembers clubMembersFromJson(const QJsonObject& o);
     void acknowledge(const QString& id, std::function<void()> done, Fail failed);
 
     // How many requests are still out (tests).
