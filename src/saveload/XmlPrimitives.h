@@ -32,7 +32,14 @@ QString formatDouble(double v);
 QString readTextElement(QXmlStreamReader& r);
 bool    readBoolElement(QXmlStreamReader& r);
 int     readIntElement(QXmlStreamReader& r);
+// A whole number for a drawn setting: any number is read (one too big for an
+// int is clamped, a fraction rounded); text that isn't a finite number gives
+// `fallback`.
+int     readWholeElement(QXmlStreamReader& r, int fallback);
 float   readFloatElement(QXmlStreamReader& r);
+// A number for a drawn setting: text that isn't a finite number (NaN,
+// Infinity) gives `fallback`.
+float   readFloatElementOr(QXmlStreamReader& r, float fallback);
 double  readDoubleElement(QXmlStreamReader& r);
 
 // Structured primitives. Reader must be at the wrapping element's StartElement.

@@ -1,6 +1,12 @@
 #include "XmlPrimitives.h"
 
+#include "../core/DrawnLimits.h"
+
 #include <QLocale>
+
+#include <algorithm>
+#include <cmath>
+#include <limits>
 
 namespace bld::saveload::xml {
 
@@ -44,10 +50,24 @@ int readIntElement(QXmlStreamReader& r) {
     return r.readElementText().toInt();
 }
 
+int readWholeElement(QXmlStreamReader& r, int fallback) {
+    bool ok = false;
+    const double v = r.readElementText().trimmed().toDouble(&ok);
+    if (!ok || !std::isfinite(v)) return fallback;
+    return static_cast<int>(std::clamp(std::round(v), static_cast<double>(std::numeric_limits<int>::min()),
+                                       static_cast<double>(std::numeric_limits<int>::max())));
+}
+
 float readFloatElement(QXmlStreamReader& r) {
     bool ok = false;
     const float v = r.readElementText().toFloat(&ok);
     return ok ? v : 0.0f;
+}
+
+float readFloatElementOr(QXmlStreamReader& r, float fallback) {
+    bool ok = false;
+    const float v = r.readElementText().toFloat(&ok);
+    return ok && std::isfinite(v) ? v : fallback;
 }
 
 double readDoubleElement(QXmlStreamReader& r) {
@@ -135,7 +155,7 @@ core::FontSpec readFont(QXmlStreamReader& r, int dataVersion) {
     while (r.readNextStartElement()) {
         const auto n = r.name();
         if      (n == QStringLiteral("FontFamily")) f.familyName  = readTextElement(r);
-        else if (n == QStringLiteral("Size"))       f.sizePt      = readFloatElement(r);
+        else if (n == QStringLiteral("Size"))       f.sizePt      = readFloatElementOr(r, core::limits::kFontSize.fallback);
         else if (n == QStringLiteral("Style"))      f.styleString = readTextElement(r);
         else r.skipCurrentElement();
     }

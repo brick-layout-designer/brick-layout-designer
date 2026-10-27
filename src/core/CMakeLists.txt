@@ -1,5 +1,7 @@
 add_library(bld_core STATIC
     Map.cpp
+    DrawnLimits.h
+    DrawnLimits.cpp
     Version.h
     Version.cpp
     NameMigration.h

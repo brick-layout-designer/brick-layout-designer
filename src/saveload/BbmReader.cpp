@@ -4,6 +4,7 @@
 #include "XmlPrimitives.h"
 
 #include "../core/Brick.h"
+#include "../core/DrawnLimits.h"
 #include "../core/Group.h"
 #include "../core/Ids.h"
 #include "../core/Layer.h"
@@ -216,7 +217,10 @@ LoadResult readBbm(QIODevice& input) {
     while (r.readNextStartElement()) {
         if (r.name() == QStringLiteral("Map")) {
             LoadResult result = readMapElement(r);
-            if (result.map) result.renamedIds = migrateNonNumericIds(*result.map);
+            if (result.map) {
+                result.renamedIds = migrateNonNumericIds(*result.map);
+                core::keepDrawnSettingsInRange(*result.map);
+            }
             return result;
         }
         r.skipCurrentElement();

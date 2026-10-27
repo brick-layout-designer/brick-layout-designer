@@ -1,5 +1,6 @@
 add_executable(bld_saveload_tests
     RoundTripTest.cpp
+    DrawnLimitsTest.cpp
     RealFixtureTest.cpp
     SidecarTest.cpp
     SetIOTest.cpp

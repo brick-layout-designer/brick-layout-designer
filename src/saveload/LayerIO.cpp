@@ -4,6 +4,8 @@
 
 #include "XmlPrimitives.h"
 
+#include "../core/DrawnLimits.h"
+
 #include "../core/Layer.h"
 #include "../core/LayerArea.h"
 #include "../core/LayerBrick.h"
@@ -17,19 +19,31 @@ namespace bld::saveload {
 
 namespace {
 
+// <X>…</X><Y>…</Y> as whole numbers (readWholeElement), 0 for text that
+// isn't one.
+QPoint readWholePoint(QXmlStreamReader& r) {
+    int x = 0, y = 0;
+    while (r.readNextStartElement()) {
+        if (r.name() == QStringLiteral("X")) x = xml::readWholeElement(r, 0);
+        else if (r.name() == QStringLiteral("Y")) y = xml::readWholeElement(r, 0);
+        else r.skipCurrentElement();
+    }
+    return { x, y };
+}
+
 // ---------- Layer-common header (Name/Visible/Transparency/HullProperties) ----------
 
 void readCommonField(QXmlStreamReader& r, core::Layer& layer, int dataVersion, QStringView n) {
     if (n == QStringLiteral("Name"))          layer.name = xml::readTextElement(r);
     else if (n == QStringLiteral("Visible"))  layer.visible = xml::readBoolElement(r);
-    else if (n == QStringLiteral("Transparency") && dataVersion > 4) layer.transparency = xml::readIntElement(r);
+    else if (n == QStringLiteral("Transparency") && dataVersion > 4) layer.transparency = xml::readWholeElement(r, core::limits::kTransparency.fallback);
     else if (n == QStringLiteral("HullProperties") && dataVersion >= 9) {
         layer.hull.displayHulls = r.attributes().value(QStringLiteral("isVisible"))
                                       .compare(QStringLiteral("true"), Qt::CaseInsensitive) == 0;
         while (r.readNextStartElement()) {
             const auto hn = r.name();
             if      (hn == QStringLiteral("hullColor"))     layer.hull.color     = xml::readColor(r);
-            else if (hn == QStringLiteral("hullThickness")) layer.hull.thickness = xml::readIntElement(r);
+            else if (hn == QStringLiteral("hullThickness")) layer.hull.thickness = xml::readWholeElement(r, core::limits::kHullThickness.fallback);
             else r.skipCurrentElement();
         }
     } else {
@@ -119,19 +133,19 @@ std::unique_ptr<core::LayerGrid> readLayerGrid(QXmlStreamReader& r, int dataVers
         const auto n = r.name();
         if (isCommonField(n, dataVersion)) { readCommonField(r, *grid, dataVersion, n); continue; }
         if      (n == QStringLiteral("GridColor"))           grid->gridColor        = xml::readColor(r);
-        else if (n == QStringLiteral("GridThickness"))       grid->gridThickness    = xml::readFloatElement(r);
+        else if (n == QStringLiteral("GridThickness"))       grid->gridThickness    = xml::readFloatElementOr(r, core::limits::kGridThickness.fallback);
         else if (n == QStringLiteral("SubGridColor"))        grid->subGridColor     = xml::readColor(r);
-        else if (n == QStringLiteral("SubGridThickness"))    grid->subGridThickness = xml::readFloatElement(r);
-        else if (n == QStringLiteral("GridSizeInStud"))      grid->gridSizeInStud   = xml::readIntElement(r);
-        else if (n == QStringLiteral("SubDivisionNumber"))   grid->subDivisionNumber = std::max(xml::readIntElement(r), 2);
+        else if (n == QStringLiteral("SubGridThickness"))    grid->subGridThickness = xml::readFloatElementOr(r, core::limits::kSubGridThickness.fallback);
+        else if (n == QStringLiteral("GridSizeInStud"))      grid->gridSizeInStud   = xml::readWholeElement(r, core::limits::kGridSizeInStud.fallback);
+        else if (n == QStringLiteral("SubDivisionNumber"))   grid->subDivisionNumber = xml::readWholeElement(r, core::limits::kSubDivisionNumber.fallback);
         else if (n == QStringLiteral("DisplayGrid"))         grid->displayGrid       = xml::readBoolElement(r);
         else if (n == QStringLiteral("DisplaySubGrid"))      grid->displaySubGrid    = xml::readBoolElement(r);
         else if (n == QStringLiteral("DisplayCellIndex"))    grid->displayCellIndex  = xml::readBoolElement(r);
         else if (n == QStringLiteral("CellIndexFont"))       grid->cellIndexFont     = xml::readFont(r, dataVersion);
         else if (n == QStringLiteral("CellIndexColor"))      grid->cellIndexColor    = xml::readColor(r);
-        else if (n == QStringLiteral("CellIndexColumnType")) grid->cellIndexColumnType = static_cast<core::CellIndexType>(xml::readIntElement(r));
-        else if (n == QStringLiteral("CellIndexRowType"))    grid->cellIndexRowType    = static_cast<core::CellIndexType>(xml::readIntElement(r));
-        else if (n == QStringLiteral("CellIndexCorner"))     grid->cellIndexCorner     = xml::readPoint(r);
+        else if (n == QStringLiteral("CellIndexColumnType")) grid->cellIndexColumnType = static_cast<core::CellIndexType>(xml::readWholeElement(r, 0));
+        else if (n == QStringLiteral("CellIndexRowType"))    grid->cellIndexRowType    = static_cast<core::CellIndexType>(xml::readWholeElement(r, 1));
+        else if (n == QStringLiteral("CellIndexCorner"))     grid->cellIndexCorner     = readWholePoint(r);
         else r.skipCurrentElement();
     }
     return grid;
@@ -319,9 +333,9 @@ std::unique_ptr<core::LayerArea> readLayerArea(QXmlStreamReader& r, int dataVers
         if (isCommonField(n, dataVersion)) { readCommonField(r, *out, dataVersion, n); continue; }
         if (n == QStringLiteral("Transparency") && dataVersion < 5) {
             // Pre-v5 placed Transparency in LayerArea body rather than the common header.
-            out->transparency = xml::readIntElement(r);
+            out->transparency = xml::readWholeElement(r, core::limits::kTransparency.fallback);
         } else if (n == QStringLiteral("AreaCellSize")) {
-            out->areaCellSizeInStud = xml::readIntElement(r);
+            out->areaCellSizeInStud = xml::readWholeElement(r, core::limits::kAreaCellSizeInStud.fallback);
         } else if (n == QStringLiteral("Areas")) {
             while (r.readNextStartElement()) {
                 if (r.name() != QStringLiteral("Area")) { r.skipCurrentElement(); continue; }
@@ -373,13 +387,13 @@ void writeLayerArea(QXmlStreamWriter& w, const core::LayerArea& a) {
 
 bool consumeRulerBaseField(QXmlStreamReader& r, core::RulerItemBase& base, int dataVersion, QStringView n) {
     if      (n == QStringLiteral("Color"))                base.color = xml::readColor(r);
-    else if (n == QStringLiteral("LineThickness"))        base.lineThickness = xml::readFloatElement(r);
+    else if (n == QStringLiteral("LineThickness"))        base.lineThickness = xml::readFloatElementOr(r, core::limits::kLineThickness.fallback);
     else if (n == QStringLiteral("DisplayDistance"))      base.displayDistance = xml::readBoolElement(r);
     else if (n == QStringLiteral("DisplayUnit"))          base.displayUnit = xml::readBoolElement(r);
     else if (n == QStringLiteral("GuidelineColor"))       base.guidelineColor = xml::readColor(r);
-    else if (n == QStringLiteral("GuidelineThickness"))   base.guidelineThickness = xml::readFloatElement(r);
+    else if (n == QStringLiteral("GuidelineThickness"))   base.guidelineThickness = xml::readFloatElementOr(r, core::limits::kGuidelineThickness.fallback);
     else if (n == QStringLiteral("GuidelineDashPattern")) base.guidelineDashPattern = xml::readFloatArray(r);
-    else if (n == QStringLiteral("Unit"))                 base.unit = xml::readIntElement(r);
+    else if (n == QStringLiteral("Unit"))                 base.unit = xml::readWholeElement(r, core::limits::kRulerUnit.fallback);
     else if (n == QStringLiteral("MeasureFont"))          base.measureFont = xml::readFont(r, dataVersion);
     else if (n == QStringLiteral("MeasureFontColor"))     base.measureFontColor = xml::readColor(r);
     else return false;
@@ -418,12 +432,12 @@ core::LayerRuler::AnyRuler readRulerItem(QXmlStreamReader& r, int dataVersion) {
             else if (n == QStringLiteral("Point2"))         out.linear.point2 = xml::readPointF(r);
             else if (n == QStringLiteral("AttachedBrick1")) out.linear.attachedBrick1Id = xml::readTextElement(r);
             else if (n == QStringLiteral("AttachedBrick2")) out.linear.attachedBrick2Id = xml::readTextElement(r);
-            else if (n == QStringLiteral("OffsetDistance")) out.linear.offsetDistance = xml::readFloatElement(r);
+            else if (n == QStringLiteral("OffsetDistance")) out.linear.offsetDistance = xml::readFloatElementOr(r, 0.0f);
             else if (n == QStringLiteral("AllowOffset"))    out.linear.allowOffset = xml::readBoolElement(r);
             else r.skipCurrentElement();
         } else {
             if      (n == QStringLiteral("Center"))        out.circular.center = xml::readPointF(r);
-            else if (n == QStringLiteral("Radius"))        out.circular.radius = xml::readFloatElement(r);
+            else if (n == QStringLiteral("Radius"))        out.circular.radius = xml::readFloatElementOr(r, core::limits::kRulerRadius.fallback);
             else if (n == QStringLiteral("AttachedBrick")) out.circular.attachedBrickId = xml::readTextElement(r);
             else r.skipCurrentElement();
         }
