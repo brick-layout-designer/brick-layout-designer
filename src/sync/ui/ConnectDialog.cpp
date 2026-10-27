@@ -449,7 +449,10 @@ void ConnectDialog::onVersion(const ServerInfo& info) {
         api_.startSignIn(tr("Collaborative Brick Layout Designer %1").arg(QCoreApplication::applicationVersion()).trimmed());
         return;
     }
-    tokens_.load(server_, [this](const QString& token) {
+    // The keychain may answer late (it can ask the person first): not
+    // after this window has gone, nor for a server no longer the one picked.
+    tokens_.load(server_, [this, alive = std::weak_ptr<int>(alive_), server = server_](const QString& token) {
+        if (alive.expired() || server != server_) return;
         if (token.isEmpty()) {
             api_.startSignIn(
                 tr("Collaborative Brick Layout Designer %1").arg(QCoreApplication::applicationVersion()).trimmed());
