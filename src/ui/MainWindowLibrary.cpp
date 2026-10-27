@@ -160,11 +160,15 @@ bool MainWindow::addPartsFromZip(const QString& zipPath, QString* error) {
         }
     }
     if (!first.isEmpty()) showPartInBrowser(first);
-    statusBar()->showMessage(
-        tr("Added %n part(s) from %1, in the Parts panel under “%2”.", nullptr,
-           static_cast<int>(added.partKeys.size()))
-            .arg(QFileInfo(zipPath).fileName(), added.folders.join(QStringLiteral("”, “"))),
-        8000);
+    QString message = tr("Added %n part(s) from %1, in the Parts panel under “%2”.", nullptr,
+                         static_cast<int>(added.partKeys.size()))
+                          .arg(QFileInfo(zipPath).fileName(), added.folders.join(QStringLiteral("”, “")));
+    // Its sets' pieces are only placed inside them (Show hidden parts lists them).
+    if (!added.onlyInSets.isEmpty())
+        message += QLatin1Char(' ')
+                   + tr("%n part(s) only used inside its sets are hidden; tick Show hidden parts to see them.",
+                        nullptr, static_cast<int>(added.onlyInSets.size()));
+    statusBar()->showMessage(message, 10000);
     return true;
 }
 

@@ -34,6 +34,7 @@ set.about
 set.sharing
 set.moving
 set.updates
+part.hidden
 open.formats
 open.desktop
 download.formats

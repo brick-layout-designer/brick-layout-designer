@@ -24,9 +24,15 @@ struct PartsZipResult {
     QString error;        // in plain words, when !ok
     QStringList folders;  // the folders written under the destination, e.g. "Yard"
     QStringList partKeys; // the parts and sets in them, by key: "Yard.track-plate1", "Yard.whole"
+    // The parts a set in the zip uses, marked only used inside sets
+    // (BlueBrick's <NotListedInLibrary>): hidden in the parts browser.
+    QStringList onlyInSets;
 };
 
-// Unpacks the ZIP at `zipPath` under `destRoot`. Files inside a top-level
+// Unpacks the ZIP at `zipPath` under `destRoot`. A part that a set in the
+// same zip uses (a Brick Track Designer export's cut pieces) is marked only
+// used inside sets, as BlueBrick's <NotListedInLibrary> says, so the
+// browser offers the set and not its pieces one by one. Files inside a top-level
 // folder keep their path; files at the top level (a README) are left out,
 // unless the ZIP has no folder at all, when they go into a folder named
 // after the ZIP. Nothing is written unless the whole archive passes the

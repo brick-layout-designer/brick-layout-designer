@@ -236,6 +236,8 @@ bool parsePartXml(const QString& xmlPath, PartMetadata& out) {
                 readGroupConnectionPreferences(r, out.groupNextPreferred);
             else if (n == QStringLiteral("CanUngroup"))
                 out.canUngroup = r.readElementText().trimmed().compare(QLatin1String("false"), Qt::CaseInsensitive) != 0;
+            else if (n == QStringLiteral("NotListedInLibrary"))
+                out.notListed = r.readElementText().trimmed().compare(QLatin1String("true"), Qt::CaseInsensitive) == 0;
             else if (n == QStringLiteral("LDraw"))         readLDrawRemap(r, out);
             else if (n == QStringLiteral("OldNameList"))   readOldNames(r, out.oldNames);
             else if (n == QStringLiteral("hull"))          readHull(r, out.xmlHullPx);

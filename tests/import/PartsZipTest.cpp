@@ -74,3 +74,22 @@ TEST(PartsZip, NotAZipSaysSo) {
     EXPECT_FALSE(r.ok);
     EXPECT_TRUE(r.error.contains(QStringLiteral("isn't a zip")));
 }
+
+// A Brick Track Designer export: the pieces its set uses are marked only
+// used inside sets (<NotListedInLibrary>), the set itself isn't.
+TEST(PartsZip, ThePiecesASetUsesAreOnlyUsedInsideIt) {
+    QTemporaryDir dest;
+    const auto r = addPartsFromZip(QStringLiteral(BLD_SOURCE_DIR "/fixtures/btd-layout-parts/Left switch cut 150.zip"), dest.path());
+    ASSERT_TRUE(r.ok) << r.error.toStdString();
+    QStringList hidden = r.onlyInSets;
+    hidden.sort();
+    EXPECT_EQ(hidden, (QStringList{ QStringLiteral("Left_switch_cut_150.switch-base1"),
+                                    QStringLiteral("Left_switch_cut_150.switch-base2"),
+                                    QStringLiteral("Left_switch_cut_150.switch-base3") }));
+    const auto read = [&](const QString& name) {
+        QFile f(QDir(dest.path()).filePath(QStringLiteral("Left switch cut 150/") + name));
+        return f.open(QIODevice::ReadOnly) ? QString::fromUtf8(f.readAll()) : QString();
+    };
+    EXPECT_TRUE(read(QStringLiteral("Left_switch_cut_150.switch-base1.xml")).contains(QStringLiteral("<NotListedInLibrary>true</NotListedInLibrary>")));
+    EXPECT_FALSE(read(QStringLiteral("Left_switch_cut_150.whole.set.xml")).contains(QStringLiteral("NotListedInLibrary")));
+}

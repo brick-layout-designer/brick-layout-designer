@@ -6,13 +6,16 @@
 #include "../core/Map.h"
 
 #include "../parts/PartsLibrary.h"
+#include "../saveload/PartListing.h"
 #include "../saveload/SetIO.h"
+#include "help/HelpButton.h"
 #include "SaveSetDialog.h"
 #include "theme/AppPrefs.h"
 #include "ServerList.h"
 
 #include <QSettings>
 #include <QApplication>
+#include <QCheckBox>
 #include <QClipboard>
 #include <QComboBox>
 #include <QContextMenuEvent>
@@ -62,6 +65,8 @@ constexpr int kCategoryRole = Qt::UserRole + 2;
 constexpr int kFuzzyHayRole = Qt::UserRole + 3;
 // The caption without budget numbers.
 constexpr int kCaptionRole  = Qt::UserRole + 4;
+// The part is only used inside sets (<NotListedInLibrary>).
+constexpr int kHiddenRole   = Qt::UserRole + 5;
 
 // Local QListWidget that supplies a custom MIME payload on drag so MapView
 // can identify a drop as a part-from-the-library rather than generic text.
@@ -146,6 +151,40 @@ PartsBrowser::PartsBrowser(parts::PartsLibrary& lib, QWidget* parent)
     catalogLink_->setVisible(false);
     connect(catalogLink_, &QPushButton::clicked, this, &PartsBrowser::browseCatalogRequested);
     col->addWidget(catalogLink_, 0, Qt::AlignLeft);
+
+    // A set opened with Show Parts in This Set: its name, and the way back.
+    openSetRow_ = new QWidget(host);
+    openSetRow_->setObjectName(QStringLiteral("openSetRow"));
+    auto* openRow = new QHBoxLayout(openSetRow_);
+    openRow->setContentsMargins(0, 0, 0, 0);
+    openSetText_ = new QLabel(openSetRow_);
+    openSetText_->setObjectName(QStringLiteral("openSetText"));
+    openSetText_->setWordWrap(true);
+    openRow->addWidget(openSetText_, 1);
+    auto* back = new QPushButton(tr("Back to all parts"), openSetRow_);
+    back->setObjectName(QStringLiteral("openSetBack"));
+    back->setFlat(true);
+    back->setCursor(Qt::PointingHandCursor);
+    openRow->addWidget(back);
+    connect(back, &QPushButton::clicked, this, [this] { openSet({}); });
+    openSetRow_->hide();
+    col->addWidget(openSetRow_);
+
+    // Parts only used inside sets: hidden unless asked for.
+    auto* hiddenRow = new QHBoxLayout();
+    showHidden_ = new QCheckBox(host);
+    showHidden_->setObjectName(QStringLiteral("showHiddenParts"));
+    showHidden_->setToolTip(tr("Parts that are only used inside a set (a building of a castle set, a flex track "
+                               "half, a cut track piece). They’re listed greyed and aren’t placed by themselves."));
+    showHidden_->setChecked(QSettings().value(QStringLiteral("parts/showHidden"), false).toBool());
+    hiddenRow->addWidget(showHidden_);
+    hiddenRow->addWidget(new help::HelpButton(QStringLiteral("part.hidden"), host, showHidden_));
+    hiddenRow->addStretch(1);
+    col->addLayout(hiddenRow);
+    connect(showHidden_, &QCheckBox::toggled, this, [this](bool on) {
+        QSettings().setValue(QStringLiteral("parts/showHidden"), on);
+        rebuild();
+    });
 
     grid_ = new DraggablePartsList(host);
     grid_->setViewMode(QListView::IconMode);
@@ -292,6 +331,25 @@ void PartsBrowser::showPartMenu(const QPoint& pos) {
     const QString key = it->data(kPartKeyRole).toString();
     auto* add = menu.addAction(tr("Add '%1' to map").arg(key));
     connect(add, &QAction::triggered, [this, key]{ emit partActivated(key); });
+    // Only used inside sets: never placed by itself.
+    if (it->data(kHiddenRole).toBool()) {
+        add->setEnabled(false);
+        add->setText(tr("Add '%1' to map (only used inside a set)").arg(key));
+    }
+    if (const auto set = lib_.metadata(key); set && set->kind == parts::PartKind::Group && !set->subparts.isEmpty()) {
+        auto* open = menu.addAction(tr("Show Its Parts"));
+        open->setObjectName(QStringLiteral("act.set.showParts"));
+        connect(open, &QAction::triggered, this, [this, key] { openSet(key); });
+    }
+    // Your own part: only used inside sets, or listed (BlueBrick's <NotListedInLibrary>).
+    if (isOwnPart(key)) {
+        auto* only = menu.addAction(tr("Only Used Inside Sets"));
+        only->setObjectName(QStringLiteral("act.part.onlyInSets"));
+        only->setCheckable(true);
+        only->setChecked(it->data(kHiddenRole).toBool());
+        only->setToolTip(tr("A part that only makes sense inside its sets isn’t listed or placed by itself."));
+        connect(only, &QAction::toggled, this, [this, key](bool on) { setOnlyInSets(key, on); });
+    }
     menu.addSeparator();
     auto* copy = menu.addAction(tr("Copy part number"));
     connect(copy, &QAction::triggered, [key]{
@@ -354,6 +412,86 @@ void PartsBrowser::showPartMenu(const QPoint& pos) {
 
 void PartsBrowser::setOwnPartsRoots(std::function<QStringList()> roots) {
     ownRoots_ = std::move(roots);
+}
+
+bool PartsBrowser::isOwnPart(const QString& key) const {
+    const auto meta = lib_.metadata(key);
+    if (!meta || !ownRoots_ || meta->xmlFilePath.isEmpty()) return false;
+    const QString path = QDir::cleanPath(QFileInfo(meta->xmlFilePath).absoluteFilePath());
+    for (const QString& root : ownRoots_()) {
+        const QString dir = QDir::cleanPath(QFileInfo(root).absoluteFilePath());
+        if (!dir.isEmpty() && path.startsWith(dir + QLatin1Char('/'), Qt::CaseInsensitive)) return true;
+    }
+    return false;
+}
+
+void PartsBrowser::setOnlyInSets(const QString& key, bool onlyInSets) {
+    const auto meta = lib_.metadata(key);
+    if (!meta) return;
+    QString error;
+    if (!saveload::setNotListed(meta->xmlFilePath, onlyInSets, &error)) {
+        QMessageBox::warning(this, tr("Parts"), error);
+        return;
+    }
+    // Read it again, and show it listed or hidden at once.
+    const QString path = meta->xmlFilePath;
+    lib_.forget(key);
+    lib_.scanFile(path);
+    rebuild();
+    emit ownSetsChanged();
+}
+
+void PartsBrowser::openSet(const QString& key) {
+    openSet_.clear();
+    openSetKeys_.clear();
+    const auto set = key.isEmpty() ? std::nullopt : lib_.metadata(key);
+    if (set && set->kind == parts::PartKind::Group) {
+        openSet_ = key;
+        // Its parts, and the parts of a set inside it (never itself again).
+        QStringList pending{ key };
+        QSet<QString> seen{ key.toLower() };
+        while (!pending.isEmpty() && seen.size() < 4096) {
+            const auto meta = lib_.metadata(pending.takeFirst());
+            if (!meta) continue;
+            for (const auto& sp : meta->subparts) {
+                const QString sub = lib_.canonicalKey(sp.subKey);
+                const QString k = sub.isEmpty() ? sp.subKey.toLower() : sub;
+                if (seen.contains(k)) continue;
+                seen.insert(k);
+                openSetKeys_.insert(k);
+                pending << k;
+            }
+        }
+        QString name = key;
+        for (const auto& d : set->descriptions)
+            if (d.language == QLatin1String("en") && !d.text.isEmpty()) name = d.text;
+        openSetText_->setText(tr("Parts in the set “%1”").arg(name));
+    }
+    openSetRow_->setVisible(!openSet_.isEmpty());
+    showHidden_->setEnabled(openSet_.isEmpty());
+    // All of its parts: the text filter starts again.
+    if (!openSet_.isEmpty() && !filter_->text().isEmpty()) {
+        const QSignalBlocker quiet(filter_);
+        filter_->clear();
+    }
+    // Hidden parts are only in the grid while asked for.
+    rebuild();
+}
+
+bool PartsBrowser::isListed(const QString& key) const {
+    for (int i = 0; i < grid_->count(); ++i)
+        if (grid_->item(i)->data(kPartKeyRole).toString().compare(key, Qt::CaseInsensitive) == 0)
+            return !grid_->item(i)->isHidden();
+    return false;
+}
+
+void PartsBrowser::refreshHiddenCount() {
+    showHidden_->setText(tr("Show hidden parts (%1)").arg(hiddenCount_));
+    showHidden_->setVisible(hiddenCount_ > 0);
+}
+
+bool PartsBrowser::listsHidden() const {
+    return !openSet_.isEmpty() || (showHidden_ && showHidden_->isChecked());
 }
 
 bool PartsBrowser::isOwnSet(const QString& key) const {
@@ -538,6 +676,15 @@ QListWidgetItem* makePartItem(parts::PartsLibrary& lib,
     // and any user-saved set) get a composite synthesized from their subparts.
     if (iconSize > 0) setPartIcon(lib, key, item, iconSize);
 
+    if (meta->notListed) {
+        // Greyed, not dragged out: it's only placed inside its sets.
+        item->setData(kHiddenRole, true);
+        item->setFlags(item->flags() & ~Qt::ItemIsDragEnabled);
+        item->setForeground(QApplication::palette().color(QPalette::Disabled, QPalette::Text));
+        item->setToolTip(item->toolTip() + QStringLiteral("\n")
+                         + QCoreApplication::translate("bld::ui::PartsBrowser",
+                                                       "Only used inside a set: place its set instead."));
+    }
     item->setData(kCaptionRole,  caption);
     item->setData(kPartKeyRole,  key);
     item->setData(kCategoryRole, cat);
@@ -574,9 +721,16 @@ void PartsBrowser::rebuild() {
     const QString onlyServer = QSettings().value(QStringLiteral("parts/showAllServers"), false).toBool()
                                    ? QString()
                                    : liveServerFolder_;
+    hiddenCount_ = 0;
+    const bool withHidden = listsHidden();
     for (const QString& key : keys) {
         auto meta = lib_.metadata(key);
         if (!meta) continue;
+        // Only used inside sets: counted, and listed only when asked for.
+        if (meta->notListed) {
+            ++hiddenCount_;
+            if (!withHidden) continue;
+        }
         if (!onlyServer.isEmpty()) {
             const QString folder = serverFolderOf(*meta);
             if (!folder.isEmpty() && folder != onlyServer) continue;
@@ -597,6 +751,7 @@ void PartsBrowser::rebuild() {
     category_->blockSignals(false);
 
     grid_->sortItems(Qt::AscendingOrder);
+    refreshHiddenCount();
     refreshBudget();
 
     // Thumbnails next, a few at a time, in the order the grid shows them.
@@ -653,6 +808,11 @@ void PartsBrowser::addOne(const QString& key) {
             delete grid_->takeItem(i);
             break;
         }
+    }
+    if (meta->notListed && !listsHidden()) {
+        ++hiddenCount_;
+        refreshHiddenCount();
+        return;
     }
     const QString cat = categoryForPath(meta->xmlFilePath);
     // Add the category to the dropdown if it's new. blockSignals so the
@@ -719,11 +879,19 @@ void PartsBrowser::applyFilter() {
     // First pass: filter by category and compute a fuzzy score. An empty filter
     // keeps every item visible with score 1. Items with score 0 get hidden.
     std::vector<std::pair<int, QListWidgetItem*>> scored;  // (score, item)
+    const bool opened = !openSet_.isEmpty();
+    const bool showHidden = showHidden_ && showHidden_->isChecked();
     for (int i = 0; i < grid_->count(); ++i) {
         auto* it = grid_->item(i);
-        const QString itemCat = it->data(kCategoryRole).toString();
-        const bool catOk = allCats || (itemCat == cat);
-        if (!catOk) { it->setHidden(true); continue; }
+        if (opened) {
+            // A set opened: its parts only, hidden ones too.
+            if (!openSetKeys_.contains(it->data(kPartKeyRole).toString().toLower())) { it->setHidden(true); continue; }
+        } else {
+            const QString itemCat = it->data(kCategoryRole).toString();
+            const bool catOk = allCats || (itemCat == cat);
+            if (!catOk) { it->setHidden(true); continue; }
+            if (it->data(kHiddenRole).toBool() && !showHidden) { it->setHidden(true); continue; }  // (not listed then)
+        }
         const int score = fuzzyScore(needle, it->data(kFuzzyHayRole).toString());
         if (score <= 0) { it->setHidden(true); continue; }
         if (budget_ && budget_->exists() && budget_->showOnlyBudgetedParts()

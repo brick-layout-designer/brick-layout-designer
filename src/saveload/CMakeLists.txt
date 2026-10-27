@@ -15,6 +15,8 @@ add_library(bld_saveload STATIC
     VenueIO.h
     VenueJson.cpp
     VenueJson.h
+    PartListing.cpp
+    PartListing.h
     SetIO.cpp
     SetIO.h
 )

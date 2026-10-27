@@ -1,3 +1,4 @@
+#include "saveload/PartListing.h"
 #include "saveload/SetIO.h"
 
 #include <gtest/gtest.h>
@@ -281,4 +282,30 @@ TEST(SetIO, RenamedXmlChangesOnlyTheEnglishName) {
     EXPECT_EQ(*renamed, QStringLiteral("<group><Description><fr>Gare</fr><en>Big &amp; small</en></Description>"
                                        "<SubPartList/></group>"));
     EXPECT_FALSE(saveload::renamedSetXml(QStringLiteral("<part/>"), QStringLiteral("X")));
+}
+
+// <NotListedInLibrary> set or taken out of a part's or set's XML, as the
+// web's server does it (withNotListed in apps/server/src/utils/partXml.ts).
+TEST(PartListing, SetsOrClearsNotListedInLibrary) {
+    const QString xml = QStringLiteral("<?xml version=\"1.0\"?>\n<part>\n\t<Author>Me</Author>\n</part>");
+    const QString hidden = saveload::withNotListed(xml, true);
+    EXPECT_EQ(hidden, QStringLiteral("<?xml version=\"1.0\"?>\n<part>\n\t<NotListedInLibrary>true</NotListedInLibrary>\n\t<Author>Me</Author>\n</part>"));
+    EXPECT_EQ(saveload::withNotListed(hidden, true), hidden);  // once
+    EXPECT_EQ(saveload::withNotListed(hidden, false), xml);
+    EXPECT_EQ(saveload::withNotListed(QStringLiteral("<group><SubPartList/></group>"), true),
+              QStringLiteral("<group>\n\t<NotListedInLibrary>true</NotListedInLibrary><SubPartList/></group>"));
+    EXPECT_EQ(saveload::withNotListed(QStringLiteral("<part> <NotListedInLibrary/></part>"), false), QStringLiteral("<part></part>"));
+
+    QTemporaryDir dir;
+    const QString path = QDir(dir.path()).filePath(QStringLiteral("P.xml"));
+    QFile f(path);
+    ASSERT_TRUE(f.open(QIODevice::WriteOnly));
+    f.write(xml.toUtf8());
+    f.close();
+    ASSERT_TRUE(saveload::setNotListed(path, true));
+    ASSERT_TRUE(f.open(QIODevice::ReadOnly));
+    EXPECT_EQ(QString::fromUtf8(f.readAll()), hidden);
+    QString error;
+    EXPECT_FALSE(saveload::setNotListed(QDir(dir.path()).filePath(QStringLiteral("none.xml")), true, &error));
+    EXPECT_FALSE(error.isEmpty());
 }

@@ -10,14 +10,18 @@
 #include "ui/MapView.h"
 #include "ui/PartsBrowser.h"
 #include "ui/UpdateCheck.h"
+#include "core/LayerBrick.h"
+#include "core/Map.h"
 
 #include <gtest/gtest.h>
 
 #include <QAction>
 #include <QApplication>
+#include <QCheckBox>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QLineEdit>
 #include <QListWidget>
 #include <QMenu>
 #include <QMessageBox>
@@ -186,4 +190,87 @@ TEST_F(AddPartsFromZip, PartsZippedWithoutAFolderGetOneNamedAfterTheZip) {
         { { QStringLiteral("LOOSE.1.xml"), "<part><Description><en>Loose</en></Description></part>" } });
     EXPECT_TRUE(addFromMenu(zip).isEmpty());
     EXPECT_TRUE(QFile::exists(imports() + QStringLiteral("/My parts/LOOSE.1.xml")));
+}
+
+// The pieces of an export's set are only used inside it (BlueBrick's
+// <NotListedInLibrary>): the Parts panel leaves them out (and says so),
+// lists them greyed on "Show hidden parts" or when the set is opened, never
+// places one by itself, and the set still places whole. Your own part can be
+// listed again from its menu.
+TEST_F(AddPartsFromZip, TheSetsPiecesAreHiddenShownOnRequestAndNeverPlacedAlone) {
+    QSettings().remove(QStringLiteral("parts/showHidden"));
+    ASSERT_TRUE(addFromMenu(sample("Left switch cut 150.zip")).isEmpty());
+    const QString piece = QStringLiteral("Left_switch_cut_150.switch-base1");
+    const QString set = QStringLiteral("Left_switch_cut_150.whole");
+    EXPECT_TRUE(window_->statusBar()->currentMessage().contains(QStringLiteral("only used inside its sets are hidden")))
+        << window_->statusBar()->currentMessage().toStdString();
+    // (Adding showed the set alone in the filter: all parts again.)
+    browser_->findChild<QLineEdit*>()->clear();
+    QCheckBox* box = browser_->showHiddenBox();
+    ASSERT_TRUE(box);
+    box->setChecked(false);  // (as a new install has it)
+    EXPECT_TRUE(browser_->isListed(set));
+    EXPECT_FALSE(browser_->isListed(piece));
+    EXPECT_TRUE(box->isVisibleTo(browser_));
+    EXPECT_TRUE(box->text().startsWith(QStringLiteral("Show hidden parts (")));
+    box->setChecked(true);
+    EXPECT_TRUE(browser_->isListed(piece));
+    EXPECT_TRUE(QSettings().value(QStringLiteral("parts/showHidden")).toBool());
+    box->setChecked(false);
+    EXPECT_FALSE(browser_->isListed(piece));
+
+    // Opening the set lists its pieces, hidden ones too.
+    browser_->openSet(set);
+    EXPECT_TRUE(browser_->isListed(piece));
+    EXPECT_FALSE(browser_->isListed(set));
+    browser_->openSet({});
+    EXPECT_FALSE(browser_->isListed(piece));
+
+    // A piece is never placed by itself; the set is.
+    auto* view = window_->findChild<ui::MapView*>();
+    ASSERT_TRUE(view);
+    const auto bricks = [&] {
+        size_t n = 0;
+        for (const auto& L : view->currentMap()->layers())
+            if (L->kind() == core::LayerKind::Brick) n += static_cast<const core::LayerBrick&>(*L).bricks.size();
+        return n;
+    };
+    view->addPartAtScenePos(piece, QPointF(0, 0));
+    EXPECT_EQ(bricks(), 0u);
+    EXPECT_TRUE(window_->statusBar()->currentMessage().contains(QStringLiteral("is only used inside a set")))
+        << window_->statusBar()->currentMessage().toStdString();
+    view->addPartAtScenePos(set, QPointF(0, 0));
+    EXPECT_EQ(bricks(), 3u);
+
+    // Your own piece, from its menu: listed again (its file changes).
+    QStringList actions;
+    QTimer closer;
+    QObject::connect(&closer, &QTimer::timeout, [&] {
+        if (auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget())) {
+            for (QAction* a : menu->actions())
+                if (a->objectName() == QLatin1String("act.part.onlyInSets")) {
+                    actions << a->text() + (a->isChecked() ? QStringLiteral(" [x]") : QString());
+                    a->trigger();
+                }
+            menu->close();
+            closer.stop();
+        }
+    });
+    box->setChecked(true);
+    QListWidgetItem* item = nullptr;
+    for (int i = 0; i < browser_->grid()->count(); ++i)
+        if (browser_->grid()->item(i)->data(Qt::UserRole + 1).toString().compare(piece, Qt::CaseInsensitive) == 0)
+            item = browser_->grid()->item(i);
+    ASSERT_TRUE(item);
+    browser_->grid()->scrollToItem(item);
+    closer.start(20);
+    const QPoint at = browser_->grid()->visualItemRect(item).center();
+    emit browser_->grid()->customContextMenuRequested(at);
+    EXPECT_EQ(actions, QStringList{ QStringLiteral("Only Used Inside Sets [x]") });
+    box->setChecked(false);
+    EXPECT_TRUE(browser_->isListed(piece));
+    QFile f(imports() + QStringLiteral("/Left switch cut 150/Left_switch_cut_150.switch-base1.xml"));
+    ASSERT_TRUE(f.open(QIODevice::ReadOnly));
+    EXPECT_FALSE(QString::fromUtf8(f.readAll()).contains(QStringLiteral("NotListedInLibrary")));
+    QSettings().remove(QStringLiteral("parts/showHidden"));
 }
