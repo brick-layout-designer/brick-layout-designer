@@ -25,13 +25,16 @@
 #include <QProgressBar>
 #include <QPushButton>
 #include <QSet>
+#include <QSettings>
 #include <QSignalSpy>
 #include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QToolButton>
+#include <QVariant>
 
 #include <functional>
+#include <utility>
 
 using namespace bld;
 
@@ -82,6 +85,25 @@ class StepGuard {
 public:
     explicit StepGuard(int ms) { ui::MapView::setPictureProgressStepMs(ms); }
     ~StepGuard() { ui::MapView::setPictureProgressStepMs(30); }
+};
+
+// A setting set for one test, put back as it was afterwards.
+class SettingGuard {
+public:
+    SettingGuard(QString key, const QVariant& value)
+        : key_(std::move(key)), before_(QSettings().value(key_)) {
+        QSettings().setValue(key_, value);
+    }
+    ~SettingGuard() {
+        if (before_.isValid()) QSettings().setValue(key_, before_);
+        else QSettings().remove(key_);
+    }
+    SettingGuard(const SettingGuard&) = delete;
+    SettingGuard& operator=(const SettingGuard&) = delete;
+
+private:
+    QString key_;
+    QVariant before_;
 };
 
 }  // namespace
@@ -250,10 +272,21 @@ TEST(PartsBrowserLoading, ReadsThumbnailsAFewAtATimeWithACount) {
     EXPECT_FALSE(grid->item(0)->icon().isNull());
 }
 
+// The window reads its library from the settings and from beside the
+// program, so the test sets both up itself: the vendored parts, wherever
+// the build folder is (the window finds them beside the program only in a
+// build inside the source tree), and an empty modules folder, so parts
+// imported by earlier runs (test settings and their folders outlive a run)
+// don't stand in for a library without this layout's parts.
 TEST(MainWindowLoading, OpeningAFileSaysSoThenCountsThePictures) {
+    if (!QDir(kParts).exists()) GTEST_SKIP() << "parts library missing";
     QStandardPaths::setTestModeEnabled(true);
     ui::UpdateCheck::setCheckAtStartupEnabled(false);
+    QTemporaryDir modules;
+    ASSERT_TRUE(modules.isValid());
     {
+        const SettingGuard userPaths(QStringLiteral("partsLibrary/userPaths"), QStringList{ kParts });
+        const SettingGuard modulesFolder(QStringLiteral("modules/libraryPath"), modules.path());
         parts::PartsLibrary lib;
         StepGuard step(0);
         ui::MainWindow window(lib);
@@ -262,15 +295,16 @@ TEST(MainWindowLoading, OpeningAFileSaysSoThenCountsThePictures) {
         ASSERT_TRUE(QTest::qWaitForWindowExposed(&window));
         auto* view = window.findChild<ui::MapView*>();
         ASSERT_NE(view, nullptr);
+        const auto map = fordyce();
+        ASSERT_NE(map, nullptr);
+        ASSERT_GT(picturesIn(*map, lib), 0);
         PaintSpy spy(view->loadingCard());
         ASSERT_TRUE(window.openFile(kCorpus + QStringLiteral("/fordyce-2026.bbm")));
         ASSERT_FALSE(spy.seen.isEmpty());
         EXPECT_EQ(spy.seen.first(), QStringLiteral("Opening layout…|"));
-        if (lib.partCount() > 0) {
-            bool counted = false;
-            for (const QString& s : spy.seen) counted |= s.startsWith(QStringLiteral("Loading part pictures…|"));
-            EXPECT_TRUE(counted) << spy.seen.join(QLatin1Char('\n')).toStdString();
-        }
+        bool counted = false;
+        for (const QString& s : spy.seen) counted |= s.startsWith(QStringLiteral("Loading part pictures…|"));
+        EXPECT_TRUE(counted) << spy.seen.join(QLatin1Char('\n')).toStdString();
         EXPECT_FALSE(view->loadingCard()->isVisible());
     }
     QStandardPaths::setTestModeEnabled(false);
