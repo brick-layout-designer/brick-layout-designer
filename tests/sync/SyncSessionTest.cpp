@@ -8,10 +8,12 @@
 
 #include <gtest/gtest.h>
 
+#include <QFile>
 #include <QJsonObject>
 #include <QTemporaryDir>
 
 #include <optional>
+#include <stdexcept>
 #include <utility>
 
 using namespace bld;
@@ -369,4 +371,133 @@ TEST(SyncDoc, ResetForgetsTheDocument) {
     EXPECT_EQ(doc.toJson(), fresh.toJson());
     ASSERT_TRUE(doc.applyUpdate(server.doc.encodeState()));
     EXPECT_EQ(firstBrickArea(doc), firstBrickArea(server.doc));
+}
+
+// Session lifecycle: closing, opening again, a session the server ends.
+
+namespace {
+core::LayerBrick& brickLayer(core::Map& m) {
+    for (auto& l : m.layers())
+        if (l->kind() == core::LayerKind::Brick) return static_cast<core::LayerBrick&>(*l);
+    throw std::runtime_error("no brick layer");
+}
+int bricksIn(const sync::SyncDoc& d) { return static_cast<int>(brickLayer(*sync::mapFromDocJson(d.toJson())).bricks.size()); }
+}  // namespace
+
+// Closed straight after an edit (before the once-a-second save): the edit
+// is on disk, and the layout opens offline with it.
+TEST(SyncSession, ClosingRightAfterAnEditKeepsItInTheCopyOnDisk) {
+    QTemporaryDir cache;
+    QRectF moved;
+    {
+        FakeServer server;
+        sync::SyncSession session;
+        session.setCacheDir(cache.path());
+        session.open(server.url(), {}, false);
+        ASSERT_TRUE(waitFor([&] { return session.status() == Status::Synced; }));
+        auto map = session.currentMap();
+        firstBrick(*map).displayArea.translate(16, 0);
+        moved = firstBrick(*map).displayArea;
+        session.localEdit(*map);
+        session.close();
+    }
+    sync::SyncSession again;
+    again.setCacheDir(cache.path());
+    again.open(QUrl(QStringLiteral("ws://127.0.0.1:1/ws/layout/L1")), {}, false);
+    ASSERT_TRUE(again.loaded());
+    EXPECT_EQ(firstBrick(*again.currentMap()).displayArea, moved);
+    EXPECT_FALSE(again.offlineEdits());
+    again.close();
+}
+
+// Closed with offline edits and opened again on the same session: they come
+// back for review once in step, and nothing reaches the server before that.
+TEST(SyncSession, OfflineEditsSurviveClosingAndOpeningAgain) {
+    QTemporaryDir cache;
+    FakeServer server;
+    sync::SyncSession session;
+    session.setCacheDir(cache.path());
+    session.client().setReconnectDelays(50ms, 200ms);
+    int ready = 0;
+    QObject::connect(&session, &sync::SyncSession::offlineEditsReady, [&] { ++ready; });
+    session.open(server.url(), {}, false);
+    ASSERT_TRUE(waitFor([&] { return session.status() == Status::Synced; }));
+    const QRectF original = firstBrickArea(server.doc);
+    server.dropAll(QWebSocketProtocol::CloseCodeGoingAway);
+    ASSERT_TRUE(waitFor([&] { return session.status() != Status::Synced; }));
+    auto map = session.currentMap();
+    firstBrick(*map).displayArea.translate(0, 8);
+    session.localEdit(*map);
+    session.close();
+    EXPECT_EQ(session.status(), Status::Offline);
+    ready = 0;
+
+    session.open(server.url(), {}, false);
+    ASSERT_TRUE(session.offlineEdits());
+    ASSERT_TRUE(waitFor([&] { return ready == 1; }));
+    EXPECT_EQ(session.unsyncedEdits(), 1);
+    EXPECT_EQ(firstBrick(*session.editorMap()).displayArea, firstBrick(*map).displayArea);
+    waitFor([] { return false; }, 100);
+    EXPECT_EQ(firstBrickArea(server.doc), original);
+    session.resolveOffline(map.get());
+    ASSERT_TRUE(waitFor([&] { return firstBrickArea(server.doc) == firstBrick(*map).displayArea; }));
+    session.close();
+}
+
+// A lot changed offline (a whole yard of new parts): back in step and
+// resolved, all of it reaches the server in one go.
+TEST(SyncSession, ManyOfflineEditsAllReachTheServer) {
+    FakeServer server;
+    sync::SyncSession session;
+    session.client().setReconnectDelays(50ms, 200ms);
+    session.open(server.url(), {}, false);
+    ASSERT_TRUE(waitFor([&] { return session.status() == Status::Synced; }));
+    const int before = bricksIn(server.doc);
+    server.dropAll(QWebSocketProtocol::CloseCodeGoingAway);
+    ASSERT_TRUE(waitFor([&] { return session.status() != Status::Synced; }));
+    auto map = session.currentMap();
+    constexpr int kAdded = 3000;
+    for (int i = 0; i < kAdded; ++i) {
+        core::Brick b;
+        b.guid = QStringLiteral("yard-%1").arg(i);
+        b.partNumber = QStringLiteral("3001.1");
+        b.displayArea = QRectF(8.0 * (i % 100), 8.0 * (i / 100), 8, 8);
+        brickLayer(*map).bricks.push_back(b);
+        if (i % 500 == 499) session.localEdit(*map);
+    }
+    EXPECT_EQ(session.unsyncedEdits(), kAdded / 500);
+    ASSERT_TRUE(waitFor([&] { return session.status() == Status::Synced; }));
+    EXPECT_EQ(bricksIn(server.doc), before);
+    session.resolveOffline(map.get());
+    ASSERT_TRUE(waitFor([&] { return bricksIn(server.doc) == before + kAdded; }, 15000));
+    EXPECT_EQ(brickLayer(*sync::mapFromDocJson(server.doc.toJson())).bricks.back().guid, QStringLiteral("yard-2999"));
+    session.close();
+}
+
+// The server ends the session (access taken away) with offline edits
+// waiting: they stay on disk, and the session doesn't try again.
+TEST(SyncSession, ASessionTheServerEndsKeepsTheOfflineEditsOnDisk) {
+    QTemporaryDir cache;
+    FakeServer server;
+    sync::SyncSession session;
+    session.setCacheDir(cache.path());
+    session.client().setReconnectDelays(50ms, 200ms);
+    int ended = 0;
+    QObject::connect(&session, &sync::SyncSession::ended, [&](int, const QString&) { ++ended; });
+    session.open(server.url(), {}, false);
+    ASSERT_TRUE(waitFor([&] { return session.status() == Status::Synced; }));
+    server.dropAll(QWebSocketProtocol::CloseCodeGoingAway);
+    ASSERT_TRUE(waitFor([&] { return session.status() != Status::Synced; }));
+    auto map = session.currentMap();
+    firstBrick(*map).displayArea.translate(0, 8);
+    session.localEdit(*map);
+    ASSERT_TRUE(waitFor([&] { return !server.peers.empty(); }));
+    server.dropAll(static_cast<QWebSocketProtocol::CloseCode>(4404), QStringLiteral("access_revoked"));
+    ASSERT_TRUE(waitFor([&] { return ended == 1; }));
+    EXPECT_EQ(session.status(), Status::Offline);
+    session.close();
+    EXPECT_TRUE(QFile::exists(cache.filePath(QStringLiteral("offline.json"))));
+    const std::size_t connections = server.authHeaders.size();
+    waitFor([] { return false; }, 300);
+    EXPECT_EQ(server.authHeaders.size(), connections);
 }

@@ -859,6 +859,70 @@ TEST_F(MainWindowLive, ARoleLoweredUnheardKeepsTheEditTheServerDroppedForSaving)
     EXPECT_FALSE(window_->findChild<ui::NoticeArea*>()->isShown(QStringLiteral("live-access")));
 }
 
+namespace {
+QAction* actionNamed(QWidget* window, const QString& text) {
+    for (QAction* a : window->findChildren<QAction*>())
+        if (a->text() == text) return a;
+    return nullptr;
+}
+}  // namespace
+
+// Disconnected with offline edits, then the same layout opened again: they
+// come back in the compare window, and Apply puts them on the server.
+TEST_F(MainWindowLive, OfflineEditsComeBackWhenTheLayoutIsOpenedAgain) {
+    ws_.dropAll(QWebSocketProtocol::CloseCodeGoingAway);
+    ASSERT_TRUE(waitFor([&] { return session().status() != Status::Synced; }));
+    core::Map& m = *view_->currentMap();
+    const QPointF at = brickAt(m, 0).displayArea.topLeft();
+    view_->undoStack()->push(new edit::MoveBricksCommand(m, { { brickRef(m, 0), at, at + QPointF(8, 0) } }));
+    ASSERT_TRUE(waitFor([&] { return session().offlineEdits().has_value(); }));
+    QAction* disconnect = actionNamed(window_.get(), QStringLiteral("&Disconnect"));
+    ASSERT_NE(disconnect, nullptr);
+    disconnect->trigger();
+    EXPECT_FALSE(live_->active());
+    EXPECT_FALSE(disconnect->isEnabled());
+    waitFor([] { return false; }, 150);
+    EXPECT_EQ(brickArea(ws_.doc, 0), original_);
+
+    Answers answers{ { compare(QStringLiteral("Apply")) } };
+    answers.during([&] {
+        window_->openLive({ http_.base(), QStringLiteral("bld_pat_test"), QStringLiteral("L1"),
+                            QStringLiteral("Show 2026"), false, serverInfo() });
+        ASSERT_TRUE(waitFor([&] { return answers.done() && !session().offlineEdits(); }));
+    });
+    EXPECT_EQ(answers.unexpected, 0);
+    ASSERT_TRUE(waitFor([&] { return brickArea(ws_.doc, 0) == original_.translated(8, 0); }));
+    EXPECT_TRUE(disconnect->isEnabled());
+}
+
+// From a layout on one server to a layout on another: the first is left
+// (its connection closed, nothing more sent to it), and edits go only to
+// the second, as the second's own layout.
+TEST_F(MainWindowLive, OpeningALayoutOnAnotherServerLeavesTheFirst) {
+    FakeHttp otherHttp;
+    FakeServer otherWs;
+    otherWs.remoteEdit([](core::Map& s) { brickAt(s, 0).displayArea.translate(0, 40); });
+    otherHttp.upgrade = [&](QTcpSocket* s) { otherWs.take(s); };
+    const QRectF otherArea = brickArea(otherWs.doc, 0);
+
+    window_->openLive({ otherHttp.base(), QStringLiteral("bld_pat_other"), QStringLiteral("L2"),
+                        QStringLiteral("Club table"), false, serverInfo() });
+    ASSERT_TRUE(waitFor([&] { return session().status() == Status::Synced && !otherWs.peers.empty(); }));
+    ASSERT_TRUE(waitFor([&] { return ws_.peers.empty(); }));
+    ASSERT_TRUE(waitFor([&] { return view_->currentMap() && brickAt(*view_->currentMap(), 0).displayArea == otherArea; }));
+    EXPECT_EQ(otherWs.authHeaders.back(), QStringLiteral("Bearer bld_pat_other"));
+
+    core::Map& m = *view_->currentMap();
+    const QPointF at = brickAt(m, 0).displayArea.topLeft();
+    view_->undoStack()->push(new edit::MoveBricksCommand(m, { { brickRef(m, 0), at, at + QPointF(8, 0) } }));
+    ASSERT_TRUE(waitFor([&] { return brickArea(otherWs.doc, 0) == otherArea.translated(8, 0); }));
+    waitFor([] { return false; }, 150);
+    EXPECT_EQ(brickArea(ws_.doc, 0), original_);
+    EXPECT_TRUE(ws_.peers.empty());
+    EXPECT_TRUE(window_->windowTitle().contains(QStringLiteral("Club table"))) << window_->windowTitle().toStdString();
+    window_.reset();  // before the other server goes
+}
+
 // Removed from the layout while it's open (a club admin took the role, the
 // owner stopped sharing): the box says so in plain words, not the server's
 // code, and the layout stays open as an unsaved copy.
