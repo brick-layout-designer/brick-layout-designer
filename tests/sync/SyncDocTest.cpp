@@ -402,4 +402,15 @@ TEST(SyncDocSidecar, KeepsWhatTheDesktopDoesntHandle) {
     EXPECT_FALSE(merged.contains(QLatin1String("venue")));
     // No sidecar on either side: nothing is added.
     EXPECT_TRUE(sync::mergeSidecarCache({}, mine).isEmpty());
+    // Placed sets' versions are the desktop's too: its own go up, and none clears the web's.
+    core::Sidecar placed;
+    placed.sets.push_back({ QStringLiteral("g1"), QStringLiteral("v1"), {}, {}, 0.0, {} });
+    const QJsonObject withSets = sync::mergeSidecarCache(current, placed);
+    ASSERT_EQ(withSets.value(QLatin1String("sets")).toArray().size(), 1);
+    EXPECT_EQ(withSets.value(QLatin1String("sets"))
+                  .toArray()[0]
+                  .toObject()
+                  .value(QLatin1String("version"))
+                  .toString(),
+              QStringLiteral("v1"));
 }

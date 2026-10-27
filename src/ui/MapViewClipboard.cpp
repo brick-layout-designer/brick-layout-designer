@@ -51,11 +51,17 @@ void MapView::copySelection() {
     if (editingModuleId_.isEmpty())
         if (const core::Module* m = core::wholeModule(map_->sidecar.modules, selectedGuids))
             clipboardModule_ = *m;
+    // A placed custom set's anchor part brings its link, so a pasted copy keeps track too.
+    QHash<QString, core::PlacedSet> anchors;
+    for (const core::PlacedSet& s : map_->sidecar.sets)
+        if (!s.anchorBrick.isEmpty()) anchors.insert(s.anchorBrick, s);
     for (const auto& L : map_->layers()) {
         if (!L || L->kind() != core::LayerKind::Brick) continue;
         for (const auto& b : static_cast<const core::LayerBrick&>(*L).bricks) {
             if (selectedGuids.contains(b.guid)) {
-                clipboard_.push_back({ L->name, b });
+                clipboard_.push_back(
+                    { L->name, b,
+                      anchors.contains(b.guid) ? std::optional(anchors.value(b.guid)) : std::nullopt });
             }
         }
         // Keep the sets (and groups) the copied parts are in.
@@ -96,6 +102,7 @@ void MapView::pasteClipboard() {
     QHash<QString, std::vector<core::Brick>> byLayer;
     QStringList layerOrder;
     QSet<QString> newGuids;
+    QHash<QString, core::PlacedSet> copiedAnchors; // new anchor part -> its original's link
     // With Use Budget Limitation, bricks beyond their budget are left out
     // (as BlueBrick's duplicate does).
     const bool limited = budget_ && budget_->exists() && budget_->useBudgetLimitation();
@@ -110,6 +117,7 @@ void MapView::pasteClipboard() {
         }
         core::Brick b = src.brick;
         b.guid = core::newBbmId();
+        if (src.placedSet) copiedAnchors.insert(b.guid, *src.placedSet);
         // Its own connections: new ids, joined again where it lands.
         for (auto& c : b.connections) {
             c.guid = core::newBbmId();
@@ -152,6 +160,23 @@ void MapView::pasteClipboard() {
         auto groups = core::cloneGroups(source, bricks, [] { return core::newBbmId(); });
         undoStack_->push(new edit::AddBricksCommand(*map_, li, std::move(bricks), std::move(groups)));
     }
+    // Copies of placed custom sets keep track of their version too.
+    std::vector<core::PlacedSet> links;
+    for (const auto& L : map_->layers()) {
+        if (!L || L->kind() != core::LayerKind::Brick || copiedAnchors.isEmpty()) continue;
+        const auto& B = static_cast<const core::LayerBrick&>(*L);
+        for (const auto& b : B.bricks) {
+            const auto it = copiedAnchors.constFind(b.guid);
+            if (it == copiedAnchors.cend()) continue;
+            const QString group = core::topNamedGroup(B, b);
+            if (group.isEmpty()) continue;
+            core::PlacedSet link = *it;
+            link.groupId = group;
+            link.anchorBrick = b.guid;
+            links.push_back(link);
+        }
+    }
+    if (!links.empty()) undoStack_->push(new edit::AddPlacedSetsCommand(*map_, std::move(links)));
     // Editing a module, pasted parts join it. Otherwise a whole module copied
     // pastes as a module of its own: "X (copy)", its look, unlinked, unpinned.
     absorbIntoEditedModule(newGuids);

@@ -158,6 +158,41 @@ core::Module decodeModule(const QJsonObject& o) {
     return m;
 }
 
+// A placed set: {id, version, anchor: {brick, x, y, angle}}, as the web writes it.
+QJsonObject encodePlacedSet(const core::PlacedSet& s) {
+    QJsonObject o = s.extras;
+    o[QStringLiteral("id")] = s.groupId;
+    o[QStringLiteral("version")] = s.version;
+    if (!s.anchorBrick.isEmpty())
+        o[QStringLiteral("anchor")] = QJsonObject{ { QStringLiteral("brick"), s.anchorBrick },
+                                                   { QStringLiteral("x"), s.anchorPos.x() },
+                                                   { QStringLiteral("y"), s.anchorPos.y() },
+                                                   { QStringLiteral("angle"), s.anchorAngle } };
+    else o.remove(QStringLiteral("anchor"));
+    return o;
+}
+
+std::optional<core::PlacedSet> decodePlacedSet(const QJsonValue& v) {
+    const QJsonObject o = v.toObject();
+    if (!o.value(QStringLiteral("id")).isString() || !o.value(QStringLiteral("version")).isString())
+        return std::nullopt;
+    core::PlacedSet s;
+    s.groupId = o.value(QStringLiteral("id")).toString();
+    s.version = o.value(QStringLiteral("version")).toString();
+    const QJsonObject a = o.value(QStringLiteral("anchor")).toObject();
+    if (a.value(QStringLiteral("brick")).isString()) {
+        s.anchorBrick = a.value(QStringLiteral("brick")).toString();
+        s.anchorPos =
+            QPointF(a.value(QStringLiteral("x")).toDouble(), a.value(QStringLiteral("y")).toDouble());
+        s.anchorAngle = a.value(QStringLiteral("angle")).toDouble();
+    }
+    for (auto it = o.constBegin(); it != o.constEnd(); ++it)
+        if (it.key() != QLatin1String("id") && it.key() != QLatin1String("version")
+            && it.key() != QLatin1String("anchor"))
+            s.extras.insert(it.key(), it.value());
+    return s;
+}
+
 // A view's area: {x, y, w, h}, or [x, y, w, h] as the web also accepts.
 std::optional<QRectF> decodeViewRect(const QJsonValue& v) {
     double n[4];
@@ -302,10 +337,18 @@ QJsonObject sidecarToJson(const core::Sidecar& sidecar) {
         for (const auto& v : sidecar.views) views.append(viewToJson(v));
         root[QStringLiteral("views")] = views;
     }
+    if (!sidecar.sets.empty()) {
+        QJsonArray sets;
+        for (const auto& s : sidecar.sets) sets.append(encodePlacedSet(s));
+        root[QStringLiteral("sets")] = sets;
+    }
     return root;
 }
 
 void sidecarFromJson(const QJsonObject& root, core::Sidecar& out) {
+    out.sets.clear();
+    for (const auto& v : root.value(QStringLiteral("sets")).toArray())
+        if (auto s = decodePlacedSet(v)) out.sets.push_back(std::move(*s));
     out.views.clear();
     for (const auto& v : root.value(QStringLiteral("views")).toArray())
         if (auto view = viewFromJson(v)) out.views.push_back(std::move(*view));

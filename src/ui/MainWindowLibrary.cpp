@@ -52,6 +52,21 @@ void MainWindow::rescanLibrary(const QStringList& paths) {
     parts_.scan();
     // Constructor calls this before the docks exist.
     if (partUsagePanel_) partUsagePanel_->clearIconCache();
+    // A set may have changed: its placed copies say so.
+    if (mapView_) mapView_->refreshSetUpdates();
+}
+
+bool MainWindow::isCustomSetFile(const QString& xmlPath) const {
+    const QString path = QDir::cleanPath(QFileInfo(xmlPath).absoluteFilePath());
+    if (!path.endsWith(QLatin1String(".set.xml"), Qt::CaseInsensitive)) return false;
+    // A server's custom parts: server-parts/<server>/custom/ (its libraries are libs/).
+    const QString serverParts = QDir::cleanPath(
+        QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + QStringLiteral("/server-parts"));
+    if (path.startsWith(serverParts + QLatin1Char('/'), Qt::CaseInsensitive))
+        return path.contains(QLatin1String("/custom/"), Qt::CaseInsensitive);
+    for (const QString& root : ownPartsRoots())
+        if (path.startsWith(root + QLatin1Char('/'), Qt::CaseInsensitive)) return true;
+    return false;
 }
 
 QStringList MainWindow::loadUserLibraryPaths() const {

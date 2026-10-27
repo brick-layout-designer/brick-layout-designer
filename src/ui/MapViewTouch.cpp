@@ -13,6 +13,7 @@
 
 #include "MapView.h"
 #include "ModuleEditBar.h"
+#include "SetUpdatesBar.h"
 
 #include "../core/LayerRuler.h"
 #include "../core/Map.h"
@@ -74,6 +75,7 @@ void MapView::resizeEvent(QResizeEvent* e) {
     QGraphicsView::resizeEvent(e);
     if (touchBar_ && touchBar_->isVisible()) touchBar_->place(viewport()->geometry());
     if (editBar_ && editBar_->isVisible()) editBar_->place(viewport()->geometry());
+    if (updatesBar_ && updatesBar_->isVisible()) updatesBar_->place(viewport()->geometry());
 }
 
 void MapView::panBy(QPointF delta) {

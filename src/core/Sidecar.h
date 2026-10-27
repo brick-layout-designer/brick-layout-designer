@@ -6,6 +6,8 @@
 #include "Venue.h"
 
 #include <QByteArray>
+#include <QJsonObject>
+#include <QPointF>
 #include <QRectF>
 #include <QString>
 
@@ -13,6 +15,23 @@
 #include <vector>
 
 namespace bld::core {
+
+// A custom set placed in the layout (a named group of the .bbm): which
+// version of the set it came from (parts::setVersion), so the layout can say
+// "Update available" when the set changes (edit/SetUpdates.h). Vanilla
+// BlueBrick never sees it; the web writes the same (`sets`, PlacedSet in
+// packages/bbm sidecar.ts).
+struct PlacedSet {
+    QString groupId; // the set's outermost group
+    QString version;
+    // One of its parts, and where that part sits in the set (studs,
+    // degrees), so the set's place and turn can be found however it was
+    // moved; empty `anchorBrick` when not known.
+    QString anchorBrick;
+    QPointF anchorPos;
+    double anchorAngle = 0.0;
+    QJsonObject extras; // fields a newer build added, kept as they are
+};
 
 // Root container for fork-only metadata, serialized to a .bbm.bld sidecar
 // beside the .bbm. Vanilla BlueBrick ignores this file; our writer always
@@ -42,9 +61,12 @@ struct Sidecar {
     // Saved views, in the order the Views panel shows them.
     std::vector<SavedView> views;
 
+    // Custom sets placed in the layout, with the version each came from.
+    std::vector<PlacedSet> sets;
+
     bool isEmpty() const {
         return anchoredLabels.empty() && modules.empty() && !venue.has_value()
-            && backgroundImagePath.isEmpty() && views.empty();
+               && backgroundImagePath.isEmpty() && views.empty() && sets.empty();
     }
 };
 

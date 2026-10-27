@@ -330,3 +330,39 @@ TEST(Sidecar, ReferencesFollowRenumberedIds) {
     EXPECT_EQ(sc.anchoredLabels[0].targetId, QStringLiteral("222"));
     EXPECT_EQ(sc.modules[0].memberIds, (QSet<QString>{ QStringLiteral("222"), QStringLiteral("7") }));
 }
+
+// Placed custom sets and the version each came from (`sets`, as the web
+// writes it): round-tripped, with fields a newer build added kept.
+TEST(Sidecar, RoundTripPlacedSets) {
+    const QJsonObject json{
+        { QStringLiteral("schemaVersion"), 1 },
+        { QStringLiteral("sets"),
+          QJsonArray{ QJsonObject{ { QStringLiteral("id"), QStringLiteral("g1") },
+                                   { QStringLiteral("version"), QStringLiteral("1572ba9befec980c") },
+                                   { QStringLiteral("anchor"),
+                                     QJsonObject{ { QStringLiteral("brick"), QStringLiteral("b1") },
+                                                  { QStringLiteral("x"), 0 },
+                                                  { QStringLiteral("y"), -4 },
+                                                  { QStringLiteral("angle"), 90 } } },
+                                   { QStringLiteral("later"), true } },
+                      QJsonObject{ { QStringLiteral("id"), QStringLiteral("g2") } }, // no version: dropped
+                      QJsonObject{ { QStringLiteral("id"), QStringLiteral("g3") },
+                                   { QStringLiteral("version"), QStringLiteral("aa") } } } }
+    };
+    core::Sidecar sc;
+    saveload::sidecarFromJson(json, sc);
+    ASSERT_EQ(sc.sets.size(), 2u);
+    EXPECT_EQ(sc.sets[0].groupId, QStringLiteral("g1"));
+    EXPECT_EQ(sc.sets[0].version, QStringLiteral("1572ba9befec980c"));
+    EXPECT_EQ(sc.sets[0].anchorBrick, QStringLiteral("b1"));
+    EXPECT_EQ(sc.sets[0].anchorPos, QPointF(0, -4));
+    EXPECT_EQ(sc.sets[0].anchorAngle, 90.0);
+    EXPECT_TRUE(sc.sets[1].anchorBrick.isEmpty());
+    EXPECT_FALSE(sc.isEmpty());
+    const QJsonArray back = saveload::sidecarToJson(sc).value(QStringLiteral("sets")).toArray();
+    ASSERT_EQ(back.size(), 2);
+    EXPECT_EQ(back[0].toObject(), json.value(QStringLiteral("sets")).toArray()[0].toObject());
+    EXPECT_FALSE(back[1].toObject().contains(QStringLiteral("anchor")));
+    // None: no field.
+    EXPECT_FALSE(saveload::sidecarToJson(core::Sidecar{}).contains(QStringLiteral("sets")));
+}
