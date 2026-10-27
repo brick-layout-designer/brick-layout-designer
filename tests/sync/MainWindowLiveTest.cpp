@@ -6,6 +6,7 @@
 #include "FakeSyncServer.h"
 
 #include "ConnectDialog.h"
+#include "Presence.h"
 #include "ServerList.h"
 #include "TokenStore.h"
 #include "CompareDialog.h"
@@ -606,6 +607,83 @@ TEST_F(MainWindowLiveSlowParts, ALayoutOnAnotherServerStillGetsThatServersParts)
     ASSERT_NE(again, nullptr);
     ASSERT_TRUE(waitFor([&] { return again->isEnabled(); }));
     EXPECT_EQ(manifestGets(http_), 1);
+}
+
+namespace {
+
+// Replies that come late: the first server is slow to say who we are, and
+// to answer for our role.
+class MainWindowLiveSlowReplies : public MainWindowLive {
+protected:
+    void beforeOpen() override {
+        http_.hold.insert("/api/tokens/current");
+        http_.reply("/api/tokens/current", 200,
+                    { { QStringLiteral("user"), QJsonObject{ { QStringLiteral("id"), QStringLiteral("u-first") },
+                                                             { QStringLiteral("displayName"), QStringLiteral("First Me") } } } });
+        other_.upgrade = [this](QTcpSocket* s) { otherWs_.take(s); };
+        other_.reply("/api/tokens/current", 200,
+                     { { QStringLiteral("user"), QJsonObject{ { QStringLiteral("id"), QStringLiteral("u-other") },
+                                                              { QStringLiteral("displayName"), QStringLiteral("Other Me") } } } });
+    }
+    // Our presence as the other server has it.
+    QJsonObject ourUserThere() {
+        const auto it = otherWs_.presence.constFind(session().clientId());
+        return it != otherWs_.presence.cend() && it->state ? it->state->value(QStringLiteral("user")).toObject()
+                                                           : QJsonObject{};
+    }
+    int requestsTo(const QByteArray& path) const {
+        return static_cast<int>(std::count_if(http_.requests.cbegin(), http_.requests.cend(),
+                                              [&](const Request& r) { return r.path == path; }));
+    }
+    FakeHttp other_;
+    FakeServer otherWs_;
+};
+
+}  // namespace
+
+// Who we are on the first layout's server comes back after a layout on
+// another server was opened: our cursor there keeps that server's name and
+// that layout's color.
+TEST_F(MainWindowLiveSlowReplies, ALateWhoAmIForTheLayoutBeforeIsIgnored) {
+    ASSERT_TRUE(waitFor([&] { return requestsTo("/api/tokens/current") == 1; }));
+    window_->openLive({ other_.base(), QStringLiteral("bld_pat_other"), QStringLiteral("L2"),
+                        QStringLiteral("Club table"), false, serverInfo() });
+    ASSERT_TRUE(waitFor([&] { return ourUserThere().value(QStringLiteral("displayName")) == QStringLiteral("Other Me"); }));
+    const QString color = sync::presence::colorFor(QStringLiteral("u-other"), QStringLiteral("L2"));
+    EXPECT_EQ(ourUserThere().value(QStringLiteral("color")).toString(), color);
+
+    http_.release("/api/tokens/current");
+    waitFor([] { return false; }, 400);
+    EXPECT_EQ(ourUserThere().value(QStringLiteral("displayName")).toString(), QStringLiteral("Other Me"));
+    EXPECT_EQ(ourUserThere().value(QStringLiteral("color")).toString(), color);
+    window_.reset();  // before the other server goes
+}
+
+// A role check sent with the sign-in that ran out comes back refused after
+// signing in again: it doesn't ask to sign in once more.
+TEST_F(MainWindowLiveSlowReplies, ARefusalForTheSignInBeforeDoesntAskAgain) {
+    auto* notices = window_->findChild<ui::NoticeArea*>();
+    ASSERT_NE(notices, nullptr);
+    http_.hold.insert("/api/layouts/L1");
+    // The old sign-in's check is refused; the new one's answers.
+    http_.reply("/api/layouts/L1", 401, QJsonObject{ { QStringLiteral("error"), QStringLiteral("invalid_token") } });
+    http_.reply("/api/layouts/L1", 200,
+                { { QStringLiteral("layout"), QJsonObject{ { QStringLiteral("id"), QStringLiteral("L1") } } },
+                  { QStringLiteral("role"), QStringLiteral("editor") } });
+    window_->onServerHint(QJsonObject{ { QStringLiteral("kind"), QStringLiteral("layout") },
+                                       { QStringLiteral("id"), QStringLiteral("L1") } });
+    ASSERT_TRUE(waitFor([&] { return requestsTo("/api/layouts/L1") >= 1; }));
+    window_->resumeLive(QStringLiteral("bld_pat_new"));
+    ASSERT_TRUE(waitFor([&] {
+        return std::any_of(http_.requests.cbegin(), http_.requests.cend(), [](const Request& r) {
+            return r.path == "/api/layouts/L1" && r.authorization == "Bearer bld_pat_new";
+        });
+    }));
+    http_.release("/api/layouts/L1");
+    waitFor([] { return false; }, 400);
+    EXPECT_FALSE(notices->isShown(QStringLiteral("live-signin")));
+    EXPECT_TRUE(live_->active());
+    window_.reset();
 }
 
 namespace {

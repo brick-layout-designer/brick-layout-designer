@@ -297,7 +297,8 @@ void MainWindow::openLive(const sync::ConnectResult& r) {
     who->setToken(r.token);
     connect(who, &sync::ServerApi::currentUserReady, this,
             [this, who, layout = r.layoutId, server = r.server](const QString& id, const QString& name) {
-                live_->setUser(id, name, layout);
+                // Our name and color on this layout, unless another opened meanwhile.
+                if (live_->active() && server == liveServer_ && layout == liveLayoutId_) live_->setUser(id, name, layout);
                 sync::ServerList servers = sync::ServerList::load();
                 servers.rememberUser(server, name);
                 servers.save();
@@ -349,9 +350,10 @@ void MainWindow::checkLiveRole() {
                 if (live_->active() && server == liveServer_ && layoutId == liveLayoutId_) applyLiveRole(role);
             });
     connect(api, &sync::ServerApi::requestFailed, this,
-            [this, api, server = liveServer_](const QString&, const QString&, bool unauthorized) {
+            [this, api, server = liveServer_, token = liveToken_](const QString&, const QString&, bool unauthorized) {
                 api->deleteLater();
-                if (unauthorized && live_->active() && server == liveServer_) liveSignInNeeded();
+                // Refused for a sign-in replaced meanwhile (signed in again): not this one.
+                if (unauthorized && live_->active() && server == liveServer_ && token == liveToken_) liveSignInNeeded();
             });
     api->fetchLayoutRole(liveLayoutId_);
 }
