@@ -342,6 +342,15 @@ void LibraryApi::deleteLayout(const QString& id, std::function<void()> done, Fai
     }, std::move(failed));
 }
 
+void LibraryApi::deleteCustomPart(const QString& id, std::function<void()> done, Fail failed) {
+    send(
+        "DELETE", QStringLiteral("/api/custom-parts/%1").arg(idPath(id)), {}, {},
+        [done = std::move(done)](QNetworkReply*) {
+            if (done) done();
+        },
+        std::move(failed));
+}
+
 void LibraryApi::deleteVenue(const QString& id, std::function<void()> done, Fail failed) {
     send("DELETE", QStringLiteral("/api/venues/%1").arg(idPath(id)), {}, {}, [done = std::move(done)](QNetworkReply*) {
         if (done) done();

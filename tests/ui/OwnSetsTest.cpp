@@ -112,6 +112,18 @@ protected:
             (yes ? d->confirmButton() : d->cancelButton())->click();
         });
     }
+    // The same, first reading its "Also …" box (empty when hidden, and
+    // whether it was ticked), then setting it to `tick` and saying Delete.
+    void answerConfirmWithOption(bool tick, QString* option, bool* ticked) {
+        QTimer::singleShot(50, [tick, option, ticked] {
+            auto* d = qobject_cast<ui::ConfirmDialog*>(QApplication::activeModalWidget());
+            if (!d) return;
+            *option = d->optionBox()->isHidden() ? QString() : d->optionBox()->text();
+            *ticked = d->optionBox()->isChecked();
+            d->optionBox()->setChecked(tick);
+            d->confirmButton()->click();
+        });
+    }
 
     QTemporaryDir root_;
     QString mine_, bundled_;
@@ -223,10 +235,113 @@ TEST_F(OwnSets, ASetOnAServerTooCanBeRenamedThereAndSaysWhenItsStillThere) {
     EXPECT_EQ(renamedThere, QStringList{ QStringLiteral("Big yard") });
     EXPECT_EQ(setName(lib_, QStringLiteral("Yard")), QStringLiteral("Small yard"));
 
-    // Deleted here: it says it's still on the server.
-    QString body;
-    answerConfirm(true, &body);
+    // Deleted here: a server that can't delete it for the desktop gets no
+    // "Also delete it" box, and it says it's still on the server.
+    QString option = QStringLiteral("unread");
+    bool optionTicked = false;
+    answerConfirmWithOption(true, &option, &optionTicked);
     menu(QStringLiteral("Yard"), QStringLiteral("act.set.delete"));
+    EXPECT_TRUE(option.isEmpty()) << option.toStdString();
     EXPECT_FALSE(QFile::exists(mine_ + QStringLiteral("/Yard.set.xml")));
     EXPECT_EQ(stillThere, 1);
+}
+
+// A server that lets the desktop delete your parts (deletePartsFromDesktop):
+// Delete set… offers "Also delete it from <server>", ticked, and deletes it
+// there too; unticked, only here. Neither says it's still there.
+TEST_F(OwnSets, DeleteSetAlsoDeletesItFromAServerThatLetsTheDesktop) {
+    writeSet(mine_, QStringLiteral("Siding"), "Siding");
+    scan();
+    browser_->rebuild();
+    QStringList deletedThere;
+    int stillThere = 0;
+    browser_->findServerSet = [&](const QString& key, std::function<void(const ui::ServerSetCopy&)> found) {
+        ui::ServerSetCopy copy;
+        copy.serverLabel = QStringLiteral("Club server");
+        copy.deleteThere = [&deletedThere, key] { deletedThere << key; };
+        copy.stillThere = [&] { ++stillThere; };
+        found(copy);
+    };
+    QString option;
+    bool ticked = false;
+    answerConfirmWithOption(true, &option, &ticked);
+    menu(QStringLiteral("Yard"), QStringLiteral("act.set.delete"));
+    EXPECT_EQ(option, QStringLiteral("Also delete it from Club server"));
+    EXPECT_TRUE(ticked);
+    EXPECT_FALSE(QFile::exists(mine_ + QStringLiteral("/Yard.set.xml")));
+    EXPECT_FALSE(item(QStringLiteral("Yard")));
+    ASSERT_EQ(deletedThere.size(), 1);
+    EXPECT_EQ(deletedThere.front().compare(QStringLiteral("Yard"), Qt::CaseInsensitive), 0);
+    EXPECT_EQ(stillThere, 0);
+
+    // Unticked: deleted here only, kept there as asked.
+    answerConfirmWithOption(false, &option, &ticked);
+    menu(QStringLiteral("Siding"), QStringLiteral("act.set.delete"));
+    EXPECT_EQ(option, QStringLiteral("Also delete it from Club server"));
+    EXPECT_FALSE(QFile::exists(mine_ + QStringLiteral("/Siding.set.xml")));
+    EXPECT_EQ(deletedThere.size(), 1);
+    EXPECT_EQ(stillThere, 0);
+}
+
+// The server answers after the dialog closed: it wasn't offered, so it says
+// it's still there (that notice can delete it there, see ServerWindowTest).
+TEST_F(OwnSets, ACopyFoundAfterTheDialogClosedSaysItsStillThere) {
+    std::function<void(const ui::ServerSetCopy&)> later;
+    browser_->findServerSet = [&](const QString&, std::function<void(const ui::ServerSetCopy&)> found) {
+        later = found;
+    };
+    QString option;
+    bool ticked = false;
+    answerConfirmWithOption(true, &option, &ticked);
+    menu(QStringLiteral("Yard"), QStringLiteral("act.set.delete"));
+    EXPECT_TRUE(option.isEmpty());
+    EXPECT_FALSE(QFile::exists(mine_ + QStringLiteral("/Yard.set.xml")));
+    ASSERT_TRUE(later);
+    int deletedThere = 0;
+    int stillThere = 0;
+    ui::ServerSetCopy copy;
+    copy.serverLabel = QStringLiteral("Club server");
+    copy.deleteThere = [&] { ++deletedThere; };
+    copy.stillThere = [&] { ++stillThere; };
+    later(copy);
+    EXPECT_EQ(deletedThere, 0);
+    EXPECT_EQ(stillThere, 1);
+}
+
+// One of your imported parts on a server too: Delete imported part… offers
+// the same box and deletes it there as well.
+TEST_F(OwnSets, AnImportedPartIsDeletedFromTheServerToo) {
+    const QString imports = mine_ + QStringLiteral("/imports");
+    writeFile(imports + QStringLiteral("/TOWER.xml"),
+              "<part><Description><en>Tower</en></Description></part>");
+    QImage img(16, 16, QImage::Format_ARGB32);
+    img.fill(Qt::gray);
+    ASSERT_TRUE(img.save(imports + QStringLiteral("/TOWER.png"), "PNG"));
+    scan();
+    browser_->rebuild();
+    QObject::connect(browser_.get(), &ui::PartsBrowser::partDeleted, [this] {
+        scan();
+        browser_->rebuild();
+    });
+    QStringList lookedFor;
+    int deletedThere = 0;
+    browser_->findServerPart = [&](const QString& key, std::function<void(const ui::ServerSetCopy&)> found) {
+        lookedFor << key;
+        ui::ServerSetCopy copy;
+        copy.serverLabel = QStringLiteral("Club server");
+        copy.deleteThere = [&] { ++deletedThere; };
+        found(copy);
+    };
+    QString option;
+    bool ticked = false;
+    answerConfirmWithOption(true, &option, &ticked);
+    const QStringList names = menu(QStringLiteral("TOWER"), QStringLiteral("act.part.delete"));
+    EXPECT_TRUE(names.contains(QStringLiteral("act.part.delete")));
+    ASSERT_EQ(lookedFor.size(), 1);
+    EXPECT_EQ(lookedFor.front().compare(QStringLiteral("TOWER"), Qt::CaseInsensitive), 0);
+    EXPECT_EQ(option, QStringLiteral("Also delete it from Club server"));
+    EXPECT_TRUE(ticked);
+    EXPECT_EQ(deletedThere, 1);
+    EXPECT_FALSE(QFile::exists(imports + QStringLiteral("/TOWER.xml")));
+    EXPECT_FALSE(item(QStringLiteral("TOWER")));
 }

@@ -29,9 +29,10 @@
     { "id": "limits", "label": "Usage limits, with plain messages when one is reached" },
     { "id": "layoutDownload", "label": "Downloading a copy of a layout, venue sizes in the list" },
     { "id": "catalogShare", "label": "Sharing to the public catalog from the desktop app" },
-    { "id": "uploadSets", "label": "Uploading sets of your own parts" }
+    { "id": "uploadSets", "label": "Uploading sets of your own parts" },
+    { "id": "deletePartsFromDesktop", "label": "Deleting your own parts and sets from the desktop app" }
   ],
-  "serverFeatures": ["liveSync", "signIn", "publish", "clubs", "venues", "partsManifest", "partFilesWithToken", "uploadParts", "preferences", "ownerTags", "limits", "layoutDownload", "catalogShare", "uploadSets"],
+  "serverFeatures": ["liveSync", "signIn", "publish", "clubs", "venues", "partsManifest", "partFilesWithToken", "uploadParts", "preferences", "ownerTags", "limits", "layoutDownload", "catalogShare", "uploadSets", "deletePartsFromDesktop"],
   "desktopUses": ["liveSync", "signIn", "publish", "clubs", "venues", "partsManifest", "partFilesWithToken", "uploadParts", "preferences", "ownerTags"],
   "assumedWhenUnlisted": ["liveSync", "signIn"],
   "cases": {

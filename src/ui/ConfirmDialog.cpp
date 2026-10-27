@@ -1,5 +1,6 @@
 #include "ConfirmDialog.h"
 
+#include <QCheckBox>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
@@ -33,6 +34,11 @@ ConfirmDialog::ConfirmDialog(const ConfirmOptions& opts, QWidget* parent) : QDia
     body_->setTextFormat(Qt::RichText);
     body_->setWordWrap(true);
     col->addWidget(body_);
+
+    option_ = new QCheckBox(this);
+    option_->setObjectName(QStringLiteral("confirmOption"));
+    option_->hide();
+    col->addWidget(option_);
 
     if (!opts.typeName.isEmpty()) {
         auto* hint = new QLabel(tr("Type <b>%1</b> to confirm").arg(opts.typeName.toHtmlEscaped()), this);
@@ -72,6 +78,17 @@ ConfirmDialog::ConfirmDialog(const ConfirmOptions& opts, QWidget* parent) : QDia
     setMinimumWidth(380);
     update();
     cancel_->setFocus(Qt::OtherFocusReason);
+}
+
+void ConfirmDialog::showOption(const QString& text, bool checked) {
+    option_->setText(text);
+    option_->setChecked(checked);
+    option_->show();
+    adjustSize();
+}
+
+bool ConfirmDialog::optionChosen() const {
+    return !option_->isHidden() && option_->isChecked();
 }
 
 void ConfirmDialog::update() {

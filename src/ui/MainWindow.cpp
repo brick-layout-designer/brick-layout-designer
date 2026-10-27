@@ -320,8 +320,13 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
     // their menu; the parts are read again at once.
     partsBrowser_->setOwnPartsRoots([this] { return ownPartsRoots(); });
     // …and renamed on a server too, when the set is there (or said to be still there).
-    partsBrowser_->findServerSet = [this](const QString& key, const std::function<void(const ServerSetCopy&)>& found) {
-        findServerSet(key, found);
+    partsBrowser_->findServerSet = [this](const QString& key,
+                                          const std::function<void(const ServerSetCopy&)>& found) {
+        findServerCopy(key, true, found);
+    };
+    partsBrowser_->findServerPart = [this](const QString& key,
+                                           const std::function<void(const ServerSetCopy&)>& found) {
+        findServerCopy(key, false, found);
     };
     connect(partsBrowser_, &PartsBrowser::ownSetsChanged, this, [this] {
         rescanLibrary(allLibraryPaths());

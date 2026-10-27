@@ -510,10 +510,15 @@ private:
     // ("Yard (2)"), and on yes rename the set here (its file too: nothing
     // uses it yet) and send it again.
     void offerAnotherSetName(const SetServer& to, const sync::LocalPart& set);
-    // Your set `key` on the servers you're signed in to (and the live
-    // layout's): `found` gets the copy you may rename, for the Parts panel's
-    // Rename set… and Delete set….
-    void findServerSet(const QString& key, const std::function<void(const ServerSetCopy&)>& found);
+    // Your set (`set`) or part `key` on the servers you're signed in to (and
+    // the live layout's): `found` gets the copy you may change, for the Parts
+    // panel's Rename set…, Delete set… and Delete imported part….
+    void findServerCopy(const QString& key, bool set, const std::function<void(const ServerSetCopy&)>& found);
+    // Whether `server` lets the desktop delete your parts there (its
+    // features list "deletePartsFromDesktop").
+    bool serverDeletesParts(const QUrl& server) const;
+    // Deletes your part or set `id` (called `name`) on `on`, and says how it went.
+    void deletePartOnServer(const SetServer& on, const QString& id, const QString& name);
     // Renames your set `id` (number `partNumber`) on `on` to `name`: its
     // name in the lists and the English name in its XML.
     void renameSetOnServer(const SetServer& on, const QString& id, const QString& partNumber, const QString& name);
