@@ -659,10 +659,14 @@ void ServerWindow::showMembers(const QString& slug) {
         members_ = nullptr;
     }
     if (!members_) {
-        members_ = new ClubMembersDialog(library_, slug, this);
-        members_->openLink = [this](const QUrl& url) {
+        auto* dialog = new ClubMembersDialog(library_, slug, this);
+        dialog->openLink = [this](const QUrl& url) {
             if (openLink) openLink(url);
         };
+        connect(dialog, &QObject::destroyed, this, [this, dialog] {
+            if (members_ == dialog) members_ = nullptr;
+        });
+        members_ = dialog;
     }
     members_->show();
     members_->raise();

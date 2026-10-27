@@ -28,7 +28,6 @@
 
 #include <QHash>
 #include <QList>
-#include <QPointer>
 #include <QString>
 #include <QUrl>
 #include <QWidget>
@@ -228,7 +227,7 @@ private:
     QComboBox* show_ = nullptr;
     QLabel* logoLink_ = nullptr;
     QPushButton* membersButton_ = nullptr;
-    QPointer<ClubMembersDialog> members_;
+    ClubMembersDialog* members_ = nullptr; // while open (it deletes itself when closed)
     QLineEdit* search_ = nullptr;
     QTabWidget* tabs_ = nullptr;
     Page layoutsPage_, venuesPage_, modulesPage_, partsPage_;
