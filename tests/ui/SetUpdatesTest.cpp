@@ -22,6 +22,7 @@
 
 #include <QApplication>
 #include <QContextMenuEvent>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QGraphicsItem>
 #include <QGraphicsScene>
@@ -308,4 +309,115 @@ TEST_F(SetUpdates, AChangeToASetInsideOffersAnUpdateForTheSetAroundIt) {
     EXPECT_EQ(layer().bricks.size(), 3u);
     EXPECT_EQ(map().sidecar.sets.front().version, link.version);
     EXPECT_TRUE(barShown());
+}
+
+namespace {
+
+// Custom sets written to a folder, each naming others: `subs` are the ids
+// of its sub-parts, in order (repeats allowed).
+struct NestedLibrary {
+    QTemporaryDir dir;
+    parts::PartsLibrary lib;
+    void set(const QString& id, const QStringList& subs) {
+        QFile f(dir.filePath(id + QStringLiteral(".set.xml")));
+        EXPECT_TRUE(f.open(QIODevice::WriteOnly | QIODevice::Truncate));
+        QByteArray xml = "<group><Description><en>" + id.toUtf8() + "</en></Description><SubPartList>";
+        int x = 0;
+        for (const QString& s : subs)
+            xml += "<SubPart id=\"" + s.toUtf8() + "\"><position><x>" + QByteArray::number(x++)
+                   + "</x><y>0</y></position><angle>0</angle></SubPart>";
+        f.write(xml + "</SubPartList></group>");
+    }
+    void scan() {
+        lib.addSearchPath(dir.path());
+        lib.scan();
+    }
+};
+
+// The version worked out the plain way, every inner set every time it's
+// named (as before the reuse): the values trackedSetVersion must still give.
+QString plainVersion(parts::PartsLibrary& lib, const parts::PartMetadata& set, QStringList outer) {
+    QString own = parts::setVersion(set);
+    if (own.isEmpty()) return own;
+    outer << set.xmlFilePath;
+    QList<parts::InnerSetVersion> inner;
+    for (const auto& sp : set.subparts) {
+        const auto sub = lib.metadata(sp.subKey);
+        if (!sub || sub->kind != parts::PartKind::Group || outer.size() >= 16
+            || outer.contains(sub->xmlFilePath))
+            continue;
+        const QString v = plainVersion(lib, *sub, outer);
+        if (!v.isEmpty()) inner.push_back({ sp.subKey, v });
+    }
+    return parts::nestedSetVersion(own, inner);
+}
+
+} // namespace
+
+// A set naming the same sets several times, around a loop, gets the same
+// version as when each inner set was worked out every time.
+TEST(NestedSetVersions, AreTheSameWithEachInnerSetWorkedOutOnce) {
+    NestedLibrary n;
+    n.set(QStringLiteral("A"),
+          { QStringLiteral("B"), QStringLiteral("b"), QStringLiteral("C"), QStringLiteral("B") });
+    n.set(QStringLiteral("B"), { QStringLiteral("C"), QStringLiteral("A"), QStringLiteral("C") });
+    n.set(QStringLiteral("C"), { QStringLiteral("A"), QStringLiteral("B"), QStringLiteral("NOTHING") });
+    n.scan();
+    for (const char* id : { "A", "B", "C" }) {
+        const auto meta = n.lib.metadata(QLatin1String(id));
+        if (!meta) {
+            ADD_FAILURE() << id;
+            continue;
+        }
+        const QString v = edit::trackedSetVersion(n.lib, *meta, {});
+        EXPECT_EQ(v, plainVersion(n.lib, *meta, {})) << id;
+        EXPECT_NE(v, parts::setVersion(*meta)) << id; // it does follow the sets inside it
+    }
+}
+
+// N0 names N1 ten times, N1 names N2 ten times, and so on 8 deep: ten
+// million inner sets if each were worked out every time it's named, minutes
+// of work. Worked out once each, it takes no time, and still follows them.
+TEST(NestedSetVersions, ASetNamingTheSameSetManyTimesDeepTakesNoTime) {
+    NestedLibrary n;
+    constexpr int kDepth = 8;
+    for (int i = 0; i < kDepth; ++i) {
+        const QString next = i == kDepth - 1 ? QStringLiteral("NOTHING") : QStringLiteral("N%1").arg(i + 1);
+        n.set(QStringLiteral("N%1").arg(i), QStringList(i == kDepth - 1 ? 1 : 10, next));
+    }
+    n.scan();
+    const auto top = n.lib.metadata(QStringLiteral("N0"));
+    if (!top) {
+        ADD_FAILURE() << "N0";
+        return;
+    }
+    QElapsedTimer t;
+    t.start();
+    const QString v = edit::trackedSetVersion(n.lib, *top, {});
+    EXPECT_LT(t.elapsed(), 2000);
+    EXPECT_EQ(v.size(), 16);
+    EXPECT_NE(v, parts::setVersion(*top));
+}
+
+// Twenty sets each naming every other one: far more ways through them than
+// the budget. Each keeps its own version, quickly.
+TEST(NestedSetVersions, ASetNeedingTooMuchWorkingOutKeepsItsOwnVersion) {
+    NestedLibrary n;
+    constexpr int kSets = 20;
+    for (int i = 0; i < kSets; ++i) {
+        QStringList subs;
+        for (int j = 0; j < kSets; ++j)
+            if (j != i) subs << QStringLiteral("S%1").arg(j);
+        n.set(QStringLiteral("S%1").arg(i), subs);
+    }
+    n.scan();
+    const auto first = n.lib.metadata(QStringLiteral("S0"));
+    if (!first) {
+        ADD_FAILURE() << "S0";
+        return;
+    }
+    QElapsedTimer t;
+    t.start();
+    EXPECT_EQ(edit::trackedSetVersion(n.lib, *first, {}), parts::setVersion(*first));
+    EXPECT_LT(t.elapsed(), 5000);
 }

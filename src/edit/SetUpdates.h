@@ -43,7 +43,9 @@ using TrackedSet = std::function<bool(const parts::PartMetadata&)>;
 // (parts::nestedSetVersion). A sub-part is found as expandSet finds it
 // (the library's part by that id), never a set it sits in, at most 16
 // deep; with no `tracked`, every set inside counts. Empty for a part that
-// isn't a set. The web's server does the same (withNestedSetVersions).
+// isn't a set. Each inner set is worked out once; a set whose sets inside
+// would need more than 20,000 of them keeps its own version
+// (parts::setVersion). The web's server does the same (withNestedSetVersions).
 QString trackedSetVersion(parts::PartsLibrary& lib, const parts::PartMetadata& set, const TrackedSet& tracked);
 
 // The link for a copy of set `key` just placed as `groupId`: its version
