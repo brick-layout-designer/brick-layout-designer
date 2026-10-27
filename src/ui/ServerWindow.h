@@ -112,6 +112,12 @@ public:
     std::function<QString(const QString& title, bool native)> askSavePath;
     // Whether the parts library has this part number (MainWindow's).
     std::function<bool(const QString& partNumber)> hasPart;
+    // Opens a page of the website (QDesktopServices; tests replace it).
+    std::function<void(const QUrl&)> openLink;
+    // "Change the logo on the website" (shown for a club whose admin you are).
+    QLabel* clubLogoLink() const { return logoLink_; }
+    // Where it goes: the club's Manage › Settings on the website; empty when not offered.
+    QUrl clubLogoPage() const;
 
 signals:
     // Another of your servers was picked.
@@ -181,6 +187,7 @@ private:
     // Fetches the lists a hint (or reload) asked for.
     void loadLists();
     void rebuildFilter();
+    void updateLogoLink();
     void rebuild();
     void rebuildLayouts();
     void rebuildVenues();
@@ -209,6 +216,7 @@ private:
     QWidget* content_ = nullptr;
     QWidget* filler_ = nullptr;
     QComboBox* show_ = nullptr;
+    QLabel* logoLink_ = nullptr;
     QLineEdit* search_ = nullptr;
     QTabWidget* tabs_ = nullptr;
     Page layoutsPage_, venuesPage_, modulesPage_, partsPage_;

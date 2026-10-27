@@ -112,10 +112,16 @@ struct OrgEntry {
     // …: the server's access/clubPermissions.ts). Unset on servers before
     // club roles, which only send canAdd.
     std::optional<QStringList> permissions = std::nullopt;
+    // Where its logo is on the server ("/api/orgs/<slug>/logo?v=…", which
+    // changes with each new picture); empty when it has none. nullopt from
+    // servers before club logos, which leave it out.
+    std::optional<QString> logoUrl = std::nullopt;
+    // You hold the club's Admin role (servers before club roles: role is admin).
+    bool admin = false;
     // Admins and managers look after the club's layouts, venues, modules
     // and parts; only admins change its settings.
     bool managesThings() const { return role == QLatin1String("admin") || role == QLatin1String("manager"); }
-    bool isAdmin() const { return role == QLatin1String("admin"); }
+    bool isAdmin() const { return admin || role == QLatin1String("admin"); }
     // May you save this kind of thing to the club (the web's clubCanAdd)?
     bool canAddKind(AddKind kind) const;
     // An OrgEntry from GET /api/orgs.

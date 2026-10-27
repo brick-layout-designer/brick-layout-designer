@@ -1,4 +1,5 @@
 #include "SaveModuleDialog.h"
+#include "ClubLogoViews.h"
 #include "ConfirmDialog.h"
 #include "ReturnWording.h"
 #include "ServerLibrary.h"
@@ -62,6 +63,7 @@ SaveModuleDialog::SaveModuleDialog(ServerLibrary& library, const QString& defaul
     saveTo_->addItem(tr("This computer only (Module library folder)"), QString::fromLatin1(kThisComputer));
     const int def = saveTo_->findData(defaultOwner);
     saveTo_->setCurrentIndex(def >= 0 ? def : 0);
+    sync::showClubLogos(saveTo_, [lib = &library_] { return lib->server(); });
     form->addRow(tr("Save to"), saveTo_);
     col->addWidget(newPage);
 

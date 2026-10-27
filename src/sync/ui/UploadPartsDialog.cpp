@@ -1,4 +1,5 @@
 #include "UploadPartsDialog.h"
+#include "ClubLogoViews.h"
 #include "ui/help/HelpButton.h"
 #include "ui/ConfirmDialog.h"
 #include "ui/ReturnWording.h"
@@ -57,6 +58,7 @@ UploadPartsDialog::UploadPartsDialog(ServerApi& api, PartsUpload& upload, const 
     connect(&api_, &ServerApi::orgsReady, this, [this](const QList<OrgEntry>& orgs) {
         // Only the clubs whose roles let you add parts; one left out says why.
         for (const auto& o : clubsThatTake(orgs, AddKind::Part)) owner_->addItem(o.name, o.slug);
+        showClubLogos(owner_, [this] { return api_.base(); });
         if (message_->text().isEmpty()) message_->setText(leftOutNote(orgs, AddKind::Part));
     });
     connect(&upload_, &PartsUpload::uploaded, this, [this](int count, const QStringList& failed) {

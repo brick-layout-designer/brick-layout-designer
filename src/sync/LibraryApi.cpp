@@ -1,5 +1,6 @@
 #include "LibraryApi.h"
 #include "ServerApi.h"
+#include "ClubLogos.h"
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -453,11 +454,13 @@ void LibraryApi::addCollection(const QString& id, const QString& orgSlug,
 }
 
 void LibraryApi::orgs(std::function<void(const QList<OrgEntry>&)> done, Fail failed) {
-    sendJson("GET", QStringLiteral("/api/orgs"), {}, [done = std::move(done)](const QJsonObject& o) {
+    sendJson("GET", QStringLiteral("/api/orgs"), {}, [this, done = std::move(done)](const QJsonObject& o) {
         QList<OrgEntry> out;
         for (const auto& v : o.value(QLatin1String("orgs")).toArray()) {
             out << OrgEntry::fromJson(v.toObject());
         }
+        // Their logos, for every window that shows clubs.
+        ClubLogos::shared().update(base_, token_, out);
         if (done) done(out);
     }, std::move(failed));
 }

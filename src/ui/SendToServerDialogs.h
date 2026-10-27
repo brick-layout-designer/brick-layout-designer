@@ -44,6 +44,8 @@ public:
     QString orgSlug() const;
     // The same as clicking Save to server.
     void save();
+    // The clubs' logos from this server beside their names.
+    void showLogosFrom(const QUrl& server);
 
     QLineEdit* nameEdit() const { return name_; }
     QComboBox* owner() const { return owner_; }

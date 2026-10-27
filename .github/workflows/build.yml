@@ -72,8 +72,10 @@ jobs:
           # aqtinstall 3.3.0 (the latest release) cannot find Qt >= 6.11 for Windows.
           aqtsource: git+https://github.com/miurahr/aqtinstall.git@076e1659807d0b362a3ed684d54c2e9c775eb9c7
           version: ${{ env.QT_VERSION }}
-          # The server features (src/sync) talk to the server over WebSockets.
-          modules: qtwebsockets
+          # The server features (src/sync) talk to the server over WebSockets;
+          # qtimageformats reads the WebP pictures it sends (club logos), and the
+          # deploy tools bundle its plugins with the app.
+          modules: qtwebsockets qtimageformats
           cache: true
 
       # The server features read shared layouts with yrs, a Rust library

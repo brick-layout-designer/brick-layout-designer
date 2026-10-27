@@ -1,4 +1,5 @@
 #include "ServerApi.h"
+#include "ClubLogos.h"
 #include "ServerRefusal.h"
 
 #include <QCoreApplication>
@@ -44,6 +45,8 @@ OrgEntry OrgEntry::fromJson(const QJsonObject& o) {
             if (v.isString()) list << v.toString();
         e.permissions = list;
     }
+    if (const QJsonValue logo = o.value(QLatin1String("logoUrl")); !logo.isUndefined()) e.logoUrl = logo.toString();
+    e.admin = o.value(QLatin1String("isAdmin")).toBool();
     return e;
 }
 
@@ -340,6 +343,8 @@ void ServerApi::fetchOrgs() {
         for (const auto& v : o->value(QLatin1String("orgs")).toArray()) {
             out << OrgEntry::fromJson(v.toObject());
         }
+        // Their logos, for every window that shows clubs.
+        ClubLogos::shared().update(base_, token_, out);
         emit orgsReady(out);
     });
 }

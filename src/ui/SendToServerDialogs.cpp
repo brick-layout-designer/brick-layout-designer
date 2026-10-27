@@ -3,6 +3,7 @@
 #include "ConfirmDialog.h"
 #include "ReturnWording.h"
 #include "ServerLibrary.h"
+#include "ClubLogoViews.h"
 #include "help/HelpButton.h"
 
 #include <QCheckBox>
@@ -69,6 +70,10 @@ SaveToServerDialog::SaveToServerDialog(const QString& what, sync::AddKind kind, 
     confirmClub = [this](const QString& club) { return ConfirmDialog::ask(this, saveToClubOptions(club)); };
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
     connect(go, &QPushButton::clicked, this, &SaveToServerDialog::save);
+}
+
+void SaveToServerDialog::showLogosFrom(const QUrl& server) {
+    sync::showClubLogos(owner_, [server] { return server; });
 }
 
 QString SaveToServerDialog::name() const { return name_->text().trimmed(); }

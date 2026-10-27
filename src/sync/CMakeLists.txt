@@ -124,6 +124,8 @@ add_library(bld_sync STATIC
     SyncClient.cpp
     ServerApi.h
     ServerApi.cpp
+    ClubLogos.h
+    ClubLogos.cpp
     Compat.h
     Compat.cpp
     ServerRefusal.h
@@ -170,6 +172,8 @@ add_library(bld_sync_ui STATIC
     ui/CompareDialog.cpp
     ui/RefreshOnFocus.h
     ui/RefreshOnFocus.cpp
+    ui/ClubLogoViews.h
+    ui/ClubLogoViews.cpp
 )
 target_include_directories(bld_sync_ui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/ui)
 target_link_libraries(bld_sync_ui PUBLIC bld_sync bld_ui_common Qt6::Widgets)
