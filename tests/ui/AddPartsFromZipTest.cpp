@@ -127,18 +127,28 @@ TEST_F(AddPartsFromZip, ABrickTrackDesignerExportLandsInItsFolderAndItsSetIsShow
     const QStringList boxes = addFromMenu(sample("Yard.zip"));
     EXPECT_TRUE(boxes.isEmpty()) << boxes.join(QStringLiteral(" / ")).toStdString();
     // The design's folder, as the zip has it; its README stays out.
-    EXPECT_TRUE(QFile::exists(imports() + QStringLiteral("/Yard/Yard.track-plate1.xml")));
-    EXPECT_TRUE(QFile::exists(imports() + QStringLiteral("/Yard/Yard.track-plate1.gif")));
+    EXPECT_TRUE(QFile::exists(imports() + QStringLiteral("/Yard/Yard.track1.xml")));
+    EXPECT_TRUE(QFile::exists(imports() + QStringLiteral("/Yard/Yard.track1.gif")));
     EXPECT_TRUE(QFile::exists(imports() + QStringLiteral("/Yard/Yard.whole.set.xml")));
     EXPECT_TRUE(QFile::exists(imports() + QStringLiteral("/Yard/config/About.txt")));
     EXPECT_FALSE(QFile::exists(imports() + QStringLiteral("/README.txt")));
-    // Read again: the 15 parts and the set of all of them.
-    for (int i = 1; i <= 15; ++i)
-        EXPECT_TRUE(lib_.metadata(QStringLiteral("Yard.track-plate%1").arg(i))) << i;
+    // Read again: the 19 parts (14 printed, 5 bought straights) and the set of all of them.
+    QStringList pieces;
+    for (int i : { 1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13, 15, 16, 17 }) pieces << QStringLiteral("Yard.track%1").arg(i);
+    for (int i : { 7, 8, 14, 18, 19 }) pieces << QStringLiteral("Yard.track-bought-53401-%1").arg(i);
+    for (const QString& piece : pieces) {
+        const auto meta = lib_.metadata(piece);
+        EXPECT_TRUE(meta) << piece.toStdString();
+        // Hidden by the export itself: only used inside the set.
+        if (meta) {
+            EXPECT_TRUE(meta->notListed) << piece.toStdString();
+        }
+    }
     const auto set = lib_.metadata(QStringLiteral("Yard.whole"));
     ASSERT_TRUE(set);
     EXPECT_EQ(set->kind, parts::PartKind::Group);
-    EXPECT_EQ(set->subparts.size(), 15);
+    EXPECT_FALSE(set->notListed);
+    EXPECT_EQ(set->subparts.size(), 19);
     // The Parts panel shows the set, the way to put the whole design down.
     EXPECT_TRUE(shown().contains(QStringLiteral("Yard.whole"), Qt::CaseInsensitive))
         << shown().join(QStringLiteral(", ")).toStdString();
