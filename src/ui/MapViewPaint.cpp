@@ -92,7 +92,11 @@ void MapView::drawBackground(QPainter* painter, const QRectF& rect) {
         const double top    = std::floor(rect.top()    / subPx) * subPx;
         const double bottom = rect.bottom();
 
-        if (g.displaySubGrid) {
+        // Lines too close to see apart are left out, as in exported
+        // pictures (SavedViews): a huge subdivision would otherwise ask for
+        // billions of them and never finish drawing.
+        const auto tooFine = [&rect](double step) { return rect.width() / step > 4000 || rect.height() / step > 4000; };
+        if (g.displaySubGrid && !tooFine(subPx)) {
             QPen subPen(g.subGridColor.color);
             subPen.setCosmetic(true);
             subPen.setWidthF(g.subGridThickness);
@@ -102,7 +106,7 @@ void MapView::drawBackground(QPainter* painter, const QRectF& rect) {
             for (double y = top; y < bottom; y += subPx)
                 painter->drawLine(QPointF(left, y), QPointF(right, y));
         }
-        if (g.displayGrid) {
+        if (g.displayGrid && !tooFine(gridPx)) {
             QPen gridPen(g.gridColor.color);
             gridPen.setCosmetic(true);
             gridPen.setWidthF(g.gridThickness);

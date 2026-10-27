@@ -23,6 +23,8 @@
 #include "ui/MapViewInternal.h"
 
 #include <gtest/gtest.h>
+#include <limits>
+#include <QElapsedTimer>
 
 #include <algorithm>
 #include <cmath>
@@ -665,6 +667,28 @@ TEST_F(MapViewTest, AGridSizeBelowOneIsDrawnAsOneStud) {
         const QImage shot = view_->grab().toImage();
         EXPECT_FALSE(shot.isNull()) << size;
     }
+}
+
+// A subdivision far too fine to see (from a file or a live layout) is
+// drawn without its sub-grid lines, at once, instead of billions of them.
+TEST_F(MapViewTest, ASubGridTooFineToSeeIsLeftOutAndDrawingFinishes) {
+    auto* map = view_->currentMap();
+    int gi = -1;
+    for (int i = 0; i < static_cast<int>(map->layers().size()); ++i)
+        if (map->layers()[i]->kind() == core::LayerKind::Grid) { gi = i; break; }
+    ASSERT_GE(gi, 0);
+    auto& grid = static_cast<core::LayerGrid&>(*map->layers()[gi]);
+    view_->resize(400, 300);
+    grid.visible = true;
+    grid.displayGrid = true;
+    grid.displaySubGrid = true;
+    grid.gridSizeInStud = 1;
+    grid.subDivisionNumber = std::numeric_limits<int>::max();
+    QElapsedTimer timer;
+    timer.start();
+    const QImage shot = view_->grab().toImage();
+    EXPECT_FALSE(shot.isNull());
+    EXPECT_LT(timer.elapsed(), 5000);
 }
 
 int main(int argc, char** argv) {
