@@ -890,6 +890,42 @@ TEST(ShareToCatalogDialog, AnUpdateKeepsItsDescriptionAndTagsAndSaysWhatChanged)
     EXPECT_EQ(body.value(QStringLiteral("note")).toString(), QStringLiteral("Longer sidings"));
 }
 
+// Closed (Cancel, Esc) while its picture is being drawn or the share is on
+// its way: what comes afterwards must not reach the closed dialog (a crash
+// before).
+TEST(ShareToCatalogDialog, ClosingItWhileItSharesIsSafe) {
+    FakeHttp http;
+    sync::LibraryApi api;
+    api.setBase(http.base());
+    http.reply("/api/catalog/submissions", 201, { { QStringLiteral("id"), QStringLiteral("CI9") }, { QStringLiteral("status"), QStringLiteral("public") } });
+    http.hold.insert("/api/catalog/submissions");
+    sync::CatalogShare base;
+    base.kind = QStringLiteral("layout");
+    base.sourceId = QStringLiteral("L1");
+    base.title = QStringLiteral("Fordyce 2026");
+
+    // The picture is still being drawn (the layout downloading) when it closes.
+    std::function<void(const QByteArray&)> drawn;
+    auto d = std::make_unique<ui::ShareToCatalogDialog>(api, base, false, false, QString());
+    d->makeThumbnail = [&](std::function<void(const QByteArray&)> done) { drawn = std::move(done); };
+    d->consent()->setChecked(true);
+    d->share();
+    ASSERT_TRUE(drawn);
+    d.reset();
+    drawn(png());
+    EXPECT_TRUE(http.requests.empty());
+
+    // The share is on its way when it closes.
+    d = std::make_unique<ui::ShareToCatalogDialog>(api, base, false, false, QString());
+    d->consent()->setChecked(true);
+    d->share();
+    ASSERT_TRUE(waitFor([&] { return http.requests.size() == 1; }));
+    d.reset();
+    http.release("/api/catalog/submissions");
+    ASSERT_TRUE(waitFor([&] { return api.pending() == 0; }));
+    QCoreApplication::processEvents();
+}
+
 // ---------- The main window --------------------------------------------------
 
 namespace {

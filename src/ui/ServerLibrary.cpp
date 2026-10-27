@@ -4,6 +4,7 @@
 
 #include "../sync/ServerList.h"
 #include "../sync/ui/ClubLogoViews.h"
+#include "../sync/WhileAlive.h"
 
 #include <QCryptographicHash>
 #include <QComboBox>
@@ -534,12 +535,12 @@ void ServerModulesTab::rename(const QString& id) {
     if (!m || !askName) return;
     const QString title = askName(*m);
     if (title.isEmpty() || title == m->title) return;
-    library_.api().renameModule(id, title, [this, title] {
+    library_.api().renameModule(id, title, sync::whileAlive(this, [this, title] {
         emit library_.message(tr("Renamed to \"%1\"").arg(title));
         library_.refresh();
-    }, [this](const sync::ServerRefusal& r) {
+    }), sync::whileAlive(this, [this](const sync::ServerRefusal& r) {
         QMessageBox::warning(this, tr("Rename module"), ServerLibrary::refusalText(r));
-    });
+    }));
 }
 
 void ServerModulesTab::giveOrTakeBack(const QString& id, bool give) {
@@ -550,27 +551,27 @@ void ServerModulesTab::giveOrTakeBack(const QString& id, bool give) {
     const QString author = m->credit.authorName;
     library_.api().returnToAuthor(
         QStringLiteral("modules"), id, give,
-        [this, title, author, give](const QString&) {
+        sync::whileAlive(this, [this, title, author, give](const QString&) {
             emit library_.message(give ? tr("Gave \"%1\" back to %2").arg(title, author)
                                        : tr("\"%1\" is yours again").arg(title));
             library_.refresh();
-        },
-        [this, give](const sync::ServerRefusal& r) {
+        }),
+        sync::whileAlive(this, [this, give](const sync::ServerRefusal& r) {
             QMessageBox::warning(this, give ? tr("Give back") : tr("Take back"),
                                  ServerLibrary::refusalText(r));
-        });
+        }));
 }
 
 void ServerModulesTab::remove(const QString& id) {
     const sync::ServerModule* m = library_.module(id);
     if (!m || !confirmDelete || !confirmDelete(*m)) return;
     const QString title = m->title;
-    library_.api().deleteModule(id, [this, title] {
+    library_.api().deleteModule(id, sync::whileAlive(this, [this, title] {
         emit library_.message(tr("Deleted \"%1\"").arg(title));
         library_.refresh();
-    }, [this](const sync::ServerRefusal& r) {
+    }), sync::whileAlive(this, [this](const sync::ServerRefusal& r) {
         QMessageBox::warning(this, tr("Delete module"), ServerLibrary::refusalText(r));
-    });
+    }));
 }
 
 // ---------- CatalogTab -----------------------------------------------------
@@ -783,27 +784,27 @@ void CatalogTab::reload() {
     }
     if (added_.isEmpty() && !same) note_->setText(tr("Loading…"));
     shown_ = view;
-    auto failed = [this, gen](const sync::ServerRefusal& r) {
+    auto failed = sync::whileAlive(this, [this, gen](const sync::ServerRefusal& r) {
         if (gen != generation_) return;
         note_->setText(ServerLibrary::refusalText(r));
-    };
+    });
     if (!openCollection_.isEmpty()) {
-        library_.api().collectionItems(openCollection_, [this, gen](const QList<sync::CatalogItem>& items) {
+        library_.api().collectionItems(openCollection_, sync::whileAlive(this, [this, gen](const QList<sync::CatalogItem>& items) {
             if (gen == generation_) showItems(items);
-        }, failed);
+        }), failed);
     } else if (kind_ == Kind::Collections) {
-        library_.api().collections([this, gen](const QList<sync::CatalogCollection>& list) {
+        library_.api().collections(sync::whileAlive(this, [this, gen](const QList<sync::CatalogCollection>& list) {
             if (gen == generation_) showCollections(list);
-        }, failed);
+        }), failed);
     } else {
         const QString kind = kind_ == Kind::Modules  ? QStringLiteral("module")
                              : kind_ == Kind::Parts  ? QStringLiteral("part")
                              : kind_ == Kind::Layouts ? QStringLiteral("layout")
                                                       : QStringLiteral("venue");
         library_.api().catalogItems(kind,
-                                    search_->text(), [this, gen](const QList<sync::CatalogItem>& items) {
+                                    search_->text(), sync::whileAlive(this, [this, gen](const QList<sync::CatalogItem>& items) {
             if (gen == generation_) showItems(items);
-        }, failed);
+        }), failed);
     }
 }
 
@@ -995,7 +996,7 @@ void CatalogTab::addItem(const sync::CatalogItem& it, QPushButton* button) {
     connect(button, &QObject::destroyed, this, [alive] { *alive = false; });
     QPushButton* b = button;
     const QString kind = it.kind;
-    library_.api().addCatalogItem(it.id, *dest, [this, b, alive, kind, itemId = it.id, title = it.title](const QString&, const QString& id) {
+    library_.api().addCatalogItem(it.id, *dest, sync::whileAlive(this, [this, b, alive, kind, itemId = it.id, title = it.title](const QString&, const QString& id) {
         const bool copy = kind == QLatin1String("layout") || kind == QLatin1String("venue");
         addedItems_.insert(itemId, copy ? tr("Copied") : tr("Added"));
         if (*alive) {
@@ -1016,10 +1017,10 @@ void CatalogTab::addItem(const sync::CatalogItem& it, QPushButton* button) {
             emit library_.message(tr("Added \"%1\" to your parts").arg(title));
             emit library_.partsAdded();
         }
-    }, [this, b, alive](const sync::ServerRefusal& r) {
+    }), sync::whileAlive(this, [this, b, alive](const sync::ServerRefusal& r) {
         if (*alive) b->setEnabled(true);
         QMessageBox::warning(this, tr("Catalog"), ServerLibrary::refusalText(r));
-    });
+    }));
 }
 
 void CatalogTab::addAll(const sync::CatalogCollection& c) {
@@ -1029,15 +1030,15 @@ void CatalogTab::addAll(const sync::CatalogCollection& c) {
     const auto dest = owner(tr("Add all"), kinds);
     if (!dest) return;
     const bool parts = c.parts > 0;
-    library_.api().addCollection(c.id, *dest, [this, parts](const sync::CollectionAddResult& r) {
+    library_.api().addCollection(c.id, *dest, sync::whileAlive(this, [this, parts](const sync::CollectionAddResult& r) {
         added_ = collectionAddText(r);
         note_->setText(added_);
         emit library_.message(collectionAddText(r));
         library_.refresh();
         if (parts && r.added > 0) emit library_.partsAdded();
-    }, [this](const sync::ServerRefusal& r) {
+    }), sync::whileAlive(this, [this](const sync::ServerRefusal& r) {
         QMessageBox::warning(this, tr("Add all"), ServerLibrary::refusalText(r));
-    });
+    }));
 }
 
 }  // namespace bld::ui

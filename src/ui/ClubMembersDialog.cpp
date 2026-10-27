@@ -3,6 +3,7 @@
 #include "ServerLibrary.h"
 
 #include "ClubLogoViews.h"
+#include "WhileAlive.h"
 
 #include <QDesktopServices>
 #include <QFrame>
@@ -184,15 +185,15 @@ void ClubMembersDialog::reload() {
     }
     library_.api().clubMembers(
         slug_,
-        [this, gen](const sync::ClubMembers& m) {
+        sync::whileAlive(this, [this, gen](const sync::ClubMembers& m) {
             if (gen != generation_) return;
             members_ = m;
             loaded_ = true;
             status_->setVisible(members_.members.isEmpty());
             status_->setText(tr("Nobody is in this club yet."));
             rebuild();
-        },
-        [this, gen](const sync::ServerRefusal& r) {
+        }),
+        sync::whileAlive(this, [this, gen](const sync::ServerRefusal& r) {
             if (gen != generation_) return;
             if (r.status == 401) {
                 library_.refresh();
@@ -209,7 +210,7 @@ void ClubMembersDialog::reload() {
             }
             status_->setVisible(true);
             rebuild();
-        });
+        }));
 }
 
 QWidget* ClubMembersDialog::row(const QString& userId) const {

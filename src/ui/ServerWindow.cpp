@@ -12,6 +12,7 @@
 #include "OwnerFilter.h"
 #include "RefreshOnFocus.h"
 #include "ServerList.h"
+#include "WhileAlive.h"
 
 #include <QComboBox>
 #include <QDesktopServices>
@@ -296,7 +297,7 @@ void ServerWindow::loadLists() {
     if (library_.state() != ServerLibrary::State::Ready) return;
     const int gen = generation_;
     const auto failed = [this, gen](const QString& kind) {
-        return [this, gen, kind](const sync::ServerRefusal& r) {
+        return sync::whileAlive(this, [this, gen, kind](const sync::ServerRefusal& r) {
             if (gen != generation_) return;
             if (r.status == 401) {
                 library_.refresh();
@@ -307,18 +308,18 @@ void ServerWindow::loadLists() {
             else if (kind == QLatin1String("venues")) venuesWhy_ = why;
             else partsWhy_ = why;
             rebuild();
-        };
+        });
     };
     if (std::exchange(hintLayouts_, false)) {
         ++loads_;
-        library_.api().layouts([this, gen](const QList<sync::LayoutEntry>& list) {
+        library_.api().layouts(sync::whileAlive(this, [this, gen](const QList<sync::LayoutEntry>& list) {
             if (gen != generation_) return;
             layouts_ = list;
             layoutsIn_ = true;
             layoutsWhy_.clear();
             rebuildFilter();
             rebuildLayouts();
-        }, failed(QStringLiteral("layouts")));
+        }), failed(QStringLiteral("layouts")));
     }
     if (std::exchange(hintVenues_, false)) {
         // A server without a venue library is not asked (it would only say "not found").
@@ -331,37 +332,37 @@ void ServerWindow::loadLists() {
             rebuildVenues();
         } else {
             ++loads_;
-            library_.api().venues([this, gen](const QList<sync::VenueEntry>& list) {
+            library_.api().venues(sync::whileAlive(this, [this, gen](const QList<sync::VenueEntry>& list) {
                 if (gen != generation_) return;
                 venues_ = list;
                 venuesIn_ = true;
                 venuesWhy_.clear();
                 rebuildFilter();
                 rebuildVenues();
-            }, failed(QStringLiteral("venues")));
+            }), failed(QStringLiteral("venues")));
         }
     }
     if (std::exchange(hintCatalog_, false) && hasFeature(QStringLiteral("catalogShare"))) {
         const sync::CatalogSettings& cat = library_.catalog();
         if (cat.modules || cat.parts || cat.layouts || cat.venues) {
             ++loads_;
-            library_.api().myCatalogItems([this, gen](const QList<sync::MyCatalogItem>& list) {
+            library_.api().myCatalogItems(sync::whileAlive(this, [this, gen](const QList<sync::MyCatalogItem>& list) {
                 if (gen != generation_) return;
                 shared_ = list;
                 rebuild();
-            }, {});
+            }), {});
         }
     }
     if (std::exchange(hintParts_, false)) {
         ++loads_;
-        library_.api().customParts([this, gen](const QList<sync::ServerPart>& list) {
+        library_.api().customParts(sync::whileAlive(this, [this, gen](const QList<sync::ServerPart>& list) {
             if (gen != generation_) return;
             parts_ = list;
             partsIn_ = true;
             partsWhy_.clear();
             rebuildFilter();
             rebuildParts();
-        }, failed(QStringLiteral("parts")));
+        }), failed(QStringLiteral("parts")));
     }
 }
 
@@ -1018,51 +1019,51 @@ void ServerWindow::downloadLayout(const sync::LayoutEntry& l) {
     if (path.isEmpty()) return;
     const bool native = path.endsWith(QStringLiteral(".bld-layout"), Qt::CaseInsensitive);
     emit message(tr("Downloading “%1”…").arg(title));
-    library_.api().layoutFile(l.id, native, [this, path, title](const QByteArray& bytes) {
+    library_.api().layoutFile(l.id, native, sync::whileAlive(this, [this, path, title](const QByteArray& bytes) {
         QFile f(path);
         if (!f.open(QIODevice::WriteOnly) || f.write(bytes) != bytes.size()) {
             QMessageBox::warning(this, tr("Download a copy"), tr("Couldn't save %1: %2").arg(QDir::toNativeSeparators(path), f.errorString()));
             return;
         }
         emit message(tr("Saved a copy of “%1” as %2").arg(title, QFileInfo(path).fileName()));
-    }, [this](const sync::ServerRefusal& r) {
+    }), sync::whileAlive(this, [this](const sync::ServerRefusal& r) {
         QMessageBox::warning(this, tr("Download a copy"), ServerLibrary::refusalText(r));
-    });
+    }));
 }
 
 void ServerWindow::deleteLayout(const sync::LayoutEntry& l) {
     const QString title = l.title.isEmpty() ? tr("Untitled Layout") : l.title;
     if (!ask(ConfirmDialog::deleteOptions(title, ConfirmDialog::layoutWording()))) return;
-    library_.api().deleteLayout(l.id, [this, title, id = l.id] {
+    library_.api().deleteLayout(l.id, sync::whileAlive(this, [this, title, id = l.id] {
         emit message(tr("Deleted “%1”").arg(title));
         layouts_.erase(std::remove_if(layouts_.begin(), layouts_.end(), [&](const auto& e) { return e.id == id; }), layouts_.end());
         rebuildLayouts();
         hint(QJsonObject{ { QStringLiteral("kind"), QStringLiteral("layout") } });
-    }, [this](const sync::ServerRefusal& r) {
+    }), sync::whileAlive(this, [this](const sync::ServerRefusal& r) {
         QMessageBox::warning(this, tr("Delete layout"), ServerLibrary::refusalText(r));
-    });
+    }));
 }
 
 void ServerWindow::deleteVenue(const sync::VenueEntry& v) {
     if (!ask(ConfirmDialog::deleteOptions(v.name, ConfirmDialog::venueWording()))) return;
-    library_.api().deleteVenue(v.id, [this, name = v.name, id = v.id] {
+    library_.api().deleteVenue(v.id, sync::whileAlive(this, [this, name = v.name, id = v.id] {
         emit message(tr("Deleted “%1”").arg(name));
         venues_.erase(std::remove_if(venues_.begin(), venues_.end(), [&](const auto& e) { return e.id == id; }), venues_.end());
         rebuildVenues();
         hint(QJsonObject{ { QStringLiteral("kind"), QStringLiteral("venue") } });
-    }, [this](const sync::ServerRefusal& r) {
+    }), sync::whileAlive(this, [this](const sync::ServerRefusal& r) {
         QMessageBox::warning(this, tr("Delete venue"), ServerLibrary::refusalText(r));
-    });
+    }));
 }
 
 void ServerWindow::deleteModule(const sync::ServerModule& m) {
     if (!ask(ConfirmDialog::deleteOptions(m.title, ConfirmDialog::moduleWording()))) return;
-    library_.api().deleteModule(m.id, [this, title = m.title] {
+    library_.api().deleteModule(m.id, sync::whileAlive(this, [this, title = m.title] {
         emit message(tr("Deleted “%1”").arg(title));
         library_.refresh();
-    }, [this](const sync::ServerRefusal& r) {
+    }), sync::whileAlive(this, [this](const sync::ServerRefusal& r) {
         QMessageBox::warning(this, tr("Delete module"), ServerLibrary::refusalText(r));
-    });
+    }));
 }
 
 void ServerWindow::giveOrTakeBack(const QString& kindPath, const QString& word, const QString& id, const QString& title,
@@ -1070,7 +1071,7 @@ void ServerWindow::giveOrTakeBack(const QString& kindPath, const QString& word, 
     if (!ask(returnOptions(word, title, credit, give))) return;
     library_.api().returnToAuthor(
         kindPath, id, give,
-        [this, kindPath, title, author = credit.authorName, give](const QString&) {
+        sync::whileAlive(this, [this, kindPath, title, author = credit.authorName, give](const QString&) {
             emit message(give ? tr("Gave “%1” back to %2; the club kept its own copy.").arg(title, author)
                               : tr("“%1” is yours again; the club kept its own copy.").arg(title));
             if (kindPath == QLatin1String("modules")) library_.refresh();
@@ -1078,10 +1079,10 @@ void ServerWindow::giveOrTakeBack(const QString& kindPath, const QString& word, 
                 hint(QJsonObject{ { QStringLiteral("kind"), kindPath == QLatin1String("layouts")  ? QStringLiteral("layout")
                                                             : kindPath == QLatin1String("venues") ? QStringLiteral("venue")
                                                                                                   : QStringLiteral("custom-part") } });
-        },
-        [this, give](const sync::ServerRefusal& r) {
+        }),
+        sync::whileAlive(this, [this, give](const sync::ServerRefusal& r) {
             QMessageBox::warning(this, give ? tr("Give back") : tr("Take back"), ServerLibrary::refusalText(r));
-        });
+        }));
 }
 
 }  // namespace bld::ui

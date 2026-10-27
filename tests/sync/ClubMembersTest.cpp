@@ -22,6 +22,7 @@
 #include <QImage>
 #include <QJsonArray>
 #include <QLabel>
+#include <QPointer>
 #include <QPushButton>
 #include <QSettings>
 #include <QStandardPaths>
@@ -372,4 +373,33 @@ TEST_F(ClubMembersTest, AnOlderServerThatRefusesTheAppSaysSoKindly) {
     EXPECT_EQ(library_.state(), ui::ServerLibrary::State::Ready);
     // The admin can still go to the website.
     EXPECT_FALSE(d->manageLink()->isHidden());
+}
+
+// Closing the Members window (or picking another club) before the members
+// come: the answer that lands afterwards must not reach the closed window
+// (a crash before), and the Server window carries on.
+TEST_F(ClubMembersTest, ClosingTheWindowWhileTheMembersLoadIsSafe) {
+    http_.reply("/api/orgs", 200, orgsJson(Me::Admin));
+    http_.reply(kMembers, 200, membersJson(true));
+    http_.hold.insert(kMembers);
+    library_.setServer(http_.base(), QStringLiteral("Club server"), QStringLiteral("bld_pat_members"));
+    ASSERT_TRUE(waitFor([&] { return library_.state() == ui::ServerLibrary::State::Ready; }));
+    window_ = std::make_unique<ui::ServerWindow>(library_);
+    window_->showMembers(QStringLiteral("train"));
+    QPointer<ui::ClubMembersDialog> d = window_->membersDialog();
+    ASSERT_NE(d, nullptr);
+    ASSERT_TRUE(waitFor([&] { return requests(http_, kMembers) == 1; }));
+    d->findChild<QPushButton*>(QStringLiteral("closeMembers"))->click();
+    ASSERT_TRUE(waitFor([&] { return d.isNull(); }));
+    EXPECT_EQ(window_->membersDialog(), nullptr);
+
+    http_.release(kMembers);
+    ASSERT_TRUE(waitFor([&] { return library_.api().pending() == 0; }));
+    QCoreApplication::processEvents();
+
+    // Opened again: the members come as usual.
+    window_->showMembers(QStringLiteral("train"));
+    d = window_->membersDialog();
+    ASSERT_NE(d, nullptr);
+    ASSERT_TRUE(waitFor([&] { return d->row(QStringLiteral("cy")) != nullptr; }));
 }
