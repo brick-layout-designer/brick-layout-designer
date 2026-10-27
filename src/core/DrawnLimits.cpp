@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <cmath>
 #include <iterator>
+#include <numeric>
 #include <type_traits>
 
 namespace bld::core {
@@ -50,11 +51,12 @@ void keepRuler(RulerItemBase& r) {
     if (r.unit < limits::kRulerUnit.min || r.unit > limits::kRulerUnit.max)
         r.unit = limits::kRulerUnit.fallback;
     auto& dash = r.guidelineDashPattern;
-    const bool drawable =
+    const bool inRange =
         std::ssize(dash) <= limits::kMaxDashEntries && std::all_of(dash.cbegin(), dash.cend(), [](float d) {
-            return std::isfinite(d) && d > 0.0f && d <= limits::kMaxDash;
+            return std::isfinite(d) && d >= 0.0f && d <= limits::kMaxDash;
         });
-    if (!drawable) dash.clear();
+    if (!inRange || (!dash.empty() && std::accumulate(dash.cbegin(), dash.cend(), 0.0) < limits::kMinDashTotal))
+        dash.clear();
 }
 
 } // namespace
