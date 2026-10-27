@@ -1431,19 +1431,31 @@ TEST_F(ServerWindowMain, ANameTakenOnTheServerOffersAFreeOne) {
         list.save();
     }
     http_.reply("/api/parts/catalog", 200, { { QStringLiteral("parts"), QJsonArray{} } });
-    // Refused for its name, then the list of your parts there, then taken.
+    // Refused for its name, then the list of your own parts there, then taken.
     http_.clear("/api/custom-parts");
+    http_.clear("/api/custom-parts?owner=me");
     http_.reply("/api/custom-parts", 409, { { QStringLiteral("error"), QStringLiteral("part_number_taken") } });
-    http_.reply("/api/custom-parts", 200,
-                { { QStringLiteral("parts"),
-                    QJsonArray{ QJsonObject{ { QStringLiteral("id"), QStringLiteral("s1") },
-                                             { QStringLiteral("partNumber"), QStringLiteral("Yard sidings") },
-                                             { QStringLiteral("displayName"), QStringLiteral("Yard sidings") },
-                                             { QStringLiteral("role"), QStringLiteral("owner") },
-                                             { QStringLiteral("spriteMime"), QString() } },
-                                QJsonObject{ { QStringLiteral("id"), QStringLiteral("s2") },
-                                             { QStringLiteral("partNumber"), QStringLiteral("Yard sidings (2)") },
-                                             { QStringLiteral("role"), QStringLiteral("owner") } } } } });
+    // (As an older server that doesn't narrow the list answers: a club's
+    // "Yard sidings (3)" isn't yours, so it doesn't make that name taken.)
+    const QJsonObject club{ { QStringLiteral("kind"), QStringLiteral("org") },
+                            { QStringLiteral("id"), QStringLiteral("o1") },
+                            { QStringLiteral("name"), QStringLiteral("Rail Club") },
+                            { QStringLiteral("slug"), QStringLiteral("rail-club") } };
+    http_.reply(
+        "/api/custom-parts?owner=me", 200,
+        { { QStringLiteral("parts"),
+            QJsonArray{ QJsonObject{ { QStringLiteral("id"), QStringLiteral("s1") },
+                                     { QStringLiteral("partNumber"), QStringLiteral("Yard sidings") },
+                                     { QStringLiteral("displayName"), QStringLiteral("Yard sidings") },
+                                     { QStringLiteral("role"), QStringLiteral("owner") },
+                                     { QStringLiteral("spriteMime"), QString() } },
+                        QJsonObject{ { QStringLiteral("id"), QStringLiteral("s2") },
+                                     { QStringLiteral("partNumber"), QStringLiteral("Yard sidings (2)") },
+                                     { QStringLiteral("role"), QStringLiteral("owner") } },
+                        QJsonObject{ { QStringLiteral("id"), QStringLiteral("c3") },
+                                     { QStringLiteral("partNumber"), QStringLiteral("Yard sidings (3)") },
+                                     { QStringLiteral("role"), QStringLiteral("owner") },
+                                     { QStringLiteral("owner"), club } } } } });
     http_.reply("/api/custom-parts", 201, { { QStringLiteral("id"), QStringLiteral("s3") } });
     window_->runSaveSetDialog = [&](ui::SaveSetDialog& d) {
         d.nameEdit()->setText(QStringLiteral("Yard sidings"));
@@ -1467,9 +1479,12 @@ TEST_F(ServerWindowMain, ANameTakenOnTheServerOffersAFreeOne) {
     window_->findChild<QAction*>(QStringLiteral("modules.saveSet"))->trigger();
     ASSERT_TRUE(waitFor([&] { return asked; }));
     EXPECT_TRUE(why.contains(QStringLiteral("“Yard sidings” on Club server"))) << why.toStdString();
-    // Free on the server ("(2)" is taken there too) and here.
+    // Free among your parts on the server ("(2)" is yours there too; the club's "(3)" doesn't count) and
+    // here.
     EXPECT_EQ(suggested, QStringLiteral("Yard sidings (3)"));
     EXPECT_TRUE(ownPartRefused);
+    EXPECT_EQ(count(http_, "GET", "/api/custom-parts?owner=me"), 1);
+    EXPECT_EQ(count(http_, "GET", "/api/custom-parts"), 0);
     const QString mySets = modules.path() + QStringLiteral("/imports/My sets/");
     ASSERT_TRUE(waitFor([&] { return QFile::exists(mySets + QStringLiteral("North sidings.set.xml")); }));
     EXPECT_FALSE(QFile::exists(mySets + QStringLiteral("Yard sidings.set.xml")));
