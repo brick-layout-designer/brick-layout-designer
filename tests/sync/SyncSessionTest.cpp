@@ -491,7 +491,9 @@ TEST(SyncSession, ASessionTheServerEndsKeepsTheOfflineEditsOnDisk) {
     auto map = session.currentMap();
     firstBrick(*map).displayArea.translate(0, 8);
     session.localEdit(*map);
-    ASSERT_TRUE(waitFor([&] { return !server.peers.empty(); }));
+    ASSERT_TRUE(session.offlineEdits());
+    // Back on a new connection, then that one is ended.
+    ASSERT_TRUE(waitFor([&] { return session.status() == Status::Synced; }));
     server.dropAll(static_cast<QWebSocketProtocol::CloseCode>(4404), QStringLiteral("access_revoked"));
     ASSERT_TRUE(waitFor([&] { return ended == 1; }));
     EXPECT_EQ(session.status(), Status::Offline);
