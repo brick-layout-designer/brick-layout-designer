@@ -362,6 +362,9 @@ TEST_F(DialogKeyboard, Welcome) {
 // with a part picked: the same checks, through the window as people use it.
 TEST_F(DialogKeyboard, EveryMenuDialog) {
     ui::UpdateCheck::setCheckAtStartupEnabled(false);
+    // Native dialogs (macOS's color, file and print panels) aren't widgets
+    // this test can find and close.
+    QCoreApplication::setAttribute(Qt::AA_DontUseNativeDialogs, true);
     ui::MainWindow w(library());
     w.resize(1200, 800);
     w.show();
@@ -399,7 +402,9 @@ TEST_F(DialogKeyboard, EveryMenuDialog) {
     const QStringList skip{ QStringLiteral("server"), QStringLiteral("Server"), QStringLiteral("Sign"),
                             QStringLiteral("Live"), QStringLiteral("live"), QStringLiteral("Get More"),
                             QStringLiteral("Open"), QStringLiteral("Import"), QStringLiteral("Export"),
-                            QStringLiteral("Save"), QStringLiteral("Upload"), QStringLiteral("Check for") };
+                            QStringLiteral("Save"), QStringLiteral("Upload"), QStringLiteral("Check for"),
+                            // Printing is the platform's own dialog (native on macOS whatever is asked).
+                            QStringLiteral("Print"), QStringLiteral("Page Setup") };
     for (QAction* top : w.menuBar()->actions()) {
         QMenu* menu = top->menu();
         if (!menu) continue;
@@ -422,6 +427,7 @@ TEST_F(DialogKeyboard, EveryMenuDialog) {
         }
     }
     watch.stop();
+    QCoreApplication::setAttribute(Qt::AA_DontUseNativeDialogs, false);
     EXPECT_TRUE(report.isEmpty()) << report.join(QStringLiteral("\n\n")).toStdString();
 }
 
