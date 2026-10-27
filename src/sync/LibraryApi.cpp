@@ -485,6 +485,51 @@ void LibraryApi::notices(std::function<void(const QList<Notice>&)> done, Fail fa
     }, std::move(failed));
 }
 
+QStringList ClubMembers::roleNames(const ClubMember& m) const {
+    QStringList out;
+    for (const ClubRoleName& r : roles)
+        if (m.roleIds.contains(r.id)) out << r.name;
+    return out;
+}
+
+ClubMembers LibraryApi::clubMembersFromJson(const QJsonObject& o) {
+    ClubMembers out;
+    for (const auto& v : o.value(QLatin1String("roles")).toArray()) {
+        const QJsonObject r = v.toObject();
+        out.roles << ClubRoleName{ r.value(QLatin1String("id")).toString(),
+                                   r.value(QLatin1String("name")).toString() };
+    }
+    for (const auto& v : o.value(QLatin1String("members")).toArray()) {
+        const QJsonObject m = v.toObject();
+        ClubMember member;
+        member.userId = m.value(QLatin1String("userId")).toString();
+        member.name = m.value(QLatin1String("displayName")).toString();
+        for (const auto& id : m.value(QLatin1String("roleIds")).toArray()) member.roleIds << id.toString();
+        // A server before club roles names one fixed role.
+        if (member.roleIds.isEmpty()) {
+            const QString role = m.value(QLatin1String("role")).toString();
+            for (const ClubRoleName& r : out.roles)
+                if (r.id.endsWith(QLatin1Char(':') + role)) member.roleIds << r.id;
+        }
+        const QString last = m.value(QLatin1String("lastActive")).toString();
+        static const QStringList kBuckets{ QStringLiteral("today"), QStringLiteral("week"),
+                                           QStringLiteral("month"), QStringLiteral("older") };
+        if (kBuckets.contains(last)) member.lastActive = last;
+        member.joinedAt = timeOf(m.value(QLatin1String("joinedAt")));
+        out.members << member;
+    }
+    return out;
+}
+
+void LibraryApi::clubMembers(const QString& slug, std::function<void(const ClubMembers&)> done, Fail failed) {
+    sendJson(
+        "GET", QStringLiteral("/api/orgs/%1/members").arg(idPath(slug)), {},
+        [done = std::move(done)](const QJsonObject& o) {
+            if (done) done(clubMembersFromJson(o));
+        },
+        std::move(failed));
+}
+
 void LibraryApi::acknowledge(const QString& id, std::function<void()> done, Fail failed) {
     sendJson("POST", QStringLiteral("/api/notices/%1/acknowledge").arg(idPath(id)), {},
              [done = std::move(done)](const QJsonObject&) {

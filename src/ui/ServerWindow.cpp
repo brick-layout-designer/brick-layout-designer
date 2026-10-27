@@ -1,5 +1,6 @@
 #include "ServerWindow.h"
 
+#include "ClubMembersDialog.h"
 #include "ConfirmDialog.h"
 #include "ReturnWording.h"
 #include "ServerLibrary.h"
@@ -146,7 +147,21 @@ ServerWindow::ServerWindow(ServerLibrary& library, QWidget* parent) : QWidget(pa
         const QUrl url = clubLogoPage();
         if (url.isValid() && openLink) openLink(url);
     });
-    c->addWidget(logoLink_);
+    // A club of yours, picked in Show: who is in it, and their roles.
+    membersButton_ = new QPushButton(tr("Members…"), content_);
+    membersButton_->setObjectName(QStringLiteral("clubMembers"));
+    membersButton_->setToolTip(
+        tr("See who is in this club, the roles they hold and when they were last active"));
+    membersButton_->setVisible(false);
+    connect(membersButton_, &QPushButton::clicked, this, [this] {
+        const QString slug = pickedClub();
+        if (!slug.isEmpty()) showMembers(slug);
+    });
+    auto* clubRow = new QHBoxLayout();
+    clubRow->addWidget(membersButton_);
+    clubRow->addStretch(1);
+    clubRow->addWidget(logoLink_);
+    c->addLayout(clubRow);
 
     tabs_ = new QTabWidget(content_);
     tabs_->setObjectName(QStringLiteral("serverTabs"));
@@ -547,6 +562,8 @@ void ServerWindow::reload() {
 
 void ServerWindow::hint(const QJsonObject& h) {
     const QString kind = h.value(QLatin1String("kind")).toString();
+    // A role given or taken, someone joining or leaving: the members again.
+    if (members_ && (kind == QLatin1String("club") || kind == QLatin1String("me"))) members_->reloadSoon();
     if (kind == QLatin1String("layout")) hintLayouts_ = true;
     else if (kind == QLatin1String("venue")) hintVenues_ = true;
     else if (kind == QLatin1String("custom-part")) hintParts_ = true;
@@ -622,7 +639,40 @@ QUrl ServerWindow::clubLogoPage() const {
     return sync::ServerApi::webLink(url.toString());
 }
 
-void ServerWindow::updateLogoLink() { logoLink_->setVisible(clubLogoPage().isValid()); }
+QString ServerWindow::pickedClub() const {
+    const QString key = show_->currentData().toString();
+    if (key.isEmpty() || key == sync::kShowAll || key == sync::kShowMine) return {};
+    const auto& orgs = library_.orgs();
+    const bool mine =
+        std::any_of(orgs.begin(), orgs.end(), [&](const sync::OrgEntry& o) { return o.slug == key; });
+    return mine ? key : QString();
+}
+
+ClubMembersDialog* ServerWindow::membersDialog() const {
+    return members_;
+}
+
+void ServerWindow::showMembers(const QString& slug) {
+    if (members_ && members_->slug() != slug) {
+        // Another club: this one's window goes (it deletes itself once closed).
+        members_->close();
+        members_ = nullptr;
+    }
+    if (!members_) {
+        members_ = new ClubMembersDialog(library_, slug, this);
+        members_->openLink = [this](const QUrl& url) {
+            if (openLink) openLink(url);
+        };
+    }
+    members_->show();
+    members_->raise();
+    members_->activateWindow();
+}
+
+void ServerWindow::updateLogoLink() {
+    logoLink_->setVisible(clubLogoPage().isValid());
+    membersButton_->setVisible(!pickedClub().isEmpty());
+}
 
 void ServerWindow::rebuild() {
     rebuildFilter();

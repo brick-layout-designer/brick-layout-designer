@@ -378,7 +378,8 @@ constexpr Raw kShared[] = {
       QT_TRANSLATE_NOOP("HelpTexts", "Show everything you can use, only your own, or one club’s."),
       QT_TRANSLATE_NOOP("HelpTexts", "Your own things and your clubs’ things sit in one list, each marked "
                                      "with who owns it. Pick a club to see just its things; new things are "
-                                     "saved there too unless you choose otherwise.") },
+                                     "saved there too unless you choose otherwise. With a club picked, "
+                                     "Members… shows who is in it and the roles they hold.") },
 
     // Joining a club
     { "club.whoCanJoin", "",

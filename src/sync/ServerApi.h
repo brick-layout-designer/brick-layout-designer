@@ -122,6 +122,9 @@ struct OrgEntry {
     // and parts; only admins change its settings.
     bool managesThings() const { return role == QLatin1String("admin") || role == QLatin1String("manager"); }
     bool isAdmin() const { return admin || role == QLatin1String("admin"); }
+    // May you manage its members on the website (invite people, or manage
+    // members and roles; servers before club roles: its admins and managers)?
+    bool managesMembers() const;
     // May you save this kind of thing to the club (the web's clubCanAdd)?
     bool canAddKind(AddKind kind) const;
     // An OrgEntry from GET /api/orgs.
