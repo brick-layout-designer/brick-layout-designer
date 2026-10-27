@@ -221,6 +221,8 @@ public:
     void layouts(std::function<void(const QList<LayoutEntry>&)> done, Fail failed);
     void venues(std::function<void(const QList<VenueEntry>&)> done, Fail failed);
     void customParts(std::function<void(const QList<ServerPart>&)> done, Fail failed);
+    // Only your own custom parts (?owner=me): not your clubs', nor ones shared with you.
+    void myCustomParts(std::function<void(const QList<ServerPart>&)> done, Fail failed);
     // A new version of the server's custom part `id` (PUT /api/custom-parts/:id): the
     // body PartsUpload::uploadBody() makes. Its owner stays as it is.
     void replaceCustomPart(const QString& id, const QJsonObject& body, std::function<void()> done, Fail failed);

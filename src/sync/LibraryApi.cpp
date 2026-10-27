@@ -322,6 +322,18 @@ void LibraryApi::customParts(std::function<void(const QList<ServerPart>&)> done,
     }, std::move(failed));
 }
 
+void LibraryApi::myCustomParts(std::function<void(const QList<ServerPart>&)> done, Fail failed) {
+    sendJson("GET", QStringLiteral("/api/custom-parts?owner=me"), {}, [done = std::move(done)](const QJsonObject& o) {
+        QList<ServerPart> out;
+        for (const auto& v : o.value(QLatin1String("parts")).toArray()) {
+            ServerPart p = partFromJson(v.toObject());
+            // (A server that doesn't narrow the list: a club's part isn't yours.)
+            if (!p.owner.isClub()) out << p;
+        }
+        if (done) done(out);
+    }, std::move(failed));
+}
+
 void LibraryApi::replaceCustomPart(const QString& id, const QJsonObject& body, std::function<void()> done,
                                    Fail failed) {
     sendJson("PUT", QStringLiteral("/api/custom-parts/%1").arg(idPath(id)), body, [done = std::move(done)](const QJsonObject&) {

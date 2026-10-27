@@ -1482,8 +1482,9 @@ TEST_F(ServerWindowMain, ANameTakenOnTheServerOffersAFreeOne) {
 // Rename set… renames it there (its name and the English name in its XML),
 // and once it's deleted here a notice says it's still there.
 TEST_F(ServerWindowMain, YourSetOnTheServerIsRenamedThereAndSaidToBeStillThere) {
+    // Only your own parts are asked for (?owner=me).
     http_.clear("/api/custom-parts");
-    http_.reply("/api/custom-parts", 200,
+    http_.reply("/api/custom-parts?owner=me", 200,
                 { { QStringLiteral("parts"),
                     QJsonArray{ QJsonObject{ { QStringLiteral("id"), QStringLiteral("s1") },
                                              { QStringLiteral("partNumber"), QStringLiteral("Yard sidings") },
@@ -1543,9 +1544,12 @@ TEST_F(ServerWindowMain, YourSetOnTheServerIsRenamedThereAndSaidToBeStillThere) 
 // notice for a copy found too late offers that instead of the website.
 // Without the feature: no deleteThere, and the notice opens the website.
 TEST_F(ServerWindowMain, YourSetAndPartAreDeletedFromAServerThatLetsTheDesktop) {
+    // Only your own parts are asked for (?owner=me); "Shed" is as an older
+    // server that doesn't narrow the list sends it: someone else's, shared
+    // with you to edit.
     http_.clear("/api/custom-parts");
     http_.reply(
-        "/api/custom-parts", 200,
+        "/api/custom-parts?owner=me", 200,
         { { QStringLiteral("parts"),
             QJsonArray{ QJsonObject{ { QStringLiteral("id"), QStringLiteral("s1") },
                                      { QStringLiteral("partNumber"), QStringLiteral("Yard sidings") },
@@ -1640,6 +1644,41 @@ TEST_F(ServerWindowMain, YourSetAndPartAreDeletedFromAServerThatLetsTheDesktop) 
     ASSERT_TRUE(shed);
     EXPECT_FALSE(shed->deleteThere);
     EXPECT_FALSE(shed->stillThere);
+}
+
+// Renaming or deleting your set or part here looks for the copy you sent:
+// yours on the server. A club's set or part with the same number (even one
+// you may delete there), or one shared with you, is never renamed or
+// deleted in its place.
+TEST_F(ServerWindowMain, AClubsOrSomeoneElsesCopyWithTheSameNumberIsNotYours) {
+    // As an older server that doesn't narrow the list answers: a club's set
+    // and part, both of them yours to manage there.
+    http_.clear("/api/custom-parts");
+    const QJsonObject club{ { QStringLiteral("kind"), QStringLiteral("org") },
+                            { QStringLiteral("id"), QStringLiteral("o1") },
+                            { QStringLiteral("name"), QStringLiteral("Rail Club") },
+                            { QStringLiteral("slug"), QStringLiteral("rail-club") } };
+    http_.reply("/api/custom-parts?owner=me", 200,
+                { { QStringLiteral("parts"),
+                    QJsonArray{ QJsonObject{ { QStringLiteral("id"), QStringLiteral("c1") },
+                                             { QStringLiteral("partNumber"), QStringLiteral("Yard sidings") },
+                                             { QStringLiteral("role"), QStringLiteral("owner") },
+                                             { QStringLiteral("owner"), club },
+                                             { QStringLiteral("spriteMime"), QString() } },
+                                QJsonObject{ { QStringLiteral("id"), QStringLiteral("c2") },
+                                             { QStringLiteral("partNumber"), QStringLiteral("Depot") },
+                                             { QStringLiteral("role"), QStringLiteral("owner") },
+                                             { QStringLiteral("owner"), club },
+                                             { QStringLiteral("spriteMime"), QStringLiteral("image/png") } } } } });
+    auto* browser = window_->findChild<ui::PartsBrowser*>();
+    ASSERT_TRUE(browser && browser->findServerSet && browser->findServerPart);
+    bool found = false;
+    browser->findServerSet(QStringLiteral("Yard sidings"), [&](const ui::ServerSetCopy&) { found = true; });
+    browser->findServerPart(QStringLiteral("Depot"), [&](const ui::ServerSetCopy&) { found = true; });
+    // Both asked for your own parts only, and found nothing of yours.
+    ASSERT_TRUE(waitFor([&] { return count(http_, "GET", "/api/custom-parts?owner=me") >= 2; }));
+    QApplication::processEvents();
+    EXPECT_FALSE(found);
 }
 
 TEST_F(ServerWindowMain, TheServersLiveHintsReachTheWindow) {
