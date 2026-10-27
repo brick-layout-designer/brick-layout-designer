@@ -6,6 +6,7 @@
 
 #include "saveload/SidecarIO.h"
 
+#include "core/DrawnLimits.h"
 #include "core/LayerArea.h"
 #include "core/LayerBrick.h"
 #include "core/LayerGrid.h"
@@ -36,6 +37,11 @@ int integer(const QJsonObject& o, const char* k) {
     if (std::isnan(v)) return 0;
     return static_cast<int>(std::clamp(v, static_cast<double>(std::numeric_limits<int>::min()),
                                        static_cast<double>(std::numeric_limits<int>::max())));
+}
+// A whole number for a drawn setting: not a number, or infinite, gives
+// `fallback` (core::keepDrawnSettingsInRange then keeps it in range).
+int wholeOr(const QJsonObject& o, const char* k, int fallback) {
+    return std::isfinite(num(o, k)) ? integer(o, k) : fallback;
 }
 bool boolean(const QJsonObject& o, const char* k) { return o.value(QLatin1String(k)).toBool(); }
 QJsonObject obj(const QJsonObject& o, const char* k) { return o.value(QLatin1String(k)).toObject(); }
@@ -93,7 +99,7 @@ void rulerBase(core::RulerItemBase& r, const QJsonObject& o) {
     r.guidelineColor = color(obj(o, "guidelineColor"));
     r.guidelineThickness = flt(o, "guidelineThickness");
     for (const auto& d : arr(o, "guidelineDashPattern")) r.guidelineDashPattern.push_back(static_cast<float>(d.toDouble()));
-    r.unit = integer(o, "unit");
+    r.unit = wholeOr(o, "unit", core::limits::kRulerUnit.fallback);
     r.measureFont = font(obj(o, "measureFont"));
     r.measureFontColor = color(obj(o, "measureFontColor"));
 }
@@ -107,18 +113,23 @@ std::unique_ptr<core::Layer> layer(const QJsonObject& o, QString* error) {
         g->gridThickness = flt(o, "gridThickness");
         g->subGridColor = color(obj(o, "subGridColor"));
         g->subGridThickness = flt(o, "subGridThickness");
-        g->gridSizeInStud = integer(o, "gridSizeInStud");
-        g->subDivisionNumber = integer(o, "subDivisionNumber");
+        g->gridSizeInStud = wholeOr(o, "gridSizeInStud", core::limits::kGridSizeInStud.fallback);
+        g->subDivisionNumber = wholeOr(o, "subDivisionNumber", core::limits::kSubDivisionNumber.fallback);
         g->displayGrid = boolean(o, "displayGrid");
         g->displaySubGrid = boolean(o, "displaySubGrid");
         g->displayCellIndex = boolean(o, "displayCellIndex");
         g->cellIndexFont = font(obj(o, "cellIndexFont"));
         g->cellIndexColor = color(obj(o, "cellIndexColor"));
         // Stored as the .bbm's integer text ("0" letters, "1" numbers).
-        g->cellIndexColumnType = static_cast<core::CellIndexType>(str(o, "cellIndexColumnType").toInt());
-        g->cellIndexRowType = static_cast<core::CellIndexType>(str(o, "cellIndexRowType").toInt());
+        const auto indexType = [&o](const char* k, core::CellIndexType fallback) {
+            bool ok = false;
+            const int v = str(o, k).toInt(&ok);
+            return ok ? static_cast<core::CellIndexType>(v) : fallback;
+        };
+        g->cellIndexColumnType = indexType("cellIndexColumnType", core::CellIndexType::Letters);
+        g->cellIndexRowType = indexType("cellIndexRowType", core::CellIndexType::Numbers);
         const QJsonObject corner = obj(o, "cellIndexCorner");
-        g->cellIndexCorner = QPoint(integer(corner, "x"), integer(corner, "y"));
+        g->cellIndexCorner = QPoint(wholeOr(corner, "x", 0), wholeOr(corner, "y", 0));
         out = std::move(g);
     } else if (type == QLatin1String("brick")) {
         auto l = std::make_unique<core::LayerBrick>();
@@ -162,7 +173,7 @@ std::unique_ptr<core::Layer> layer(const QJsonObject& o, QString* error) {
         out = std::move(l);
     } else if (type == QLatin1String("area")) {
         auto l = std::make_unique<core::LayerArea>();
-        l->areaCellSizeInStud = integer(o, "areaCellSize");
+        l->areaCellSizeInStud = wholeOr(o, "areaCellSize", core::limits::kAreaCellSizeInStud.fallback);
         // Cells are kept relative to the sheet's offset (doc shape 2).
         const QJsonObject off = obj(o, "cellOffset");
         for (const auto& v : arr(o, "areas")) {
@@ -213,11 +224,11 @@ std::unique_ptr<core::Layer> layer(const QJsonObject& o, QString* error) {
     out->guid = str(o, "id");
     out->name = str(o, "name");
     out->visible = boolean(o, "visible");
-    out->transparency = integer(o, "transparency");
+    out->transparency = wholeOr(o, "transparency", core::limits::kTransparency.fallback);
     const QJsonObject hull = obj(o, "hullProperties");
     out->hull.displayHulls = boolean(hull, "isVisible");
     out->hull.color = color(obj(hull, "hullColor"));
-    out->hull.thickness = integer(hull, "hullThickness");
+    out->hull.thickness = wholeOr(hull, "hullThickness", core::limits::kHullThickness.fallback);
     return out;
 }
 
@@ -262,6 +273,8 @@ std::unique_ptr<core::Map> mapFromDocJson(const QJsonObject& doc, QString* error
         if (!out) return nullptr;
         map->layers().push_back(std::move(out));
     }
+    // Drawn settings in range, as a .bbm's are (any writer may put any number there).
+    core::keepDrawnSettingsInRange(*map);
     return map;
 }
 

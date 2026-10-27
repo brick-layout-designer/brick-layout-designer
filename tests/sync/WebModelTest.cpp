@@ -6,9 +6,12 @@
 
 #include "DocJson.h"
 #include "WebModel.h"
+#include "WebModelWriter.h"
 
+#include "core/LayerArea.h"
 #include "core/LayerBrick.h"
 #include "core/LayerGrid.h"
+#include "core/LayerRuler.h"
 #include "core/LayerText.h"
 #include "core/Map.h"
 #include "saveload/BbmReader.h"
@@ -20,7 +23,11 @@
 #include <QFile>
 #include <QJsonArray>
 
+#include <array>
+#include <functional>
 #include <limits>
+#include <memory>
+#include <vector>
 
 using namespace bld;
 
@@ -123,7 +130,8 @@ TEST(WebModel, ReadsWholeNumbersTooBigForAnIntSafely) {
     ASSERT_EQ(map->layers().size(), 2u);
     const auto& grid = static_cast<const core::LayerGrid&>(*map->layers()[0]);
     EXPECT_EQ(grid.gridSizeInStud, std::numeric_limits<int>::max());
-    EXPECT_EQ(grid.cellIndexCorner, QPoint(std::numeric_limits<int>::min(), 5));
+    // A corner that far out is kept to a million cells (core/DrawnLimits.h).
+    EXPECT_EQ(grid.cellIndexCorner, QPoint(-1000000, 5));
     const auto& bricks = static_cast<const core::LayerBrick&>(*map->layers()[1]);
     ASSERT_EQ(bricks.bricks.size(), 1u);
     EXPECT_EQ(bricks.bricks[0].activeConnectionPointIndex, std::numeric_limits<int>::max());
@@ -159,4 +167,140 @@ TEST(WebModel, ItemsKeepTheirDocumentIds) {
     }
     EXPECT_GT(texts, 0);
     EXPECT_GT(bricks, 0);
+}
+
+// The settings the map is drawn from (core/DrawnLimits.h) are in range
+// whatever a live layout's document says: each one, set to NaN, Infinity,
+// a negative and a huge number, reads finite, whole where it should be and
+// in range, as from a .bbm (tests/saveload/DrawnLimitsTest.cpp).
+namespace {
+
+QJsonObject drawnSampleDoc() {
+    core::Map m;
+    auto grid = std::make_unique<core::LayerGrid>();
+    grid->guid = QStringLiteral("1");
+    grid->transparency = 37;
+    grid->hull.thickness = 7;
+    grid->gridSizeInStud = 33;
+    grid->subDivisionNumber = 5;
+    grid->cellIndexCorner = QPoint(41, 42);
+    grid->cellIndexColumnType = core::CellIndexType::Numbers;
+    grid->cellIndexRowType = core::CellIndexType::Letters;
+    m.layers().push_back(std::move(grid));
+    auto area = std::make_unique<core::LayerArea>();
+    area->guid = QStringLiteral("2");
+    area->areaCellSizeInStud = 17;
+    m.layers().push_back(std::move(area));
+    auto rulers = std::make_unique<core::LayerRuler>();
+    rulers->guid = QStringLiteral("3");
+    core::LayerRuler::AnyRuler linear;
+    linear.linear.guid = QStringLiteral("4");
+    linear.linear.guidelineDashPattern = { 6.0f, 7.0f };
+    linear.linear.unit = 3;
+    rulers->rulers.push_back(linear);
+    core::LayerRuler::AnyRuler circular;
+    circular.kind = core::RulerKind::Circular;
+    circular.circular.guid = QStringLiteral("5");
+    circular.circular.radius = 22.0f;
+    rulers->rulers.push_back(circular);
+    m.layers().push_back(std::move(rulers));
+    return sync::docJsonFromMap(m);
+}
+
+// `doc` with the value at `path` (object keys, or array indexes as numbers) replaced.
+QJsonValue withValue(const QJsonValue& at, const QStringList& path, const QJsonValue& value) {
+    if (path.isEmpty()) return value;
+    const QString key = path.first();
+    const QStringList rest = path.mid(1);
+    if (at.isArray()) {
+        QJsonArray a = at.toArray();
+        const int i = key.toInt();
+        a[i] = withValue(a[i], rest, value);
+        return a;
+    }
+    QJsonObject o = at.toObject();
+    o[key] = withValue(o.value(key), rest, value);
+    return o;
+}
+
+struct DocField {
+    const char* name;
+    QStringList path;
+    std::function<double(const core::Map&)> value;
+    double nan, infinity, negative, huge;
+    bool asText = false;  // stored as the .bbm's integer text
+};
+
+const core::LayerGrid& docGrid(const core::Map& m) { return static_cast<const core::LayerGrid&>(*m.layers()[0]); }
+const core::LayerArea& docArea(const core::Map& m) { return static_cast<const core::LayerArea&>(*m.layers()[1]); }
+const core::LayerRuler& docRulers(const core::Map& m) { return static_cast<const core::LayerRuler&>(*m.layers()[2]); }
+const core::LinearRuler& docLinear(const core::Map& m) { return docRulers(m).rulers[0].linear; }
+const core::CircularRuler& docCircular(const core::Map& m) { return docRulers(m).rulers[1].circular; }
+
+}  // namespace
+
+TEST(WebModel, EveryDrawnSettingInALiveLayoutIsKeptInRange) {
+    const double kIntMax = std::numeric_limits<int>::max();
+    const QStringList grid{ QStringLiteral("layerData"), QStringLiteral("1") };
+    const QStringList linear{ QStringLiteral("layerData"), QStringLiteral("3"), QStringLiteral("rulerItems"), QStringLiteral("0") };
+    const QStringList circular{ QStringLiteral("layerData"), QStringLiteral("3"), QStringLiteral("rulerItems"), QStringLiteral("1") };
+    const auto at = [](QStringList base, const QStringList& more) { return base + more; };
+    const std::vector<DocField> fields{
+        { "transparency", at(grid, { QStringLiteral("transparency") }), [](const core::Map& m) { return docGrid(m).transparency; }, 100, 100, 0, 100 },
+        { "hullThickness", at(grid, { QStringLiteral("hullProperties"), QStringLiteral("hullThickness") }),
+          [](const core::Map& m) { return docGrid(m).hull.thickness; }, 1, 1, 1, 100 },
+        { "gridSizeInStud", at(grid, { QStringLiteral("gridSizeInStud") }), [](const core::Map& m) { return docGrid(m).gridSizeInStud; }, 32, 32, 1, kIntMax },
+        { "subDivisionNumber", at(grid, { QStringLiteral("subDivisionNumber") }), [](const core::Map& m) { return docGrid(m).subDivisionNumber; }, 4, 4, 2, 1024 },
+        { "gridThickness", at(grid, { QStringLiteral("gridThickness") }), [](const core::Map& m) { return docGrid(m).gridThickness; }, 2, 2, 0, 100 },
+        { "subGridThickness", at(grid, { QStringLiteral("subGridThickness") }), [](const core::Map& m) { return docGrid(m).subGridThickness; }, 1, 1, 0, 100 },
+        { "cellIndexFont.size", at(grid, { QStringLiteral("cellIndexFont"), QStringLiteral("size") }),
+          [](const core::Map& m) { return docGrid(m).cellIndexFont.sizePt; }, 8.25, 8.25, 1, 500 },
+        { "cellIndexCorner.x", at(grid, { QStringLiteral("cellIndexCorner"), QStringLiteral("x") }),
+          [](const core::Map& m) { return docGrid(m).cellIndexCorner.x(); }, 0, 0, -5, 1000000 },
+        { "cellIndexColumnType", at(grid, { QStringLiteral("cellIndexColumnType") }),
+          [](const core::Map& m) { return static_cast<int>(docGrid(m).cellIndexColumnType); }, 0, 0, 0, 0, true },
+        { "cellIndexRowType", at(grid, { QStringLiteral("cellIndexRowType") }),
+          [](const core::Map& m) { return static_cast<int>(docGrid(m).cellIndexRowType); }, 1, 1, 1, 1, true },
+        { "areaCellSize", { QStringLiteral("layerData"), QStringLiteral("2"), QStringLiteral("areaCellSize") },
+          [](const core::Map& m) { return docArea(m).areaCellSizeInStud; }, 32, 32, 1, 1024 },
+        { "lineThickness", at(linear, { QStringLiteral("lineThickness") }), [](const core::Map& m) { return docLinear(m).lineThickness; }, 1, 1, 0, 100 },
+        { "guidelineThickness", at(linear, { QStringLiteral("guidelineThickness") }),
+          [](const core::Map& m) { return docLinear(m).guidelineThickness; }, 1, 1, 0, 100 },
+        { "guidelineDashPattern", at(linear, { QStringLiteral("guidelineDashPattern"), QStringLiteral("0") }),
+          [](const core::Map& m) { return static_cast<double>(docLinear(m).guidelineDashPattern.size()); }, 0, 0, 0, 0 },
+        { "unit", at(linear, { QStringLiteral("unit") }), [](const core::Map& m) { return docLinear(m).unit; }, 0, 0, 0, 0 },
+        { "measureFont.size", at(linear, { QStringLiteral("measureFont"), QStringLiteral("size") }),
+          [](const core::Map& m) { return docLinear(m).measureFont.sizePt; }, 8.25, 8.25, 1, 500 },
+        { "point1.x", at(linear, { QStringLiteral("point1"), QStringLiteral("x") }), [](const core::Map& m) { return docLinear(m).point1.x(); }, 0, 0, -5, 1e7 },
+        { "offsetDistance", at(linear, { QStringLiteral("offsetDistance") }), [](const core::Map& m) { return docLinear(m).offsetDistance; }, 0, 0, -5, 1e7 },
+        { "center.x", at(circular, { QStringLiteral("center"), QStringLiteral("x") }), [](const core::Map& m) { return docCircular(m).center.x(); }, 0, 0, -5, 1e7 },
+        { "radius", at(circular, { QStringLiteral("radius") }), [](const core::Map& m) { return docCircular(m).radius; }, 0, 0, 0, 1e7 },
+    };
+    const QJsonObject doc = drawnSampleDoc();
+    {
+        QString err;
+        const auto map = sync::mapFromDocJson(doc, &err);
+        ASSERT_TRUE(map) << err.toStdString();
+        EXPECT_EQ(docGrid(*map).subDivisionNumber, 5);
+        EXPECT_EQ(docGrid(*map).cellIndexColumnType, core::CellIndexType::Numbers);
+        EXPECT_EQ(docLinear(*map).guidelineDashPattern.size(), 2u);
+        EXPECT_EQ(docLinear(*map).unit, 3);
+        EXPECT_EQ(docCircular(*map).radius, 22.0f);
+    }
+    for (const DocField& f : fields) {
+        const std::array<std::pair<QJsonValue, double>, 4> numbers{ { { std::numeric_limits<double>::quiet_NaN(), f.nan },
+                                                          { std::numeric_limits<double>::infinity(), f.infinity },
+                                                          { -5.0, f.negative },
+                                                          { 1e12, f.huge } } };
+        const std::array<std::pair<QJsonValue, double>, 4> texts{ { { QStringLiteral("NaN"), f.nan },
+                                                        { QStringLiteral("Infinity"), f.infinity },
+                                                        { QStringLiteral("-5"), f.negative },
+                                                        { QStringLiteral("1e12"), f.huge } } };
+        for (const auto& [value, expected] : f.asText ? texts : numbers) {
+            QString err;
+            const auto map = sync::mapFromDocJson(withValue(doc, f.path, value).toObject(), &err);
+            ASSERT_TRUE(map) << f.name << ": " << err.toStdString();
+            EXPECT_DOUBLE_EQ(f.value(*map), expected) << f.name << " set to " << value.toVariant().toString().toStdString();
+        }
+    }
 }
