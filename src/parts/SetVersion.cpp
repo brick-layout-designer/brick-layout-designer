@@ -12,6 +12,12 @@ QString milli(double v) {
     return QString::number(static_cast<qint64>(std::floor(v * 1000.0 + 0.5)));
 }
 
+// The first 16 hex digits of the text's SHA-256 (UTF-8).
+QString digest16(const QString& text) {
+    const QByteArray digest = QCryptographicHash::hash(text.toUtf8(), QCryptographicHash::Sha256);
+    return QString::fromLatin1(digest.toHex().left(16));
+}
+
 } // namespace
 
 QString setVersionText(const PartMetadata& set) {
@@ -30,9 +36,14 @@ QString setVersionText(const PartMetadata& set) {
 
 QString setVersion(const PartMetadata& set) {
     if (set.kind != PartKind::Group || set.subparts.isEmpty()) return {};
-    const QByteArray digest =
-        QCryptographicHash::hash(setVersionText(set).toUtf8(), QCryptographicHash::Sha256);
-    return QString::fromLatin1(digest.toHex().left(16));
+    return digest16(setVersionText(set));
+}
+
+QString nestedSetVersion(const QString& own, const QList<InnerSetVersion>& inner) {
+    if (inner.isEmpty()) return own;
+    QString text = QStringLiteral("set-v2\n") + own + QLatin1Char('\n');
+    for (const InnerSetVersion& i : inner) text += i.subKey.toLower() + QLatin1Char('|') + i.version + QLatin1Char('\n');
+    return digest16(text);
 }
 
 } // namespace bld::parts

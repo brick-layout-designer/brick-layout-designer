@@ -1827,7 +1827,8 @@ void MapView::addPartAtScenePos(const QString& partKey, QPointF sceneCenterPx, s
             // A custom set keeps track of the version it came from (sidecar only).
             std::optional<core::PlacedSet> link;
             if (trackedSets_ && trackedSets_(*meta) && !set.groups.empty())
-                link = edit::placedSetLink(parts_, partKey, set.groups.front().guid, set.bricks.front().guid);
+                link = edit::placedSetLink(parts_, partKey, set.groups.front().guid, set.bricks.front().guid,
+                                            trackedSets_);
             // Editing a module, the set joins it in the same undo step.
             undoStack_->beginMacro(tr("Place set %1").arg(setName));
             undoStack_->push(new edit::AddBricksCommand(*map_, targetLayer, std::move(set.bricks), std::move(set.groups)));

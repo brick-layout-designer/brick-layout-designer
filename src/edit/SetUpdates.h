@@ -39,9 +39,19 @@ namespace bld::edit {
 // not the bundled library's.
 using TrackedSet = std::function<bool(const parts::PartMetadata&)>;
 
-// Where the first part of set `key` sits in the set (its box centre and turn).
+// A set's version, following the tracked (custom) sets inside it
+// (parts::nestedSetVersion). A sub-part is found as expandSet finds it
+// (the library's part by that id), never a set it sits in, at most 16
+// deep; with no `tracked`, every set inside counts. Empty for a part that
+// isn't a set. The web's server does the same (withNestedSetVersions).
+QString trackedSetVersion(parts::PartsLibrary& lib, const parts::PartMetadata& set, const TrackedSet& tracked);
+
+// The link for a copy of set `key` just placed as `groupId`: its version
+// (trackedSetVersion), and where its first part sits in the set (its box
+// centre and turn).
 std::optional<core::PlacedSet> placedSetLink(parts::PartsLibrary& lib, const QString& key,
-                                             const QString& groupId, const QString& firstBrickGuid);
+                                             const QString& groupId, const QString& firstBrickGuid,
+                                             const TrackedSet& tracked);
 
 // A placed copy whose set has changed since.
 struct SetUpdate {

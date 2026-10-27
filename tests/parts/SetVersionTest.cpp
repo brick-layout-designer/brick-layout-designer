@@ -70,3 +70,24 @@ TEST(SetVersion, FromASetFile) {
     ASSERT_TRUE(meta);
     EXPECT_EQ(parts::setVersion(*meta), QStringLiteral("1572ba9befec980c"));
 }
+
+// A custom set inside a set: Yard holds the custom set Shed. The same
+// vectors as the web's setVersion.test.ts ("a set holding custom sets").
+TEST(SetVersion, NestedIsTheWebsForTheSameSets) {
+    parts::PartMetadata shed;
+    shed.kind = parts::PartKind::Group;
+    shed.descriptions = { { QStringLiteral("en"), QStringLiteral("Shed") } };
+    shed.subparts = { { QStringLiteral("wall.1"), QPointF(0, 0), 0.0 },
+                      { QStringLiteral("door.1"), QPointF(2, 0), 90.0 } };
+    EXPECT_EQ(parts::setVersion(shed), QStringLiteral("e37a455ec528f2a9"));
+    EXPECT_EQ(parts::nestedSetVersion(QStringLiteral("1572ba9befec980c"),
+                                      { { QStringLiteral("Shed"), parts::setVersion(shed) } }),
+              QStringLiteral("b24401c61c9daf89"));
+    // The inner set loses its door: the outer one changes too.
+    shed.subparts.removeLast();
+    EXPECT_EQ(parts::nestedSetVersion(QStringLiteral("1572ba9befec980c"),
+                                      { { QStringLiteral("SHED"), parts::setVersion(shed) } }),
+              QStringLiteral("d281492859861154"));
+    // No custom set inside: its own version.
+    EXPECT_EQ(parts::nestedSetVersion(QStringLiteral("1572ba9befec980c"), {}), QStringLiteral("1572ba9befec980c"));
+}

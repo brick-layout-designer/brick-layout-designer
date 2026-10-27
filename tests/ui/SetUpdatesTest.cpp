@@ -12,6 +12,7 @@
 #include "edit/EditCommands.h"
 #include "edit/Sets.h"
 #include "parts/PartsLibrary.h"
+#include "parts/SetVersion.h"
 #include "rendering/SceneBuilder.h"
 #include "ui/MapView.h"
 #include "ui/MapViewInternal.h"
@@ -221,7 +222,7 @@ TEST_F(SetUpdates, ADuplicateKeepsTrackAndUpdateAllDoesBoth) {
 TEST_F(SetUpdates, KeepsTheTurnAndTheModule) {
     auto set = edit::expandSet(lib_.lib, QStringLiteral("YARD"), QPointF(40, 20), 90.0);
     const QString group = set.groups.front().guid;
-    auto link = edit::placedSetLink(lib_.lib, QStringLiteral("YARD"), group, set.bricks.front().guid);
+    auto link = edit::placedSetLink(lib_.lib, QStringLiteral("YARD"), group, set.bricks.front().guid, {});
     ASSERT_TRUE(link);
     QSet<QString> members;
     for (const auto& b : set.bricks) members.insert(b.guid);
@@ -251,4 +252,60 @@ TEST_F(SetUpdates, KeepsTheTurnAndTheModule) {
     QSet<QString> now;
     for (const auto& b : layer().bricks) now.insert(b.guid);
     EXPECT_EQ(map().sidecar.modules.front().memberIds, now);
+}
+
+// A set inside a set: DEPOT holds YARD and a lamp. A change to YARD offers an
+// update for the placed DEPOT; Update brings in the whole new structure, in
+// one undo step, and then nothing more is offered.
+TEST_F(SetUpdates, AChangeToASetInsideOffersAnUpdateForTheSetAroundIt) {
+    {
+        QFile f(lib_.dir.filePath(QStringLiteral("DEPOT.set.xml")));
+        ASSERT_TRUE(f.open(QIODevice::WriteOnly));
+        f.write("<group><Description><en>Depot</en></Description><SubPartList>"
+                "<SubPart id=\"YARD\"><position><x>0</x><y>0</y></position><angle>0</angle></SubPart>"
+                "<SubPart id=\"LAMP\"><position><x>0</x><y>12</y></position><angle>0</angle></SubPart>"
+                "</SubPartList></group>");
+    }
+    lib_.lib.scanFile(lib_.dir.filePath(QStringLiteral("DEPOT.set.xml")));
+    const auto depot = lib_.lib.metadata(QStringLiteral("DEPOT"));
+    ASSERT_TRUE(depot);
+    const auto yard = lib_.lib.metadata(QStringLiteral("YARD"));
+    ASSERT_TRUE(yard);
+    // Its version follows Yard's.
+    EXPECT_EQ(edit::trackedSetVersion(lib_.lib, *depot, {}),
+              parts::nestedSetVersion(parts::setVersion(*depot), { { QStringLiteral("YARD"), parts::setVersion(*yard) } }));
+    // A set that isn't tracked (a library one) doesn't count.
+    EXPECT_EQ(edit::trackedSetVersion(lib_.lib, *depot,
+                                      [](const parts::PartMetadata& m) { return !m.xmlFilePath.contains(QLatin1String("YARD")); }),
+              parts::setVersion(*depot));
+
+    view_->addPartAtScenePos(QStringLiteral("DEPOT"), QPointF(40 * kPx, 20 * kPx));
+    ASSERT_EQ(layer().bricks.size(), 3u);
+    ASSERT_EQ(layer().groups.size(), 2u);
+    ASSERT_EQ(map().sidecar.sets.size(), 1u);
+    const core::PlacedSet link = map().sidecar.sets.front();
+    view_->refreshSetUpdates();
+    EXPECT_FALSE(barShown());
+
+    // Yard, inside it, gets a third part: the depot says so.
+    lib_.change(kThree);
+    view_->refreshSetUpdates();
+    ASSERT_TRUE(barShown());
+    EXPECT_EQ(view_->setUpdatesBar()->text(),
+              QStringLiteral("<b>Update available:</b> the set “Depot” changed since it was placed."));
+
+    // Update: the whole new structure, one undo step, and no more offer.
+    const int steps = view_->undoStack()->count();
+    QTest::mouseClick(view_->setUpdatesBar()->updateButton(), Qt::LeftButton);
+    EXPECT_EQ(layer().bricks.size(), 4u);
+    EXPECT_EQ(layer().groups.size(), 2u);
+    EXPECT_EQ(view_->undoStack()->count(), steps + 1);
+    EXPECT_NE(map().sidecar.sets.front().version, link.version);
+    view_->refreshSetUpdates();
+    EXPECT_FALSE(barShown());
+    view_->undoStack()->undo();
+    view_->rebuildScene();
+    EXPECT_EQ(layer().bricks.size(), 3u);
+    EXPECT_EQ(map().sidecar.sets.front().version, link.version);
+    EXPECT_TRUE(barShown());
 }
