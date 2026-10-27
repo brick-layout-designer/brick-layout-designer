@@ -67,6 +67,8 @@ public:
     };
 
     ServerWindow(ServerLibrary& library, QWidget* parent = nullptr);
+    // Closes the club's Members window first (it tells this window when it goes).
+    ~ServerWindow() override;
 
     // Shows the window on that tab, in front.
     void showTab(Tab tab);

@@ -283,6 +283,11 @@ ServerWindow::ServerWindow(ServerLibrary& library, QWidget* parent) : QWidget(pa
     rebuild();
 }
 
+ServerWindow::~ServerWindow() {
+    // While this window is still whole: the Members window's goodbye clears members_.
+    delete members_;
+}
+
 void ServerWindow::loadLists() {
     if (!isVisible()) {
         stale_ = true;
