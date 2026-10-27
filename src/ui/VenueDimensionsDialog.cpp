@@ -115,6 +115,8 @@ VenueDimensionsDialog::VenueDimensionsDialog(QWidget* parent) : QDialog(parent) 
         "closed automatically.")));
 
     auto* table = new QTableWidget(0, 4, this);
+    table->setAccessibleName(QObject::tr("Sides"));
+    table->setTabKeyNavigation(false);  // Tab moves on; the arrow keys move between cells
     const auto setHeader = [table](const QString& unit){
         table->setHorizontalHeaderLabels({ QObject::tr("Length (%1)").arg(unit),
                                             QObject::tr("Angle (°)"),
@@ -164,12 +166,16 @@ VenueDimensionsDialog::VenueDimensionsDialog(QWidget* parent) : QDialog(parent) 
         table->setItem(r, 0, lenItem);
         // Angle column: editable combobox with compass presets.
         table->setCellWidget(r, 1, makeAngleCombo(angle));
+        table->cellWidget(r, 1)->setAccessibleName(QObject::tr("Angle of side %1").arg(r + 1));
         // Kind column: Wall / Door / Open dropdown — set per-segment at
         // draw time so the user doesn't have to reopen Edit Venue
         // Properties to reclassify.
         table->setCellWidget(r, 2, makeKindCombo(kind));
+        table->cellWidget(r, 2)->setAccessibleName(QObject::tr("Kind of side %1").arg(r + 1));
         // Label column: free-form text (e.g. "Main entrance").
-        table->setCellWidget(r, 3, new QLineEdit(label));
+        auto* labelEdit = new QLineEdit(label);
+        labelEdit->setAccessibleName(QObject::tr("Label of side %1").arg(r + 1));
+        table->setCellWidget(r, 3, labelEdit);
     };
     addRow();
 
@@ -203,7 +209,11 @@ VenueDimensionsDialog::VenueDimensionsDialog(QWidget* parent) : QDialog(parent) 
             table->setItem(r, 0, new QTableWidgetItem(QString::number(lenFt, 'f', 2)));
             table->setCellWidget(r, 1, makeAngleCombo(ang));
             table->setCellWidget(r, 2, makeKindCombo(core::EdgeKind::Wall));
-            table->setCellWidget(r, 3, new QLineEdit());
+            table->cellWidget(r, 1)->setAccessibleName(QObject::tr("Angle of side %1").arg(r + 1));
+            table->cellWidget(r, 2)->setAccessibleName(QObject::tr("Kind of side %1").arg(r + 1));
+            auto* labelEdit = new QLineEdit();
+            labelEdit->setAccessibleName(QObject::tr("Label of side %1").arg(r + 1));
+            table->setCellWidget(r, 3, labelEdit);
         };
         append(widthFt, 0.0);
         append(depthFt, 90.0);

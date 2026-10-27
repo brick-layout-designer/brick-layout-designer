@@ -55,6 +55,8 @@ VenueDialog::VenueDialog(const std::optional<core::Venue>& current, QWidget* par
 
     vbox->addWidget(new QLabel(tr("<b>Edges</b> (from the drawn outline — classify each segment)")));
     auto* edgeTable = new QTableWidget(this);
+    edgeTable->setAccessibleName(tr("Edges"));
+    edgeTable->setTabKeyNavigation(false);  // Tab moves on; the arrow keys move between cells
     edgeTable->setColumnCount(4);
     edgeTable->setHorizontalHeaderLabels({ tr("#"), tr("Kind"), tr("Door width (ft)"), tr("Label") });
     edgeTable->horizontalHeader()->setStretchLastSection(true);
@@ -73,16 +75,19 @@ VenueDialog::VenueDialog(const std::optional<core::Venue>& current, QWidget* par
             for (const char* lbl : kindLabels) kindCombo->addItem(QObject::tr(lbl));
             kindCombo->setCurrentIndex(static_cast<int>(e.kind));
             edgeTable->setCellWidget(i, 1, kindCombo);
+            kindCombo->setAccessibleName(tr("Kind of edge %1").arg(i + 1));
 
             auto* widthSpin = new QDoubleSpinBox();
             widthSpin->setRange(0.0, 500.0); widthSpin->setDecimals(2);
             widthSpin->setValue(e.doorWidthStuds / kStudsPerFoot);
             widthSpin->setEnabled(e.kind == core::EdgeKind::Door);
             edgeTable->setCellWidget(i, 2, widthSpin);
+            widthSpin->setAccessibleName(tr("Door width of edge %1 (ft)").arg(i + 1));
             QObject::connect(kindCombo, &QComboBox::currentIndexChanged, widthSpin,
                              [widthSpin](int k){ widthSpin->setEnabled(k == int(core::EdgeKind::Door)); });
 
             auto* labelEdit = new QLineEdit(e.label);
+            labelEdit->setAccessibleName(tr("Label of edge %1").arg(i + 1));
             edgeTable->setCellWidget(i, 3, labelEdit);
         }
         edgeTable->resizeColumnsToContents();

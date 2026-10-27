@@ -31,6 +31,7 @@ BudgetDialog::BudgetDialog(core::Map& map, BudgetSession& budget, QWidget* paren
     vbox->addLayout(btnRow);
 
     table_ = new QTableWidget(this);
+    table_->setAccessibleName(tr("Part budgets"));
     table_->setColumnCount(3);
     table_->setHorizontalHeaderLabels({ tr("Part"), tr("Used"), tr("Limit (blank = no limit)") });
     table_->horizontalHeader()->setStretchLastSection(true);

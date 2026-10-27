@@ -83,6 +83,10 @@ QWidget* buildGeneralTab(QDialog* parent) {
     auto* tplEdit = new QLineEdit(
         s.value(QStringLiteral("general/newMapTemplate")).toString(), w);
     auto* tplBrowse = new QPushButton(QObject::tr("..."), w);
+    // (The row's label names the row, not these two: a screen reader says these.)
+    tplEdit->setAccessibleName(QObject::tr("File > New template"));
+    tplBrowse->setAccessibleName(QObject::tr("Choose the template file"));
+    tplBrowse->setToolTip(QObject::tr("Choose the template file"));
     QObject::connect(tplBrowse, &QPushButton::clicked, w, [tplEdit, w]{
         const QString p = QFileDialog::getOpenFileName(w,
             QObject::tr("New-map template"), tplEdit->text(),
@@ -264,6 +268,8 @@ QWidget* buildLibraryTab(QDialog* parent) {
     auto* moduleDirEdit = new QLineEdit(w);
     moduleDirEdit->setText(s.value(QStringLiteral("modules/libraryPath")).toString());
     auto* moduleBrowse = new QPushButton(QObject::tr("Browse..."), w);
+    moduleDirLabel->setBuddy(moduleDirEdit);  // what a screen reader calls the field
+    moduleBrowse->setAccessibleName(QObject::tr("Choose the module library folder"));
     QObject::connect(moduleBrowse, &QPushButton::clicked, w, [moduleDirEdit, w]{
         const QString p = QFileDialog::getExistingDirectory(w, QObject::tr("Module library folder"));
         if (!p.isEmpty()) moduleDirEdit->setText(p);
@@ -322,6 +328,9 @@ QWidget* buildImportTab(QDialog* parent) {
     auto buildPicker = [w](const QString& settingsKey, const QString& browseTitle) {
         auto* edit = new QLineEdit(QSettings().value(settingsKey).toString(), w);
         auto* btn  = new QPushButton(QObject::tr("Browse..."), w);
+        // Several "Browse..." on one page: each says which folder it picks.
+        edit->setAccessibleName(browseTitle);
+        btn->setAccessibleName(QObject::tr("Choose the folder: %1").arg(browseTitle));
         QObject::connect(btn, &QPushButton::clicked, w, [edit, w, browseTitle]{
             const QString p = QFileDialog::getExistingDirectory(w, browseTitle, edit->text());
             if (!p.isEmpty()) edit->setText(p);
@@ -518,6 +527,8 @@ QWidget* buildImportTab(QDialog* parent) {
     auto* xmlEdit = new QLineEdit(QSettings().value(QStringLiteral("import/lddLdrawXml")).toString(), w);
     xmlEdit->setPlaceholderText(QObject::tr("optional newer ldraw.xml, e.g. from slswww.free.fr/ldraw.xml"));
     auto* xmlBtn = new QPushButton(QObject::tr("Browse..."), w);
+    xmlEdit->setAccessibleName(QObject::tr("LDD to LDraw mapping file"));
+    xmlBtn->setAccessibleName(QObject::tr("Choose the LDD to LDraw mapping file"));
     QObject::connect(xmlBtn, &QPushButton::clicked, w, [xmlEdit, w]{
         const QString p = QFileDialog::getOpenFileName(w, QObject::tr("LDD → LDraw mapping"),
             xmlEdit->text(), QObject::tr("ldraw.xml (*.xml)"));

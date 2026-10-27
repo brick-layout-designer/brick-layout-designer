@@ -142,6 +142,7 @@ PartDifferencesDialog::PartDifferencesDialog(const QList<Row>& rows, QWidget* pa
     inner->setLayout(grid);
     auto* scroll = new QScrollArea;
     scroll->setWidgetResizable(true);
+    scroll->setAccessibleName(tr("Differences"));
     scroll->setWidget(inner);
     layout->addWidget(scroll, 1);
 

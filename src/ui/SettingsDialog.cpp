@@ -112,6 +112,7 @@ SettingsDialog::SettingsDialog(PrefsStore& store, const QString& syncedHost,
     auto* scroll = new QScrollArea(this);
     scroll->setWidgetResizable(true);
     scroll->setFrameShape(QFrame::NoFrame);
+    scroll->setAccessibleName(tr("Settings"));
     auto* page = new QWidget(scroll);
     page->setObjectName(QStringLiteral("SettingsPage"));
     page->setAttribute(Qt::WA_StyledBackground);
