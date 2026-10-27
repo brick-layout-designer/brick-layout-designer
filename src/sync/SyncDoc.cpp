@@ -665,6 +665,18 @@ bool SyncDoc::applyUpdate(const QByteArray& update, QString* error) {
         if (error) *error = QStringLiteral("refused the document update: %1").arg(refused);
         return false;
     }
+    // What applying it takes (UpdateGuard.h): worked out exactly only when
+    // the cheap bound says it might be past the limit.
+    if (guard::updateWorkBound(stateVector(), update) > guard::kMaxUpdateWork) {
+        if (const qint64 work = guard::updateWork(encodeState(), update); work > guard::kMaxUpdateWork) {
+            if (error)
+                *error = QStringLiteral(
+                             "refused the document update: applying it would take %1 steps, more than %2")
+                             .arg(work)
+                             .arg(guard::kMaxUpdateWork);
+            return false;
+        }
+    }
     YTransaction* txn = ydoc_write_transaction(d_->doc, 0, nullptr);
     const uint8_t rc = ytransaction_apply(txn, update.constData(), static_cast<uint32_t>(update.size()));
     ytransaction_commit(txn);
