@@ -4,6 +4,7 @@
 #include "ReturnWording.h"
 #include "ServerLibrary.h"
 #include "ClubLogoViews.h"
+#include "WhileAlive.h"
 #include "help/HelpButton.h"
 
 #include <QCheckBox>
@@ -193,7 +194,7 @@ void ShareToCatalogDialog::share() {
     }
     shareBtn_->setEnabled(false);
     // A picture that can't be drawn doesn't stop the share: cards show a placeholder.
-    if (makeThumbnail) makeThumbnail([this](const QByteArray& png) { send(png); });
+    if (makeThumbnail) makeThumbnail(sync::whileAlive(this, [this](const QByteArray& png) { send(png); }));
     else send({});
 }
 
@@ -209,7 +210,7 @@ void ShareToCatalogDialog::send(const QByteArray& png) {
     s.note = note_->text().trimmed();
     s.thumbnailPng = png;
     s.update = update_;
-    api_.shareToCatalog(s, [this](const QString& id, const QString& status) {
+    api_.shareToCatalog(s, sync::whileAlive(this, [this](const QString& id, const QString& status) {
         itemId_ = id;
         status_ = status;
         result_->setText(status == QLatin1String("public") ? tr("Shared: it’s in the public catalog now.")
@@ -219,11 +220,11 @@ void ShareToCatalogDialog::send(const QByteArray& png) {
                              : tr("Sent for review. A moderator looks at it before it appears in the catalog."));
         pages_->setCurrentIndex(1);
         emit shared(id, status);
-    }, [this](const sync::ServerRefusal& r) {
+    }), sync::whileAlive(this, [this](const sync::ServerRefusal& r) {
         shareBtn_->setEnabled(true);
         error_->setText(ServerLibrary::refusalText(r));
         error_->show();
-    });
+    }));
 }
 
 }  // namespace bld::ui

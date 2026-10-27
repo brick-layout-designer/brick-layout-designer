@@ -31,6 +31,8 @@
 #include <QStandardPaths>
 #include <QTemporaryDir>
 
+#include <algorithm>
+
 using namespace bld;
 using bld::synctest::FakeHttp;
 
@@ -289,6 +291,31 @@ TEST_F(ClubLogosTest, AKeptLogoShowsNextTimeWithoutAskingTheServer) {
     window_ = std::make_unique<ui::ServerWindow>(library_);
     window_->showTab(ui::ServerWindow::Tab::Layouts);
     clubChanged(Logo::V1);
+    ASSERT_TRUE(waitFor([&] { return iconColor(showIcon()) == QColor(Qt::red); }));
+    EXPECT_EQ(requests(http_, kLogoV1), 1);
+}
+
+// Closing the Server window while its club's logo and its lists are still on
+// their way: the answers that land afterwards must not reach the closed
+// window (a crash before), and the logo is still kept for next time.
+TEST_F(ClubLogosTest, ClosingTheWindowWhileALogoIsOnItsWayIsSafe) {
+    const QList<QByteArray> slow{ kLogoV1, "/api/layouts", "/api/venues", "/api/custom-parts" };
+    for (const QByteArray& p : slow) http_.hold.insert(p);
+    open(Logo::V1);
+    ASSERT_TRUE(waitFor([&] {
+        return std::all_of(slow.begin(), slow.end(), [&](const QByteArray& p) { return requests(http_, p) == 1; });
+    }));
+    // Closed with all four in flight.
+    window_.reset();
+    for (const QByteArray& p : slow) http_.release(p);
+    ASSERT_TRUE(waitFor([&] { return !logos().logo(http_.base(), QStringLiteral("train")).isNull(); }));
+    ASSERT_TRUE(waitFor([&] { return library_.api().pending() == 0; }));
+    QCoreApplication::processEvents();
+    EXPECT_EQ(keptFiles().size(), 1);
+
+    // Opened again: the logo shows without asking for it again.
+    window_ = std::make_unique<ui::ServerWindow>(library_);
+    window_->showTab(ui::ServerWindow::Tab::Layouts);
     ASSERT_TRUE(waitFor([&] { return iconColor(showIcon()) == QColor(Qt::red); }));
     EXPECT_EQ(requests(http_, kLogoV1), 1);
 }
