@@ -562,6 +562,54 @@ TEST_F(MainWindowLiveServerParts, AFailedDownloadStaysInSightAndTryAgainFetchesT
 
 namespace {
 
+// The first server is slow to answer for its parts; meanwhile a layout on
+// another server is opened.
+class MainWindowLiveSlowParts : public MainWindowLive {
+protected:
+    void beforeOpen() override {
+        http_.hold.insert("/api/parts/manifest");
+        other_.upgrade = [this](QTcpSocket* s) { otherWs_.take(s); };
+        other_.reply("/api/parts/manifest", 200,
+                     QJsonObject{ { QStringLiteral("libraries"), QJsonArray{} },
+                                  { QStringLiteral("customParts"), QJsonArray{} } });
+    }
+    static int manifestGets(const FakeHttp& http) {
+        return static_cast<int>(std::count_if(http.requests.cbegin(), http.requests.cend(),
+                                              [](const Request& r) { return r.path == "/api/parts/manifest"; }));
+    }
+    FakeHttp other_;
+    FakeServer otherWs_;
+};
+
+}  // namespace
+
+// The second server's parts are fetched once the first server's are done
+// (they were never fetched: the running check for the first one stood in).
+TEST_F(MainWindowLiveSlowParts, ALayoutOnAnotherServerStillGetsThatServersParts) {
+    ASSERT_TRUE(waitFor([&] { return manifestGets(http_) == 1; }));
+    window_->openLive({ other_.base(), QStringLiteral("bld_pat_other"), QStringLiteral("L2"),
+                        QStringLiteral("Club table"), false, serverInfo() });
+    ASSERT_TRUE(waitFor([&] { return session().status() == Status::Synced && !otherWs_.peers.empty(); }));
+    EXPECT_EQ(manifestGets(other_), 0);
+
+    http_.release("/api/parts/manifest");
+    ASSERT_TRUE(waitFor([&] { return manifestGets(other_) == 1; }));
+    for (const auto& r : other_.requests) {
+        if (r.path == "/api/parts/manifest") {
+            EXPECT_EQ(r.authorization, QByteArrayLiteral("Bearer bld_pat_other"));
+        }
+    }
+    // Done: Download Server Parts Again works again.
+    QAction* again = nullptr;
+    for (QAction* a : window_->findChildren<QAction*>())
+        if (a->text() == QStringLiteral("&Download Server Parts Again")) again = a;
+    ASSERT_NE(again, nullptr);
+    ASSERT_TRUE(waitFor([&] { return again->isEnabled(); }));
+    EXPECT_EQ(manifestGets(http_), 1);
+}
+
+namespace {
+
 // The server has 20 part files this computer doesn't.
 class MainWindowLiveDownloadCard : public MainWindowLive {
 protected:
