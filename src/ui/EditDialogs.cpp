@@ -2,6 +2,7 @@
 #include <QUrl>
 #include "help/HelpButton.h"
 
+#include "../core/DrawnLimits.h"
 #include "../core/Layer.h"
 #include "../core/LayerBrick.h"
 #include "../core/LayerRuler.h"
@@ -28,6 +29,8 @@
 #include <QSpinBox>
 #include <QUndoStack>
 #include <QVBoxLayout>
+
+#include <vector>
 
 namespace bld::ui {
 
@@ -231,10 +234,11 @@ bool editRulerDialog(QWidget* parent, core::Map& map, int layerIndex,
     form->addRow(QObject::tr("Guideline thickness:"), guideThickSpin);
 
     auto* dashEdit = new QLineEdit(&dlg);
+    dashEdit->setObjectName(QStringLiteral("dashPattern"));
     QStringList dashStrs;
     for (float f : base->guidelineDashPattern) dashStrs << QString::number(f);
     dashEdit->setText(dashStrs.join(','));
-    dashEdit->setToolTip(QObject::tr("Comma-separated dash lengths (e.g. 4,2,1,2)"));
+    dashEdit->setToolTip(QObject::tr("Comma-separated dash lengths from 0 to 1000 (e.g. 4,2,1,2)"));
     form->addRow(QObject::tr("Dash pattern:"), dashEdit);
 
     QColor measureColor = base->measureFontColor.color;
@@ -302,11 +306,14 @@ bool editRulerDialog(QWidget* parent, core::Map& map, int layerIndex,
     next.displayUnit = displayUnit->isChecked();
     next.guidelineColor = core::ColorSpec::fromArgb(guideColor);
     next.guidelineThickness = static_cast<float>(guideThickSpin->value());
+    std::vector<float> typedDashes;
     for (const QString& tok : dashEdit->text().split(',', Qt::SkipEmptyParts)) {
         bool ok = false;
         const float f = tok.trimmed().toFloat(&ok);
-        if (ok) next.guidelineDashPattern.push_back(f);
+        if (ok) typedDashes.push_back(f);
     }
+    // Kept to what a server takes, or it would refuse the live layout's edit.
+    next.guidelineDashPattern = core::dashPatternInRange(typedDashes);
     next.unit = unitCombo->currentIndex();
     next.measureFont.familyName = measureFont->currentFont().family();
     next.measureFont.sizePt = static_cast<float>(measureSize->value());

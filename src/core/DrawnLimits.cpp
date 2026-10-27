@@ -101,4 +101,14 @@ void keepDrawnSettingsInRange(Map& map) {
     }
 }
 
+std::vector<float> dashPatternInRange(const std::vector<float>& typed) {
+    std::vector<float> out;
+    for (const float d : typed) {
+        if (std::ssize(out) >= limits::kMaxDashEntries) break;
+        if (std::isfinite(d)) out.push_back(std::clamp(d, 0.0f, limits::kMaxDash));
+    }
+    if (std::accumulate(out.cbegin(), out.cend(), 0.0) < limits::kMinDashTotal) out.clear();
+    return out;
+}
+
 } // namespace bld::core
