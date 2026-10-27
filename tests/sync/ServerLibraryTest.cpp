@@ -1473,3 +1473,35 @@ TEST_F(ServerModulesWindow, AChangedImportedPartIsUpdatedOnTheServerToo) {
     EXPECT_FALSE(lastRequest(http_, "PUT", "/api/custom-parts/p2"));
     QSettings().remove(QStringLiteral("modules/libraryPath"));
 }
+
+// The main window's own questions to the server (add a module, use a
+// venue, the notices) go through the ServerLibrary's api. An answer that
+// lands after the window is gone must not reach it: the library must not
+// count on going first. Here it outlives the window, as it would if it were
+// ever owned elsewhere; without the guard each answer is a
+// heap-use-after-free under ASan.
+TEST_F(ServerModulesWindow, AnAnswerAfterTheWindowIsGoneIsDropped) {
+    const QByteArray snapshot = "/api/modules/m1/snapshot";
+    const QByteArray venue = "/api/venues/V9";
+    const QByteArray notices = "/api/notices";
+    http_.reply(venue, 200, { { QStringLiteral("id"), QStringLiteral("V9") }, { QStringLiteral("name"), QStringLiteral("Hall") },
+                              { QStringLiteral("data"), QJsonObject{ { QStringLiteral("name"), QStringLiteral("Hall") } } } });
+    for (const QByteArray& p : { snapshot, venue, notices }) http_.hold.insert(p);
+    const auto asked = [&](const QByteArray& path) {
+        return std::count_if(http_.requests.cbegin(), http_.requests.cend(), [&](const auto& r) { return r.path == path; });
+    };
+    const auto noticesBefore = asked(notices);
+    emit library_->insertRequested(QStringLiteral("m1"));
+    emit library_->catalogVenueCopied(QStringLiteral("V9"), QStringLiteral("Hall"));
+    library_->refresh();  // Ready again: the notices are asked for
+    ASSERT_TRUE(waitFor([&] { return asked(snapshot) == 1 && asked(venue) == 1 && asked(notices) > noticesBefore; }));
+
+    std::unique_ptr<ui::ServerLibrary> library(library_);
+    library->setParent(nullptr);
+    view_ = nullptr;
+    window_.reset();
+
+    for (const QByteArray& p : { snapshot, venue, notices }) http_.release(p);
+    ASSERT_TRUE(waitFor([&] { return library->api().pending() == 0; }));
+    QCoreApplication::processEvents();
+}

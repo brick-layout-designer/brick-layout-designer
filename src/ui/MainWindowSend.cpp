@@ -37,6 +37,7 @@
 #include "PartsUpload.h"
 #include "ServerList.h"
 #include "UploadPartsDialog.h"
+#include "WhileAlive.h"
 
 #include <QBuffer>
 #include <QDesktopServices>
@@ -554,12 +555,12 @@ void MainWindow::saveVenueToServer(const core::Venue& venue) {
         return;
     }
     const QString name = where->first;
-    serverLibrary_->api().createVenue(name, venueData, where->second, [this, name](const QString&) {
+    serverLibrary_->api().createVenue(name, venueData, where->second, sync::whileAlive(this, [this, name](const QString&) {
         statusBar()->showMessage(tr("Saved “%1” on %2").arg(name, serverLibrary_->label()), 6000);
         if (serverWindow_) serverWindow_->hint(QJsonObject{ { QStringLiteral("kind"), QStringLiteral("venue") } });
-    }, [this](const sync::ServerRefusal& r) {
+    }), sync::whileAlive(this, [this](const sync::ServerRefusal& r) {
         QMessageBox::warning(this, tr("Save to Server"), tr("Couldn't save the venue: %1").arg(ServerLibrary::refusalText(r)));
-    });
+    }));
 }
 
 void MainWindow::saveModuleFileToServer(const QString& bbmPath) {
@@ -591,7 +592,7 @@ void MainWindow::shareToCatalog(const sync::CatalogShare& share, bool isUpdate, 
         const sync::ServerEntry* e = list.find(serverLibrary_->server());
         const bool native = e && e->features && e->features->contains(QStringLiteral("layoutDownload"));
         dialog.makeThumbnail = [this, id = share.sourceId, native](const std::function<void(const QByteArray&)>& done) {
-            serverLibrary_->api().layoutFile(id, native, [this, native, done](const QByteArray& bytes) {
+            serverLibrary_->api().layoutFile(id, native, sync::whileAlive(this, [this, native, done](const QByteArray& bytes) {
                 std::unique_ptr<core::Map> map;
                 if (native) {
                     QTemporaryDir assets;
@@ -603,7 +604,7 @@ void MainWindow::shareToCatalog(const sync::CatalogShare& share, bool isUpdate, 
                     map = saveload::readBbm(buf).map;
                 }
                 done(map ? pngBytes(renderModuleThumbnail(*map, parts_, 1024)) : QByteArray());
-            }, [done](const sync::ServerRefusal&) { done({}); });
+            }), [done](const sync::ServerRefusal&) { done({}); });
         };
     }
     connect(&dialog, &ShareToCatalogDialog::shared, this, [this] {

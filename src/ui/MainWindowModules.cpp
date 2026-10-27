@@ -36,6 +36,7 @@
 #include "ModuleDoc.h"
 #include "RefreshOnFocus.h"
 #include "ServerList.h"
+#include "WhileAlive.h"
 
 #include <QBuffer>
 #include <QCoreApplication>
@@ -386,7 +387,7 @@ void MainWindow::openServerLayout(const sync::LayoutEntry& layout) {
 }
 
 void MainWindow::useServerVenue(const QString& venueId) {
-    serverLibrary_->api().venueFile(venueId, [this](const QString& name, const QByteArray& file) {
+    serverLibrary_->api().venueFile(venueId, sync::whileAlive(this, [this](const QString& name, const QByteArray& file) {
         const QString path = venueLibraryPanel_->addVenueFile(name, file);
         QString error;
         const auto venue = path.isEmpty() ? std::nullopt : saveload::readVenueFile(path, &error);
@@ -397,13 +398,13 @@ void MainWindow::useServerVenue(const QString& venueId) {
             return;
         }
         startLayoutFromVenue(*venue);
-    }, [this](const sync::ServerRefusal& r) {
+    }), sync::whileAlive(this, [this](const sync::ServerRefusal& r) {
         QMessageBox::warning(this, tr("Use this venue"), ServerLibrary::refusalText(r));
-    });
+    }));
 }
 
 void MainWindow::addServerVenue(const QString& venueId, const QString& name) {
-    serverLibrary_->api().venueFile(venueId, [this](const QString& got, const QByteArray& file) {
+    serverLibrary_->api().venueFile(venueId, sync::whileAlive(this, [this](const QString& got, const QByteArray& file) {
         if (venueLibraryPanel_->addVenueFile(got, file).isEmpty()) {
             QMessageBox::warning(this, tr("Add to my venue library"),
                                  tr("The venue “%1” couldn't be saved in the Venue library folder %2.")
@@ -413,15 +414,15 @@ void MainWindow::addServerVenue(const QString& venueId, const QString& name) {
         theme::PanelHeader::setShown(venueLibraryPanel_, true);
         venueLibraryPanel_->raise();
         statusBar()->showMessage(tr("Added “%1” to your Venue library").arg(got), 5000);
-    }, [this, name](const sync::ServerRefusal& r) {
+    }), sync::whileAlive(this, [this, name](const sync::ServerRefusal& r) {
         QMessageBox::warning(this, tr("Add to my venue library"), tr("Couldn't get “%1”: %2").arg(name, ServerLibrary::refusalText(r)));
-    });
+    }));
 }
 
 void MainWindow::saveServerModuleCopy(const QString& moduleId) {
     const sync::ServerModule* m = serverLibrary_->module(moduleId);
     const QString title = m ? m->title : tr("Module");
-    serverLibrary_->api().moduleSnapshot(moduleId, [this, title](const QByteArray& bytes) {
+    serverLibrary_->api().moduleSnapshot(moduleId, sync::whileAlive(this, [this, title](const QByteArray& bytes) {
         QString error;
         auto module = sync::mapFromModuleSnapshot(bytes, &error);
         if (!module) {
@@ -432,9 +433,9 @@ void MainWindow::saveServerModuleCopy(const QString& moduleId) {
             theme::PanelHeader::setShown(moduleLibraryPanel_, true);
             moduleLibraryPanel_->raise();
         }
-    }, [this, title](const sync::ServerRefusal& r) {
+    }), sync::whileAlive(this, [this, title](const sync::ServerRefusal& r) {
         QMessageBox::warning(this, tr("Save a copy locally"), tr("Couldn't get “%1”: %2").arg(title, ServerLibrary::refusalText(r)));
-    });
+    }));
 }
 
 void MainWindow::addServerPart(const QString& partNumber) {
@@ -477,7 +478,7 @@ void MainWindow::insertServerModule(const QString& moduleId) {
         serverLibrary_->setInserting({});
         if (LoadingCard* card = mapView_->loadingCard(); card && !card->failureShown()) card->finish();
     };
-    serverLibrary_->api().moduleSnapshot(moduleId, [this, moduleId, title, server, token, source, finish](const QByteArray& bytes) {
+    serverLibrary_->api().moduleSnapshot(moduleId, sync::whileAlive(this, [this, moduleId, title, server, token, source, finish](const QByteArray& bytes) {
         QString error;
         std::shared_ptr<core::Map> module(sync::mapFromModuleSnapshot(bytes, &error).release());
         if (!module || sync::partCount(*module) == 0) {
@@ -505,17 +506,17 @@ void MainWindow::insertServerModule(const QString& moduleId) {
         const bool serverHasParts = !e || !e->features || e->features->contains(QStringLiteral("partsManifest"));
         if (serverHasParts && hasUnknownParts(*module, parts_)) syncServerParts(server, token, place);
         else place();
-    }, [this, title, finish](const sync::ServerRefusal& r) {
+    }), sync::whileAlive(this, [this, title, finish](const sync::ServerRefusal& r) {
         finish();
         QMessageBox::warning(this, tr("Add module"),
                              tr("Couldn't get “%1”: %2").arg(title, ServerLibrary::refusalText(r)));
-    });
+    }));
 }
 
 void MainWindow::insertCatalogModule(const sync::CatalogItem& item) {
     if (!serverLibrary_) return;
     statusBar()->showMessage(tr("Adding “%1” to your modules…").arg(item.title), 5000);
-    serverLibrary_->api().addCatalogItem(item.id, QString(), [this, item](const QString&, const QString& id) {
+    serverLibrary_->api().addCatalogItem(item.id, QString(), sync::whileAlive(this, [this, item](const QString&, const QString& id) {
         // The copy is yours now: list it, then put it in the layout.
         serverLibrary_->refresh();
         auto once = std::make_shared<QMetaObject::Connection>();
@@ -523,9 +524,9 @@ void MainWindow::insertCatalogModule(const sync::CatalogItem& item) {
             disconnect(*once);
             insertServerModule(id);
         });
-    }, [this, item](const sync::ServerRefusal& r) {
+    }), sync::whileAlive(this, [this, item](const sync::ServerRefusal& r) {
         QMessageBox::warning(this, tr("Catalog"), tr("Couldn't add “%1”: %2").arg(item.title, ServerLibrary::refusalText(r)));
-    });
+    }));
 }
 
 void MainWindow::openServerModule(const QString& moduleId) {
@@ -536,7 +537,7 @@ void MainWindow::openServerModule(const QString& moduleId) {
     const QUrl server = serverLibrary_->server();
     const QString token = serverLibrary_->token();
     if (!maybeSave()) return;
-    serverLibrary_->api().moduleSnapshot(moduleId, [this, moduleId, title, server, token](const QByteArray& bytes) {
+    serverLibrary_->api().moduleSnapshot(moduleId, sync::whileAlive(this, [this, moduleId, title, server, token](const QByteArray& bytes) {
         QString error;
         std::shared_ptr<core::Map> map(sync::mapFromModuleSnapshot(bytes, &error).release());
         if (!map) {
@@ -576,9 +577,9 @@ void MainWindow::openServerModule(const QString& moduleId) {
         const bool serverHasParts = !e || !e->features || e->features->contains(QStringLiteral("partsManifest"));
         if (serverHasParts && hasUnknownParts(*map, parts_)) syncServerParts(server, token, open);
         else open();
-    }, [this, title](const sync::ServerRefusal& r) {
+    }), sync::whileAlive(this, [this, title](const sync::ServerRefusal& r) {
         QMessageBox::warning(this, tr("Open module"), tr("Couldn't get “%1”: %2").arg(title, ServerLibrary::refusalText(r)));
-    });
+    }));
 }
 
 void MainWindow::clearEditingModule() {
@@ -627,7 +628,7 @@ bool MainWindow::saveEditedModule() {
 
 void MainWindow::uploadModule(sync::LibraryApi& api, const std::shared_ptr<core::Map>& module, const QString& updateId,
                               const QString& title, const QString& orgSlug, const QString& note,
-                              const std::function<void(bool, const QString&, int)>& done) {
+                              const std::function<void(bool, const QString&, int)>& whenDone) {
     // Its picture now, while the parts are at hand: as big as the web's,
     // smaller when the server's limit can't take that.
     QByteArray png;
@@ -638,43 +639,46 @@ void MainWindow::uploadModule(sync::LibraryApi& api, const std::shared_ptr<core:
     const sync::ServerList servers = sync::ServerList::load();
     const sync::ServerEntry* entry = servers.find(api.base());
     const QString server = entry ? entry->label() : api.base().host();
-    auto failed = [this, done](const sync::ServerRefusal& r) {
+    // Shared by the steps below (one copy of the caller's callback, not one per step).
+    const auto done = std::make_shared<const std::function<void(bool, const QString&, int)>>(whenDone);
+    // (std::function: callable from the const copies the steps below keep)
+    const sync::LibraryApi::Fail failed = sync::whileAlive(this, [this, done](const sync::ServerRefusal& r) {
         QMessageBox::warning(this, tr("Save module"), tr("Couldn't save the module: %1").arg(ServerLibrary::refusalText(r)));
-        if (done) done(false, {}, 0);
-    };
+        if (*done) (*done)(false, {}, 0);
+    });
     // Write the module into what the server holds (a new one starts with
     // the server's empty layout), then save it as a version.
     auto write = [this, &api, module, png, note, server, done, failed](
                      const QString& id, const QString& name, bool created) {
-        api.moduleSnapshot(id, [this, &api, module, id, name, png, note, server, done, failed, created](const QByteArray& current) {
+        api.moduleSnapshot(id, sync::whileAlive(this, [this, &api, module, id, name, png, note, server, done, failed, created](const QByteArray& current) {
             QString error;
             const QByteArray snapshot = sync::moduleSnapshotFor(*module, current, &error);
             if (snapshot.isEmpty()) {
                 QMessageBox::warning(this, tr("Save module"), tr("Couldn't save the module (%1).").arg(error));
                 if (created) api.deleteModule(id, {}, {});
-                if (done) done(false, {}, 0);
+                if (*done) (*done)(false, {}, 0);
                 return;
             }
-            api.saveModuleSnapshot(id, snapshot, note, [this, &api, id, name, png, server, done](int version) {
-                auto finished = [this, id, name, version, server, done] {
+            api.saveModuleSnapshot(id, snapshot, note, sync::whileAlive(this, [this, &api, id, name, png, server, done](int version) {
+                const std::function<void()> finished = sync::whileAlive(this, [this, id, name, version, server, done] {
                     statusBar()->showMessage(version > 1 ? tr("Saved version %1 of “%2” on %3").arg(version).arg(name, server)
                                                          : tr("Saved “%1” on %2").arg(name, server),
                                              6000);
                     serverLibrary_->refresh();
-                    if (done) done(true, id, version);
-                };
+                    if (*done) (*done)(true, id, version);
+                });
                 if (png.isEmpty()) {
                     finished();
                     return;
                 }
                 // No picture: the lists show a placeholder until it's opened on the web.
                 api.setModuleThumbnail(id, png, finished, [finished](const sync::ServerRefusal&) { finished(); });
-            }, [&api, id, created, failed](const sync::ServerRefusal& r) {
+            }), [&api, id, created, failed](const sync::ServerRefusal& r) {
                 // Don't leave an empty module behind when its contents didn't arrive.
                 if (created) api.deleteModule(id, {}, {});
                 failed(r);
             });
-        }, failed);
+        }), failed);
     };
     if (!updateId.isEmpty()) {
         const sync::ServerModule* m = serverLibrary_->module(updateId);
@@ -690,10 +694,10 @@ void MainWindow::refreshNotices() {
         return;
     }
     const QUrl server = serverLibrary_->server();
-    serverLibrary_->api().notices([this, server](const QList<sync::Notice>& list) {
+    serverLibrary_->api().notices(sync::whileAlive(this, [this, server](const QList<sync::Notice>& list) {
         if (server != serverLibrary_->server()) return;
         showNextNotice(list);
-    }, [](const sync::ServerRefusal&) {
+    }), [](const sync::ServerRefusal&) {
         // A server before warnings, or offline: nothing to show.
     });
 }
@@ -722,10 +726,10 @@ void MainWindow::showNextNotice(const QList<sync::Notice>& list) {
     const QString id = w.id;
     QList<NoticeAction> actions;
     actions << NoticeAction{ tr("I understand"), [this, id] {
-                                serverLibrary_->api().acknowledge(id, [this] { refreshNotices(); },
-                                                                  [this](const sync::ServerRefusal& r) {
+                                serverLibrary_->api().acknowledge(id, sync::whileAlive(this, [this] { refreshNotices(); }),
+                                                                  sync::whileAlive(this, [this](const sync::ServerRefusal& r) {
                                                                       statusBar()->showMessage(ServerLibrary::refusalText(r), 6000);
-                                                                  });
+                                                                  }));
                             },
                              true, true };
     if (!w.link.isEmpty()) {

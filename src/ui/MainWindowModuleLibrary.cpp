@@ -30,6 +30,7 @@
 #include "../saveload/BbmReader.h"
 #include "../saveload/BbmWriter.h"
 #include "ModuleDoc.h"
+#include "WhileAlive.h"
 
 #include <QDateTime>
 #include <QFileInfo>
@@ -165,9 +166,9 @@ void MainWindow::saveModuleMap(core::Map module, const QString& moduleId, const 
     }
     centre(module);
     uploadModule(serverLibrary_->api(), std::make_shared<core::Map>(std::move(module)), updateId, title, orgSlug, note,
-                 [this, moduleId](bool saved, const QString& id, int version) {
+                 sync::whileAlive(this, [this, moduleId](bool saved, const QString& id, int version) {
                      if (saved) linkModule(moduleId, id, version, serverLibrary_->api().moduleWebUrl(id).toString());
-                 });
+                 }));
 }
 
 void MainWindow::linkModule(const QString& moduleId, const QString& libraryId, int version, const QString& sourceFile) {
@@ -288,11 +289,11 @@ void MainWindow::pullModule(const QString& moduleId) {
         const int latest = sm->latestVersion;
         const QString libraryId = link->id;
         const int was = link->version;
-        auto failed = [this](const sync::ServerRefusal& r) {
+        const sync::LibraryApi::Fail failed = sync::whileAlive(this, [this](const sync::ServerRefusal& r) {
             QMessageBox::warning(this, tr("Update from Module library"),
                                  tr("Couldn't update from the Module library: %1").arg(ServerLibrary::refusalText(r)));
-        };
-        serverLibrary_->api().moduleSnapshot(libraryId, [this, moduleId, libraryId, latest, was, ask](const QByteArray& bytes) {
+        });
+        serverLibrary_->api().moduleSnapshot(libraryId, sync::whileAlive(this, [this, moduleId, libraryId, latest, was, ask](const QByteArray& bytes) {
             QString error;
             std::shared_ptr<core::Map> lib(sync::mapFromModuleSnapshot(bytes, &error).release());
             if (!lib) {
@@ -305,7 +306,7 @@ void MainWindow::pullModule(const QString& moduleId) {
                 return;
             }
             // Changed in this layout? Compare with the version it was linked at.
-            serverLibrary_->api().moduleVersionSnapshot(libraryId, was, [this, moduleId, latest, ask, apply](const QByteArray& old) {
+            serverLibrary_->api().moduleVersionSnapshot(libraryId, was, sync::whileAlive(this, [this, moduleId, latest, ask, apply](const QByteArray& old) {
                 std::unique_ptr<core::Map> then = sync::mapFromModuleSnapshot(old);
                 auto* map = mapView_->currentMap();
                 const core::Module* m = map ? core::findModule(map->sidecar.modules, moduleId) : nullptr;
@@ -316,10 +317,10 @@ void MainWindow::pullModule(const QString& moduleId) {
                     changed = !edit::matchesVersion(edit::batchesOfModule(*then), edit::placedParts(*map, m->memberIds), parts_);
                 }
                 if (!changed || ask(latest)) apply();
-            }, [ask, apply, latest](const sync::ServerRefusal&) {
+            }), sync::whileAlive(this, [ask, apply, latest](const sync::ServerRefusal&) {
                 if (ask(latest)) apply();
-            });
-        }, failed);
+            }));
+        }), failed);
         return;
     }
     const QString file = libraryFileOf(*mod);
