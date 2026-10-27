@@ -423,9 +423,9 @@ void MainWindow::startPrefsSync(const sync::ConnectResult& r) {
     prefsSync_->stop();
     const sync::ServerEntry* main = servers.find(account);
     if (main && main->features && !main->features->contains(QStringLiteral("preferences"))) return;
-    tokens_->load(account, [this, account](const QString& token) {
-        // Still live, and nothing started meanwhile.
-        if (token.isEmpty() || !live_->active() || prefsSync_->active()) return;
+    tokens_->load(account, [this, alive = std::weak_ptr<int>(alive_), account](const QString& token) {
+        // The window still here, still live, and nothing started meanwhile.
+        if (alive.expired() || token.isEmpty() || !live_->active() || prefsSync_->active()) return;
         prefsSync_->start(account, token);
     });
 }
