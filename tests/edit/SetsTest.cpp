@@ -2,14 +2,15 @@
 // one, grouping and ungrouping around it, counting it, saving it, and
 // turning the modules older builds made of placed sets back into sets.
 
+#include "edit/Sets.h"
 #include "core/Groups.h"
 #include "core/Ids.h"
 #include "core/LayerBrick.h"
 #include "core/Map.h"
+#include "edit/Budget.h"
 #include "edit/Connectivity.h"
 #include "edit/EditCommands.h"
 #include "edit/PartList.h"
-#include "edit/Sets.h"
 #include "parts/BrickPlacement.h"
 #include "parts/PartsLibrary.h"
 #include "saveload/BbmReader.h"
@@ -19,7 +20,9 @@
 
 #include <QCoreApplication>
 #include <QDir>
+#include <QFile>
 #include <QGuiApplication>
+#include <QImage>
 #include <QTemporaryDir>
 #include <QUndoStack>
 
@@ -104,6 +107,51 @@ TEST_F(SetsTest, AFlexTrackIsOneNamedGroupOfItsTwoHalves) {
     stack_.undo();
     EXPECT_TRUE(layer().bricks.empty());
     EXPECT_TRUE(layer().groups.empty());
+}
+
+// A set named like one of its own parts ("YARD" holding the part YARD): the
+// library knows it by that number, so the part inside it found the set
+// again, nesting 16 copies (and counting it for a budget never ended).
+// Each now goes once, the part inside as that part.
+TEST_F(SetsTest, ASetNamedLikeItsOwnPartPlacesThatPartNotItself) {
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QDir root(dir.path());
+    // The set is read first, so it is what "YARD" finds.
+    root.mkpath(QStringLiteral("a"));
+    root.mkpath(QStringLiteral("b"));
+    const auto write = [](const QString& path, const QByteArray& text) {
+        QFile f(path);
+        ASSERT_TRUE(f.open(QIODevice::WriteOnly));
+        f.write(text);
+    };
+    write(root.filePath(QStringLiteral("a/YARD.set.xml")),
+          "<group><Description><en>Yard</en></Description><SubPartList>"
+          "<SubPart id=\"YARD\"><position><x>0</x><y>0</y></position><angle>0</angle></SubPart>"
+          "<SubPart id=\"SHED\"><position><x>0</x><y>8</y></position><angle>0</angle></SubPart>"
+          "</SubPartList></group>");
+    write(root.filePath(QStringLiteral("b/SHED.xml")),
+          "<part><Description><en>Shed</en></Description></part>");
+    QImage img(32, 32, QImage::Format_ARGB32);
+    img.fill(Qt::gray);
+    ASSERT_TRUE(img.save(root.filePath(QStringLiteral("b/SHED.gif")), "GIF")
+                || img.save(root.filePath(QStringLiteral("b/SHED.png")), "PNG"));
+    parts::PartsLibrary lib;
+    lib.addSearchPath(root.filePath(QStringLiteral("a")));
+    lib.addSearchPath(root.filePath(QStringLiteral("b")));
+    lib.scan();
+    ASSERT_EQ(lib.metadata(QStringLiteral("YARD"))->kind, parts::PartKind::Group);
+
+    const auto set = edit::expandSet(lib, QStringLiteral("YARD"), QPointF(0, 0), 0.0);
+    ASSERT_EQ(set.groups.size(), 1U);
+    ASSERT_EQ(set.bricks.size(), 2U);
+    EXPECT_EQ(set.bricks[0].partNumber, QStringLiteral("YARD"));
+    EXPECT_EQ(set.bricks[1].partNumber, QStringLiteral("SHED"));
+    const auto leaves = edit::setLeafParts(lib, QStringLiteral("YARD"));
+    EXPECT_EQ(leaves.value(QStringLiteral("YARD")), 1);
+    EXPECT_EQ(leaves.value(QStringLiteral("SHED")), 1);
+    // Its picture is drawn from its parts, without drawing itself inside it.
+    EXPECT_FALSE(lib.pixmap(QStringLiteral("YARD")).isNull());
 }
 
 TEST_F(SetsTest, ANestedSetIsAChildGroup) {

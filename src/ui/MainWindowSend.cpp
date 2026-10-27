@@ -242,7 +242,14 @@ void MainWindow::offerAnotherSetName(const SetServer& to, const sync::LocalPart&
         const auto taken = [&](const QString& stem) {
             return onServer.contains(stem.toLower()) || QFileInfo::exists(dir.filePath(stem + QStringLiteral(".set.xml")));
         };
-        SetNameTakenDialog dialog(set.key, saveload::freeSetName(set.displayName, taken), to.label, this);
+        // Nor a number of one of its own parts (it would stand in for that part).
+        const QStringList subparts = saveload::setSubpartKeys(set.xmlPath);
+        const auto takenOrOwnPart = [&](const QString& stem) {
+            return taken(stem) || !saveload::partNamedLikeSet(stem, subparts).isEmpty();
+        };
+        SetNameTakenDialog dialog(set.key, saveload::freeSetName(set.displayName, takenOrOwnPart), to.label,
+                                  this);
+        dialog.refuseNamesOf(subparts);
         if (!(runSetNameTakenDialog ? runSetNameTakenDialog(dialog) : dialog.exec() == QDialog::Accepted)) {
             statusBar()->showMessage(tr("“%1” is saved on this computer only.").arg(set.displayName), 8000);
             return;

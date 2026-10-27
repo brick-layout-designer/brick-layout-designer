@@ -7,6 +7,7 @@
 
 #include <QDialog>
 #include <QString>
+#include <QStringList>
 
 class QCheckBox;
 class QLabel;
@@ -27,15 +28,23 @@ public:
     QString name() const;
     // Ticked, and shown (a server that takes sets).
     bool alsoOnServer() const;
+    // The set's own part numbers: a name that is one of them is refused,
+    // with a line saying why (saveload::partNamedLikeSet).
+    void refuseNamesOf(const QStringList& subpartKeys);
 
     QLineEdit* nameEdit() const { return name_; }
     QCheckBox* serverBox() const { return server_; }
     QPushButton* saveButton() const { return save_; }
+    QLabel* clashLabel() const { return clash_; }
 
 private:
+    void check();
+
     QLineEdit* name_ = nullptr;
     QCheckBox* server_ = nullptr;
     QPushButton* save_ = nullptr;
+    QLabel* clash_ = nullptr;
+    QStringList subparts_;
 };
 
 // Rename set…: the set's new name, and "Also rename it on <server>" once
@@ -73,12 +82,19 @@ public:
                        QWidget* parent = nullptr);
 
     QString name() const;
+    // As SaveSetDialog::refuseNamesOf.
+    void refuseNamesOf(const QStringList& subpartKeys);
     QLineEdit* nameEdit() const { return name_; }
     QPushButton* useButton() const { return use_; }
+    QLabel* clashLabel() const { return clash_; }
 
 private:
+    void check();
+
     QLineEdit* name_ = nullptr;
     QPushButton* use_ = nullptr;
+    QLabel* clash_ = nullptr;
+    QStringList subparts_;
 };
 
 }  // namespace bld::ui

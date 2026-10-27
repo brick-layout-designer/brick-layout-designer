@@ -1,6 +1,7 @@
 #include "SaveSetDialog.h"
 
 #include "help/HelpButton.h"
+#include "saveload/SetIO.h"
 
 #include <QCheckBox>
 #include <QDialogButtonBox>
@@ -12,6 +13,28 @@
 #include <QVBoxLayout>
 
 namespace bld::ui {
+
+namespace {
+
+// The red line under a set's name, hidden until the name is one of its parts'.
+QLabel* clashLine(const QString& objectName, QWidget* parent) {
+    auto* label = new QLabel(parent);
+    label->setObjectName(objectName);
+    label->setWordWrap(true);
+    label->setStyleSheet(QStringLiteral("color: #d9534f;")); // reads on light and dark themes
+    label->hide();
+    return label;
+}
+
+// Why `name` can't be a set of `subparts`, or empty when it can.
+QString clashText(const QString& name, const QStringList& subparts) {
+    const QString part = saveload::partNamedLikeSet(name, subparts);
+    if (part.isEmpty()) return {};
+    return QObject::tr("“%1” is a part in this set, so the set can’t have that name too. Pick another name.")
+        .arg(part);
+}
+
+} // namespace
 
 SaveSetDialog::SaveSetDialog(int partCount, const QString& serverLabel, bool alsoOnServer, QWidget* parent)
     : QDialog(parent) {
@@ -40,6 +63,8 @@ SaveSetDialog::SaveSetDialog(int partCount, const QString& serverLabel, bool als
     name_->selectAll();
     form->addRow(tr("Set name"), name_);
     col->addLayout(form);
+    clash_ = clashLine(QStringLiteral("saveSetNameClash"), this);
+    col->addWidget(clash_);
 
     server_ = new QCheckBox(tr("Also put it on the server"), this);
     server_->setObjectName(QStringLiteral("saveSetAlsoOnServer"));
@@ -56,8 +81,20 @@ SaveSetDialog::SaveSetDialog(int partCount, const QString& serverLabel, bool als
     save_->setDefault(true);
     connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
-    connect(name_, &QLineEdit::textChanged, this, [this] { save_->setEnabled(!name_->text().trimmed().isEmpty()); });
+    connect(name_, &QLineEdit::textChanged, this, &SaveSetDialog::check);
     col->addWidget(buttons);
+}
+
+void SaveSetDialog::refuseNamesOf(const QStringList& subpartKeys) {
+    subparts_ = subpartKeys;
+    check();
+}
+
+void SaveSetDialog::check() {
+    const QString why = clashText(name(), subparts_);
+    clash_->setText(why);
+    clash_->setVisible(!why.isEmpty());
+    save_->setEnabled(!name_->text().trimmed().isEmpty() && why.isEmpty());
 }
 
 QString SaveSetDialog::name() const {
@@ -133,18 +170,32 @@ SetNameTakenDialog::SetNameTakenDialog(const QString& taken, const QString& sugg
     name_->selectAll();
     form->addRow(tr("Set name"), name_);
     col->addLayout(form);
+    clash_ = clashLine(QStringLiteral("setNameTakenClash"), this);
+    col->addWidget(clash_);
     auto* buttons = new QDialogButtonBox(this);
     use_ = buttons->addButton(tr("Use this name"), QDialogButtonBox::AcceptRole);
     use_->setDefault(true);
     buttons->addButton(tr("Keep it only on this computer"), QDialogButtonBox::RejectRole);
     connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
-    connect(name_, &QLineEdit::textChanged, this, [this] { use_->setEnabled(!name_->text().trimmed().isEmpty()); });
+    connect(name_, &QLineEdit::textChanged, this, &SetNameTakenDialog::check);
     col->addWidget(buttons);
 }
 
 QString SetNameTakenDialog::name() const {
     return name_->text().trimmed();
+}
+
+void SetNameTakenDialog::refuseNamesOf(const QStringList& subpartKeys) {
+    subparts_ = subpartKeys;
+    check();
+}
+
+void SetNameTakenDialog::check() {
+    const QString why = name().isEmpty() ? QString() : clashText(name(), subparts_);
+    clash_->setText(why);
+    clash_->setVisible(!why.isEmpty());
+    use_->setEnabled(!name().isEmpty() && why.isEmpty());
 }
 
 }  // namespace bld::ui

@@ -888,6 +888,9 @@ void MainWindow::onSaveSelectionAsSet() {
     const QString alsoKey = QStringLiteral("sets/alsoOnServer");
     SaveSetDialog dialog(static_cast<int>(picks.size()), server ? server->label : QString(),
                          settings.value(alsoKey, true).toBool(), this);
+    QStringList subpartKeys;
+    for (const saveload::SetSubpart& sp : manifest.subparts) subpartKeys << sp.partKey;
+    dialog.refuseNamesOf(subpartKeys);
     if (!(runSaveSetDialog ? runSaveSetDialog(dialog) : dialog.exec() == QDialog::Accepted)) return;
     const QString rawName = dialog.name();
     const bool alsoOnServer = server && dialog.alsoOnServer();
@@ -915,6 +918,15 @@ void MainWindow::onSaveSelectionAsSet() {
             target = target.left(target.size() - 4) + QStringLiteral(".set.xml");
         else
             target += QStringLiteral(".set.xml");
+    }
+    // The file name is its part number: not one of its own parts' (it would stand in for that part).
+    if (const QString part = saveload::partNamedLikeSet(QFileInfo(target).fileName().chopped(8), subpartKeys);
+        !part.isEmpty()) {
+        QMessageBox::warning(this, tr("Save set"),
+                             tr("“%1” is a part in this set, so the set’s file can’t have that name too. "
+                                "Save it again under another name.")
+                                 .arg(part));
+        return;
     }
 
     QString err;
