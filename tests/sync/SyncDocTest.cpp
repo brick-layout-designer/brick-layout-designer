@@ -7,6 +7,7 @@
 #include "WebModel.h"
 #include "WebModelWriter.h"
 
+#include "core/Ids.h"
 #include "core/LayerArea.h"
 #include "core/LayerBrick.h"
 #include "core/LayerRuler.h"
@@ -413,4 +414,53 @@ TEST(SyncDocSidecar, KeepsWhatTheDesktopDoesntHandle) {
                   .value(QLatin1String("version"))
                   .toString(),
               QStringLiteral("v1"));
+}
+
+// Perf: a live layout of thousands of parts. Each edit wrote the document
+// by reading its parts one by one by index (yarray_get walks the array
+// from its start every time) and added new parts one insert at a time: a
+// move in a layout of 5,000 parts took over half a second, and the first
+// sync's read as long. Counts the array work, not time.
+TEST(SyncDoc, EditsToABigLayoutTouchTheArrayOnceNotOncePerPart) {
+    sync::SyncDoc doc;
+    ASSERT_TRUE(doc.applyUpdate(serverDoc()));
+    auto map = mapOf(doc);
+    auto& layer = layerOf<core::LayerBrick>(*map, core::LayerKind::Brick);
+    ASSERT_FALSE(layer.bricks.empty());
+    const core::Brick model = layer.bricks.front();
+    const auto addParts = [&](int n) {
+        for (int i = 0; i < n; ++i) {
+            core::Brick b = model;
+            b.guid = core::newBbmId();
+            b.myGroupId.clear();
+            for (auto& c : b.connections) {
+                c.guid = core::newBbmId();
+                c.linkedToId.clear();
+            }
+            b.displayArea.translate(8.0 * (i % 50), 8.0 * (i / 50 + 1));
+            layer.bricks.push_back(b);
+        }
+    };
+    addParts(1500);
+    ASSERT_FALSE(doc.writeMap(*map).isEmpty());
+
+    // One part moved: no part read by index, nothing inserted.
+    layer.bricks.back().displayArea.translate(8, 0);
+    auto before = sync::SyncDoc::arrayWork();
+    ASSERT_FALSE(doc.writeMap(*map).isEmpty());
+    auto after = sync::SyncDoc::arrayWork();
+    EXPECT_EQ(after.readsByIndex - before.readsByIndex, 0);
+    EXPECT_EQ(after.inserts - before.inserts, 0);
+
+    // 300 pasted: one insert for them all.
+    addParts(300);
+    before = sync::SyncDoc::arrayWork();
+    ASSERT_FALSE(doc.writeMap(*map).isEmpty());
+    after = sync::SyncDoc::arrayWork();
+    EXPECT_EQ(after.readsByIndex - before.readsByIndex, 0);
+    EXPECT_EQ(after.inserts - before.inserts, 1);
+
+    // And the document reads back as written.
+    EXPECT_EQ(layerOf<core::LayerBrick>(*mapOf(doc), core::LayerKind::Brick).bricks.size(), layer.bricks.size());
+    EXPECT_TRUE(doc.writeMap(*map).isEmpty());
 }

@@ -62,6 +62,15 @@ public:
     bool canUndo() const;
     bool canRedo() const;
 
+    // How much array work writeMap has done so far (the perf tests count
+    // it): entries read by index, each of which walks the array from its
+    // start, and insert calls.
+    struct ArrayWork {
+        int readsByIndex = 0;
+        int inserts = 0;
+    };
+    static ArrayWork arrayWork();
+
 private:
     void init();
     struct Impl;

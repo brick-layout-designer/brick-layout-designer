@@ -19,6 +19,7 @@ namespace {
 struct OutputDeleter { void operator()(YOutput* o) const { if (o) youtput_destroy(o); } };
 struct MapIterDeleter { void operator()(YMapIter* i) const { if (i) ymap_iter_destroy(i); } };
 struct EntryDeleter { void operator()(YMapEntry* e) const { if (e) ymap_entry_destroy(e); } };
+struct ArrayIterDeleter { void operator()(YArrayIter* i) const { if (i) yarray_iter_destroy(i); } };
 
 QJsonValue toJson(const YOutput* o, const YTransaction* txn, int depth);
 
@@ -32,11 +33,13 @@ QJsonObject mapToJson(const Branch* map, const YTransaction* txn, int depth) {
 
 QJsonArray arrayToJson(const Branch* array, const YTransaction* txn, int depth) {
     QJsonArray out;
-    const uint32_t n = yarray_len(array);
-    for (uint32_t i = 0; i < n; ++i) {
-        std::unique_ptr<YOutput, OutputDeleter> v(yarray_get(array, txn, i));
+    // In one pass: yarray_get walks the array from its start each time, so
+    // reading by index took time growing with the square of the length (a
+    // layout of 5,000 parts took a sizeable part of a second to read). The
+    // iterator only reads; the transaction it asks for isn't changed.
+    std::unique_ptr<YArrayIter, ArrayIterDeleter> it(yarray_iter(array, const_cast<YTransaction*>(txn)));
+    while (std::unique_ptr<YOutput, OutputDeleter> v{ yarray_iter_next(it.get()) })
         out.append(toJson(v.get(), txn, depth + 1));
-    }
     return out;
 }
 

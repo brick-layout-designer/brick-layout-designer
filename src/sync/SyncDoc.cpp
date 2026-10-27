@@ -19,6 +19,7 @@ extern "C" {
 
 #include <deque>
 #include <iterator>
+#include <algorithm>
 #include <vector>
 
 namespace bld::sync {
@@ -288,6 +289,31 @@ private:
 
 struct OutputDeleter { void operator()(YOutput* o) const { if (o) youtput_destroy(o); } };
 using Output = std::unique_ptr<YOutput, OutputDeleter>;
+struct ArrayIterDeleter { void operator()(YArrayIter* i) const { if (i) yarray_iter_destroy(i); } };
+
+SyncDoc::ArrayWork work;  // (written from the UI thread only)
+
+YOutput* readAt(const Branch* arr, const YTransaction* txn, uint32_t index) {
+    ++work.readsByIndex;
+    return yarray_get(arr, txn, index);
+}
+
+void insertAt(const Branch* arr, YTransaction* txn, uint32_t index, const YInput* items, uint32_t count) {
+    ++work.inserts;
+    yarray_insert_range(arr, txn, index, items, count);
+}
+
+// Every entry of an array, in order, read in one pass. yarray_get walks
+// the array from its start each time, so reading the entries one by one by
+// index took time growing with the square of their count: a live layout of
+// 5,000 parts spent over half a second on each edit doing that.
+std::vector<Output> entriesOf(const Branch* arr, YTransaction* txn) {
+    std::vector<Output> out;
+    out.reserve(yarray_len(arr));
+    std::unique_ptr<YArrayIter, ArrayIterDeleter> it(yarray_iter(arr, txn));
+    while (YOutput* o = yarray_iter_next(it.get())) out.emplace_back(o);
+    return out;
+}
 
 QByteArray takeBinary(char* data, uint32_t len) {
     QByteArray out(data, static_cast<qsizetype>(len));
@@ -296,6 +322,8 @@ QByteArray takeBinary(char* data, uint32_t len) {
 }
 
 }  // namespace
+
+SyncDoc::ArrayWork SyncDoc::arrayWork() { return work; }
 
 // Transactions from this desktop's own edits; only these are undoable.
 constexpr char kLocalOrigin[] = "bld-local";
@@ -342,12 +370,12 @@ struct SyncDoc::Impl {
                 if (!items || items->tag != Y_ARRAY) continue;
                 const Branch* arr = youtput_read_yarray(items.get());
                 for (uint32_t i = yarray_len(arr); i-- > 0;) {
-                    Output o(yarray_get(arr, txn, i));
+                    Output o(readAt(arr, txn, i));
                     if (o && o->tag == Y_MAP) continue;
                     if (static_cast<qsizetype>(i) >= cr.size()) continue;
                     yarray_remove_range(arr, txn, i, 1);
                     const YInput m = arena.itemMap(cr[i].toObject());
-                    yarray_insert_range(arr, txn, i, &m, 1);
+                    insertAt(arr, txn, i, &m, 1);
                 }
             } else if (type == QLatin1String("brick")) {
                 const QJsonArray cb = c.value(QLatin1String("bricks")).toArray(),
@@ -427,24 +455,37 @@ struct SyncDoc::Impl {
             ++ops;
             yarray_remove_range(arr, txn, 0, yarray_len(arr));
             auto& items = arena.itemMaps(want);
-            if (!items.empty()) yarray_insert_range(arr, txn, 0, items.data(), static_cast<uint32_t>(items.size()));
+            if (!items.empty()) insertAt(arr, txn, 0, items.data(), static_cast<uint32_t>(items.size()));
             return;
         }
         uint32_t pos = 0;
         qsizetype curIndex = 0;
+        // The kept entries, in order (the inserts below go between them).
+        const std::vector<Output> entries = entriesOf(arr, txn);
+        // New items next to each other go in together: one at a time, each
+        // insert walked the array again (a paste of 500 into a big layout).
+        std::vector<YInput> run;
+        uint32_t runAt = 0;
+        const auto flush = [&] {
+            if (run.empty()) return;
+            insertAt(arr, txn, runAt, run.data(), static_cast<uint32_t>(run.size()));
+            run.clear();
+        };
         for (const auto& v : want) {
             const QJsonObject w = v.toObject();
             if (curIndex < curIds.size() && curIds[curIndex] == w.value(QLatin1String("id")).toString()) {
-                Output o(yarray_get(arr, txn, pos));
-                if (o && o->tag == Y_MAP) setFields(youtput_read_ymap(o.get()), cur[curIndex].toObject(), w, false);
+                flush();
+                const YOutput* o = curIndex < static_cast<qsizetype>(entries.size()) ? entries[curIndex].get() : nullptr;
+                if (o && o->tag == Y_MAP) setFields(youtput_read_ymap(o), cur[curIndex].toObject(), w, false);
                 ++curIndex;
             } else {
-                const YInput item = arena.itemMap(w);
-                yarray_insert_range(arr, txn, pos, &item, 1);
+                if (run.empty()) runAt = pos;
+                run.push_back(arena.itemMap(w));
                 ++ops;
             }
             ++pos;
         }
+        flush();
     }
 
     // An area sheet: cells are kept relative to its cellOffset (doc shape
@@ -468,7 +509,7 @@ struct SyncDoc::Impl {
         yarray_remove_range(arr, txn, 0, yarray_len(arr));
         auto& items = arena.plains(rel);
         if (!items.empty())
-            yarray_insert_range(arr, txn, 0, items.data(), static_cast<uint32_t>(items.size()));
+            insertAt(arr, txn, 0, items.data(), static_cast<uint32_t>(items.size()));
     }
 
     // A ruler there twice (two people turned the sheet into Y.Maps at the
@@ -493,12 +534,8 @@ struct SyncDoc::Impl {
 
     // Whether every entry of the array is a Y.Map.
     bool allMaps(const Branch* arr) {
-        const uint32_t n = yarray_len(arr);
-        for (uint32_t i = 0; i < n; ++i) {
-            Output o(yarray_get(arr, txn, i));
-            if (!o || o->tag != Y_MAP) return false;
-        }
-        return true;
+        const std::vector<Output> entries = entriesOf(arr, txn);
+        return std::all_of(entries.cbegin(), entries.cend(), [](const Output& o) { return o && o->tag == Y_MAP; });
     }
 
     // Bricks or rulers in doc shape 2: delete, update in place, add new
@@ -527,14 +564,18 @@ struct SyncDoc::Impl {
             order.append({ v.toObject().value(QLatin1String("id")).toString(), zOf(v) });
         QHash<QString, double> z;
         for (const auto& [id, value] : assignZ(order, idsOf(want))) z.insert(id, value);
-        uint32_t end = static_cast<uint32_t>(kept.size());
+        const auto end = static_cast<uint32_t>(kept.size());
+        std::vector<YInput> added;
+        // The kept entries (new ones only go on the end).
+        const std::vector<Output> entries = entriesOf(arr, txn);
         for (const auto& v : want) {
             QJsonObject w = v.toObject();
             const QString id = w.value(QLatin1String("id")).toString();
             if (at.contains(id)) {
-                Output o(yarray_get(arr, txn, static_cast<uint32_t>(at.value(id))));
+                const qsizetype i = at.value(id);
+                const YOutput* o = i < static_cast<qsizetype>(entries.size()) ? entries[i].get() : nullptr;
                 if (!o || o->tag != Y_MAP) continue;
-                const Branch* m = youtput_read_ymap(o.get());
+                const Branch* m = youtput_read_ymap(o);
                 setFields(m, kept[at.value(id)].toObject(), w, false);
                 if (z.contains(id)) {
                     const YInput zv = yinput_float(z.value(id));
@@ -543,11 +584,14 @@ struct SyncDoc::Impl {
                 }
             } else {
                 if (z.contains(id)) w.insert(QStringLiteral("z"), z.value(id));
-                const YInput item = arena.itemMap(w);
-                yarray_insert_range(arr, txn, end++, &item, 1);
+                added.push_back(arena.itemMap(w));
                 ++ops;
             }
         }
+        // The new ones on the end together: one by one, each insert walked
+        // the array again (a paste of 500 into a big layout, or its first
+        // upload, took time growing with the square of the count).
+        if (!added.empty()) insertAt(arr, txn, end, added.data(), static_cast<uint32_t>(added.size()));
     }
 
     void syncLayer(const Branch* map, const QJsonObject& cur, const QJsonObject& want) {
@@ -577,7 +621,7 @@ struct SyncDoc::Impl {
                 const Branch* arr = youtput_read_yarray(existing.get());
                 yarray_remove_range(arr, txn, 0, yarray_len(arr));
                 auto& items = arena.plains(it.value().toArray());
-                if (!items.empty()) yarray_insert_range(arr, txn, 0, items.data(), static_cast<uint32_t>(items.size()));
+                if (!items.empty()) insertAt(arr, txn, 0, items.data(), static_cast<uint32_t>(items.size()));
             }
         }
     }
@@ -691,7 +735,7 @@ QByteArray SyncDoc::writeMap(const core::Map& map) {
         ++d.ops;
         yarray_remove_range(d.layers, d.txn, 0, yarray_len(d.layers));
         auto& ids = d.arena.plains(order);
-        if (!ids.empty()) yarray_insert_range(d.layers, d.txn, 0, ids.data(), static_cast<uint32_t>(ids.size()));
+        if (!ids.empty()) insertAt(d.layers, d.txn, 0, ids.data(), static_cast<uint32_t>(ids.size()));
     }
 
     const QJsonObject curData = cur.value(QLatin1String("layerData")).toObject();
