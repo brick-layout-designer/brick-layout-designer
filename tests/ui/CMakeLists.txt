@@ -35,6 +35,7 @@ add_executable(bld_ui_tests
     UiWordingTest.cpp
     SnapFeelTest.cpp
     GridSnapTest.cpp
+    SetDragTest.cpp
     ModuleLookTest.cpp
     ModuleEditTest.cpp
     ModuleSheetsTest.cpp
