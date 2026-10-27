@@ -251,7 +251,37 @@ void MainWindow::offerAnotherSetName(const SetServer& to, const sync::LocalPart&
         });
 }
 
-void MainWindow::findServerSet(const QString& key, const std::function<void(const ServerSetCopy&)>& found) {
+bool MainWindow::serverDeletesParts(const QUrl& server) const {
+    const QString flag = QStringLiteral("deletePartsFromDesktop");
+    if (live_ && live_->active() && server == liveServer_ && liveInfo_.features
+        && liveInfo_.features->contains(flag))
+        return true;
+    const sync::ServerList list = sync::ServerList::load();
+    const sync::ServerEntry* e = list.find(server);
+    return e && e->features && e->features->contains(flag);
+}
+
+void MainWindow::deletePartOnServer(const SetServer& on, const QString& id, const QString& name) {
+    auto* api = new sync::LibraryApi(this);
+    api->setBase(on.server);
+    api->setToken(on.token);
+    api->deleteCustomPart(
+        id,
+        [this, api, on, name] {
+            api->deleteLater();
+            statusBar()->showMessage(tr("“%1” is deleted from %2 too.").arg(name, on.label), 6000);
+            if (live_->active() && on.server == liveServer_) loadLivePartsCatalog();
+        },
+        [this, api, on, name](const sync::ServerRefusal& r) {
+            api->deleteLater();
+            QMessageBox::warning(this, tr("Delete"),
+                                 tr("“%1” is deleted from this computer, but not from %2: %3")
+                                     .arg(name, on.label, ServerLibrary::refusalText(r)));
+        });
+}
+
+void MainWindow::findServerCopy(const QString& key, bool set,
+                                const std::function<void(const ServerSetCopy&)>& found) {
     // The server you're signed in to, and the live layout's if it's another.
     QList<SetServer> servers;
     if (serverLibrary_ && serverLibrary_->state() == ServerLibrary::State::Ready)
@@ -263,31 +293,48 @@ void MainWindow::findServerSet(const QString& key, const std::function<void(cons
         api->setBase(on.server);
         api->setToken(on.token);
         api->customParts(
-            [this, api, on, key, found](const QList<sync::ServerPart>& list) {
+            [this, api, on, key, set, found](const QList<sync::ServerPart>& list) {
                 api->deleteLater();
                 for (const sync::ServerPart& p : list) {
-                    // Your set there (no picture of its own), by its number, as uploaded.
-                    if (p.hasSprite || p.partNumber.compare(key, Qt::CaseInsensitive) != 0) continue;
+                    // Your set there (no picture of its own) or part (with one), by its number, as uploaded.
+                    if (p.hasSprite == set || p.partNumber.compare(key, Qt::CaseInsensitive) != 0) continue;
                     if (p.role != QLatin1String("owner") && p.role != QLatin1String("editor")) continue;
                     ServerSetCopy copy;
                     copy.serverLabel = on.label;
-                    copy.rename = [this, on, id = p.id, number = p.partNumber](const QString& name) {
-                        renameSetOnServer(on, id, number, name);
-                    };
+                    if (set)
+                        copy.rename = [this, on, id = p.id, number = p.partNumber](const QString& name) {
+                            renameSetOnServer(on, id, number, name);
+                        };
                     if (p.role == QLatin1String("owner")) {
-                        // The server lets the desktop rename a part but not delete one:
-                        // say it's still there, and open its parts list on the website.
-                        copy.stillThere = [this, on, name = p.name()] {
+                        // Servers with deletePartsFromDesktop take the desktop's token for it.
+                        const bool deletes = serverDeletesParts(on.server);
+                        if (deletes)
+                            copy.deleteThere = [this, on, id = p.id, name = p.name()] {
+                                deletePartOnServer(on, id, name);
+                            };
+                        // Deleted here, still there: say so, with a way to delete it there
+                        // (from here when the server lets the desktop, else on the website).
+                        copy.stillThere = [this, on, deletes, deleteThere = copy.deleteThere,
+                                           name = p.name()] {
                             QUrl parts = on.server;
                             parts.setPath(QStringLiteral("/"));
                             parts.setFragment(QStringLiteral("parts"));
-                            notices_->showNotice(
-                                QStringLiteral("set-still-on-server:") + on.server.toString(), tr("Still on %1").arg(on.label),
-                                tr("“%1” is deleted from this computer, but it’s still in your parts on %2. Delete it "
-                                   "there on the website.")
-                                    .arg(name, on.label),
-                                { NoticeAction{ tr("Open %1").arg(on.label), [parts] { QDesktopServices::openUrl(parts); }, true },
-                                  NoticeAction{ tr("Keep it there"), {} } });
+                            const QString text = deletes ? tr("“%1” is deleted from this computer, but it’s "
+                                                              "still in your parts on %2.")
+                                                               .arg(name, on.label)
+                                                         : tr("“%1” is deleted from this computer, but it’s "
+                                                              "still in your parts on %2. "
+                                                              "Delete it there on the website.")
+                                                               .arg(name, on.label);
+                            const NoticeAction there =
+                                deletes
+                                    ? NoticeAction{ tr("Delete it from %1").arg(on.label), deleteThere, true }
+                                    : NoticeAction{ tr("Open %1").arg(on.label),
+                                                    [parts] { QDesktopServices::openUrl(parts); }, true };
+                            notices_->showNotice(QStringLiteral("set-still-on-server:")
+                                                     + on.server.toString(),
+                                                 tr("Still on %1").arg(on.label), text,
+                                                 { there, NoticeAction{ tr("Keep it there"), {} } });
                         };
                     }
                     found(copy);

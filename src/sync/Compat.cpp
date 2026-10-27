@@ -54,6 +54,8 @@ QString featureLabel(const QString& id) {
     if (id == QLatin1String("layoutDownload")) return tr("Downloading a copy of a layout, venue sizes in the list");
     if (id == QLatin1String("catalogShare")) return tr("Sharing to the public catalog from the desktop app");
     if (id == QLatin1String("uploadSets")) return tr("Uploading sets of your own parts");
+    if (id == QLatin1String("deletePartsFromDesktop"))
+        return tr("Deleting your own parts and sets from the desktop app");
     return id;
 }
 

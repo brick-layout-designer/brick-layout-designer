@@ -53,18 +53,19 @@
 #include <QMenuBar>
 #include <QPushButton>
 
-#include <optional>
+#include <QGraphicsItem>
+#include <QGraphicsScene>
 #include <QSettings>
 #include <QStandardPaths>
-#include <QTabWidget>
 #include <QStatusBar>
-#include <QGraphicsScene>
-#include <QGraphicsItem>
+#include <QTabWidget>
 #include <QTcpServer>
 #include <QTemporaryDir>
-#include <QToolButton>
 #include <QTimer>
+#include <QToolButton>
 #include <QUndoStack>
+#include <algorithm>
+#include <optional>
 
 using namespace bld;
 using bld::synctest::FakeHttp;
@@ -1520,6 +1521,110 @@ TEST_F(ServerWindowMain, YourSetOnTheServerIsRenamedThereAndSaidToBeStillThere) 
     for (auto* l : window_->notices()->card(id)->findChildren<QLabel*>()) texts << l->text();
     EXPECT_TRUE(texts.join(QLatin1Char(' ')).contains(QStringLiteral("still in your parts on Club server")))
         << texts.join(QLatin1Char('|')).toStdString();
+}
+
+// A server with deletePartsFromDesktop: your set and your part there can be
+// deleted from the desktop (DELETE with its token), and the "still there"
+// notice for a copy found too late offers that instead of the website.
+// Without the feature: no deleteThere, and the notice opens the website.
+TEST_F(ServerWindowMain, YourSetAndPartAreDeletedFromAServerThatLetsTheDesktop) {
+    http_.clear("/api/custom-parts");
+    http_.reply(
+        "/api/custom-parts", 200,
+        { { QStringLiteral("parts"),
+            QJsonArray{ QJsonObject{ { QStringLiteral("id"), QStringLiteral("s1") },
+                                     { QStringLiteral("partNumber"), QStringLiteral("Yard sidings") },
+                                     { QStringLiteral("displayName"), QStringLiteral("Yard sidings") },
+                                     { QStringLiteral("role"), QStringLiteral("owner") },
+                                     { QStringLiteral("spriteMime"), QString() } },
+                        QJsonObject{ { QStringLiteral("id"), QStringLiteral("p9") },
+                                     { QStringLiteral("partNumber"), QStringLiteral("Depot") },
+                                     { QStringLiteral("displayName"), QStringLiteral("Depot") },
+                                     { QStringLiteral("role"), QStringLiteral("owner") },
+                                     { QStringLiteral("spriteMime"), QStringLiteral("image/png") } },
+                        QJsonObject{ { QStringLiteral("id"), QStringLiteral("v3") },
+                                     { QStringLiteral("partNumber"), QStringLiteral("Shed") },
+                                     { QStringLiteral("displayName"), QStringLiteral("Shed") },
+                                     { QStringLiteral("role"), QStringLiteral("editor") },
+                                     { QStringLiteral("spriteMime"), QString() } } } } });
+    http_.reply("/api/custom-parts/s1", 200, { { QStringLiteral("ok"), true } });
+    http_.reply("/api/custom-parts/p9", 200, { { QStringLiteral("ok"), true } });
+    const auto features = [&](const QStringList& f) {
+        sync::ServerList list = sync::ServerList::load();
+        sync::ServerInfo info;
+        info.features = f;
+        list.remember(http_.base(), info);
+        list.save();
+    };
+    auto* browser = window_->findChild<ui::PartsBrowser*>();
+    ASSERT_TRUE(browser && browser->findServerSet && browser->findServerPart);
+    const auto find = [&](bool set, const QString& key) {
+        std::optional<ui::ServerSetCopy> copy;
+        (set ? browser->findServerSet
+             : browser->findServerPart)(key, [&](const ui::ServerSetCopy& c) { copy = c; });
+        EXPECT_TRUE(waitFor([&] { return copy.has_value(); })) << key.toStdString();
+        return copy;
+    };
+    const auto deletes = [&](const char* path) {
+        return std::count_if(http_.requests.begin(), http_.requests.end(),
+                             [&](const auto& r) { return r.method == "DELETE" && r.path == path; });
+    };
+
+    // Without the feature: nothing to delete there, and the notice points to the website.
+    features({ QStringLiteral("uploadParts"), QStringLiteral("uploadSets") });
+    std::optional<ui::ServerSetCopy> old = find(true, QStringLiteral("Yard sidings"));
+    ASSERT_TRUE(old);
+    EXPECT_FALSE(old->deleteThere);
+    ASSERT_TRUE(old->stillThere);
+    old->stillThere();
+    const QString id = QStringLiteral("set-still-on-server:") + http_.base().toString();
+    ASSERT_TRUE(window_->notices()->isShown(id));
+    QStringList buttons;
+    for (auto* b : window_->notices()->card(id)->findChildren<QPushButton*>()) buttons << b->text();
+    EXPECT_TRUE(buttons.contains(QStringLiteral("Open Club server")))
+        << buttons.join(QLatin1Char('|')).toStdString();
+    window_->notices()->hideNotice(id);
+
+    // With it: your set is deleted there with the desktop's token.
+    features({ QStringLiteral("uploadParts"), QStringLiteral("uploadSets"),
+               QStringLiteral("deletePartsFromDesktop") });
+    std::optional<ui::ServerSetCopy> set = find(true, QStringLiteral("yard SIDINGS"));
+    ASSERT_TRUE(set && set->deleteThere && set->rename);
+    set->deleteThere();
+    ASSERT_TRUE(waitFor([&] { return deletes("/api/custom-parts/s1") == 1; }));
+    for (const auto& r : http_.requests) {
+        if (r.method == "DELETE") {
+            EXPECT_TRUE(r.authorization.startsWith("Bearer ")) << r.path.toStdString();
+        }
+    }
+    EXPECT_TRUE(waitFor([&] {
+        return window_->statusBar()->currentMessage().contains(
+            QStringLiteral("deleted from Club server too"));
+    })) << window_->statusBar()->currentMessage().toStdString();
+
+    // A copy found too late: its notice deletes it there.
+    ASSERT_TRUE(set->stillThere);
+    set->stillThere();
+    ASSERT_TRUE(window_->notices()->isShown(id));
+    QPushButton* deleteThere = nullptr;
+    for (auto* b : window_->notices()->card(id)->findChildren<QPushButton*>())
+        if (b->text() == QStringLiteral("Delete it from Club server")) deleteThere = b;
+    ASSERT_TRUE(deleteThere);
+    deleteThere->click();
+    EXPECT_TRUE(waitFor([&] { return deletes("/api/custom-parts/s1") == 2; }));
+
+    // Your part (with a picture) is found for Delete imported part…, not as a set, and deleted there.
+    std::optional<ui::ServerSetCopy> part = find(false, QStringLiteral("depot"));
+    ASSERT_TRUE(part && part->deleteThere);
+    EXPECT_FALSE(part->rename);
+    part->deleteThere();
+    EXPECT_TRUE(waitFor([&] { return deletes("/api/custom-parts/p9") == 1; }));
+
+    // A set you only edit isn't yours to delete.
+    std::optional<ui::ServerSetCopy> shed = find(true, QStringLiteral("Shed"));
+    ASSERT_TRUE(shed);
+    EXPECT_FALSE(shed->deleteThere);
+    EXPECT_FALSE(shed->stillThere);
 }
 
 TEST_F(ServerWindowMain, TheServersLiveHintsReachTheWindow) {

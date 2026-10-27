@@ -10,6 +10,7 @@
 #include <QDialog>
 #include <QString>
 
+class QCheckBox;
 class QLabel;
 class QLineEdit;
 class QPushButton;
@@ -58,6 +59,13 @@ public:
 
     static QString undoWithCtrlZ();
 
+    // An "Also …" checkbox under the text ("Also delete it from Club server"),
+    // hidden until this shows it, which may be while the dialog is open.
+    void showOption(const QString& text, bool checked = true);
+    QCheckBox* optionBox() const { return option_; }
+    // Shown and ticked.
+    bool optionChosen() const;
+
     QPushButton* confirmButton() const { return confirm_; }
     QPushButton* cancelButton() const { return cancel_; }
     QLineEdit* nameEdit() const { return typed_; }
@@ -69,6 +77,7 @@ private:
     ConfirmOptions opts_;
     QLabel* body_ = nullptr;
     QLineEdit* typed_ = nullptr;
+    QCheckBox* option_ = nullptr;
     QPushButton* confirm_ = nullptr;
     QPushButton* cancel_ = nullptr;
 };

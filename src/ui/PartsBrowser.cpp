@@ -327,23 +327,25 @@ void PartsBrowser::showPartMenu(const QPoint& pos) {
         && meta->xmlFilePath.contains(QStringLiteral("/imports/"))) {
         menu.addSeparator();
         auto* del = menu.addAction(tr("Delete imported part..."));
+        del->setObjectName(QStringLiteral("act.part.delete"));
         connect(del, &QAction::triggered, this, [this, key, meta]{
             DeleteWording w = ConfirmDialog::customPartWording();
             w.removes = tr("The part’s files are deleted from this computer: %1").arg(meta->xmlFilePath);
-            if (!ConfirmDialog::confirmDelete(this, key, w)) return;
-            if (!meta->xmlFilePath.isEmpty()) QFile::remove(meta->xmlFilePath);
-            if (!meta->gifFilePath.isEmpty()) QFile::remove(meta->gifFilePath);
-            // Also clear any sibling files the importer dropped
-            // alongside (PNG fallback, README, etc.) so re-importing
-            // the same model doesn't pick up stale companions.
-            const QFileInfo fi(meta->xmlFilePath);
-            const QString stem = fi.completeBaseName();
-            const QDir dir = fi.absoluteDir();
-            for (const QFileInfo& sibling : dir.entryInfoList(
-                    { stem + QStringLiteral(".*") }, QDir::Files)) {
-                QFile::remove(sibling.absoluteFilePath());
-            }
-            emit partDeleted();
+            deleteHereAndThere(key, key, w, findServerPart, [this, meta] {
+                if (!meta->xmlFilePath.isEmpty()) QFile::remove(meta->xmlFilePath);
+                if (!meta->gifFilePath.isEmpty()) QFile::remove(meta->gifFilePath);
+                // Also clear any sibling files the importer dropped
+                // alongside (PNG fallback, README, etc.) so re-importing
+                // the same model doesn't pick up stale companions.
+                const QFileInfo fi(meta->xmlFilePath);
+                const QString stem = fi.completeBaseName();
+                const QDir dir = fi.absoluteDir();
+                for (const QFileInfo& sibling :
+                     dir.entryInfoList({ stem + QStringLiteral(".*") }, QDir::Files)) {
+                    QFile::remove(sibling.absoluteFilePath());
+                }
+                emit partDeleted();
+            });
         });
     }
 
@@ -409,21 +411,54 @@ void PartsBrowser::addSetActions(QMenu& menu, const QString& key) {
     auto* del = menu.addAction(tr("Delete set..."));
     del->setObjectName(QStringLiteral("act.set.delete"));
     connect(del, &QAction::triggered, this, [this, key, name, xmlPath, picture] {
-        if (!ConfirmDialog::confirmDelete(this, name, ConfirmDialog::setWording())) return;
-        QFile::remove(xmlPath);
-        // A picture made for it (a .set.gif beside it), if there is one.
-        const QFileInfo set(xmlPath);
-        const QFileInfo pic(picture);
-        if (!picture.isEmpty() && pic.absolutePath() == set.absolutePath()
-            && pic.completeBaseName().compare(set.completeBaseName(), Qt::CaseInsensitive) == 0)
-            QFile::remove(picture);
-        emit ownSetsChanged();
-        // Still on a server: say so there, with the way to delete it.
-        if (findServerSet)
-            findServerSet(key, [](const ServerSetCopy& c) {
-                if (c.stillThere) c.stillThere();
-            });
+        deleteHereAndThere(key, name, ConfirmDialog::setWording(), findServerSet, [this, xmlPath, picture] {
+            QFile::remove(xmlPath);
+            // A picture made for it (a .set.gif beside it), if there is one.
+            const QFileInfo set(xmlPath);
+            const QFileInfo pic(picture);
+            if (!picture.isEmpty() && pic.absolutePath() == set.absolutePath()
+                && pic.completeBaseName().compare(set.completeBaseName(), Qt::CaseInsensitive) == 0)
+                QFile::remove(picture);
+            emit ownSetsChanged();
+        });
     });
+}
+
+void PartsBrowser::deleteHereAndThere(const QString& key, const QString& name, const DeleteWording& wording,
+                                      const FindServerCopy& find, const std::function<void()>& removeHere) {
+    ConfirmDialog dialog(ConfirmDialog::deleteOptions(name, wording), this);
+    // What the server said, and whether the dialog is still asking.
+    struct State {
+        ConfirmDialog* open = nullptr;
+        std::optional<ServerSetCopy> copy;
+        bool deleted = false;
+    };
+    auto state = std::make_shared<State>();
+    state->open = &dialog;
+    if (find)
+        find(key, [state](const ServerSetCopy& c) {
+            if (state->copy) return;
+            state->copy = c;
+            if (state->open) {
+                if (c.deleteThere) state->open->showOption(tr("Also delete it from %1").arg(c.serverLabel));
+            } else if (state->deleted && c.stillThere) {
+                // Found after the dialog closed: say it's still there.
+                c.stillThere();
+            }
+        });
+    const bool yes = dialog.exec() == QDialog::Accepted;
+    const bool there = dialog.optionChosen();
+    state->open = nullptr;
+    if (!yes) return;
+    removeHere();
+    state->deleted = true;
+    const std::optional<ServerSetCopy> copy = state->copy;
+    if (!copy.has_value()) return;
+    if (copy->deleteThere) {
+        if (there) copy->deleteThere(); // unticked: kept there, as asked
+    } else if (copy->stillThere) {
+        copy->stillThere();
+    }
 }
 
 QString PartsBrowser::categoryForPath(const QString& absPath) const {

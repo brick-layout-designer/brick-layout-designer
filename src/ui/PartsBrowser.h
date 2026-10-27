@@ -36,12 +36,17 @@ QString serverFolderOf(const parts::PartMetadata& meta);
 QString partTooltip(const parts::PartMetadata& meta, const QString& key, const QString& desc,
                     const QHash<QString, QString>& serverLabels);
 
-// A set you made that's on a server you're signed in to, as one of your
-// custom parts there (matched by part number, as the upload sends it).
+struct DeleteWording;
+
+// A set (or part) you made that's on a server you're signed in to, as one
+// of your custom parts there (matched by part number, as the upload sends it).
 struct ServerSetCopy {
     QString serverLabel;
-    // Its name there becomes `name` (and the English name in its XML).
+    // Its name there becomes `name` (and the English name in its XML). Sets only.
     std::function<void(const QString& name)> rename;
+    // Deletes it there too. Empty when it isn't yours to delete, or the
+    // server doesn't let the desktop delete parts (no deletePartsFromDesktop).
+    std::function<void()> deleteThere;
     // Deleted here, still there: say so, with a way to delete it there.
     // Empty when it isn't yours to delete.
     std::function<void()> stillThere;
@@ -96,6 +101,8 @@ public:
     // Looks for the set `key` on your servers, calling `found` for a copy
     // there you may rename (MainWindow sets it; empty: no server).
     std::function<void(const QString& key, std::function<void(const ServerSetCopy&)> found)> findServerSet;
+    // The same for one of your imported parts (a part with a picture there).
+    std::function<void(const QString& key, std::function<void(const ServerSetCopy&)> found)> findServerPart;
 
 signals:
     void partActivated(const QString& key);
@@ -196,6 +203,15 @@ private:
     QString liveServerFolder_;
     std::function<QStringList()> ownRoots_;
     void addSetActions(QMenu& menu, const QString& key);
+    using FindServerCopy =
+        std::function<void(const QString& key, std::function<void(const ServerSetCopy&)> found)>;
+    // Delete set… and Delete imported part…: asks first, and while it asks
+    // looks for the copy on a server (`find`). One the server lets the
+    // desktop delete gets "Also delete it from <server>", ticked. Yes runs
+    // `removeHere`, then deletes it there when ticked; a copy it can't
+    // delete, or one found after the dialog closed, says it's still there.
+    void deleteHereAndThere(const QString& key, const QString& name, const DeleteWording& wording,
+                            const FindServerCopy& find, const std::function<void()>& removeHere);
 };
 
 }
