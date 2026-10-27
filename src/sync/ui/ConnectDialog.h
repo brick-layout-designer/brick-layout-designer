@@ -21,6 +21,7 @@
 #include <QUrl>
 
 #include <functional>
+#include <memory>
 #include <optional>
 #include <utility>
 
@@ -154,6 +155,8 @@ private:
     QComboBox* owner_ = nullptr;
     QLineEdit* publishTitle_ = nullptr;
     QPushButton* publishBtn_ = nullptr;
+    // Gone with the window: callbacks that may outlive it check it.
+    std::shared_ptr<int> alive_ = std::make_shared<int>(0);
 };
 
 } // namespace bld::sync

@@ -29,6 +29,8 @@
 #include <algorithm>
 #include <functional>
 #include <memory>
+#include <utility>
+#include <vector>
 
 using namespace bld::sync;
 using bld::synctest::FakeHttp;
@@ -181,6 +183,73 @@ TEST(ConnectDialog, ReusesASavedTokenAndSignsInAgainWhenItWasRevoked) {
         EXPECT_EQ(h.opened[0], QUrl(QStringLiteral("https://x.org/device")));
         EXPECT_TRUE(h.tokens.tokens.isEmpty());
     }
+}
+
+namespace {
+// A keychain that answers only when told (it may ask the person first).
+class SlowTokenStore : public MemoryTokenStore {
+public:
+    void load(const QUrl& server, std::function<void(const QString&)> done) override {
+        waiting.push_back([this, server, done = std::move(done)] { done(tokens.value(keyFor(server))); });
+    }
+    void answer() {
+        for (auto& w : std::exchange(waiting, {})) w();
+    }
+    std::vector<std::function<void()>> waiting;
+};
+
+int layoutGets(const FakeHttp& http) {
+    return static_cast<int>(std::count_if(http.requests.cbegin(), http.requests.cend(),
+                                          [](const auto& r) { return r.path == "/api/layouts"; }));
+}
+} // namespace
+
+// The keychain answers after the window has closed: nothing happens.
+TEST(ConnectDialog, AKeychainAnswerAfterTheWindowClosedIsIgnored) {
+    resetSettings();
+    FakeHttp http;
+    http.reply("/api/version", 200, version());
+    http.reply("/api/layouts", 200, { { QStringLiteral("layouts"), QJsonArray{} } });
+    SlowTokenStore tokens;
+    tokens.save(http.base(), QStringLiteral("bld_pat_saved"));
+    {
+        ServerApi api;
+        ConnectDialog dialog(api, tokens, [](const QUrl&) {});
+        dialog.setAddress(http.base().toString());
+        dialog.connectToServer();
+        ASSERT_TRUE(waitFor([&] { return !tokens.waiting.empty(); }));
+    }
+    tokens.answer();
+    waitFor([] { return false; }, 200);
+    EXPECT_EQ(layoutGets(http), 0);
+}
+
+// Another server picked while the keychain is still answering for the
+// first: the first one's token never goes to the second.
+TEST(ConnectDialog, AKeychainAnswerForAnEarlierServerIsIgnored) {
+    resetSettings();
+    FakeHttp first, second;
+    for (FakeHttp* h : { &first, &second }) {
+        h->reply("/api/version", 200, version());
+        h->reply("/api/layouts", 200, { { QStringLiteral("layouts"), QJsonArray{ layout("L1", "Show", "owner") } } });
+    }
+    SlowTokenStore tokens;
+    tokens.save(first.base(), QStringLiteral("bld_pat_first"));
+    tokens.save(second.base(), QStringLiteral("bld_pat_second"));
+    ServerApi api;
+    ConnectDialog dialog(api, tokens, [](const QUrl&) {});
+    dialog.setAddress(first.base().toString());
+    dialog.connectToServer();
+    ASSERT_TRUE(waitFor([&] { return tokens.waiting.size() == 1; }));
+    dialog.setAddress(second.base().toString());
+    dialog.connectToServer();
+    ASSERT_TRUE(waitFor([&] { return tokens.waiting.size() == 2; }));
+    tokens.answer();
+    ASSERT_TRUE(waitFor([&] { return layoutGets(second) == 1; }));
+    waitFor([] { return false; }, 200);
+    EXPECT_EQ(layoutGets(second), 1);
+    EXPECT_EQ(layoutGets(first), 0);
+    for (const auto& r : second.requests) EXPECT_NE(r.authorization, QByteArray("Bearer bld_pat_first")) << r.path.toStdString();
 }
 
 TEST(ConnectDialog, RefusesBadAddressesAndServersItCantTalkTo) {
