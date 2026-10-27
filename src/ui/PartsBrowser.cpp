@@ -13,6 +13,7 @@
 #include "theme/AppPrefs.h"
 #include "ServerList.h"
 
+#include <algorithm>
 #include <QSettings>
 #include <QApplication>
 #include <QCheckBox>
@@ -625,6 +626,14 @@ QString partTooltip(const parts::PartMetadata& meta, const QString& key, const Q
     return tip;
 }
 
+QIcon PartsBrowser::partIcon(const QPixmap& picture, int size, qreal dpr) {
+    if (picture.isNull() || size <= 0) return {};
+    dpr = std::max<qreal>(1.0, dpr);
+    QPixmap pm = picture.scaled(QSize(size, size) * dpr, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    pm.setDevicePixelRatio(dpr);
+    return QIcon(pm);
+}
+
 namespace {
 
 // Each server's parts folder (server-parts/<folder>) with the name it has in "Your servers".
@@ -635,13 +644,9 @@ QHash<QString, QString> serverPartLabels() {
     return out;
 }
 
-void setPartIcon(parts::PartsLibrary& lib, const QString& key, QListWidgetItem* item, int size) {
-    QPixmap pm = lib.pixmap(key);
-    if (!pm.isNull()) {
-        item->setIcon(QIcon(pm.scaled(size, size,
-                                      Qt::KeepAspectRatio,
-                                      Qt::SmoothTransformation)));
-    }
+void setPartIcon(parts::PartsLibrary& lib, const QString& key, QListWidgetItem* item, int size, qreal dpr) {
+    const QIcon icon = PartsBrowser::partIcon(lib.pixmap(key), size, dpr);
+    if (!icon.isNull()) item->setIcon(icon);
 }
 
 // Build one grid item from a library entry. Shared between rebuild()
@@ -651,7 +656,7 @@ QListWidgetItem* makePartItem(parts::PartsLibrary& lib,
                               const QString& key,
                               const QString& cat,
                               const QHash<QString, QString>& serverLabels,
-                              int iconSize = 0) {
+                              int iconSize = 0, qreal dpr = 1.0) {
     auto meta = lib.metadata(key);
     if (!meta) return nullptr;
 
@@ -674,7 +679,7 @@ QListWidgetItem* makePartItem(parts::PartsLibrary& lib,
     // Go through PartsLibrary::pixmap() rather than loading meta->gifFilePath
     // directly — sets without a companion image (BrickTracks/4DBrix/TrixBrix
     // and any user-saved set) get a composite synthesized from their subparts.
-    if (iconSize > 0) setPartIcon(lib, key, item, iconSize);
+    if (iconSize > 0) setPartIcon(lib, key, item, iconSize, dpr);
 
     if (meta->notListed) {
         // Greyed, not dragged out: it's only placed inside its sets.
@@ -771,7 +776,7 @@ void PartsBrowser::loadSomeIcons() {
     clock.start();
     while (!iconQueue_.isEmpty() && clock.elapsed() < 15) {
         const QString key = iconQueue_.takeFirst();
-        if (QListWidgetItem* item = iconItems_.take(key)) setPartIcon(lib_, key, item, iconSize_);
+        if (QListWidgetItem* item = iconItems_.take(key)) setPartIcon(lib_, key, item, iconSize_, grid_->devicePixelRatioF());
         ++iconsDone_;
     }
     if (iconQueue_.isEmpty()) {
@@ -832,7 +837,7 @@ void PartsBrowser::addOne(const QString& key) {
         category_->setCurrentIndex(restoreIdx >= 0 ? restoreIdx : 0);
         category_->blockSignals(false);
     }
-    if (auto* item = makePartItem(lib_, key, cat, serverPartLabels(), iconSize_)) {
+    if (auto* item = makePartItem(lib_, key, cat, serverPartLabels(), iconSize_, grid_->devicePixelRatioF())) {
         grid_->addItem(item);
         grid_->sortItems(Qt::AscendingOrder);
         refreshBudget();

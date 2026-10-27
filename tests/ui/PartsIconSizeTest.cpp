@@ -13,7 +13,9 @@
 #include <QDir>
 #include <QElapsedTimer>
 #include <QJsonObject>
+#include <QIcon>
 #include <QListWidget>
+#include <QPixmap>
 #include <QNativeGestureEvent>
 #include <QPointingDevice>
 #include <QSettings>
@@ -183,4 +185,21 @@ TEST(PartsIconSizePrefs, TheServersNumberIsKeptInRange) {
     AppPrefs other = p;
     other.partsIconSize = 64;
     EXPECT_FALSE(other.sameSettings(p));
+}
+
+// At 150% or 200% display scaling the part pictures are drawn for the
+// screen's pixels, not at their size in points and then stretched again
+// (which blurred them): the icon holds a picture of size × scale pixels.
+TEST(PartIcon, PicturesAreSharpOnScaledScreens) {
+    QPixmap picture(256, 128);
+    picture.fill(Qt::red);
+    for (const qreal dpr : { 1.0, 1.5, 2.0 }) {
+        const QIcon icon = bld::ui::PartsBrowser::partIcon(picture, 48, dpr);
+        ASSERT_FALSE(icon.isNull());
+        const QPixmap shown = icon.pixmap(QSize(48, 48), dpr);
+        EXPECT_EQ(shown.width(), qRound(48 * dpr)) << "at " << dpr;
+        EXPECT_EQ(shown.height(), qRound(24 * dpr)) << "at " << dpr;
+        EXPECT_DOUBLE_EQ(shown.devicePixelRatio(), dpr);
+    }
+    EXPECT_TRUE(bld::ui::PartsBrowser::partIcon(QPixmap(), 48, 2.0).isNull());
 }
