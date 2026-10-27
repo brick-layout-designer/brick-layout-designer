@@ -162,7 +162,7 @@ UpdatePlacedSetsCommand::UpdatePlacedSetsCommand(core::Map& map, parts::PartsLib
         now.groups = st.groups;
         const core::Group* top = core::findGroup(now, u.link.groupId);
         if (!top) continue;
-        const QString parent = top->myGroupId;
+        const QString outerGroup = top->myGroupId;
         const SetPose pose = placedSetPose(now, u, lib);
         ExpandedSet fresh = expandSet(lib, u.setKey, pose.centre, pose.angle);
         if (fresh.bricks.empty()) continue;
@@ -171,7 +171,7 @@ UpdatePlacedSetsCommand::UpdatePlacedSetsCommand(core::Map& map, parts::PartsLib
         for (auto& g : fresh.groups) {
             if (g.guid == topNew) {
                 g.guid = u.link.groupId;
-                g.myGroupId = parent;
+                g.myGroupId = outerGroup;
             } else if (g.myGroupId == topNew) {
                 g.myGroupId = u.link.groupId;
             }
