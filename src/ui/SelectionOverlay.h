@@ -48,6 +48,7 @@ public:
         QPointF centre;   // circular
         double radius = 0;
         double width = 0;  // scene px
+        bool operator==(const RulerBand&) const = default;
     };
     void setRulerBands(QList<RulerBand> bands);
     // `moving`: the moving connection to mark, if any. `viewScale`: the
@@ -63,6 +64,7 @@ public:
         QString name;
         QFont font;
         QColor fill;
+        bool operator==(const FullName&) const = default;
     };
     void setFullNames(QList<FullName> names);
     // The outlines drawn now (tests).
@@ -78,6 +80,12 @@ private:
     std::optional<QPointF> moving_;
     double  viewScale_ = 1.0;
     QRectF  marksRect() const;
+    // New bounds and a repaint, after something drawn changed. The setters
+    // skip it when nothing did: a repaint says the scene changed, and the
+    // view refreshes the selection outlines whenever it does, so redrawing
+    // the same outlines again kept the view repainting while anything was
+    // selected.
+    void refit();
 };
 
 }  // namespace bld::ui
