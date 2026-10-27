@@ -22,7 +22,8 @@
 //   from then on; down to view only, the server keeps the connection but
 //   drops our edits, so the document starts again from the server's copy.
 //   Anything of ours the server lacks then (edits it dropped, offline
-//   edits) is kept for saving: editsNotTaken().
+//   edits) is kept for saving: editsNotTaken(). Offline edits stay on disk
+//   until then, so closing first doesn't lose them.
 
 #include "Awareness.h"
 #include "LayoutMerge.h"

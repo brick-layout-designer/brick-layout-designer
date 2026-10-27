@@ -110,8 +110,10 @@ void SyncSession::setReadOnly(bool readOnly) {
     if (loaded_ || offline_) {
         if (const auto shown = editorMap()) before_ = Before{ merge::snapshotOf(*shown), doc_.encodeState(), offline_.has_value() };
     }
+    // Offline edits leave the session but stay on disk until the window
+    // has them (checkNothingDropped): closed before that, the layout opens
+    // with them again.
     offline_.reset();
-    saveOffline();
     saveDocTimer_->stop();
     if (!cacheDir_.isEmpty()) QFile::remove(QDir(cacheDir_).filePath(QString::fromLatin1(kDocCache)));
     client_.close();
@@ -132,6 +134,8 @@ void SyncSession::checkNothingDropped() {
     mine.applyUpdate(before.state);
     if (!before.offline && mine.toJson() == server) return;
     notTaken_ = before.shown;
+    // The window keeps them from here, as an unsaved copy.
+    if (before.offline && !offline_) saveOffline();
     QTimer::singleShot(0, this, [this] {
         if (notTaken_) emit editsNotTaken();
     });
