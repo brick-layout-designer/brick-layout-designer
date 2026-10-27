@@ -3,6 +3,7 @@
 #include "../ui/MainWindow.h"
 #include "../ui/theme/AppPrefs.h"
 #include "../ui/theme/ThemeManager.h"
+#include "../ui/AccessibleNames.h"
 
 #include <QApplication>
 #include <QCommandLineParser>
@@ -131,6 +132,8 @@ int main(int argc, char** argv) {
     bld::ui::MainWindow window(lib);
     FileOpenFilter fileOpenFilter(window);
     app.installEventFilter(&fileOpenFilter);
+    // Drop-down lists named by their labels for screen readers.
+    bld::ui::a11y::install();
     window.show();
     // First launch: the welcome, once the window is up.
     QTimer::singleShot(0, &window, [&window] { window.showWelcomeIfNew(); });

@@ -75,12 +75,14 @@ VenueDialog::VenueDialog(const std::optional<core::Venue>& current, QWidget* par
             for (const char* lbl : kindLabels) kindCombo->addItem(QObject::tr(lbl));
             kindCombo->setCurrentIndex(static_cast<int>(e.kind));
             edgeTable->setCellWidget(i, 1, kindCombo);
+            kindCombo->setAccessibleName(tr("Kind of edge %1").arg(i + 1));
 
             auto* widthSpin = new QDoubleSpinBox();
             widthSpin->setRange(0.0, 500.0); widthSpin->setDecimals(2);
             widthSpin->setValue(e.doorWidthStuds / kStudsPerFoot);
             widthSpin->setEnabled(e.kind == core::EdgeKind::Door);
             edgeTable->setCellWidget(i, 2, widthSpin);
+            widthSpin->setAccessibleName(tr("Door width of edge %1 (ft)").arg(i + 1));
             QObject::connect(kindCombo, &QComboBox::currentIndexChanged, widthSpin,
                              [widthSpin](int k){ widthSpin->setEnabled(k == int(core::EdgeKind::Door)); });
 

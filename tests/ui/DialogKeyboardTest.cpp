@@ -4,6 +4,7 @@
 // shortcut letters (&File, &Fit) clash within a dialog.
 
 #include "core/Map.h"
+#include "ui/AccessibleNames.h"
 #include "parts/PartsLibrary.h"
 #include "saveload/BbmReader.h"
 #include "ui/BudgetDialog.h"
@@ -79,6 +80,11 @@ QString describe(const QWidget* w) {
 }
 
 QString accessibleName(QWidget* w) {
+    // A drop-down list: Qt says its current choice as its name on Linux
+    // (its label goes by a relation there) and only an explicit name on
+    // Windows, so it needs one of its own (a11y::install gives it its
+    // label's).
+    if (qobject_cast<QComboBox*>(w)) return w->accessibleName().trimmed();
     QAccessibleInterface* a = QAccessible::queryAccessibleInterface(w);
     return a ? a->text(QAccessible::Name).trimmed() : QString();
 }
@@ -244,7 +250,10 @@ std::unique_ptr<core::Map> sampleMap() {
 
 class DialogKeyboard : public ::testing::Test {
 protected:
-    void SetUp() override { QStandardPaths::setTestModeEnabled(true); }
+    void SetUp() override {
+        QStandardPaths::setTestModeEnabled(true);
+        ui::a11y::install();  // as main.cpp does
+    }
     void TearDown() override { QStandardPaths::setTestModeEnabled(false); }
     void check(const char* name, QDialog& d, bool needsDefault = true) {
         const Problems p = audit(d, needsDefault);

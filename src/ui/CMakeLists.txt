@@ -15,6 +15,8 @@ add_library(bld_ui_common STATIC
     help/SourceLinks.h
     ConfirmDialog.cpp
     ConfirmDialog.h
+    AccessibleNames.cpp
+    AccessibleNames.h
 )
 target_include_directories(bld_ui_common PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_link_libraries(bld_ui_common PUBLIC Qt6::Core Qt6::Gui Qt6::Widgets)

@@ -134,8 +134,10 @@ VenueDesignerDialog::VenueDesignerDialog(core::Venue initial, const QString& sub
     sub->setStyleSheet(QStringLiteral("color: palette(mid);"));
     titles->addWidget(sub);
     header->addLayout(titles, 1);
-    header->addWidget(new QLabel(tr("Units"), this));
+    auto* unitsLabel = new QLabel(tr("Units"), this);
+    header->addWidget(unitsLabel);
     unit_ = new QComboBox(this);
+    unitsLabel->setBuddy(unit_);
     unit_->addItems({ tr("Feet & inches"), tr("Metres"), tr("Studs") });
     connect(unit_, &QComboBox::currentIndexChanged, this,
             [this](int i) { dispatch(ev::act::Unit{ static_cast<ev::LengthUnit>(i) }); });
