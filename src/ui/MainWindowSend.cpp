@@ -292,7 +292,9 @@ void MainWindow::findServerCopy(const QString& key, bool set,
         auto* api = new sync::LibraryApi(this);
         api->setBase(on.server);
         api->setToken(on.token);
-        api->customParts(
+        // Your own there only: a club's set or part with the same number, or
+        // one someone shared with you, isn't the copy you sent.
+        api->myCustomParts(
             [this, api, on, key, set, found](const QList<sync::ServerPart>& list) {
                 api->deleteLater();
                 for (const sync::ServerPart& p : list) {
