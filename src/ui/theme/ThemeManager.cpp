@@ -169,6 +169,7 @@ QComboBox, QLineEdit, QSpinBox, QDoubleSpinBox { min-height: 32px; }
 QAbstractButton#HelpIcon { min-width: 40px; min-height: 40px; }
 QStatusBar QToolButton { min-height: 36px; }
 QCheckBox, QRadioButton { min-height: 36px; }
+QListWidget#sheetList::item { min-height: 40px; }
 )");
     const QList<std::pair<const char*, QColor>> vars{
         { "@panel", n.panel }, { "@line", n.line }, { "@border", n.border }, { "@ink", n.ink },

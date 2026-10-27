@@ -849,6 +849,7 @@ TEST(TouchModeTest, EveryButtonInTheWindowIsBigEnoughForAFinger) {
     ui::MainWindow w(lib);
     w.resize(1280, 800);
     w.show();
+    w.ensureDocument();
     ASSERT_TRUE(QTest::qWaitForWindowExposed(&w));
     const QString saved = qApp->styleSheet();
     ui::TouchMode::instance().setActive(true);
@@ -868,6 +869,11 @@ TEST(TouchModeTest, EveryButtonInTheWindowIsBigEnoughForAFinger) {
                          .arg(b->height());
     }
     EXPECT_TRUE(small.isEmpty()) << small.join(QLatin1Char('\n')).toStdString();
+    // The sheets' rows too (a tap picks one, its box shows or hides it).
+    auto* sheets = w.findChild<QListWidget*>(QStringLiteral("sheetList"));
+    ASSERT_NE(sheets, nullptr);
+    ASSERT_GT(sheets->count(), 0);
+    EXPECT_GE(sheets->visualItemRect(sheets->item(0)).height(), kFinger);
     ui::TouchMode::instance().setActive(false);
     qApp->setStyleSheet(saved);
 }

@@ -143,6 +143,7 @@ LayerPanel::LayerPanel(QWidget* parent) : QDockWidget(tr("Sheets"), parent) {
     });
 
     list_ = new QListWidget(host);
+    list_->setObjectName(QStringLiteral("sheetList"));  // (touch mode's taller rows)
     list_->setContextMenuPolicy(Qt::CustomContextMenu);
     list_->installEventFilter(this);
     col->addWidget(list_);
