@@ -59,4 +59,4 @@ add_test(NAME Cli.CheckConnectionsYard
     COMMAND bld_render --check-connections "${CMAKE_SOURCE_DIR}/fixtures/btd-layout-parts/Yard.zip")
 set_tests_properties(Cli.CheckConnectionsYard PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
-    PASS_REGULAR_EXPRESSION "15 pairs, 4 open ends, 0 rough pairs")
+    PASS_REGULAR_EXPRESSION "21 pairs, 4 open ends, 0 rough pairs")

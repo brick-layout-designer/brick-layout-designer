@@ -48,10 +48,11 @@ struct Sample {
 TEST(ConnectionCheck, YardPairsEveryCutAndLeavesItsFourTrackEndsOpen) {
     Sample yard("Yard.zip");
     const auto r = edit::checkSetConnections(QStringLiteral("Yard.whole"), yard.lib);
-    EXPECT_EQ(r.parts, 15);
-    EXPECT_EQ(r.points, 34);
-    EXPECT_EQ(r.pointsByType, (QMap<QString, int>{ { QStringLiteral("1"), 34 } }));
-    EXPECT_EQ(r.pairs.size(), 15);
+    // 14 printed parts and 5 bought straights (BTD's bought track, each a part of its own).
+    EXPECT_EQ(r.parts, 19);
+    EXPECT_EQ(r.points, 46);
+    EXPECT_EQ(r.pointsByType, (QMap<QString, int>{ { QStringLiteral("1"), 46 } }));
+    EXPECT_EQ(r.pairs.size(), 21);
     ASSERT_EQ(r.open.size(), 4);
     EXPECT_TRUE(r.rough.isEmpty());
     // The ends: two at each end of the yard, 144 studs apart, facing out.

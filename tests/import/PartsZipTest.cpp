@@ -93,3 +93,34 @@ TEST(PartsZip, ThePiecesASetUsesAreOnlyUsedInsideIt) {
     EXPECT_TRUE(read(QStringLiteral("Left_switch_cut_150.switch-base1.xml")).contains(QStringLiteral("<NotListedInLibrary>true</NotListedInLibrary>")));
     EXPECT_FALSE(read(QStringLiteral("Left_switch_cut_150.whole.set.xml")).contains(QStringLiteral("NotListedInLibrary")));
 }
+
+// Brick Track Designer marks the pieces itself now (<NotListedInLibrary> on
+// each piece, not on the set): adding the zip keeps one tag on each piece,
+// lists them as only used inside the set, and leaves the set listed.
+TEST(PartsZip, PiecesThatAlreadyCarryTheTagKeepJustOne) {
+    const QString zip = QStringLiteral(BLD_SOURCE_DIR "/fixtures/btd-layout-parts/Monorail loop.zip");
+    QTemporaryDir dest;
+    const auto r = addPartsFromZip(zip, dest.path());
+    ASSERT_TRUE(r.ok) << r.error.toStdString();
+    const QDir folder(QDir(dest.path()).filePath(QStringLiteral("Monorail loop")));
+    const auto read = [&](const QString& name) {
+        QFile f(folder.filePath(name));
+        return f.open(QIODevice::ReadOnly) ? QString::fromUtf8(f.readAll()) : QString();
+    };
+    QStringList pieces;
+    for (int i = 1; i <= 8; ++i) pieces << QStringLiteral("Monorail_loop.monorail-M-%1").arg(i);
+    QStringList hidden = r.onlyInSets;
+    hidden.sort();
+    EXPECT_EQ(hidden, pieces);
+    for (const QString& piece : pieces) {
+        const QString xml = read(piece + QStringLiteral(".xml"));
+        EXPECT_EQ(xml.count(QStringLiteral("NotListedInLibrary>")), 2) << piece.toStdString();  // one open, one close
+        EXPECT_TRUE(xml.contains(QStringLiteral("<NotListedInLibrary>true</NotListedInLibrary>"))) << piece.toStdString();
+    }
+    EXPECT_FALSE(read(QStringLiteral("Monorail_loop.whole.set.xml")).contains(QStringLiteral("NotListedInLibrary")));
+
+    // Added again over itself: still one each.
+    const auto again = addPartsFromZip(zip, dest.path());
+    ASSERT_TRUE(again.ok) << again.error.toStdString();
+    EXPECT_EQ(read(pieces.front() + QStringLiteral(".xml")).count(QStringLiteral("NotListedInLibrary>")), 2);
+}
