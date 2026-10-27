@@ -1592,8 +1592,11 @@ TEST_F(ServerWindowMain, YourSetAndPartAreDeletedFromAServerThatLetsTheDesktop) 
     ASSERT_TRUE(set && set->deleteThere && set->rename);
     set->deleteThere();
     ASSERT_TRUE(waitFor([&] { return deletes("/api/custom-parts/s1") == 1; }));
-    for (const auto& r : http_.requests)
-        if (r.method == "DELETE") EXPECT_TRUE(r.authorization.startsWith("Bearer ")) << r.path.toStdString();
+    for (const auto& r : http_.requests) {
+        if (r.method == "DELETE") {
+            EXPECT_TRUE(r.authorization.startsWith("Bearer ")) << r.path.toStdString();
+        }
+    }
     EXPECT_TRUE(waitFor([&] {
         return window_->statusBar()->currentMessage().contains(
             QStringLiteral("deleted from Club server too"));

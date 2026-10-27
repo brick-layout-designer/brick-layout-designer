@@ -452,11 +452,12 @@ void PartsBrowser::deleteHereAndThere(const QString& key, const QString& name, c
     if (!yes) return;
     removeHere();
     state->deleted = true;
-    if (!state->copy) return;
-    if (state->copy->deleteThere) {
-        if (there) state->copy->deleteThere(); // unticked: kept there, as asked
-    } else if (state->copy->stillThere) {
-        state->copy->stillThere();
+    const std::optional<ServerSetCopy> copy = state->copy;
+    if (!copy.has_value()) return;
+    if (copy->deleteThere) {
+        if (there) copy->deleteThere(); // unticked: kept there, as asked
+    } else if (copy->stillThere) {
+        copy->stillThere();
     }
 }
 
