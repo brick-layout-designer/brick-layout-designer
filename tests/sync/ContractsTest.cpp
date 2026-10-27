@@ -24,6 +24,7 @@
 #include "UpdateGuard.h"
 #include "WebModel.h"
 
+#include "core/DrawnLimits.h"
 #include "core/LayerGrid.h"
 #include "core/Map.h"
 
@@ -47,7 +48,11 @@
 #include <QTemporaryDir>
 #include <QTimeZone>
 
+#include <cmath>
 #include <functional>
+#include <optional>
+#include <string>
+#include <type_traits>
 
 using namespace bld;
 
@@ -358,5 +363,221 @@ TEST(Contracts, TheGridSizeVectorsReadAndDraw) {
                 EXPECT_GE(size, 1) << what;
             }
         }
+    }
+}
+
+// Drawing settings (drawingSettings): what the desktop brings a setting
+// into (core/DrawnLimits.h) is always something the server takes, so a
+// layout read here and then put on a server, or a live layout whose
+// settings the next edit writes back, is never refused.
+namespace {
+
+struct Limit {
+    bool whole = false;
+    double min = 0, max = 0;
+};
+
+// "number 0 to 100", "whole number 1 to 100", "number 1 to 2147483647 (…)".
+std::optional<Limit> parseLimit(const QString& text) {
+    static const QRegularExpression re(QStringLiteral(R"(^(whole )?number (-?[0-9.]+) to (-?[0-9.]+))"));
+    const auto m = re.match(text);
+    if (!m.hasMatch()) return std::nullopt;
+    return Limit{ !m.captured(1).isEmpty(), m.captured(2).toDouble(), m.captured(3).toDouble() };
+}
+
+QJsonObject drawingLimits() {
+    return readJson(QStringLiteral("update-guard.json"))
+        .value(QStringLiteral("drawingSettings"))
+        .toObject()
+        .value(QStringLiteral("limits"))
+        .toObject();
+}
+
+template <typename T>
+void expectInside(const core::limits::Range<T>& desktop, const QString& key, const QJsonObject& limits) {
+    const auto server = parseLimit(limits.value(key).toString());
+    ASSERT_TRUE(server) << key.toStdString() << ": " << limits.value(key).toString().toStdString();
+    EXPECT_GE(static_cast<double>(desktop.min), server->min) << key.toStdString();
+    EXPECT_LE(static_cast<double>(desktop.max), server->max) << key.toStdString();
+    EXPECT_GE(static_cast<double>(desktop.fallback), server->min) << key.toStdString();
+    EXPECT_LE(static_cast<double>(desktop.fallback), server->max) << key.toStdString();
+    if (server->whole) {
+        EXPECT_TRUE(std::is_integral_v<T>) << key.toStdString() << " is a whole number there";
+    }
+}
+
+// The server's check of one drawn number (finite, whole if so, in range).
+bool takes(const QJsonValue& v, const Limit& l) {
+    if (!v.isDouble()) return false;
+    const double d = v.toDouble();
+    return std::isfinite(d) && (!l.whole || d == std::floor(d)) && d >= l.min && d <= l.max;
+}
+
+// Every drawn setting of `after` that differs from `before` is one the
+// server takes (it doesn't refuse a value that was already there).
+void expectServerTakes(const QJsonObject& before, const QJsonObject& after, const std::string& what) {
+    const QJsonObject limits = drawingLimits();
+    const auto limit = [&](const char* key) { return *parseLimit(limits.value(QLatin1String(key)).toString()); };
+    const auto at = [](QJsonValue v, const QStringList& path) {
+        for (const QString& k : path) v = v.isArray() ? v.toArray().at(k.toInt()) : v.toObject().value(k);
+        return v;
+    };
+    const auto check = [&](const QStringList& path, const char* key) {
+        const QJsonValue now = at(after, path), was = at(before, path);
+        if (now.isUndefined() || now == was) return;
+        EXPECT_TRUE(takes(now, limit(key))) << what << ": " << path.join(QLatin1Char('.')).toStdString() << " = "
+                                            << QJsonDocument(QJsonArray{ now }).toJson(QJsonDocument::Compact).toStdString();
+    };
+    const QJsonObject data = after.value(QStringLiteral("layerData")).toObject();
+    for (auto it = data.begin(); it != data.end(); ++it) {
+        const QStringList sheet{ QStringLiteral("layerData"), it.key() };
+        const QJsonObject o = it.value().toObject();
+        const QString type = o.value(QStringLiteral("type")).toString();
+        check(sheet + QStringList{ QStringLiteral("transparency") }, "sheet.transparency");
+        check(sheet + QStringList{ QStringLiteral("hullProperties"), QStringLiteral("hullThickness") },
+              "sheet.hullProperties.hullThickness");
+        if (type == QLatin1String("grid")) {
+            check(sheet + QStringList{ QStringLiteral("gridSizeInStud") }, "grid.gridSizeInStud");
+            check(sheet + QStringList{ QStringLiteral("gridThickness") }, "grid.gridThickness");
+            check(sheet + QStringList{ QStringLiteral("subGridThickness") }, "grid.subGridThickness");
+            check(sheet + QStringList{ QStringLiteral("subDivisionNumber") }, "grid.subDivisionNumber");
+            check(sheet + QStringList{ QStringLiteral("cellIndexFont"), QStringLiteral("size") }, "grid.cellIndexFont.size");
+            check(sheet + QStringList{ QStringLiteral("cellIndexCorner"), QStringLiteral("x") }, "grid.cellIndexCorner.x/y");
+            check(sheet + QStringList{ QStringLiteral("cellIndexCorner"), QStringLiteral("y") }, "grid.cellIndexCorner.x/y");
+        } else if (type == QLatin1String("area")) {
+            check(sheet + QStringList{ QStringLiteral("areaCellSize") }, "area.areaCellSize");
+        } else if (type == QLatin1String("ruler")) {
+            const QJsonArray rulers = o.value(QStringLiteral("rulerItems")).toArray();
+            for (int i = 0; i < rulers.size(); ++i) {
+                const QStringList r = sheet + QStringList{ QStringLiteral("rulerItems"), QString::number(i) };
+                for (const char* k : { "lineThickness", "guidelineThickness", "unit", "radius", "offsetDistance" })
+                    check(r + QStringList{ QLatin1String(k) }, k == std::string("lineThickness") ? "ruler.lineThickness"
+                                                              : k == std::string("guidelineThickness") ? "ruler.guidelineThickness"
+                                                              : k == std::string("unit") ? "ruler.unit"
+                                                              : k == std::string("radius") ? "ruler.radius"
+                                                                                           : "ruler.offsetDistance");
+                check(r + QStringList{ QStringLiteral("measureFont"), QStringLiteral("size") }, "ruler.measureFont.size");
+                for (const char* p : { "point1", "point2", "center" })
+                    for (const char* c : { "x", "y" })
+                        check(r + QStringList{ QLatin1String(p), QLatin1String(c) }, "ruler.point1/point2/center.x/y");
+                const QJsonValue dash = at(after, r + QStringList{ QStringLiteral("guidelineDashPattern") });
+                if (dash.isArray() && dash != at(before, r + QStringList{ QStringLiteral("guidelineDashPattern") })) {
+                    const QJsonArray d = dash.toArray();
+                    double total = 0;
+                    bool each = d.size() <= 64;
+                    for (const QJsonValue& v : d) {
+                        each = each && takes(v, Limit{ false, 0, 1000 });
+                        total += v.toDouble();
+                    }
+                    EXPECT_TRUE(each && (d.isEmpty() || total >= 0.01)) << what << ": a dash pattern the server refuses";
+                }
+            }
+        }
+    }
+}
+
+}  // namespace
+
+TEST(Contracts, TheDesktopsDrawingRangesAreInsideTheServers) {
+    namespace L = core::limits;
+    const QJsonObject limits = drawingLimits();
+    ASSERT_FALSE(limits.isEmpty());
+    // Every server limit is one the desktop keeps (a new one fails here until it does).
+    const QStringList known{ QStringLiteral("sheet.transparency"), QStringLiteral("sheet.hullProperties.hullThickness"),
+                             QStringLiteral("grid.gridSizeInStud"), QStringLiteral("grid.gridThickness"),
+                             QStringLiteral("grid.subGridThickness"), QStringLiteral("grid.subDivisionNumber"),
+                             QStringLiteral("grid.cellIndexFont.size"), QStringLiteral("grid.cellIndexCorner.x/y"),
+                             QStringLiteral("area.areaCellSize"), QStringLiteral("ruler.lineThickness"),
+                             QStringLiteral("ruler.guidelineThickness"), QStringLiteral("ruler.guidelineDashPattern"),
+                             QStringLiteral("ruler.unit"), QStringLiteral("ruler.measureFont.size"),
+                             QStringLiteral("ruler.point1/point2/center.x/y"), QStringLiteral("ruler.radius"),
+                             QStringLiteral("ruler.offsetDistance") };
+    for (const QString& k : limits.keys()) EXPECT_TRUE(known.contains(k)) << "the desktop doesn't keep " << k.toStdString();
+    expectInside(L::kTransparency, QStringLiteral("sheet.transparency"), limits);
+    expectInside(L::kHullThickness, QStringLiteral("sheet.hullProperties.hullThickness"), limits);
+    expectInside(L::kGridSizeInStud, QStringLiteral("grid.gridSizeInStud"), limits);
+    expectInside(L::kGridThickness, QStringLiteral("grid.gridThickness"), limits);
+    expectInside(L::kSubGridThickness, QStringLiteral("grid.subGridThickness"), limits);
+    expectInside(L::kSubDivisionNumber, QStringLiteral("grid.subDivisionNumber"), limits);
+    expectInside(L::kFontSize, QStringLiteral("grid.cellIndexFont.size"), limits);
+    expectInside(L::kCellIndexCorner, QStringLiteral("grid.cellIndexCorner.x/y"), limits);
+    expectInside(L::kAreaCellSizeInStud, QStringLiteral("area.areaCellSize"), limits);
+    expectInside(L::kLineThickness, QStringLiteral("ruler.lineThickness"), limits);
+    expectInside(L::kGuidelineThickness, QStringLiteral("ruler.guidelineThickness"), limits);
+    expectInside(L::kRulerUnit, QStringLiteral("ruler.unit"), limits);
+    expectInside(L::kFontSize, QStringLiteral("ruler.measureFont.size"), limits);
+    expectInside(L::kRulerCoordinate, QStringLiteral("ruler.point1/point2/center.x/y"), limits);
+    expectInside(L::kRulerCoordinate, QStringLiteral("ruler.offsetDistance"), limits);
+    expectInside(L::kRulerRadius, QStringLiteral("ruler.radius"), limits);
+    // "at most 64 numbers 0 to 1000, adding up to 0.01 or more (or none)"
+    static const QRegularExpression dash(
+        QStringLiteral(R"(^at most ([0-9]+) numbers (-?[0-9.]+) to (-?[0-9.]+), adding up to ([0-9.]+) or more)"));
+    const auto m = dash.match(limits.value(QStringLiteral("ruler.guidelineDashPattern")).toString());
+    ASSERT_TRUE(m.hasMatch());
+    EXPECT_LE(L::kMaxDashEntries, m.captured(1).toInt());
+    EXPECT_GE(0.0, m.captured(2).toDouble());
+    EXPECT_LE(static_cast<double>(L::kMaxDash), m.captured(3).toDouble());
+    EXPECT_GE(L::kMinDashTotal, m.captured(4).toDouble());
+}
+
+// Each drawingSettings vector read here, then an unrelated edit made: what
+// the desktop writes back (its in-range values) the server takes, a second
+// read writes nothing more, and a peer still holding the old values ends up
+// with the same document without writing anything either (no back and forth).
+TEST(Contracts, WhatTheDesktopWritesBackTheServerTakesAndItSettles) {
+    const QJsonObject d = readJson(QStringLiteral("update-guard.json")).value(QStringLiteral("drawingSettings")).toObject();
+    const QByteArray base = fromHex(d.value(QStringLiteral("base")));
+    const QJsonArray vectors = d.value(QStringLiteral("vectors")).toArray();
+    ASSERT_GE(vectors.size(), 20);
+    for (const QJsonValue& v : vectors) {
+        const QJsonObject o = v.toObject();
+        const std::string what = o.value(QStringLiteral("what")).toString().toStdString();
+        sync::SyncDoc doc;
+        if (o.value(QStringLiteral("kind")).toString() == QLatin1String("update")) {
+            ASSERT_TRUE(doc.applyUpdate(base)) << what;
+        }
+        ASSERT_TRUE(doc.applyUpdate(fromHex(o.value(QStringLiteral("hex"))))) << what;
+        const QByteArray before = doc.encodeState();
+        const QJsonObject was = doc.toJson();
+
+        // The vectors' sheets go by their key alone; a layout's also carry it
+        // as their id, which edits are matched by.
+        QJsonObject withIds = was;
+        QJsonObject data = withIds.value(QStringLiteral("layerData")).toObject();
+        for (auto it = data.begin(); it != data.end(); ++it) {
+            QJsonObject sheet = it.value().toObject();
+            if (!sheet.contains(QStringLiteral("id"))) sheet.insert(QStringLiteral("id"), it.key());
+            it.value() = sheet;
+        }
+        withIds.insert(QStringLiteral("layerData"), data);
+        QString error;
+        auto map = sync::mapFromDocJson(withIds, &error);
+        ASSERT_TRUE(map) << what << ": " << error.toStdString();
+        map->comment = QStringLiteral("an unrelated edit");
+        const QByteArray update = doc.writeMap(*map);
+        ASSERT_FALSE(update.isEmpty()) << what;
+        EXPECT_TRUE(sync::guard::checkUpdate(update).isEmpty()) << what;
+        expectServerTakes(was, doc.toJson(), what);
+        // It does write back what it brought into range.
+        if (what == "the sub-divisions set to a billion") {
+            EXPECT_EQ(doc.toJson().value(QStringLiteral("layerData")).toObject().value(QStringLiteral("G")).toObject()
+                          .value(QStringLiteral("subDivisionNumber")).toDouble(),
+                      core::limits::kSubDivisionNumber.max);
+        }
+
+        // Read again: nothing more to write.
+        auto again = sync::mapFromDocJson(doc.toJson(), &error);
+        ASSERT_TRUE(again) << what;
+        EXPECT_TRUE(doc.writeMap(*again).isEmpty()) << what << ": the desktop writes again";
+
+        // A peer with the old values takes the update and agrees; reading
+        // what it now has writes nothing either.
+        sync::SyncDoc peer;
+        ASSERT_TRUE(peer.applyUpdate(before));
+        ASSERT_TRUE(peer.applyUpdate(update));
+        EXPECT_EQ(peer.toJson(), doc.toJson()) << what;
+        auto peers = sync::mapFromDocJson(peer.toJson(), &error);
+        ASSERT_TRUE(peers) << what;
+        EXPECT_TRUE(peer.writeMap(*peers).isEmpty()) << what << ": the peer writes back";
     }
 }

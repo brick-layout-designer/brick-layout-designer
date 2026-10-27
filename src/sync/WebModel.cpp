@@ -40,8 +40,13 @@ int integer(const QJsonObject& o, const char* k) {
 }
 // A whole number for a drawn setting: not a number, or infinite, gives
 // `fallback` (core::keepDrawnSettingsInRange then keeps it in range).
+// Not there gives `fallback` too (the server takes a layout without it).
 int wholeOr(const QJsonObject& o, const char* k, int fallback) {
-    return std::isfinite(num(o, k)) ? integer(o, k) : fallback;
+    return o.contains(QLatin1String(k)) && std::isfinite(num(o, k)) ? integer(o, k) : fallback;
+}
+// The same for a drawn setting that isn't a whole number.
+float fltOr(const QJsonObject& o, const char* k, float fallback) {
+    return o.contains(QLatin1String(k)) && std::isfinite(num(o, k)) ? flt(o, k) : fallback;
 }
 bool boolean(const QJsonObject& o, const char* k) { return o.value(QLatin1String(k)).toBool(); }
 QJsonObject obj(const QJsonObject& o, const char* k) { return o.value(QLatin1String(k)).toObject(); }
@@ -63,7 +68,7 @@ ColorSpec color(const QJsonObject& c) {
 core::FontSpec font(const QJsonObject& f) {
     core::FontSpec out;
     out.familyName = str(f, "family");
-    out.sizePt = flt(f, "size");
+    out.sizePt = fltOr(f, "size", core::limits::kFontSize.fallback);
     out.styleString = str(f, "style");
     return out;
 }
@@ -93,11 +98,11 @@ std::vector<core::Group> groups(const QJsonObject& layer) {
 void rulerBase(core::RulerItemBase& r, const QJsonObject& o) {
     item(r, o);
     r.color = color(obj(o, "color"));
-    r.lineThickness = flt(o, "lineThickness");
+    r.lineThickness = fltOr(o, "lineThickness", core::limits::kLineThickness.fallback);
     r.displayDistance = boolean(o, "displayDistance");
     r.displayUnit = boolean(o, "displayUnit");
     r.guidelineColor = color(obj(o, "guidelineColor"));
-    r.guidelineThickness = flt(o, "guidelineThickness");
+    r.guidelineThickness = fltOr(o, "guidelineThickness", core::limits::kGuidelineThickness.fallback);
     for (const auto& d : arr(o, "guidelineDashPattern")) r.guidelineDashPattern.push_back(static_cast<float>(d.toDouble()));
     r.unit = wholeOr(o, "unit", core::limits::kRulerUnit.fallback);
     r.measureFont = font(obj(o, "measureFont"));
@@ -110,9 +115,9 @@ std::unique_ptr<core::Layer> layer(const QJsonObject& o, QString* error) {
     if (type == QLatin1String("grid")) {
         auto g = std::make_unique<core::LayerGrid>();
         g->gridColor = color(obj(o, "gridColor"));
-        g->gridThickness = flt(o, "gridThickness");
+        g->gridThickness = fltOr(o, "gridThickness", core::limits::kGridThickness.fallback);
         g->subGridColor = color(obj(o, "subGridColor"));
-        g->subGridThickness = flt(o, "subGridThickness");
+        g->subGridThickness = fltOr(o, "subGridThickness", core::limits::kSubGridThickness.fallback);
         g->gridSizeInStud = wholeOr(o, "gridSizeInStud", core::limits::kGridSizeInStud.fallback);
         g->subDivisionNumber = wholeOr(o, "subDivisionNumber", core::limits::kSubDivisionNumber.fallback);
         g->displayGrid = boolean(o, "displayGrid");

@@ -7,7 +7,10 @@
 // end; one that isn't a number (NaN, infinite) gets the default. Nothing a
 // layout made in either app holds is changed.
 //
-// The web keeps to the same ranges (its grid guard has gridSizeInStud).
+// Every range is inside what the server takes (fixtures/contracts/
+// update-guard.json › drawingSettings.limits, checked by ContractsTest), so
+// a value brought into range here, and written back to a live layout with
+// the next edit, is never refused.
 
 #include <limits>
 
@@ -26,7 +29,7 @@ inline constexpr Range<int> kTransparency{ 0, 100, 100 }; // percent
 inline constexpr Range<int> kHullThickness{ 1, 100, 1 };  // px
 // Grid.
 inline constexpr Range<int> kGridSizeInStud{ 1, std::numeric_limits<int>::max(), 32 };
-inline constexpr Range<int> kSubDivisionNumber{ 2, 1024, 4 };
+inline constexpr Range<int> kSubDivisionNumber{ 2, 100, 4 };
 inline constexpr Range<float> kGridThickness{ 0.0f, 100.0f, 2.0f };    // px
 inline constexpr Range<float> kSubGridThickness{ 0.0f, 100.0f, 1.0f }; // px
 inline constexpr Range<int> kCellIndexCorner{ -1000000, 1000000, 0 };  // cells, x and y
@@ -37,10 +40,11 @@ inline constexpr Range<int> kAreaCellSizeInStud{ 1, 1024, 32 };
 // Rulers.
 inline constexpr Range<float> kLineThickness{ 0.0f, 100.0f, 1.0f };      // px
 inline constexpr Range<float> kGuidelineThickness{ 0.0f, 100.0f, 1.0f }; // px
-// Guideline dash pattern: at most 64 entries, each above 0 and at most
-// 1000; any other pattern is dropped (a solid guideline).
+// Guideline dash pattern: at most 64 entries, each 0 to 1000, adding up to
+// 0.01 or more; any other pattern is dropped (a solid guideline).
 inline constexpr int kMaxDashEntries = 64;
 inline constexpr float kMaxDash = 1000.0f;
+inline constexpr double kMinDashTotal = 0.01;
 // Unit: 0 studs, 1 LDU, 2 tracks, 3 modules, 4 meters, 5 feet; else studs.
 inline constexpr Range<int> kRulerUnit{ 0, 5, 0 };
 inline constexpr Range<double> kRulerCoordinate{ -1e7, 1e7, 0.0 }; // studs: points, centre, offset

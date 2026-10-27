@@ -93,7 +93,7 @@ const Field kFields[] = {
     { "transparency", "<Transparency>37</Transparency>", [](const core::Map& m) { return gridOf(m).transparency; }, 100, 100, 0, 100 },
     { "hullThickness", "<hullThickness>7</hullThickness>", [](const core::Map& m) { return gridOf(m).hull.thickness; }, 1, 1, 1, 100 },
     { "gridSizeInStud", "<GridSizeInStud>33</GridSizeInStud>", [](const core::Map& m) { return gridOf(m).gridSizeInStud; }, 32, 32, 1, kIntMax },
-    { "subDivisionNumber", "<SubDivisionNumber>5</SubDivisionNumber>", [](const core::Map& m) { return gridOf(m).subDivisionNumber; }, 4, 4, 2, 1024 },
+    { "subDivisionNumber", "<SubDivisionNumber>5</SubDivisionNumber>", [](const core::Map& m) { return gridOf(m).subDivisionNumber; }, 4, 4, 2, 100 },
     { "gridThickness", "<GridThickness>3</GridThickness>", [](const core::Map& m) { return gridOf(m).gridThickness; }, 2, 2, 0, 100 },
     { "subGridThickness", "<SubGridThickness>6</SubGridThickness>", [](const core::Map& m) { return gridOf(m).subGridThickness; }, 1, 1, 0, 100 },
     { "cellIndexFont.size", "<Size>11</Size>", [](const core::Map& m) { return gridOf(m).cellIndexFont.sizePt; }, 8.25, 8.25, 1, 500 },
@@ -106,8 +106,10 @@ const Field kFields[] = {
     { "lineThickness", "<LineThickness>9</LineThickness>", [](const core::Map& m) { return linearOf(m).lineThickness; }, 1, 1, 0, 100 },
     { "guidelineThickness", "<GuidelineThickness>8</GuidelineThickness>", [](const core::Map& m) { return linearOf(m).guidelineThickness; }, 1, 1, 0, 100 },
     // A dash pattern with a value out of range is dropped (a solid line).
+    // "Infinity" isn't a number Qt reads, so it reads as 0, and {0, 7} is a
+    // pattern that's fine (zeros are, while it adds up to 0.01 or more).
     { "guidelineDashPattern", "<value>6</value>",
-      [](const core::Map& m) { return static_cast<double>(linearOf(m).guidelineDashPattern.size()); }, 0, 0, 0, 0 },
+      [](const core::Map& m) { return static_cast<double>(linearOf(m).guidelineDashPattern.size()); }, 0, 2, 0, 0 },
     { "unit", "<Unit>3</Unit>", [](const core::Map& m) { return linearOf(m).unit; }, 0, 0, 0, 0 },
     { "measureFont.size", "<Size>13</Size>", [](const core::Map& m) { return linearOf(m).measureFont.sizePt; }, 8.25, 8.25, 1, 500 },
     { "point1.x", "<X>1234</X>", [](const core::Map& m) { return linearOf(m).point1.x(); }, 0, 0, -5, 1e7 },
@@ -186,6 +188,13 @@ TEST(DrawnLimits, AMapIsBroughtIntoRangeWhateverItHolds) {
     r.linear.point2 = QPointF(std::numeric_limits<double>::infinity(), -1e300);
     r.linear.guidelineDashPattern = std::vector<float>(65, 2.0f);
     rulers->rulers.push_back(r);
+    // Zeros are fine in a pattern that adds up to something; all zeros isn't one.
+    core::LayerRuler::AnyRuler zeros;
+    zeros.linear.guidelineDashPattern = { 0.0f, 0.0f };
+    rulers->rulers.push_back(zeros);
+    core::LayerRuler::AnyRuler gaps;
+    gaps.linear.guidelineDashPattern = { 0.0f, 2.0f };
+    rulers->rulers.push_back(gaps);
     m.layers().push_back(std::move(rulers));
     core::keepDrawnSettingsInRange(m);
     const auto& g = static_cast<const core::LayerGrid&>(*m.layers()[0]);
@@ -196,4 +205,7 @@ TEST(DrawnLimits, AMapIsBroughtIntoRangeWhateverItHolds) {
     const auto& lin = static_cast<const core::LayerRuler&>(*m.layers()[1]).rulers[0].linear;
     EXPECT_EQ(lin.point2, QPointF(0, -1e7));
     EXPECT_TRUE(lin.guidelineDashPattern.empty());
+    const auto& kept = static_cast<const core::LayerRuler&>(*m.layers()[1]).rulers;
+    EXPECT_TRUE(kept[1].linear.guidelineDashPattern.empty());
+    EXPECT_EQ(kept[2].linear.guidelineDashPattern, (std::vector<float>{ 0.0f, 2.0f }));
 }

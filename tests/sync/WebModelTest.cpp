@@ -8,6 +8,7 @@
 #include "WebModel.h"
 #include "WebModelWriter.h"
 
+#include "core/DrawnLimits.h"
 #include "core/LayerArea.h"
 #include "core/LayerBrick.h"
 #include "core/LayerGrid.h"
@@ -250,7 +251,7 @@ TEST(WebModel, EveryDrawnSettingInALiveLayoutIsKeptInRange) {
         { "hullThickness", at(grid, { QStringLiteral("hullProperties"), QStringLiteral("hullThickness") }),
           [](const core::Map& m) { return docGrid(m).hull.thickness; }, 1, 1, 1, 100 },
         { "gridSizeInStud", at(grid, { QStringLiteral("gridSizeInStud") }), [](const core::Map& m) { return docGrid(m).gridSizeInStud; }, 32, 32, 1, kIntMax },
-        { "subDivisionNumber", at(grid, { QStringLiteral("subDivisionNumber") }), [](const core::Map& m) { return docGrid(m).subDivisionNumber; }, 4, 4, 2, 1024 },
+        { "subDivisionNumber", at(grid, { QStringLiteral("subDivisionNumber") }), [](const core::Map& m) { return docGrid(m).subDivisionNumber; }, 4, 4, 2, 100 },
         { "gridThickness", at(grid, { QStringLiteral("gridThickness") }), [](const core::Map& m) { return docGrid(m).gridThickness; }, 2, 2, 0, 100 },
         { "subGridThickness", at(grid, { QStringLiteral("subGridThickness") }), [](const core::Map& m) { return docGrid(m).subGridThickness; }, 1, 1, 0, 100 },
         { "cellIndexFont.size", at(grid, { QStringLiteral("cellIndexFont"), QStringLiteral("size") }),
@@ -303,4 +304,27 @@ TEST(WebModel, EveryDrawnSettingInALiveLayoutIsKeptInRange) {
             EXPECT_DOUBLE_EQ(f.value(*map), expected) << f.name << " set to " << value.toVariant().toString().toStdString();
         }
     }
+}
+
+// A drawn setting the document doesn't have reads as its default, as the
+// server takes it (the apps use their default).
+TEST(WebModel, ADrawnSettingNotThereReadsAsItsDefault) {
+    QJsonObject doc = drawnSampleDoc();
+    QJsonObject data = doc.value(QStringLiteral("layerData")).toObject();
+    QJsonObject grid = data.value(QStringLiteral("1")).toObject();
+    grid.remove(QStringLiteral("subDivisionNumber"));
+    grid.remove(QStringLiteral("gridThickness"));
+    grid.remove(QStringLiteral("transparency"));
+    data[QStringLiteral("1")] = grid;
+    QJsonObject area = data.value(QStringLiteral("2")).toObject();
+    area.remove(QStringLiteral("areaCellSize"));
+    data[QStringLiteral("2")] = area;
+    doc[QStringLiteral("layerData")] = data;
+    QString err;
+    const auto map = sync::mapFromDocJson(doc, &err);
+    ASSERT_TRUE(map) << err.toStdString();
+    EXPECT_EQ(docGrid(*map).subDivisionNumber, core::limits::kSubDivisionNumber.fallback);
+    EXPECT_EQ(docGrid(*map).gridThickness, core::limits::kGridThickness.fallback);
+    EXPECT_EQ(docGrid(*map).transparency, core::limits::kTransparency.fallback);
+    EXPECT_EQ(docArea(*map).areaCellSizeInStud, core::limits::kAreaCellSizeInStud.fallback);
 }
