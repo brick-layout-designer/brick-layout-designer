@@ -31,12 +31,12 @@
 #include <QPen>
 #include <QPolygonF>
 #include <QSet>
-#include <QVarLengthArray>
 
 #include <algorithm>
 #include <functional>
 #include <cmath>
 #include <limits>
+#include <vector>
 
 namespace bld::ui {
 
@@ -105,14 +105,15 @@ void MapView::drawBackground(QPainter* painter, const QRectF& rect) {
         const auto tooFine = [&rect, pxPerScene](double step, double minPx) {
             return step * pxPerScene < minPx || rect.width() / step > 4000 || rect.height() / step > 4000;
         };
-        QVarLengthArray<QLineF, 256> lines;
+        std::vector<QLineF> lines;  // (QVarLengthArray trips MSVC's C4702 in Qt's overflow checks)
         const auto addLines = [&](double firstX, double firstY, double step) {
             lines.clear();
             const int across = std::max(0, static_cast<int>(std::ceil((right - firstX) / step)));
             const int down = std::max(0, static_cast<int>(std::ceil((bottom - firstY) / step)));
-            for (int i = 0; i < across; ++i) lines.append(QLineF(firstX + i * step, top, firstX + i * step, bottom));
-            for (int i = 0; i < down; ++i) lines.append(QLineF(left, firstY + i * step, right, firstY + i * step));
-            painter->drawLines(lines.constData(), static_cast<int>(lines.size()));
+            lines.reserve(static_cast<size_t>(across) + static_cast<size_t>(down));
+            for (int i = 0; i < across; ++i) lines.emplace_back(firstX + i * step, top, firstX + i * step, bottom);
+            for (int i = 0; i < down; ++i) lines.emplace_back(left, firstY + i * step, right, firstY + i * step);
+            painter->drawLines(lines.data(), static_cast<int>(lines.size()));
             gridLinesDrawn_ += static_cast<int>(lines.size());
         };
         if (g.displaySubGrid && !tooFine(subPx, kMinSubGridSpacingPx)) {
