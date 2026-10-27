@@ -14,7 +14,10 @@ change in one repo fails until the other has the same copy.
 - `sidecar-hash.json`: the sidecarItems blob hash of each JSON text.
 - `update-guard.json`: updates and state vectors (hex) and whether the
   update guard refuses them (web apps/server/src/ws/updateGuard.ts, desktop
-  src/sync/UpdateGuard.cpp), with the limits both use.
+  src/sync/UpdateGuard.cpp), with the limits both use; `gridSize` (a
+  grid's cell size) and `drawingSettings` (every number a sheet is drawn
+  from, with its limits) are what the server's grid guard refuses
+  (apps/server/src/ws/gridGuard.ts, drawingSettings.ts).
 - `doc-shape.json`: doc shape 2 (packages/ydoc shape.ts, desktop
   sync/DocShape.cpp): the drawing order by z, the z a reorder sets, and
   concurrent edits (a web update made on a base doc, and the edit the
