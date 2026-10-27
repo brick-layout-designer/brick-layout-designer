@@ -1085,3 +1085,112 @@ TEST(MapViewSelectAll, PicksAThousandPartsSayingSelectionChangedOnce) {
     EXPECT_TRUE(view.scene()->selectedItems().isEmpty());
     EXPECT_EQ(view.selectionChangeCount() - before, 1);
 }
+
+namespace {
+
+std::unique_ptr<core::Map> fordyceWithoutGroups(parts::PartsLibrary& parts) {
+    const QString fordyce = QString::fromUtf8(BLD_BBM_CORPUS_DIR) + QStringLiteral("/fordyce-2026.bbm");
+    if (!QFile::exists(fordyce)) return nullptr;
+    const QString partsRoot = QString::fromUtf8(BLD_PARTS_LIBRARY_ROOT);
+    if (QDir(partsRoot).exists()) {
+        parts.addSearchPath(partsRoot);
+        parts.scan();
+    }
+    auto loaded = saveload::readBbm(fordyce);
+    return loaded.ok() ? std::move(loaded.map) : nullptr;
+}
+
+}  // namespace
+
+// Perf: with parts picked, an idle view does nothing. The selection outline
+// is refreshed whenever the scene changes, and redrawing it said the scene
+// changed again: with anything picked the view repainted over and over
+// (about 16 times a second on 5,000 parts, as fast as it could on fewer),
+// keeping a core busy. Counts scene changes, not time.
+TEST(MapViewIdle, AViewWithPartsPickedDoesNotKeepRepainting) {
+    parts::PartsLibrary parts;
+    auto map = fordyceWithoutGroups(parts);
+    if (!map) GTEST_SKIP() << "fordyce-2026.bbm missing";
+    ui::MapView view(parts);
+    view.resize(800, 600);
+    view.show();
+    view.loadMap(std::move(map));
+    view.fitInView(view.scene()->itemsBoundingRect(), Qt::KeepAspectRatio);
+    view.selectAll();
+    // Settle: the pick itself repaints once or twice.
+    for (int i = 0; i < 5; ++i) QApplication::processEvents(QEventLoop::AllEvents, 20);
+    QTest::qWait(100);
+
+    int changed = 0;
+    QObject::connect(view.scene(), &QGraphicsScene::changed, &view, [&] { ++changed; });
+    QTest::qWait(300);
+    EXPECT_EQ(changed, 0) << "the view kept repainting with nothing happening";
+
+    // Picked with a box drag over half the map: the same.
+    view.deselectAll();
+    QWidget* vp = view.viewport();
+    const QPoint from(2, 2), to(vp->width() / 2, vp->height() - 2);
+    mouse(vp, QEvent::MouseButtonPress, from, Qt::LeftButton);
+    for (int i = 1; i <= 10; ++i) mouse(vp, QEvent::MouseMove, from + (to - from) * i / 10, Qt::LeftButton);
+    mouse(vp, QEvent::MouseButtonRelease, to, Qt::NoButton);
+    ASSERT_FALSE(view.scene()->selectedItems().isEmpty());
+    for (int i = 0; i < 5; ++i) QApplication::processEvents(QEventLoop::AllEvents, 20);
+    QTest::qWait(100);
+    changed = 0;
+    QTest::qWait(300);
+    EXPECT_EQ(changed, 0) << "the view kept repainting after a box pick";
+
+    // A real change still redraws the outline (a part moved).
+    const auto items = brickItems(*view.scene());
+    ASSERT_FALSE(items.isEmpty());
+    items.front()->moveBy(16, 0);
+    QTest::qWait(50);
+    EXPECT_GT(changed, 0);
+}
+
+// Perf: grid lines closer than a few pixels on screen are left out. Fitting
+// a big layout asked for hundreds of hairlines a frame (half the time spent
+// drawing it), which only greyed the map over. Counts lines, not time.
+TEST(MapViewGrid, LinesTooCloseToSeeApartAreLeftOut) {
+    parts::PartsLibrary parts;
+    auto map = fordyceWithoutGroups(parts);
+    if (!map) GTEST_SKIP() << "fordyce-2026.bbm missing";
+    const core::LayerGrid* grid = nullptr;
+    for (const auto& L : map->layers())
+        if (L->kind() == core::LayerKind::Grid) grid = static_cast<const core::LayerGrid*>(L.get());
+    ASSERT_NE(grid, nullptr);
+    ASSERT_TRUE(grid->visible && grid->displayGrid && grid->displaySubGrid);
+    const double cellPx = grid->gridSizeInStud * rendering::SceneBuilder::kPixelsPerStud;
+    const double subPx = cellPx / std::max(grid->subDivisionNumber, 2);
+    ui::MapView view(parts);
+    view.resize(1200, 800);
+    view.show();
+    ASSERT_TRUE(QTest::qWaitForWindowExposed(&view));
+    view.loadMap(std::move(map));
+    const QSize vp = view.viewport()->size();
+    const auto linesAt = [&](double scale) {
+        view.resetTransform();
+        view.scale(scale, scale);
+        view.viewport()->repaint();
+        return view.gridLinesDrawn();
+    };
+    // At most one line every so many pixels across and down.
+    const auto atMost = [&](double spacing) { return (vp.width() + vp.height()) / spacing + 4; };
+
+    // Close enough: grid and sub-grid, as before.
+    const double near = 3 * ui::MapView::kMinSubGridSpacingPx / subPx;
+    const int nearLines = linesAt(near);
+    EXPECT_GT(nearLines, (vp.width() + vp.height()) / (subPx * near) - 4);
+    EXPECT_LE(nearLines, atMost(subPx * near) + atMost(cellPx * near));
+
+    // Sub-grid lines closer than kMinSubGridSpacingPx: only the grid's.
+    const double mid = (ui::MapView::kMinSubGridSpacingPx - 1) / subPx;
+    ASSERT_GE(cellPx * mid, ui::MapView::kMinGridSpacingPx);
+    const int midLines = linesAt(mid);
+    EXPECT_GT(midLines, 0);
+    EXPECT_LE(midLines, atMost(cellPx * mid));
+
+    // Zoomed far out (a big layout fitted): no lines at all.
+    const double far = (ui::MapView::kMinGridSpacingPx - 1) / cellPx;
+    EXPECT_EQ(linesAt(far), 0);
+}

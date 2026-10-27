@@ -32,8 +32,11 @@
 #include <QPolygonF>
 #include <QSet>
 
+#include <algorithm>
+#include <functional>
 #include <cmath>
 #include <limits>
+#include <vector>
 
 namespace bld::ui {
 
@@ -75,6 +78,7 @@ void MapView::drawBackground(QPainter* painter, const QRectF& rect) {
         }
     }
 
+    gridLinesDrawn_ = 0;
     // A saved view being looked at may turn the grid off.
     const bool gridAllowed = !viewFilter_ || viewFilter_->grid;
     for (const auto& layer : map_->layers()) {
@@ -92,31 +96,39 @@ void MapView::drawBackground(QPainter* painter, const QRectF& rect) {
         const double top    = std::floor(rect.top()    / subPx) * subPx;
         const double bottom = rect.bottom();
 
-        // Lines too close to see apart are left out, as in exported
-        // pictures (SavedViews): a huge subdivision would otherwise ask for
-        // billions of them and never finish drawing.
-        const auto tooFine = [&rect](double step) { return rect.width() / step > 4000 || rect.height() / step > 4000; };
-        if (g.displaySubGrid && !tooFine(subPx)) {
+        // Lines too close to see apart are left out: closer than a few
+        // pixels on screen they only grey the map over, and a zoomed-out big
+        // layout asked for hundreds of them each frame (half the time spent
+        // drawing it). The cap on the count also keeps a huge subdivision
+        // from asking for billions.
+        const double pxPerScene = std::hypot(painter->worldTransform().m11(), painter->worldTransform().m12());
+        const auto tooFine = [&rect, pxPerScene](double step, double minPx) {
+            return step * pxPerScene < minPx || rect.width() / step > 4000 || rect.height() / step > 4000;
+        };
+        std::vector<QLineF> lines;  // (QVarLengthArray trips MSVC's C4702 in Qt's overflow checks)
+        const auto addLines = [&](double firstX, double firstY, double step) {
+            lines.clear();
+            const int across = std::max(0, static_cast<int>(std::ceil((right - firstX) / step)));
+            const int down = std::max(0, static_cast<int>(std::ceil((bottom - firstY) / step)));
+            lines.reserve(static_cast<size_t>(across) + static_cast<size_t>(down));
+            for (int i = 0; i < across; ++i) lines.emplace_back(firstX + i * step, top, firstX + i * step, bottom);
+            for (int i = 0; i < down; ++i) lines.emplace_back(left, firstY + i * step, right, firstY + i * step);
+            painter->drawLines(lines.data(), static_cast<int>(lines.size()));
+            gridLinesDrawn_ += static_cast<int>(lines.size());
+        };
+        if (g.displaySubGrid && !tooFine(subPx, kMinSubGridSpacingPx)) {
             QPen subPen(g.subGridColor.color);
             subPen.setCosmetic(true);
             subPen.setWidthF(g.subGridThickness);
             painter->setPen(subPen);
-            for (double x = left; x < right; x += subPx)
-                painter->drawLine(QPointF(x, top), QPointF(x, bottom));
-            for (double y = top; y < bottom; y += subPx)
-                painter->drawLine(QPointF(left, y), QPointF(right, y));
+            addLines(left, top, subPx);
         }
-        if (g.displayGrid && !tooFine(gridPx)) {
+        if (g.displayGrid && !tooFine(gridPx, kMinGridSpacingPx)) {
             QPen gridPen(g.gridColor.color);
             gridPen.setCosmetic(true);
             gridPen.setWidthF(g.gridThickness);
             painter->setPen(gridPen);
-            const double firstX = std::floor(rect.left() / gridPx) * gridPx;
-            const double firstY = std::floor(rect.top()  / gridPx) * gridPx;
-            for (double x = firstX; x < right; x += gridPx)
-                painter->drawLine(QPointF(x, top), QPointF(x, bottom));
-            for (double y = firstY; y < bottom; y += gridPx)
-                painter->drawLine(QPointF(left, y), QPointF(right, y));
+            addLines(std::floor(rect.left() / gridPx) * gridPx, std::floor(rect.top() / gridPx) * gridPx, gridPx);
         }
         if (g.displayCellIndex) drawCellIndices(painter, rect, g);
         break;
@@ -297,7 +309,11 @@ void MapView::refreshSelectionOverlay() {
             polys.append(QPolygonF(box.adjusted(-4, -4, 4, 4)));
         }
     }
-    for (QGraphicsItem* it : scene()->selectedItems()) {
+    // In a steady order: Qt's own changes from call to call, and outlines
+    // in another order would read as new ones (and repaint).
+    QList<QGraphicsItem*> inOrder = scene()->selectedItems();
+    std::sort(inOrder.begin(), inOrder.end(), std::less<>());
+    for (QGraphicsItem* it : std::as_const(inOrder)) {
         if (!it || it == selectionOverlay_) continue;
         if (detail::isBrickItem(it) && inPickedModule.contains(it->data(detail::kBrickDataGuid).toString()))
             continue;

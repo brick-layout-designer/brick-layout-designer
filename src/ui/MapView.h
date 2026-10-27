@@ -158,6 +158,11 @@ public:
     void selectItems(const QList<QGraphicsItem*>& items, bool replace = true);
     // How many times the view has said selectionChanged (the perf tests count work).
     int selectionChangeCount() const { return selectionChanges_; }
+    // Grid lines the last background paint drew. Lines closer on screen
+    // than these are left out: the sub-grid's, then the grid's.
+    int gridLinesDrawn() const { return gridLinesDrawn_; }
+    static constexpr double kMinSubGridSpacingPx = 8.0;
+    static constexpr double kMinGridSpacingPx = 4.0;
     bool clipboardEmpty() const { return clipboard_.empty(); }
 
     void bringSelectionToFront();
@@ -687,6 +692,7 @@ private:
     // Redrawn whenever scene()->selectionChanged fires.
     SelectionOverlay* selectionOverlay_ = nullptr;
     int selectionChanges_ = 0;
+    int gridLinesDrawn_ = 0;
     void refreshSelectionOverlay();
 
     // Set by the live connection-snap hook when the dragged brick is

@@ -94,19 +94,25 @@ void SelectionOverlay::paint(QPainter* p, const QStyleOptionGraphicsItem*, QWidg
 }
 
 void SelectionOverlay::setFullNames(QList<FullName> names) {
+    if (names == names_) return;
     names_ = std::move(names);
-    setOutlines(polys_);
+    refit();
 }
 
 void SelectionOverlay::setRulerBands(QList<RulerBand> bands) {
-    prepareGeometryChange();
+    if (bands == bands_) return;
     bands_ = std::move(bands);
-    setOutlines(polys_);
+    refit();
 }
 
 void SelectionOverlay::setOutlines(QList<QPolygonF> polys) {
-    prepareGeometryChange();
+    if (polys == polys_) return;
     polys_ = std::move(polys);
+    refit();
+}
+
+void SelectionOverlay::refit() {
+    prepareGeometryChange();
     QRectF total;
     for (const QPolygonF& poly : polys_) {
         total = total.united(poly.boundingRect());
@@ -123,11 +129,13 @@ void SelectionOverlay::setOutlines(QList<QPolygonF> polys) {
 }
 
 void SelectionOverlay::setSnapState(bool active, QPointF snapPoint, std::optional<QPointF> moving, double viewScale) {
+    viewScale = viewScale > 0 ? viewScale : 1.0;
+    if (active == snapActive_ && snapPoint == snapPoint_ && moving == moving_ && viewScale == viewScale_) return;
     snapActive_ = active;
     snapPoint_  = snapPoint;
     moving_     = moving;
-    viewScale_  = viewScale > 0 ? viewScale : 1.0;
-    setOutlines(polys_);  // bounds take the marks in
+    viewScale_  = viewScale;
+    refit();  // bounds take the marks in
 }
 
 QRectF SelectionOverlay::marksRect() const {
