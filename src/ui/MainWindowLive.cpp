@@ -57,6 +57,7 @@
 #include <QUndoStack>
 
 #include <algorithm>
+#include <utility>
 
 namespace bld::ui {
 
@@ -536,7 +537,14 @@ void MainWindow::offerPlacedParts() {
 
 void MainWindow::syncServerParts(const QUrl& server, const QString& token, const std::function<void()>& then) {
     if (partsSyncRunning_) {
-        if (then) then();
+        if (server == lastPartsSyncServer_) {
+            if (then) then();
+            return;
+        }
+        // Another server's parts (a layout opened there meanwhile): once
+        // these are done, or they would never come.
+        if (const auto replaced = std::exchange(partsSyncNext_, {})) replaced();
+        partsSyncNext_ = [this, server, token, then] { syncServerParts(server, token, then); };
         return;
     }
     partsSyncRunning_ = true;
@@ -556,6 +564,7 @@ void MainWindow::syncServerParts(const QUrl& server, const QString& token, const
         if (partsDownloadCard_) partsDownloadCard_->finish();
         updateLiveUi();
         if (then) QTimer::singleShot(0, this, then);
+        if (auto next = std::exchange(partsSyncNext_, {})) QTimer::singleShot(0, this, std::move(next));
     };
     connect(job, &sync::PartsSync::progress, this, [this](int done, int total) {
         if (partsDownloadCard_)

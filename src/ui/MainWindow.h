@@ -381,8 +381,11 @@ private:
     bool liveOfferOpen_ = false;
     // Bring this server's parts into the library (in the background):
     // missing or changed ones are downloaded to a folder named after it.
-    // `then` runs once it's done (or straight away when one is already running).
+    // `then` runs once it's done (or straight away when one is already
+    // running for this server). One for another server runs after it.
     void syncServerParts(const QUrl& server, const QString& token, const std::function<void()>& then = {});
+    // Another server's, waiting for the running one (the latest asked).
+    std::function<void()> partsSyncNext_;
     // When server parts didn't all download, a button in the status bar
     // says so (they draw as outlines until they do) and tries again.
     QToolButton* partsSyncFailed_ = nullptr;

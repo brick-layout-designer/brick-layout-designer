@@ -9,6 +9,8 @@
 #include <QHostAddress>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QPointer>
+#include <QSet>
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QUrl>
@@ -51,6 +53,18 @@ public:
         replies_[path].push_back({ status, body, contentType });
     }
 
+    // Requests for these paths wait unanswered until release(path) (a slow server).
+    QSet<QByteArray> hold;
+    void release(const QByteArray& path) {
+        hold.remove(path);
+        std::vector<std::pair<QPointer<QTcpSocket>, QByteArray>> still;
+        for (auto& [s, p] : std::exchange(held_, {})) {
+            if (p != path) still.emplace_back(s, p);
+            else if (s) answer(s, p);
+        }
+        held_ = std::move(still);
+    }
+
     std::vector<Request> requests;
     // When set, WebSocket upgrade requests are handed over (e.g. to
     // FakeServer::take), so one base URL serves the API and the live socket.
@@ -85,7 +99,15 @@ private:
         req.atMs = clock_.elapsed();
         pending_.remove(s);
         requests.push_back(req);
-        auto& q = replies_[req.path];
+        if (hold.contains(req.path)) {
+            held_.emplace_back(s, req.path);
+            return;
+        }
+        answer(s, req.path);
+    }
+
+    void answer(QTcpSocket* s, const QByteArray& path) {
+        auto& q = replies_[path];
         const Reply r = q.empty() ? Reply{ 404, QByteArrayLiteral("{\"error\":\"not_found\"}"),
                                            QByteArrayLiteral("application/json") }
                                   : q.front();
@@ -101,6 +123,7 @@ private:
     QTcpServer server_;
     QElapsedTimer clock_;
     QHash<QTcpSocket*, QByteArray> pending_;
+    std::vector<std::pair<QPointer<QTcpSocket>, QByteArray>> held_;
     struct Reply {
         int status;
         QByteArray body, contentType;
