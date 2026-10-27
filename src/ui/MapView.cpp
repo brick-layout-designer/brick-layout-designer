@@ -1,4 +1,6 @@
 #include "MapView.h"
+
+#include <QSignalBlocker>
 #include "SheetChoiceDialog.h"
 #include "../core/ModuleEdit.h"
 #include "../rendering/ModuleLabels.h"
@@ -151,6 +153,8 @@ MapView::MapView(parts::PartsLibrary& parts, QWidget* parent)
         static bool reentrant = false;
         if (!reentrant) {
             reentrant = true;
+            // What this picks too is said once, below, not once per item.
+            const QSignalBlocker quiet(this->scene());
             QSet<QString> rulerGuids;
             QSet<QString> selectedBrickGuids;
             for (QGraphicsItem* it : this->scene()->selectedItems()) {
@@ -201,6 +205,7 @@ MapView::MapView(parts::PartsLibrary& parts, QWidget* parent)
         }
         refreshSelectionOverlay();
         refreshBendHandles();
+        ++selectionChanges_;
         emit selectionChanged();
     });
     // Also refresh the overlay whenever anything in the scene changes
@@ -368,9 +373,27 @@ QSet<QString> partGuids(const core::Map& map) {
 } // namespace
 
 void MapView::selectParts(const QSet<QString>& guids) {
-    scene()->clearSelection();
+    QList<QGraphicsItem*> pick;
     for (QGraphicsItem* it : scene()->items())
-        if (isBrickItem(it) && guids.contains(it->data(kBrickDataGuid).toString())) it->setSelected(true);
+        if (isBrickItem(it) && guids.contains(it->data(kBrickDataGuid).toString())) pick.append(it);
+    selectItems(pick);
+}
+
+void MapView::selectItems(const QList<QGraphicsItem*>& items, bool replace) {
+    bool changed = false;
+    {
+        const QSignalBlocker quiet(scene());
+        if (replace && !scene()->selectedItems().isEmpty()) {
+            scene()->clearSelection();
+            changed = true;
+        }
+        for (QGraphicsItem* it : items) {
+            if (!it || it->isSelected()) continue;
+            it->setSelected(true);
+            changed = changed || it->isSelected();
+        }
+    }
+    if (changed) emit scene()->selectionChanged();
 }
 
 void MapView::pickPartsBroughtBack() {
@@ -430,6 +453,12 @@ void MapView::rebuildScene() {
         preserve.append({ it->data(kBrickDataLayerIndex).toInt(),
                           it->data(kBrickDataGuid).toString(), kind });
     }
+    // The rebuild deletes the picked items, and Qt says selectionChanged
+    // for each one it takes away; the pick comes back below, said once.
+    if (!preserve.isEmpty()) {
+        const QSignalBlocker quiet(scene());
+        scene()->clearSelection();
+    }
     builder_->build(*map_);
     applyViewFilter();
     applyModuleState();
@@ -446,11 +475,13 @@ void MapView::rebuildScene() {
                              + QLatin1Char('|') + kind,
                          it);
         }
+        QList<QGraphicsItem*> pick;
         for (const auto& k : preserve) {
             const QString key = QString::number(k.layer) + QLatin1Char('|')
                                 + k.guid + QLatin1Char('|') + k.kind;
-            if (auto* it = byKey.value(key)) it->setSelected(true);
+            if (auto* it = byKey.value(key)) pick.append(it);
         }
+        selectItems(pick, false);
     }
     refreshSelectionOverlay();
     viewport()->update();
@@ -1789,9 +1820,10 @@ void MapView::addPartAtScenePos(const QString& partKey, QPointF sceneCenterPx, s
             // any snapped end) from where the parts sit.
             edit::rebuildConnectivity(*map_, parts_);
             rebuildScene();
-            scene()->clearSelection();
+            QList<QGraphicsItem*> pick;
             for (QGraphicsItem* it : scene()->items())
-                if (isBrickItem(it) && placedGuids.contains(it->data(kBrickDataGuid).toString())) it->setSelected(true);
+                if (isBrickItem(it) && placedGuids.contains(it->data(kBrickDataGuid).toString())) pick.append(it);
+            selectItems(pick);
             if (auto* mw = window())
                 if (auto* sb = mw->findChild<QStatusBar*>())
                     sb->showMessage(tr("Placed set: %1 (%2 parts)").arg(setName).arg(count), 3000);
@@ -1850,9 +1882,10 @@ void MapView::setSnapStepStuds(double studs) {
 }
 
 void MapView::selectAll() {
-    for (QGraphicsItem* it : scene()->items()) {
-        if (isBrickItem(it)) it->setSelected(true);
-    }
+    QList<QGraphicsItem*> pick;
+    for (QGraphicsItem* it : scene()->items())
+        if (isBrickItem(it)) pick.append(it);
+    selectItems(pick, false);
 }
 
 void MapView::deselectAll() {
@@ -2050,9 +2083,10 @@ void MapView::selectPath() {
             toVisit.insert(neighbourBrick);
         }
     }
-    for (const QString& guid : visited) {
-        if (auto* it = itemByGuid.value(guid)) it->setSelected(true);
-    }
+    QList<QGraphicsItem*> pick;
+    for (const QString& guid : visited)
+        if (auto* it = itemByGuid.value(guid)) pick.append(it);
+    selectItems(pick, false);
 }
 
 void MapView::editSelectedTextContent() {
@@ -2998,19 +3032,19 @@ bool MapView::placeModule(core::Map& loaded, const QString& name, const QString&
     // the user has to rubber-band-select after every drop to do
     // anything else with the module.
     if (!placed.isEmpty()) {
-        scene()->clearSelection();
         QSet<QString> wantedGuids;
         QSet<int> wantedLayers;
         for (const auto& p : placed) {
             wantedGuids.insert(p.guid);
             wantedLayers.insert(p.layerIndex);
         }
+        QList<QGraphicsItem*> pick;
         for (QGraphicsItem* it : scene()->items()) {
             if (!isBrickItem(it)) continue;
             if (!wantedLayers.contains(it->data(kBrickDataLayerIndex).toInt())) continue;
-            if (wantedGuids.contains(it->data(kBrickDataGuid).toString()))
-                it->setSelected(true);
+            if (wantedGuids.contains(it->data(kBrickDataGuid).toString())) pick.append(it);
         }
+        selectItems(pick);
     }
     return true;
 }
