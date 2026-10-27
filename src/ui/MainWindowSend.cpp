@@ -236,7 +236,8 @@ void MainWindow::offerAnotherSetName(const SetServer& to, const sync::LocalPart&
     auto* api = new sync::LibraryApi(this);
     api->setBase(to.server);
     api->setToken(to.token);
-    // What's taken: the numbers of your parts there, and the sets beside this one here.
+    // What's taken: the numbers of your own parts there (a club's or a shared
+    // one with the same number doesn't stop yours), and the sets beside this one here.
     const auto ask = [this, to, set](const QSet<QString>& onServer) {
         const QDir dir = QFileInfo(set.xmlPath).absoluteDir();
         const auto taken = [&](const QString& stem) {
@@ -278,7 +279,7 @@ void MainWindow::offerAnotherSetName(const SetServer& to, const sync::LocalPart&
         renamed.isSet = true;
         uploadSet(to, renamed);
     };
-    api->customParts(
+    api->myCustomParts(
         [api, ask](const QList<sync::ServerPart>& list) {
             api->deleteLater();
             QSet<QString> numbers;
