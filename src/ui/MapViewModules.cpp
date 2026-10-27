@@ -3,15 +3,19 @@
 // module can be opened part by part with the rest dimmed and out of reach;
 // a pinned module doesn't move as a whole.
 
+#include "../edit/ModuleSheets.h"
 #include "MapView.h"
 #include "MapViewInternal.h"
 #include "ModuleEditBar.h"
-#include "../edit/ModuleSheets.h"
+#include "SetUpdatesBar.h"
 
+#include "../core/Groups.h"
 #include "../core/LayerBrick.h"
 #include "../core/Map.h"
 #include "../core/ModuleEdit.h"
+#include "../edit/Connectivity.h"
 #include "../edit/ModuleCommands.h"
+#include "../edit/SetUpdates.h"
 #include "../rendering/ModuleLabels.h"
 #include "../rendering/SceneBuilder.h"
 
@@ -291,6 +295,89 @@ void MapView::paintModuleEdit(QPainter* painter) {
     painter->setBrush(Qt::NoBrush);
     painter->drawRect(r);
     painter->restore();
+}
+
+// ---- Placed custom sets and their versions (edit/SetUpdates.h) ------------
+
+void MapView::setTrackedSets(edit::TrackedSet tracked) {
+    trackedSets_ = std::move(tracked);
+    refreshSetUpdates();
+}
+
+void MapView::refreshSetUpdates() {
+    setUpdates_ = map_ && trackedSets_ ? edit::findSetUpdates(*map_, parts_, trackedSets_)
+                                       : std::vector<edit::SetUpdate>{};
+    if (setUpdates_.empty()) {
+        if (updatesBar_) updatesBar_->hide();
+        return;
+    }
+    if (!updatesBar_) {
+        updatesBar_ = new SetUpdatesBar(this);
+        connect(updatesBar_, &SetUpdatesBar::showRequested, this, [this] { showPlacedSets(setUpdates_); });
+        connect(updatesBar_, &SetUpdatesBar::updateRequested, this,
+                [this] { updatePlacedSets(setUpdates_); });
+    }
+    QStringList names;
+    QString key;
+    for (const auto& u : setUpdates_) {
+        names << u.name;
+        key += u.link.groupId + QLatin1Char(':') + u.version + QLatin1Char(',');
+    }
+    updatesBar_->setUpdates(names, key);
+    if (updatesBar_->isVisible()) updatesBar_->place(viewport()->geometry());
+}
+
+void MapView::updatePlacedSets(const std::vector<edit::SetUpdate>& updates) {
+    if (!map_ || updates.empty()) return;
+    // A copy: the bar's own list (often `updates`) changes as this goes.
+    const std::vector<edit::SetUpdate> list = updates; // NOLINT(performance-unnecessary-copy-initialization)
+    auto* cmd = new edit::UpdatePlacedSetsCommand(*map_, parts_, list);
+    const QSet<QString> fresh = cmd->newGuids();
+    QStringList names;
+    for (const auto& u : list)
+        if (!names.contains(u.name)) names << u.name;
+    undoStack_->push(cmd);
+    if (fresh.isEmpty()) return;
+    // Join the new parts to the track around them where they line up.
+    edit::rebuildConnectivity(*map_, parts_);
+    rebuildScene();
+    QList<QGraphicsItem*> pick;
+    for (QGraphicsItem* it : scene()->items())
+        if (detail::isBrickItem(it) && fresh.contains(it->data(detail::kBrickDataGuid).toString()))
+            pick.append(it);
+    selectItems(pick);
+    if (auto* mw = window())
+        if (auto* sb = mw->findChild<QStatusBar*>())
+            sb->showMessage(
+                names.size() == 1
+                    ? tr("Updated “%1” to its newest version. Undo (Ctrl+Z) puts it back.").arg(names.front())
+                    : tr("Updated %n set(s) to their newest versions. Undo (Ctrl+Z) puts them back.", nullptr,
+                         static_cast<int>(list.size())),
+                7000);
+}
+
+void MapView::showPlacedSets(const std::vector<edit::SetUpdate>& updates) {
+    if (!map_) return;
+    QSet<QString> groups;
+    for (const auto& u : updates) groups.insert(u.link.groupId);
+    QSet<QString> guids;
+    for (const auto& L : map_->layers()) {
+        if (!L || L->kind() != core::LayerKind::Brick) continue;
+        const auto& B = static_cast<const core::LayerBrick&>(*L);
+        for (const auto& b : B.bricks)
+            for (const QString& g : core::groupChain(B, b.myGroupId))
+                if (groups.contains(g)) guids.insert(b.guid);
+    }
+    QList<QGraphicsItem*> pick;
+    QRectF box;
+    for (QGraphicsItem* it : scene()->items())
+        if (detail::isBrickItem(it) && guids.contains(it->data(detail::kBrickDataGuid).toString())) {
+            pick.append(it);
+            box = box.united(it->sceneBoundingRect());
+        }
+    if (pick.isEmpty()) return;
+    selectItems(pick);
+    centerOn(box.center());
 }
 
 }  // namespace bld::ui

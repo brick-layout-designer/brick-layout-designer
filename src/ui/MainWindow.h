@@ -89,6 +89,8 @@ protected:
     // parts and the folders added in Parts Folders, but not the bundled
     // library or the folders of parts downloaded from a server.
     QStringList ownPartsRoots() const;
+    // A set of yours or one a server sent (not a library's): placed copies keep track of its version.
+    bool isCustomSetFile(const QString& xmlPath) const;
     QList<bld::sync::LocalPart> scanOwnParts() const;
 
     // Register a freshly-written library part with the in-memory

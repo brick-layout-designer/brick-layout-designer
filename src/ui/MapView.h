@@ -5,6 +5,8 @@
 #include "../core/LayerArea.h"
 #include "../core/LayerRuler.h"
 #include "../core/Module.h"
+#include "../core/Sidecar.h"
+#include "../edit/SetUpdates.h"
 #include "ModuleLibraryMenu.h"
 #include "SnapFeel.h"
 
@@ -248,6 +250,19 @@ public:
     void showEditedModuleSheets();
     // The edit bar again, after something it reports changed (a sheet shown or hidden, the picked sheet).
     void refreshModuleEditBar();
+
+    // Placed custom sets keep track of their set's version (edit/SetUpdates.h).
+    // Which sets are tracked: custom ones, not the bundled library's (none
+    // until set). Their "Update available" bar is refreshed after every change.
+    void setTrackedSets(edit::TrackedSet tracked);
+    const std::vector<edit::SetUpdate>& setUpdates() const { return setUpdates_; }
+    class SetUpdatesBar* setUpdatesBar() const { return updatesBar_; }
+    // Update these placed copies to their set's current version (one undo step).
+    void updatePlacedSets(const std::vector<edit::SetUpdate>& updates);
+    // Pick these placed copies and bring them into view.
+    void showPlacedSets(const std::vector<edit::SetUpdate>& updates);
+    // The bar again, after the parts library changed.
+    void refreshSetUpdates();
     class SelectionOverlay* selectionOverlay() const { return selectionOverlay_; }
     // Whether the selection may move or turn as a whole; says why not when
     // a pinned module stops it.
@@ -507,6 +522,8 @@ private:
     struct ClipEntry {
         QString     sourceLayerName;
         core::Brick brick;
+        // The anchor part of a placed custom set: its link, so a pasted copy keeps track too.
+        std::optional<core::PlacedSet> placedSet;
     };
     std::vector<ClipEntry> clipboard_;
     // The groups (sets) above the copied parts, by source layer name.
@@ -638,6 +655,10 @@ private:
     QString editingModuleId_;
     QHash<QString, QStringList> peersEditing_;
     class ModuleEditBar* editBar_ = nullptr;
+    // Placed custom sets and their versions.
+    edit::TrackedSet trackedSets_;
+    std::vector<edit::SetUpdate> setUpdates_;
+    class SetUpdatesBar* updatesBar_ = nullptr;
     // Item flags and dimming for Edit module and pinned modules, after a build.
     void applyModuleState();
     // Modules picked whole (or only the edited one's parts): called from

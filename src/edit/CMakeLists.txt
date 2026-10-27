@@ -40,6 +40,8 @@ add_library(bld_edit STATIC
     FlexMove.h
     Sets.cpp
     Sets.h
+    SetUpdates.cpp
+    SetUpdates.h
     Connectivity.h
     Budget.cpp
     Budget.h

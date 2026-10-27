@@ -206,6 +206,22 @@ constexpr Raw kShared[] = {
       QT_TRANSLATE_NOOP("HelpTexts", "The people you invite also get the custom parts of yours that the set uses, so "
                                      "it places properly for them, to look at and place but not change. Taking the "
                                      "set back takes those parts back too, unless you shared them on their own.") },
+    { "set.moving", "",
+      QT_TRANSLATE_NOOP("HelpTexts", "Moving a set to a club"),
+      QT_TRANSLATE_NOOP("HelpTexts", "Your own custom parts in a set move to the club with it."),
+      QT_TRANSLATE_NOOP("HelpTexts", "Everyone in the club can then place the set with all its parts. A part that "
+                                     "another of your sets also uses stays yours, so that set keeps working, and the "
+                                     "club gets its own copy of it. If the club already has a part with the same "
+                                     "number, the set uses the club’s.") },
+    { "set.updates", "",
+      QT_TRANSLATE_NOOP("HelpTexts", "Set updates"),
+      QT_TRANSLATE_NOOP("HelpTexts", "A set you placed knows when the set changes, so you can bring in the new "
+                                     "version."),
+      QT_TRANSLATE_NOOP("HelpTexts", "When one of your custom sets (or one shared with you) gets new parts, has its "
+                                     "parts moved, or is renamed, layouts that use it say “Update available”. Update "
+                                     "puts the set’s new parts where the placed set is now, keeping its place and "
+                                     "turn, and joins them to the track around it where they fit. Nothing changes "
+                                     "until you choose Update, and Undo puts it back.") },
     // Opening
     { "open.formats", "/help#opening",
       QT_TRANSLATE_NOOP("HelpTexts", "Opening a file"),

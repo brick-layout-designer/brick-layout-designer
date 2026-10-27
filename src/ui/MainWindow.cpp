@@ -125,6 +125,9 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
 
     TouchMode::instance().install();
     mapView_ = new MapView(parts_, this);
+    // Placed custom sets keep track of their set's version: yours (your
+    // parts folders) and the custom ones a server sent, not a library's.
+    mapView_->setTrackedSets([this](const parts::PartMetadata& m) { return isCustomSetFile(m.xmlFilePath); });
     updates_ = new UpdateCheck(this);
     notices_ = new NoticeArea(mapView_);
     connect(updates_, &UpdateCheck::updateAvailable, this, &MainWindow::showUpdateNotice);

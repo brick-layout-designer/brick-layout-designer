@@ -4,6 +4,8 @@ add_library(bld_parts STATIC
     ColorNames.h
     PartsLibrary.cpp
     PartsLibrary.h
+    SetVersion.cpp
+    SetVersion.h
 )
 
 target_include_directories(bld_parts PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)

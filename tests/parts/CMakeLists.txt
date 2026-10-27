@@ -1,5 +1,6 @@
 add_executable(bld_parts_tests
     PartsLibraryTest.cpp
+    SetVersionTest.cpp
 )
 
 target_compile_definitions(bld_parts_tests PRIVATE

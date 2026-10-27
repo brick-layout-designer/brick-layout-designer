@@ -463,6 +463,7 @@ void MapView::rebuildScene() {
     applyViewFilter();
     applyModuleState();
     refreshModuleEditBar();
+    refreshSetUpdates();
     // Reselect by (layer, guid, kind) — builds a quick index of the new
     // items once so each lookup is O(1).
     if (!preserve.isEmpty()) {
@@ -1811,9 +1812,14 @@ void MapView::addPartAtScenePos(const QString& partKey, QPointF sceneCenterPx, s
             QSet<QString> placedGuids;
             for (const auto& b : set.bricks) placedGuids.insert(b.guid);
             const int count = static_cast<int>(set.bricks.size());
+            // A custom set keeps track of the version it came from (sidecar only).
+            std::optional<core::PlacedSet> link;
+            if (trackedSets_ && trackedSets_(*meta) && !set.groups.empty())
+                link = edit::placedSetLink(parts_, partKey, set.groups.front().guid, set.bricks.front().guid);
             // Editing a module, the set joins it in the same undo step.
             undoStack_->beginMacro(tr("Place set %1").arg(setName));
             undoStack_->push(new edit::AddBricksCommand(*map_, targetLayer, std::move(set.bricks), std::move(set.groups)));
+            if (link) undoStack_->push(new edit::AddPlacedSetsCommand(*map_, { *link }));
             absorbIntoEditedModule(placedGuids);
             undoStack_->endMacro();
             // Set files carry positions, not links: link the joints (and

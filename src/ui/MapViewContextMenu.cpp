@@ -208,6 +208,19 @@ void MapView::contextMenuEvent(QContextMenuEvent* e) {
             }
             menu.addSeparator();
 
+            // A placed custom set whose set changed since: Update available.
+            {
+                QSet<QString> picked;
+                for (QGraphicsItem* it : sel)
+                    if (isBrickItem(it)) picked.insert(it->data(kBrickDataGuid).toString());
+                if (const auto u = edit::updateForSelection(*map_, setUpdates_, picked)) {
+                    auto* upd = menu.addAction(tr("Update set “%1” (update available)").arg(u->name));
+                    upd->setObjectName(QStringLiteral("ctxUpdateSet"));
+                    upd->setToolTip(tr("Bring in the set’s newest version where it is now"));
+                    connect(upd, &QAction::triggered, this, [this, u = *u] { updatePlacedSets({ u }); });
+                    menu.addSeparator();
+                }
+            }
             if (sel.size() >= 2) {
                 auto* grp = menu.addAction(tr("Group"));
                 connect(grp, &QAction::triggered, [this]{ groupSelection(); });

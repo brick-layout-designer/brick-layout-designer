@@ -63,6 +63,8 @@ add_library(bld_ui STATIC
     ModuleLookDialog.h
     ModuleEditBar.cpp
     ModuleEditBar.h
+    SetUpdatesBar.cpp
+    SetUpdatesBar.h
     MapViewModules.cpp
     ModuleLibraryPanel.cpp
     ModuleThumbnail.cpp

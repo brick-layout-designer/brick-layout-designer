@@ -32,6 +32,8 @@ module.library
 module.sheets
 set.about
 set.sharing
+set.moving
+set.updates
 open.formats
 open.desktop
 download.formats
