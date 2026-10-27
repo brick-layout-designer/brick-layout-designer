@@ -114,3 +114,25 @@ TEST(BrandName, NoticesTheOldNameAlsoWhenItWraps) {
                                              QStringLiteral("b:1: tr(\"a newer version of Brick Layout \""),
                                              QStringLiteral("c:1: // made by Brick") }));
 }
+
+// The old short names ("BLD", "CLD") aren't the app's name either: no
+// text people read (a tr() string) says them.
+TEST(BrandName, NoOldShortNameInTheInterface) {
+    static const QRegularExpression trString(QStringLiteral(R"re(\btr\(\s*"((?:[^"\\]|\\.)*)")re"));
+    static const QRegularExpression shortName(QStringLiteral(R"(\b[BC]LD\b)"));
+    QStringList found;
+    QDirIterator it(kRoot + QStringLiteral("/src"), { QStringLiteral("*.cpp"), QStringLiteral("*.h") }, QDir::Files,
+                    QDirIterator::Subdirectories);
+    while (it.hasNext()) {
+        const QString path = it.next();
+        QFile f(path);
+        if (!f.open(QIODevice::ReadOnly)) continue;
+        const QString text = QString::fromUtf8(f.readAll());
+        for (auto m = trString.globalMatch(text); m.hasNext();) {
+            const QString literal = m.next().captured(1);
+            if (shortName.match(literal).hasMatch()) found << path.mid(kRoot.size() + 1) + QStringLiteral(": ") + literal;
+        }
+    }
+    EXPECT_TRUE(found.isEmpty()) << "Say \"Collaborative Brick Layout Designer\" (or \"this app\"):\n"
+                                 << found.join(QLatin1Char('\n')).toStdString();
+}

@@ -2434,7 +2434,7 @@ Restore it?</source>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMapMenu.cpp" line="63"/>
-        <source>Optional raster image painted under the layout (BLD-only, stored in .bbm.bld sidecar)</source>
+        <source>A picture shown under the layout, such as a floor plan. It&apos;s kept with the layout in this app; BlueBrick doesn&apos;t show it.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -3325,8 +3325,8 @@ Restore it?</source>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMenus.cpp" line="607"/>
-        <source>&amp;About BLD...</source>
-        <translation>&amp;Sobre o BLD...</translation>
+        <source>&amp;About Collaborative Brick Layout Designer...</source>
+        <translation>&amp;Sobre o Collaborative Brick Layout Designer...</translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindowMenus.cpp" line="609"/>

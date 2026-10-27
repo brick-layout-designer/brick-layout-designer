@@ -62,7 +62,7 @@ void MainWindow::setupMapMenu() {
         mapView_->scene()->setBackgroundBrush(c);
     });
     auto* bgImgAct = mapMenu->addAction(tr("Background &Image..."));
-    bgImgAct->setToolTip(tr("Optional raster image painted under the layout (BLD-only, stored in .bbm.bld sidecar)"));
+    bgImgAct->setToolTip(tr("A picture shown under the layout, such as a floor plan. It's kept with the layout in this app; BlueBrick doesn't show it."));
     connect(bgImgAct, &QAction::triggered, this, [this]{
         auto* m = mapView_->currentMap();
         if (!m) return;

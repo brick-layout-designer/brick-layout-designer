@@ -689,7 +689,7 @@ void MainWindow::setupMenus() {
     auto* updateAct = help->addAction(tr("Check for &Updates..."));
     connect(updateAct, &QAction::triggered, this, [this]{ updates_->checkNow(); });
     help->addSeparator();
-    auto* aboutAct = help->addAction(tr("&About BLD..."));
+    auto* aboutAct = help->addAction(tr("&About Collaborative Brick Layout Designer..."));
     connect(aboutAct, &QAction::triggered, this, &MainWindow::onAbout);
     auto* aboutQtAct = help->addAction(tr("About &Qt..."));
     connect(aboutQtAct, &QAction::triggered, qApp, &QApplication::aboutQt);
