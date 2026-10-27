@@ -41,6 +41,7 @@ add_executable(bld_ui_tests
     ConfirmDialogTest.cpp
     NameMigrationTest.cpp
     BrandNameTest.cpp
+    OwnSetsTest.cpp
 )
 
 target_compile_definitions(bld_ui_tests PRIVATE

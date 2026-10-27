@@ -22,6 +22,7 @@
 #include "ui/ModuleLibraryPanel.h"
 #include "ui/ServerLibrary.h"
 #include "ui/SendToServerDialogs.h"
+#include "ui/SaveSetDialog.h"
 #include "ui/ServerWindow.h"
 #include "ui/UpdateCheck.h"
 #include "ui/VenueLibraryPanel.h"
@@ -52,6 +53,9 @@
 #include <QSettings>
 #include <QStandardPaths>
 #include <QTabWidget>
+#include <QStatusBar>
+#include <QGraphicsScene>
+#include <QGraphicsItem>
 #include <QTcpServer>
 #include <QTemporaryDir>
 #include <QToolButton>
@@ -888,6 +892,8 @@ class Win : public ui::MainWindow {
 public:
     using ui::MainWindow::MainWindow;
     using ui::MainWindow::setTokenStore;
+    using ui::MainWindow::runSaveSetDialog;
+    using ui::MainWindow::askSetFile;
 };
 
 parts::PartsLibrary& bundledParts() {
@@ -1235,6 +1241,121 @@ TEST_F(ServerWindowMain, YourSetsAreOfferedToAServerThatTakesSets) {
     QSettings().remove(QStringLiteral("modules/libraryPath"));
     EXPECT_TRUE(partOnly);
     EXPECT_TRUE(withSet) << shown.join(QStringLiteral(", ")).toStdString();
+}
+
+TEST_F(ServerWindowMain, SaveSelectionAsSetCanAlsoPutItOnAServerThatTakesSets) {
+    // A part of your own in the imports folder, two of it placed and picked.
+    QTemporaryDir modules;
+    const QString yard = modules.path() + QStringLiteral("/imports/Yard");
+    QDir().mkpath(yard);
+    {
+        QFile xml(QDir(yard).filePath(QStringLiteral("YARDPLATE.xml")));
+        ASSERT_TRUE(xml.open(QIODevice::WriteOnly));
+        xml.write("<part><Description><en>Yard plate</en></Description></part>");
+    }
+    QImage img(32, 32, QImage::Format_ARGB32);
+    img.fill(Qt::gray);
+    ASSERT_TRUE(img.save(QDir(yard).filePath(QStringLiteral("YARDPLATE.png")), "PNG"));
+    QSettings settings;
+    const QVariant userPaths = settings.value(QStringLiteral("partsLibrary/userPaths"));
+    settings.remove(QStringLiteral("partsLibrary/userPaths"));
+    settings.setValue(QStringLiteral("modules/libraryPath"), modules.path());
+    settings.remove(QStringLiteral("sets/alsoOnServer"));
+    window_->findChild<QAction*>(QStringLiteral("act.parts.reload"))->trigger();
+    auto* view = window_->findChild<ui::MapView*>();
+    ASSERT_TRUE(view);
+    view->addPartAtScenePos(QStringLiteral("YARDPLATE"), QPointF(0, 0));
+    view->addPartAtScenePos(QStringLiteral("YARDPLATE"), QPointF(400, 0));
+    int bricks = 0;
+    for (QGraphicsItem* it : view->scene()->items())
+        if (it->data(2).toString() == QStringLiteral("brick")) {
+            it->setSelected(true);
+            ++bricks;
+        }
+    ASSERT_EQ(bricks, 2);
+    QAction* saveSet = window_->findChild<QAction*>(QStringLiteral("modules.saveSet"));
+    ASSERT_TRUE(saveSet);
+    const auto posts = [&] {
+        std::vector<QJsonObject> out;
+        for (const auto& r : http_.requests)
+            if (r.method == "POST" && r.path == "/api/custom-parts") out.push_back(QJsonDocument::fromJson(r.body).object());
+        return out;
+    };
+
+    // A server that doesn't take sets: no checkbox, and nothing goes to it.
+    bool boxShown = true;
+    QString help;
+    int partCount = 0;
+    window_->runSaveSetDialog = [&](ui::SaveSetDialog& d) {
+        boxShown = !d.serverBox()->isHidden();
+        help = d.findChild<QLabel*>(QStringLiteral("saveSetAbout"))->text();
+        partCount = d.findChild<QLabel*>(QStringLiteral("saveSetCount"))->text().split(QLatin1Char(' ')).first().toInt();
+        return false;
+    };
+    saveSet->trigger();
+    EXPECT_FALSE(boxShown);
+    EXPECT_TRUE(help.startsWith(QStringLiteral("A set is a group of parts saved together"))) << help.toStdString();
+    EXPECT_EQ(partCount, 2);
+
+    // One that does: the box shows (ticked the first time), and the set goes
+    // to it as a set, its XML only, numbered by its file name.
+    {
+        sync::ServerList list = sync::ServerList::load();
+        sync::ServerInfo info;
+        info.features = QStringList{ QStringLiteral("liveSync"), QStringLiteral("venues"), QStringLiteral("uploadParts"),
+                                     QStringLiteral("uploadSets") };
+        list.remember(http_.base(), info);
+        list.save();
+    }
+    http_.reply("/api/parts/catalog", 200, { { QStringLiteral("parts"), QJsonArray{} } });
+    bool ticked = false;
+    window_->runSaveSetDialog = [&](ui::SaveSetDialog& d) {
+        boxShown = !d.serverBox()->isHidden();
+        ticked = d.serverBox()->isChecked();
+        d.nameEdit()->setText(QStringLiteral("  Yard sidings "));
+        return true;
+    };
+    QString suggested;
+    window_->askSetFile = [&](const QString& s) {
+        suggested = s;
+        return s;
+    };
+    saveSet->trigger();
+    EXPECT_TRUE(boxShown);
+    EXPECT_TRUE(ticked);
+    // Into "My sets" in the imports folder (no parts folder of your own), and in the Parts panel at once.
+    EXPECT_EQ(QDir::cleanPath(suggested), QDir::cleanPath(modules.path() + QStringLiteral("/imports/My sets/Yard sidings.set.xml")));
+    EXPECT_TRUE(QFile::exists(suggested));
+    ASSERT_TRUE(waitFor([&] { return !posts().empty(); }));
+    const QJsonObject body = posts().front();
+    EXPECT_EQ(body.value(QLatin1String("partNumber")).toString(), QStringLiteral("Yard sidings"));
+    EXPECT_EQ(body.value(QLatin1String("displayName")).toString(), QStringLiteral("Yard sidings"));
+    EXPECT_FALSE(body.contains(QLatin1String("spriteBase64")));
+    EXPECT_FALSE(body.contains(QLatin1String("spriteMime")));
+    EXPECT_FALSE(body.contains(QLatin1String("orgSlug")));
+    const QByteArray xml = QByteArray::fromBase64(body.value(QLatin1String("xmlBase64")).toString().toLatin1());
+    EXPECT_TRUE(xml.contains("<group>"));
+    EXPECT_EQ(xml.count("<SubPart id=\"YARDPLATE\">"), 2);
+    EXPECT_TRUE(waitFor([&] { return window_->statusBar()->currentMessage().contains(QStringLiteral("too")); }))
+        << window_->statusBar()->currentMessage().toStdString();
+
+    // Unticked, it's remembered, and only this computer gets the next set.
+    window_->runSaveSetDialog = [&](ui::SaveSetDialog& d) {
+        d.serverBox()->setChecked(false);
+        d.nameEdit()->setText(QStringLiteral("Second"));
+        return true;
+    };
+    saveSet->trigger();
+    EXPECT_TRUE(QFile::exists(modules.path() + QStringLiteral("/imports/My sets/Second.set.xml")));
+    QApplication::processEvents();
+    EXPECT_EQ(posts().size(), 1U);
+    EXPECT_FALSE(QSettings().value(QStringLiteral("sets/alsoOnServer")).toBool());
+
+    window_->runSaveSetDialog = nullptr;
+    window_->askSetFile = nullptr;
+    QSettings().remove(QStringLiteral("sets/alsoOnServer"));
+    QSettings().remove(QStringLiteral("modules/libraryPath"));
+    if (userPaths.isValid()) QSettings().setValue(QStringLiteral("partsLibrary/userPaths"), userPaths);
 }
 
 TEST_F(ServerWindowMain, TheServersLiveHintsReachTheWindow) {

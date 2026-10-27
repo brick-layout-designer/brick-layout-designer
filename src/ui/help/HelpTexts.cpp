@@ -194,6 +194,12 @@ constexpr Raw kShared[] = {
                                      "the same name. If the layout has no sheet by that name, you choose where they "
                                      "go: the picked sheet, or a new sheet with that name. Put everything on one "
                                      "sheet saves the module with a single sheet instead.") },
+    { "set.about", "",
+      QT_TRANSLATE_NOOP("HelpTexts", "Sets"),
+      QT_TRANSLATE_NOOP("HelpTexts", "A set is a group of parts saved together, to place again in one go."),
+      QT_TRANSLATE_NOOP("HelpTexts", "Save selection as set keeps the parts you picked, as they sit, under one "
+                                     "name. Then you can place it in any layout as one group, and share it like one "
+                                     "of your own parts.") },
     // Opening
     { "open.formats", "/help#opening",
       QT_TRANSLATE_NOOP("HelpTexts", "Opening a file"),

@@ -30,6 +30,7 @@ module.edit
 module.make
 module.library
 module.sheets
+set.about
 open.formats
 open.desktop
 download.formats

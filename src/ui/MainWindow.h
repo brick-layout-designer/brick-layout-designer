@@ -136,6 +136,11 @@ protected:
     // Which ZIP Add Parts from a Zip reads (empty: cancelled); tests answer
     // instead of the file picker.
     std::function<QString()> askPartsZip;
+    // Save Selection as Set: tests fill in the dialog and say whether it was
+    // saved (instead of showing it), and answer which file the set goes to
+    // (instead of the file picker; empty: cancelled).
+    std::function<bool(class SaveSetDialog&)> runSaveSetDialog;
+    std::function<QString(const QString& suggested)> askSetFile;
 
 private slots:
     void onNew();
@@ -482,6 +487,20 @@ private:
     void checkMissingParts();
     // Whether `server` takes sets of your parts (its features list "uploadSets").
     static bool serverTakesSets(const QUrl& server);
+    // Where Save Selection as Set can put the set too: the server you're
+    // signed in to, else the live layout's, when it takes sets (its features
+    // list "uploadSets"). None: the dialog has no "Also put it on the server".
+    struct SetServer {
+        QUrl server;
+        QString token;
+        QString label;
+    };
+    std::optional<SetServer> setUploadServer() const;
+    // Sends one set (its XML) to `to` as one of your custom parts, and says
+    // how it went in the status bar.
+    void uploadSet(const SetServer& to, const sync::LocalPart& set);
+    // Every parts folder: the bundled library, yours and the imports folder.
+    QStringList allLibraryPaths() const;
     void sendLocalToServer(int tab, const QString& localId);
     void saveLayoutFileToServer();
     void uploadPartsTo(const QUrl& server, const QString& token, bool quiet, const QStringList& only = {});
