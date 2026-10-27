@@ -44,6 +44,7 @@ struct PreparedPart;
 class MapView;
 class LayerPanel;
 class PartsBrowser;
+struct ServerSetCopy;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -141,6 +142,9 @@ protected:
     // (instead of the file picker; empty: cancelled).
     std::function<bool(class SaveSetDialog&)> runSaveSetDialog;
     std::function<QString(const QString& suggested)> askSetFile;
+    // The server refused a set's name: tests fill in the dialog offering a
+    // free one and say whether it was taken (instead of showing it).
+    std::function<bool(class SetNameTakenDialog&)> runSetNameTakenDialog;
 
 private slots:
     void onNew();
@@ -502,6 +506,17 @@ private:
     // Sends one set (its XML) to `to` as one of your custom parts, and says
     // how it went in the status bar.
     void uploadSet(const SetServer& to, const sync::LocalPart& set);
+    // `to` already has a part or set with `set`'s number: offer a free name
+    // ("Yard (2)"), and on yes rename the set here (its file too: nothing
+    // uses it yet) and send it again.
+    void offerAnotherSetName(const SetServer& to, const sync::LocalPart& set);
+    // Your set `key` on the servers you're signed in to (and the live
+    // layout's): `found` gets the copy you may rename, for the Parts panel's
+    // Rename set… and Delete set….
+    void findServerSet(const QString& key, const std::function<void(const ServerSetCopy&)>& found);
+    // Renames your set `id` (number `partNumber`) on `on` to `name`: its
+    // name in the lists and the English name in its XML.
+    void renameSetOnServer(const SetServer& on, const QString& id, const QString& partNumber, const QString& name);
     // Every parts folder: the bundled library, yours and the imports folder.
     QStringList allLibraryPaths() const;
     void sendLocalToServer(int tab, const QString& localId);

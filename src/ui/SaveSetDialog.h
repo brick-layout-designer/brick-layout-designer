@@ -38,4 +38,47 @@ private:
     QPushButton* save_ = nullptr;
 };
 
+// Rename set…: the set's new name, and "Also rename it on <server>" once
+// the set turns out to be on a server you're signed in to (it's looked for
+// while the dialog is open).
+class RenameSetDialog : public QDialog {
+    Q_OBJECT
+public:
+    explicit RenameSetDialog(const QString& current, QWidget* parent = nullptr);
+
+    // The set is on `serverLabel` too, where you may rename it: the
+    // checkbox shows, ticked.
+    void showServerOption(const QString& serverLabel);
+    // The name typed, trimmed.
+    QString name() const;
+    // Shown and ticked.
+    bool alsoOnServer() const;
+
+    QLineEdit* nameEdit() const { return name_; }
+    QCheckBox* serverBox() const { return server_; }
+    QPushButton* renameButton() const { return rename_; }
+
+private:
+    QLineEdit* name_ = nullptr;
+    QCheckBox* server_ = nullptr;
+    QPushButton* rename_ = nullptr;
+};
+
+// The server already has a part or set with this set's name: a free name
+// to use instead (suggested, and editable). Tests drive it without exec().
+class SetNameTakenDialog : public QDialog {
+    Q_OBJECT
+public:
+    SetNameTakenDialog(const QString& taken, const QString& suggested, const QString& serverLabel,
+                       QWidget* parent = nullptr);
+
+    QString name() const;
+    QLineEdit* nameEdit() const { return name_; }
+    QPushButton* useButton() const { return use_; }
+
+private:
+    QLineEdit* name_ = nullptr;
+    QPushButton* use_ = nullptr;
+};
+
 }  // namespace bld::ui

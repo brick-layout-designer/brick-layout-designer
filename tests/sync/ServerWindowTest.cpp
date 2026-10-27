@@ -23,6 +23,8 @@
 #include "ui/ServerLibrary.h"
 #include "ui/SendToServerDialogs.h"
 #include "ui/SaveSetDialog.h"
+#include "ui/NoticeArea.h"
+#include "ui/PartsBrowser.h"
 #include "ui/ServerWindow.h"
 #include "ui/UpdateCheck.h"
 #include "ui/VenueLibraryPanel.h"
@@ -50,6 +52,8 @@
 #include <QMenu>
 #include <QMenuBar>
 #include <QPushButton>
+
+#include <optional>
 #include <QSettings>
 #include <QStandardPaths>
 #include <QTabWidget>
@@ -894,6 +898,7 @@ public:
     using ui::MainWindow::setTokenStore;
     using ui::MainWindow::runSaveSetDialog;
     using ui::MainWindow::askSetFile;
+    using ui::MainWindow::runSetNameTakenDialog;
 };
 
 parts::PartsLibrary& bundledParts() {
@@ -1356,6 +1361,165 @@ TEST_F(ServerWindowMain, SaveSelectionAsSetCanAlsoPutItOnAServerThatTakesSets) {
     QSettings().remove(QStringLiteral("sets/alsoOnServer"));
     QSettings().remove(QStringLiteral("modules/libraryPath"));
     if (userPaths.isValid()) QSettings().setValue(QStringLiteral("partsLibrary/userPaths"), userPaths);
+}
+
+// The server already has a part or set with the set's name: instead of only
+// saying no, it offers a free name ("Yard sidings (2)"), editable; on yes
+// the set is renamed here (file and name) and sent again, in "My sets".
+TEST_F(ServerWindowMain, ANameTakenOnTheServerOffersAFreeOne) {
+    QTemporaryDir modules;
+    const QString yard = modules.path() + QStringLiteral("/imports/Yard");
+    QDir().mkpath(yard);
+    {
+        QFile xml(QDir(yard).filePath(QStringLiteral("YARDPLATE.xml")));
+        ASSERT_TRUE(xml.open(QIODevice::WriteOnly));
+        xml.write("<part><Description><en>Yard plate</en></Description></part>");
+    }
+    QImage img(32, 32, QImage::Format_ARGB32);
+    img.fill(Qt::gray);
+    ASSERT_TRUE(img.save(QDir(yard).filePath(QStringLiteral("YARDPLATE.png")), "PNG"));
+    QSettings settings;
+    const QVariant userPaths = settings.value(QStringLiteral("partsLibrary/userPaths"));
+    settings.remove(QStringLiteral("partsLibrary/userPaths"));
+    settings.setValue(QStringLiteral("modules/libraryPath"), modules.path());
+    settings.remove(QStringLiteral("sets/alsoOnServer"));
+    window_->findChild<QAction*>(QStringLiteral("act.parts.reload"))->trigger();
+    auto* view = window_->findChild<ui::MapView*>();
+    ASSERT_TRUE(view);
+    view->addPartAtScenePos(QStringLiteral("YARDPLATE"), QPointF(0, 0));
+    for (QGraphicsItem* it : view->scene()->items())
+        if (it->data(2).toString() == QStringLiteral("brick")) it->setSelected(true);
+    {
+        sync::ServerList list = sync::ServerList::load();
+        sync::ServerInfo info;
+        info.features = QStringList{ QStringLiteral("liveSync"), QStringLiteral("uploadParts"), QStringLiteral("uploadSets") };
+        list.remember(http_.base(), info);
+        list.save();
+    }
+    http_.reply("/api/parts/catalog", 200, { { QStringLiteral("parts"), QJsonArray{} } });
+    // Refused for its name, then the list of your parts there, then taken.
+    http_.clear("/api/custom-parts");
+    http_.reply("/api/custom-parts", 409, { { QStringLiteral("error"), QStringLiteral("part_number_taken") } });
+    http_.reply("/api/custom-parts", 200,
+                { { QStringLiteral("parts"),
+                    QJsonArray{ QJsonObject{ { QStringLiteral("id"), QStringLiteral("s1") },
+                                             { QStringLiteral("partNumber"), QStringLiteral("Yard sidings") },
+                                             { QStringLiteral("displayName"), QStringLiteral("Yard sidings") },
+                                             { QStringLiteral("role"), QStringLiteral("owner") },
+                                             { QStringLiteral("spriteMime"), QString() } },
+                                QJsonObject{ { QStringLiteral("id"), QStringLiteral("s2") },
+                                             { QStringLiteral("partNumber"), QStringLiteral("Yard sidings (2)") },
+                                             { QStringLiteral("role"), QStringLiteral("owner") } } } } });
+    http_.reply("/api/custom-parts", 201, { { QStringLiteral("id"), QStringLiteral("s3") } });
+    window_->runSaveSetDialog = [&](ui::SaveSetDialog& d) {
+        d.nameEdit()->setText(QStringLiteral("Yard sidings"));
+        d.serverBox()->setChecked(true);
+        return true;
+    };
+    window_->askSetFile = [](const QString& s) { return s; };
+    QString why, suggested;
+    bool asked = false;
+    window_->runSetNameTakenDialog = [&](ui::SetNameTakenDialog& d) {
+        asked = true;
+        why = d.findChild<QLabel*>(QStringLiteral("setNameTakenWhy"))->text();
+        suggested = d.nameEdit()->text();
+        d.nameEdit()->setText(QStringLiteral("North sidings"));
+        return true;
+    };
+    window_->findChild<QAction*>(QStringLiteral("modules.saveSet"))->trigger();
+    ASSERT_TRUE(waitFor([&] { return asked; }));
+    EXPECT_TRUE(why.contains(QStringLiteral("“Yard sidings” on Club server"))) << why.toStdString();
+    // Free on the server ("(2)" is taken there too) and here.
+    EXPECT_EQ(suggested, QStringLiteral("Yard sidings (3)"));
+    const QString mySets = modules.path() + QStringLiteral("/imports/My sets/");
+    ASSERT_TRUE(waitFor([&] { return QFile::exists(mySets + QStringLiteral("North sidings.set.xml")); }));
+    EXPECT_FALSE(QFile::exists(mySets + QStringLiteral("Yard sidings.set.xml")));
+    std::vector<QJsonObject> posts;
+    ASSERT_TRUE(waitFor([&] {
+        posts.clear();
+        for (const auto& r : http_.requests)
+            if (r.method == "POST" && r.path == "/api/custom-parts") posts.push_back(QJsonDocument::fromJson(r.body).object());
+        return posts.size() >= 2;
+    }));
+    EXPECT_EQ(posts[0].value(QLatin1String("partNumber")).toString(), QStringLiteral("Yard sidings"));
+    EXPECT_EQ(posts[1].value(QLatin1String("partNumber")).toString(), QStringLiteral("North sidings"));
+    EXPECT_EQ(posts[1].value(QLatin1String("displayName")).toString(), QStringLiteral("North sidings"));
+    EXPECT_EQ(posts[1].value(QLatin1String("category")).toString(), QStringLiteral("My sets"));
+    const QByteArray xml = QByteArray::fromBase64(posts[1].value(QLatin1String("xmlBase64")).toString().toLatin1());
+    EXPECT_TRUE(xml.contains("<en>North sidings</en>"));
+    EXPECT_TRUE(waitFor([&] { return window_->statusBar()->currentMessage().contains(QStringLiteral("too")); }))
+        << window_->statusBar()->currentMessage().toStdString();
+    // In the Parts panel under its new name, at once.
+    auto* browser = window_->findChild<ui::PartsBrowser*>();
+    ASSERT_TRUE(browser);
+    EXPECT_TRUE(browser->isOwnSet(QStringLiteral("North sidings")));
+
+    window_->runSaveSetDialog = nullptr;
+    window_->askSetFile = nullptr;
+    window_->runSetNameTakenDialog = nullptr;
+    QSettings().remove(QStringLiteral("sets/alsoOnServer"));
+    QSettings().remove(QStringLiteral("modules/libraryPath"));
+    if (userPaths.isValid()) QSettings().setValue(QStringLiteral("partsLibrary/userPaths"), userPaths);
+}
+
+// Your set is on the server too (found by its number): the Parts panel's
+// Rename set… renames it there (its name and the English name in its XML),
+// and once it's deleted here a notice says it's still there.
+TEST_F(ServerWindowMain, YourSetOnTheServerIsRenamedThereAndSaidToBeStillThere) {
+    http_.clear("/api/custom-parts");
+    http_.reply("/api/custom-parts", 200,
+                { { QStringLiteral("parts"),
+                    QJsonArray{ QJsonObject{ { QStringLiteral("id"), QStringLiteral("s1") },
+                                             { QStringLiteral("partNumber"), QStringLiteral("Yard sidings") },
+                                             { QStringLiteral("displayName"), QStringLiteral("Yard sidings") },
+                                             { QStringLiteral("role"), QStringLiteral("owner") },
+                                             { QStringLiteral("spriteMime"), QString() } },
+                                QJsonObject{ { QStringLiteral("id"), QStringLiteral("p9") },
+                                             { QStringLiteral("partNumber"), QStringLiteral("Depot") },
+                                             { QStringLiteral("role"), QStringLiteral("owner") },
+                                             { QStringLiteral("spriteMime"), QStringLiteral("image/png") } } } } });
+    http_.replyRaw("/api/custom-parts/s1/xml", 200,
+                   "<?xml version=\"1.0\"?>\n<group>\n\t<Description>\n\t\t<en>Yard sidings</en>\n\t</Description>\n"
+                   "\t<SubPartList><SubPart id=\"3001.1\"><position><x>0</x><y>0</y></position><angle>0</angle></SubPart>"
+                   "</SubPartList>\n</group>\n",
+                   "text/plain");
+    http_.reply("/api/custom-parts/s1", 200, { { QStringLiteral("id"), QStringLiteral("s1") } });
+    auto* browser = window_->findChild<ui::PartsBrowser*>();
+    ASSERT_TRUE(browser && browser->findServerSet);
+    std::optional<ui::ServerSetCopy> copy;
+    browser->findServerSet(QStringLiteral("yard SIDINGS"), [&](const ui::ServerSetCopy& c) { copy = c; });
+    ASSERT_TRUE(waitFor([&] { return copy.has_value(); }));
+    EXPECT_EQ(copy->serverLabel, QStringLiteral("Club server"));
+    ASSERT_TRUE(copy->rename && copy->stillThere);
+    // A part with that number is not a set: not found.
+    bool depot = false;
+    browser->findServerSet(QStringLiteral("Depot"), [&](const ui::ServerSetCopy&) { depot = true; });
+
+    copy->rename(QStringLiteral("North & yard"));
+    QJsonObject put;
+    ASSERT_TRUE(waitFor([&] {
+        for (const auto& r : http_.requests)
+            if (r.method == "PUT" && r.path == "/api/custom-parts/s1") put = QJsonDocument::fromJson(r.body).object();
+        return !put.isEmpty();
+    }));
+    EXPECT_EQ(put.value(QLatin1String("partNumber")).toString(), QStringLiteral("Yard sidings"));
+    EXPECT_EQ(put.value(QLatin1String("displayName")).toString(), QStringLiteral("North & yard"));
+    EXPECT_FALSE(put.contains(QLatin1String("spriteBase64")));
+    const QByteArray xml = QByteArray::fromBase64(put.value(QLatin1String("xmlBase64")).toString().toLatin1());
+    EXPECT_TRUE(xml.contains("<en>North &amp; yard</en>")) << xml.toStdString();
+    EXPECT_TRUE(xml.contains("<SubPart id=\"3001.1\">"));
+    EXPECT_TRUE(waitFor([&] { return window_->statusBar()->currentMessage().contains(QStringLiteral("renamed on Club server too")); }))
+        << window_->statusBar()->currentMessage().toStdString();
+    EXPECT_FALSE(depot);
+
+    copy->stillThere();
+    const QString id = QStringLiteral("set-still-on-server:") + http_.base().toString();
+    ASSERT_TRUE(window_->notices()->isShown(id));
+    EXPECT_TRUE(window_->notices()->card(id)->findChild<QPushButton*>() != nullptr);
+    QStringList texts;
+    for (auto* l : window_->notices()->card(id)->findChildren<QLabel*>()) texts << l->text();
+    EXPECT_TRUE(texts.join(QLatin1Char(' ')).contains(QStringLiteral("still in your parts on Club server")))
+        << texts.join(QLatin1Char('|')).toStdString();
 }
 
 TEST_F(ServerWindowMain, TheServersLiveHintsReachTheWindow) {

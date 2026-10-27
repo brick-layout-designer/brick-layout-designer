@@ -229,3 +229,30 @@ TEST(SetIO, RenameKeepsOtherLanguagesAndAddsADescriptionWhenThereIsNone) {
     EXPECT_FALSE(saveload::renameSetXml(part, QStringLiteral("X"), &err));
     EXPECT_FALSE(err.isEmpty());
 }
+
+TEST(SetIO, AFileStemIsWhatAFileNameCanHold) {
+    EXPECT_EQ(saveload::setFileStem(QStringLiteral("Main yard")), QStringLiteral("Main yard"));
+    EXPECT_EQ(saveload::setFileStem(QStringLiteral("a/b: c?")), QStringLiteral("a_b_ c_"));
+    EXPECT_EQ(saveload::setFileStem(QStringLiteral("Yard.set")), QStringLiteral("Yard"));
+    EXPECT_EQ(saveload::setFileStem(QStringLiteral(" . ")), QStringLiteral("Set"));
+}
+
+TEST(SetIO, AFreeNameCountsOnFromTheTakenOne) {
+    const QStringList taken{ QStringLiteral("yard"), QStringLiteral("yard (2)"), QStringLiteral("depot") };
+    const auto isTaken = [&](const QString& stem) { return taken.contains(stem.toLower()); };
+    EXPECT_EQ(saveload::freeSetName(QStringLiteral("Yard"), isTaken), QStringLiteral("Yard (3)"));
+    EXPECT_EQ(saveload::freeSetName(QStringLiteral("Depot"), isTaken), QStringLiteral("Depot (2)"));
+    // "Yard (2)" goes on to "Yard (3)", not "Yard (2) (2)".
+    EXPECT_EQ(saveload::freeSetName(QStringLiteral("Yard (2)"), isTaken), QStringLiteral("Yard (3)"));
+    EXPECT_EQ(saveload::freeSetName(QStringLiteral("a/b"), isTaken), QStringLiteral("a/b (2)"));
+}
+
+TEST(SetIO, RenamedXmlChangesOnlyTheEnglishName) {
+    const QString xml = QStringLiteral("<group><Description><fr>Gare</fr><en>Station</en></Description>"
+                                       "<SubPartList/></group>");
+    const auto renamed = saveload::renamedSetXml(xml, QStringLiteral("Big & small"));
+    ASSERT_TRUE(renamed);
+    EXPECT_EQ(*renamed, QStringLiteral("<group><Description><fr>Gare</fr><en>Big &amp; small</en></Description>"
+                                       "<SubPartList/></group>"));
+    EXPECT_FALSE(saveload::renamedSetXml(QStringLiteral("<part/>"), QStringLiteral("X")));
+}

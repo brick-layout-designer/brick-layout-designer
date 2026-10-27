@@ -15,6 +15,9 @@
 #include <QPointF>
 #include <QString>
 
+#include <functional>
+#include <optional>
+
 namespace bld::saveload {
 
 struct SetSubpart {
@@ -44,5 +47,20 @@ bool writeSetXml(const QString& filePath,
 // <Description> gets one. False with a message in `error` when the file can't
 // be read, isn't a set, or can't be written.
 bool renameSetXml(const QString& filePath, const QString& name, QString* error = nullptr);
+
+// `xml` (a set's) with its English name set to `name`, the rest as it was;
+// none when it isn't a set. renameSetXml does this to a file; the desktop
+// renames a set's copy on a server with it.
+std::optional<QString> renamedSetXml(const QString& xml, const QString& name);
+
+// The file name (and part number) a set named `name` is saved under,
+// without ".set.xml": the characters a file name can't hold become "_",
+// and leading or trailing dots and spaces go (the web's setPartNumber).
+QString setFileStem(const QString& name);
+
+// A name like `name` that isn't taken: "Yard (2)", "Yard (3)", … (and
+// "Yard (2)" goes on to "Yard (3)"). `taken` says whether a file stem
+// (setFileStem) is already used.
+QString freeSetName(const QString& name, const std::function<bool(const QString& stem)>& taken);
 
 }  // namespace bld::saveload

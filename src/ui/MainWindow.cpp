@@ -319,6 +319,10 @@ MainWindow::MainWindow(parts::PartsLibrary& parts, QWidget* parent)
     // Your sets (in your own parts folders) can be renamed and deleted from
     // their menu; the parts are read again at once.
     partsBrowser_->setOwnPartsRoots([this] { return ownPartsRoots(); });
+    // …and renamed on a server too, when the set is there (or said to be still there).
+    partsBrowser_->findServerSet = [this](const QString& key, const std::function<void(const ServerSetCopy&)>& found) {
+        findServerSet(key, found);
+    };
     connect(partsBrowser_, &PartsBrowser::ownSetsChanged, this, [this] {
         rescanLibrary(allLibraryPaths());
         partsBrowser_->rebuild();
@@ -884,17 +888,8 @@ void MainWindow::onSaveSelectionAsSet() {
     const bool alsoOnServer = server && dialog.alsoOnServer();
     if (server) settings.setValue(alsoKey, dialog.serverBox()->isChecked());
     manifest.name = rawName;
-    // Filename sanitisation (same rules as save-selection-as-module).
-    QString safeName = rawName;
-    static const QRegularExpression bad(QStringLiteral(R"([<>:"/\\|?*\x00-\x1F])"));
-    safeName.replace(bad, QStringLiteral("_"));
-    while (safeName.startsWith(QLatin1Char('.')) || safeName.startsWith(QLatin1Char(' ')))
-        safeName.remove(0, 1);
-    while (safeName.endsWith(QLatin1Char('.')) || safeName.endsWith(QLatin1Char(' ')))
-        safeName.chop(1);
-    if (safeName.isEmpty()) safeName = QStringLiteral("Set");
-    if (!safeName.endsWith(QStringLiteral(".set"), Qt::CaseInsensitive))
-        safeName += QStringLiteral(".set");
+    // Its file name (and part number): what a file name can hold.
+    const QString safeName = saveload::setFileStem(rawName) + QStringLiteral(".set");
 
     // Default target: your first parts folder, else "My sets" in the
     // imports folder, so the set is in your parts at once (and can be

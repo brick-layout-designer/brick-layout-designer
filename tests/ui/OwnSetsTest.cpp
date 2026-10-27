@@ -4,12 +4,15 @@
 
 #include "ui/ConfirmDialog.h"
 #include "ui/PartsBrowser.h"
+#include "ui/SaveSetDialog.h"
 #include "parts/PartsLibrary.h"
 
 #include <gtest/gtest.h>
 
 #include <QAbstractButton>
 #include <QAction>
+#include <QCheckBox>
+#include <QLineEdit>
 #include <QApplication>
 #include <QDir>
 #include <QFile>
@@ -140,9 +143,11 @@ TEST_F(OwnSets, OnlyYourOwnSetsCanBeRenamedOrDeleted) {
 
 TEST_F(OwnSets, RenameChangesItsNameAndKeepsItsPartNumber) {
     QString asked;
-    browser_->askSetName = [&](const QString& current) {
-        asked = current;
-        return QStringLiteral("Big yard");
+    browser_->runRenameSetDialog = [&](ui::RenameSetDialog& d) {
+        asked = d.nameEdit()->text();
+        EXPECT_TRUE(d.serverBox()->isHidden());  // on no server
+        d.nameEdit()->setText(QStringLiteral(" Big yard "));
+        return true;
     };
     menu(QStringLiteral("Yard"), QStringLiteral("act.set.rename"));
     EXPECT_EQ(asked, QStringLiteral("Yard"));
@@ -153,7 +158,10 @@ TEST_F(OwnSets, RenameChangesItsNameAndKeepsItsPartNumber) {
     EXPECT_EQ(item(QStringLiteral("Yard"))->text(), QStringLiteral("Big yard"));
 
     // Cancelled: nothing changes.
-    browser_->askSetName = [](const QString&) { return QString(); };
+    browser_->runRenameSetDialog = [](ui::RenameSetDialog& d) {
+        d.nameEdit()->setText(QStringLiteral("Not this"));
+        return false;
+    };
     menu(QStringLiteral("Yard"), QStringLiteral("act.set.rename"));
     EXPECT_EQ(setName(lib_, QStringLiteral("Yard")), QStringLiteral("Big yard"));
 }
@@ -173,4 +181,52 @@ TEST_F(OwnSets, DeleteAsksWithTheSetWordingThenRemovesIt) {
     EXPECT_FALSE(lib_.metadata(QStringLiteral("Yard")));
     EXPECT_FALSE(item(QStringLiteral("Yard")));
     EXPECT_TRUE(QFile::exists(mine_ + QStringLiteral("/PLATE.xml")));
+}
+
+// The set is on a server too (matched by its number): Rename set… offers
+// "Also rename it on <server>", ticked, and renames it there as well;
+// unticked, only here. Delete set… says it's still there.
+TEST_F(OwnSets, ASetOnAServerTooCanBeRenamedThereAndSaysWhenItsStillThere) {
+    QStringList lookedFor, renamedThere;
+    int stillThere = 0;
+    browser_->findServerSet = [&](const QString& key, std::function<void(const ui::ServerSetCopy&)> found) {
+        lookedFor << key;
+        ui::ServerSetCopy copy;
+        copy.serverLabel = QStringLiteral("Club server");
+        copy.rename = [&](const QString& name) { renamedThere << name; };
+        copy.stillThere = [&] { ++stillThere; };
+        found(copy);
+    };
+    QString offered;
+    bool ticked = false;
+    browser_->runRenameSetDialog = [&](ui::RenameSetDialog& d) {
+        offered = d.serverBox()->isHidden() ? QString() : d.serverBox()->text();
+        ticked = d.serverBox()->isChecked();
+        d.nameEdit()->setText(QStringLiteral("Big yard"));
+        return true;
+    };
+    menu(QStringLiteral("Yard"), QStringLiteral("act.set.rename"));
+    ASSERT_EQ(lookedFor.size(), 1);
+    EXPECT_EQ(lookedFor.front().compare(QStringLiteral("Yard"), Qt::CaseInsensitive), 0);  // its part number
+    EXPECT_EQ(offered, QStringLiteral("Also rename it on Club server"));
+    EXPECT_TRUE(ticked);
+    EXPECT_EQ(renamedThere, QStringList{ QStringLiteral("Big yard") });
+    EXPECT_EQ(setName(lib_, QStringLiteral("Yard")), QStringLiteral("Big yard"));
+
+    // Unticked: renamed here only.
+    browser_->runRenameSetDialog = [&](ui::RenameSetDialog& d) {
+        d.serverBox()->setChecked(false);
+        d.nameEdit()->setText(QStringLiteral("Small yard"));
+        return true;
+    };
+    menu(QStringLiteral("Yard"), QStringLiteral("act.set.rename"));
+    EXPECT_EQ(renamedThere, QStringList{ QStringLiteral("Big yard") });
+    EXPECT_EQ(setName(lib_, QStringLiteral("Yard")), QStringLiteral("Small yard"));
+
+    // Deleted here: it says it's still on the server.
+    QString body;
+    answerConfirm(true, &body);
+    menu(QStringLiteral("Yard"), QStringLiteral("act.set.delete"));
+    EXPECT_FALSE(QFile::exists(mine_ + QStringLiteral("/Yard.set.xml")));
+    EXPECT_EQ(stillThere, 1);
 }

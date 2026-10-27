@@ -200,6 +200,12 @@ constexpr Raw kShared[] = {
       QT_TRANSLATE_NOOP("HelpTexts", "Save selection as set keeps the parts you picked, as they sit, under one "
                                      "name. Then you can place it in any layout as one group, and share it like one "
                                      "of your own parts.") },
+    { "set.sharing", "",
+      QT_TRANSLATE_NOOP("HelpTexts", "Sharing a set"),
+      QT_TRANSLATE_NOOP("HelpTexts", "Your own custom parts in a set come along when you share it."),
+      QT_TRANSLATE_NOOP("HelpTexts", "The people you invite also get the custom parts of yours that the set uses, so "
+                                     "it places properly for them, to look at and place but not change. Taking the "
+                                     "set back takes those parts back too, unless you shared them on their own.") },
     // Opening
     { "open.formats", "/help#opening",
       QT_TRANSLATE_NOOP("HelpTexts", "Opening a file"),
@@ -394,11 +400,17 @@ constexpr Raw kShared[] = {
                                      "and they can ask again later.") },
     { "club.roles", "",
       QT_TRANSLATE_NOOP("HelpTexts", "Roles in the club"),
-      QT_TRANSLATE_NOOP("HelpTexts", "Admins run the club, managers run its day to day, members use it."),
-      QT_TRANSLATE_NOOP("HelpTexts", "Admins change the club’s settings and roles, and can hand over or "
-                                     "delete the club. Managers invite people, answer requests to join, "
-                                     "remove members and look after the club’s things. Members use and add "
-                                     "the club’s layouts, venues, modules and parts.") },
+      QT_TRANSLATE_NOOP("HelpTexts", "Roles decide what people can do in the club, and someone can hold several."),
+      QT_TRANSLATE_NOOP("HelpTexts", "Every club starts with Admin, Manager, Member and Viewer, and its admins can "
+                                     "change them or add their own, such as Track crew. Someone with several roles "
+                                     "can do everything those roles allow. A layout or module shared with someone "
+                                     "still works on top of their roles.") },
+    { "club.permissions", "",
+      QT_TRANSLATE_NOOP("HelpTexts", "What a role allows"),
+      QT_TRANSLATE_NOOP("HelpTexts", "Tick what people with this role may do in the club."),
+      QT_TRANSLATE_NOOP("HelpTexts", "Everyone in the club can view its things. The other boxes add to that: editing "
+                                     "layouts, adding modules or parts, inviting people and so on. Changes reach "
+                                     "people at once, even in a layout they have open.") },
     { "club.find", "",
       QT_TRANSLATE_NOOP("HelpTexts", "Find a club"),
       QT_TRANSLATE_NOOP("HelpTexts", "Clubs that chose to be listed here, for anyone to find."),

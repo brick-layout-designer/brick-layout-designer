@@ -31,6 +31,7 @@ module.make
 module.library
 module.sheets
 set.about
+set.sharing
 open.formats
 open.desktop
 download.formats
@@ -65,6 +66,7 @@ club.whoCanJoin
 club.listed
 club.requests
 club.roles
+club.permissions
 club.find
 catalog.featured
 catalog.collections
