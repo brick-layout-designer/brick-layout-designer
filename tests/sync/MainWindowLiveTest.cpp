@@ -52,6 +52,8 @@
 #include <QUndoStack>
 
 #include <functional>
+#include <utility>
+#include <vector>
 
 using namespace bld;
 using namespace bld::synctest;
@@ -765,6 +767,43 @@ TEST_F(MainWindowLiveElsewhere, TheWindowSaysWhichServerItIsLiveOnAndRemembersTh
     EXPECT_TRUE(list.find(main_.base())->recent.isEmpty());
     EXPECT_EQ(list.lastUsed()->url, http_.base());
     EXPECT_EQ(list.settingsAccount(), main_.base());
+}
+
+namespace {
+
+// A keychain that answers only when told (it may be asking the person).
+class SlowTokenStore : public sync::MemoryTokenStore {
+public:
+    void load(const QUrl& server, std::function<void(const QString&)> done) override {
+        waiting.push_back([this, server, done = std::move(done)] { done(tokens.value(keyFor(server))); });
+    }
+    void answer() {
+        for (auto& w : std::exchange(waiting, {})) w();
+    }
+    std::vector<std::function<void()>> waiting;
+};
+
+class MainWindowLiveSlowKeychain : public MainWindowLiveElsewhere {
+protected:
+    void beforeOpen() override {
+        auto slow = std::make_shared<SlowTokenStore>();
+        slow_ = slow.get();
+        tokens_ = slow;
+        MainWindowLiveElsewhere::beforeOpen();
+    }
+    SlowTokenStore* slow_ = nullptr;
+};
+
+}  // namespace
+
+// The window closes while the keychain is still looking up Main's token
+// for settings: its answer, when it comes, is ignored.
+TEST_F(MainWindowLiveSlowKeychain, AKeychainAnswerAfterTheWindowClosedIsIgnored) {
+    ASSERT_TRUE(waitFor([&] { return !slow_->waiting.empty(); }));
+    window_.reset();
+    slow_->answer();
+    waitFor([] { return false; }, 200);
+    for (const auto& r : main_.requests) EXPECT_NE(r.path, QByteArray("/api/me/preferences"));
 }
 
 TEST_F(MainWindowLive, LiveOnTheOnlyServerItBecomesMainAndKeepsItsSettings) {
