@@ -401,7 +401,9 @@ void expectInside(const core::limits::Range<T>& desktop, const QString& key, con
     EXPECT_LE(static_cast<double>(desktop.max), server->max) << key.toStdString();
     EXPECT_GE(static_cast<double>(desktop.fallback), server->min) << key.toStdString();
     EXPECT_LE(static_cast<double>(desktop.fallback), server->max) << key.toStdString();
-    if (server->whole) EXPECT_TRUE(std::is_integral_v<T>) << key.toStdString() << " is a whole number there";
+    if (server->whole) {
+        EXPECT_TRUE(std::is_integral_v<T>) << key.toStdString() << " is a whole number there";
+    }
 }
 
 // The server's check of one drawn number (finite, whole if so, in range).
@@ -531,7 +533,9 @@ TEST(Contracts, WhatTheDesktopWritesBackTheServerTakesAndItSettles) {
         const QJsonObject o = v.toObject();
         const std::string what = o.value(QStringLiteral("what")).toString().toStdString();
         sync::SyncDoc doc;
-        if (o.value(QStringLiteral("kind")).toString() == QLatin1String("update")) ASSERT_TRUE(doc.applyUpdate(base)) << what;
+        if (o.value(QStringLiteral("kind")).toString() == QLatin1String("update")) {
+            ASSERT_TRUE(doc.applyUpdate(base)) << what;
+        }
         ASSERT_TRUE(doc.applyUpdate(fromHex(o.value(QStringLiteral("hex"))))) << what;
         const QByteArray before = doc.encodeState();
         const QJsonObject was = doc.toJson();
