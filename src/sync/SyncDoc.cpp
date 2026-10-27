@@ -17,9 +17,11 @@ extern "C" {
 #include <QHash>
 #include <QSet>
 
+#include <array>
 #include <deque>
 #include <iterator>
 #include <algorithm>
+#include <unordered_map>
 #include <vector>
 
 namespace bld::sync {
@@ -58,29 +60,42 @@ bool isZArray(const QString& k) {
 }
 
 QStringList idsOf(const QJsonArray& items) {
+    // (a QString key: a QLatin1String one is made into a QString each time)
+    static const QString kId = QStringLiteral("id");
     QStringList out;
-    for (const auto& v : items) out << v.toObject().value(QLatin1String("id")).toString();
+    out.reserve(items.size());
+    for (const auto& v : items) out << v.toObject().value(kId).toString();
     return out;
 }
 
-bool uniqueIds(const QStringList& ids) {
-    return QSet<QString>(ids.begin(), ids.end()).size() == ids.size() && !ids.contains(QString());
+// An array's ids, read once per write: on 5,000 parts each read of them
+// took a millisecond or more, and a write read them a dozen times.
+struct Ids {
+    QStringList list;
+    QSet<QString> set;
+    bool distinct() const { return set.size() == list.size(); }
+    bool unique() const { return distinct() && !set.contains(QString()); }
+};
+
+Ids idsIn(const QJsonArray& items) {
+    Ids out;
+    out.list = idsOf(items);
+    out.set = QSet<QString>(out.list.cbegin(), out.list.cend());
+    return out;
 }
 
 // Whether writing `want` over `cur` (a bricks or rulers array) needs z: it
 // already has some, or the kept entries change order, or a new one goes
 // anywhere but on top.
-bool needsZ(const QJsonArray& cur, const QJsonArray& want) {
+bool needsZ(const QJsonArray& cur, const Ids& curIds, const Ids& wantIds) {
     if (hasZOrder(cur)) return true;
-    const QStringList curIds = idsOf(cur), wantIds = idsOf(want);
-    const QSet<QString> curSet(curIds.begin(), curIds.end()), wantSet(wantIds.begin(), wantIds.end());
     QStringList keptNow, keptWant;
-    for (const QString& id : curIds)
-        if (wantSet.contains(id)) keptNow << id;
+    for (const QString& id : curIds.list)
+        if (wantIds.set.contains(id)) keptNow << id;
     qsizetype firstNew = -1, lastKept = -1;
-    for (qsizetype i = 0; i < wantIds.size(); ++i) {
-        if (curSet.contains(wantIds[i])) {
-            keptWant << wantIds[i];
+    for (qsizetype i = 0; i < wantIds.list.size(); ++i) {
+        if (curIds.set.contains(wantIds.list[i])) {
+            keptWant << wantIds.list[i];
             lastKept = i;
         } else if (firstNew < 0) {
             firstNew = i;
@@ -292,6 +307,7 @@ using Output = std::unique_ptr<YOutput, OutputDeleter>;
 struct ArrayIterDeleter { void operator()(YArrayIter* i) const { if (i) yarray_iter_destroy(i); } };
 
 SyncDoc::ArrayWork work;  // (written from the UI thread only)
+int wholeReadCount = 0;   // (the same)
 
 YOutput* readAt(const Branch* arr, const YTransaction* txn, uint32_t index) {
     ++work.readsByIndex;
@@ -324,6 +340,7 @@ QByteArray takeBinary(char* data, uint32_t len) {
 }  // namespace
 
 SyncDoc::ArrayWork SyncDoc::arrayWork() { return work; }
+int SyncDoc::wholeReads() { return wholeReadCount; }
 
 // Transactions from this desktop's own edits; only these are undoable.
 constexpr char kLocalOrigin[] = "bld-local";
@@ -338,6 +355,294 @@ struct SyncDoc::Impl {
     YTransaction* txn = nullptr;
     Arena arena;
     int ops = 0;  // changes made by the current writeMap
+    quint64 clientId = 0;  // (0: a new random one; tests set it)
+
+    // ------------------------------------------------- the kept JSON copy
+    //
+    // toJson used to read the whole document, which on a layout of 5,000
+    // parts took about 30 ms, twice for every edit. Now the JSON is kept,
+    // and deep observers on the root types say what each transaction
+    // changed (local writes, remote updates, undo, redo alike). Right after
+    // the transaction, absorb() reads just that again: the keys a map
+    // changed, and the entries an array gained, the rest of it kept.
+    struct Seg {
+        QByteArray key;
+        uint32_t index = 0;
+        bool isKey = false;
+    };
+    struct Change {
+        std::size_t root = 0;
+        std::vector<Seg> path;  // from the root to the type that changed
+        const Branch* target = nullptr;
+        bool isMap = false;
+        std::vector<QByteArray> keys;                     // a map's changed keys
+        std::vector<std::pair<uint8_t, uint32_t>> delta;  // an array's retain / delete / insert runs
+    };
+    struct Watch {
+        Impl* d = nullptr;
+        std::size_t root = 0;
+    };
+    std::array<Watch, detail::kRootNames.size()> watches;
+    std::array<Branch*, detail::kRootNames.size()> roots{};
+    QJsonObject json;  // the document as JSON, while jsonValid
+    bool jsonValid = false;
+    bool keepJson = true;
+    std::vector<Change> changes;  // seen by the observers since the last absorb
+
+    // ------------------------------------------- parts nobody changed
+    //
+    // Comparing each of 5,000 parts with the document took most of what
+    // was left of an edit. A part needs no comparing when neither side
+    // changed since the last write left them the same: the editor's part
+    // has the fields it had (PartJsonMemo), and nothing touched its entry
+    // in the document (the observers say what did).
+    PartJsonMemo parts;
+    // Since the last write: by sheet and array, the ids of entries changed
+    // or added, and the arrays (or with "" the whole sheet) set anew.
+    QHash<QString, QHash<QString, QSet<QString>>> touched;
+    QHash<QString, QSet<QString>> touchedArrays;
+    bool baseline = false;  // the last write is what `touched` counts from
+    // A brick sheet's ids now and wanted, from the shape pass to the write.
+    QHash<QString, std::pair<Ids, Ids>> brickIds;
+
+    // Whether this write can leave a part's entry in an array as it is.
+    struct Unchanged {
+        const PartJsonMemo* memo = nullptr;  // null: compare every part
+        const QSet<QString>* touched = nullptr;
+        bool operator()(const QString& id) const {
+            return memo && !memo->changed(id) && !(touched && touched->contains(id));
+        }
+    };
+    Unchanged unchangedIn(const QString& sheet, const QString& array) const {
+        if (!baseline || array != QLatin1String("bricks")) return {};
+        if (const auto t = touchedArrays.constFind(sheet);
+            t != touchedArrays.constEnd() && (t->contains(QString()) || t->contains(array)))
+            return {};
+        Unchanged out{ &parts, nullptr };
+        if (const auto t = touched.constFind(sheet); t != touched.constEnd())
+            if (const auto ids = t->constFind(array); ids != t->constEnd()) out.touched = &*ids;
+        return out;
+    }
+
+    // What a change absorbed touched, for the next write.
+    void markTouched(const Change& c, const QStringList& added) {
+        if (c.root != detail::kLayerDataRoot) return;
+        const auto key = [&](std::size_t i) { return QString::fromUtf8(c.path[i].key); };
+        const auto isKey = [&](std::size_t i) { return c.path.size() > i && c.path[i].isKey; };
+        if (c.path.empty()) {
+            for (const QByteArray& k : c.keys) touchedArrays[QString::fromUtf8(k)].insert(QString());
+        } else if (c.path.size() == 1 && isKey(0)) {
+            for (const QByteArray& k : c.keys) touchedArrays[key(0)].insert(QString::fromUtf8(k));
+        } else if (c.path.size() == 2 && isKey(0) && isKey(1)) {
+            QSet<QString>& ids = touched[key(0)][key(1)];
+            for (const QString& id : added) ids.insert(id);
+        } else if (isKey(0) && isKey(1) && !c.path[2].isKey) {
+            // Inside an entry: the entry, by its id now.
+            const QJsonArray arr = json.value(QLatin1String("layerData")).toObject().value(key(0)).toObject().value(key(1)).toArray();
+            const auto i = static_cast<qsizetype>(c.path[2].index);
+            if (i < arr.size()) touched[key(0)][key(1)].insert(arr.at(i).toObject().value(QLatin1String("id")).toString());
+            else touchedArrays[key(0)].insert(key(1));
+        } else {
+            touchedArrays[isKey(0) ? key(0) : QString()].insert(QString());
+        }
+    }
+
+    static void observed(void* state, uint32_t count, const YEvent* events) {
+        const auto* w = static_cast<const Watch*>(state);
+        for (uint32_t i = 0; i < count; ++i) w->d->record(w->root, events[i]);
+    }
+
+    void record(std::size_t root, const YEvent& e) {
+        if (!jsonValid) return;  // read whole next time anyway
+        Change c;
+        c.root = root;
+        YPathSegment* path = nullptr;
+        uint32_t depth = 0;
+        if (e.tag == Y_MAP) {
+            c.isMap = true;
+            c.target = ymap_event_target(&e.content.map);
+            path = ymap_event_path(&e.content.map, &depth);
+            uint32_t n = 0;
+            YEventKeyChange* keys = ymap_event_keys(&e.content.map, &n);
+            for (uint32_t i = 0; i < n; ++i) c.keys.emplace_back(keys[i].key);
+            yevent_keys_destroy(keys, n);
+        } else if (e.tag == Y_ARRAY) {
+            c.target = yarray_event_target(&e.content.array);
+            path = yarray_event_path(&e.content.array, &depth);
+            uint32_t n = 0;
+            YEventChange* delta = yarray_event_delta(&e.content.array, &n);
+            for (uint32_t i = 0; i < n; ++i) c.delta.emplace_back(delta[i].tag, delta[i].len);
+            yevent_delta_destroy(delta, n);
+        } else {
+            return;  // text and XML types read as null, whatever is in them
+        }
+        for (uint32_t i = 0; i < depth; ++i) {
+            Seg seg;
+            seg.isKey = path[i].tag == Y_EVENT_PATH_KEY;
+            if (seg.isKey) seg.key = path[i].value.key;
+            else seg.index = path[i].value.index;
+            c.path.push_back(std::move(seg));
+        }
+        ypath_destroy(path, depth);
+        changes.push_back(std::move(c));
+    }
+
+    // An array's entries, each read once per absorb.
+    using Entries = std::unordered_map<const Branch*, std::vector<Output>>;
+    static const std::vector<Output>& entriesIn(Entries& memo, const Branch* arr, YTransaction* rt) {
+        auto it = memo.find(arr);
+        if (it == memo.end()) it = memo.emplace(arr, entriesOf(arr, rt)).first;
+        return it->second;
+    }
+
+    // Runs `fn` on the JSON at `path` below `node`, changing it in place:
+    // each container on the way is taken out of its parent while it
+    // changes, so nothing above it is copied. False when the JSON has no
+    // such place.
+    template <typename F>
+    static bool editAt(QJsonValue& node, const std::vector<Seg>& path, std::size_t i, F& fn) {
+        if (i == path.size()) return fn(node);
+        const Seg& seg = path[i];
+        if (seg.isKey) {
+            if (!node.isObject()) return false;
+            QJsonObject o = node.toObject();
+            node = QJsonValue();
+            const QString key = QString::fromUtf8(seg.key);
+            const auto it = o.find(key);
+            if (it == o.end()) return false;
+            QJsonValue child = *it;
+            *it = QJsonValue();
+            const bool ok = editAt(child, path, i + 1, fn);
+            o.insert(key, child);
+            node = o;
+            return ok;
+        }
+        if (!node.isArray()) return false;
+        QJsonArray a = node.toArray();
+        node = QJsonValue();
+        if (seg.index >= static_cast<uint32_t>(a.size())) return false;
+        const auto at = static_cast<qsizetype>(seg.index);
+        QJsonValue child = a.at(at);
+        a.replace(at, QJsonValue());
+        const bool ok = editAt(child, path, i + 1, fn);
+        a.replace(at, child);
+        node = a;
+        return ok;
+    }
+
+    // One change into the kept JSON. False when the JSON and the document
+    // don't line up, and the whole document must be read again.
+    bool absorbOne(const Change& c, YTransaction* rt, Entries& memo) {
+        // Past 64 levels everything reads as null (DocJson.cpp).
+        if (c.path.size() > 64) return true;
+        // The changed type, found again from its root. When it isn't there
+        // (it, or a type above it, was deleted or replaced in the same
+        // transaction), what changed in it is out of sight: the change that
+        // took it away is read instead.
+        const Branch* b = roots[c.root];
+        bool isMap = c.root != detail::kLayersRoot;
+        for (const Seg& seg : c.path) {
+            if (seg.isKey != isMap) return true;
+            Output owned;
+            const YOutput* v = nullptr;
+            if (seg.isKey) {
+                owned.reset(ymap_get(b, rt, seg.key.constData()));
+                v = owned.get();
+            } else {
+                const auto& list = entriesIn(memo, b, rt);
+                if (seg.index >= list.size()) return true;
+                v = list[seg.index].get();
+            }
+            if (!v || (v->tag != Y_MAP && v->tag != Y_ARRAY)) return true;
+            isMap = v->tag == Y_MAP;
+            b = isMap ? youtput_read_ymap(v) : youtput_read_yarray(v);
+        }
+        if (b != c.target || isMap != c.isMap) return true;
+
+        const int depth = static_cast<int>(c.path.size()) + 1;  // of the entries changed
+        QStringList added;  // the ids of entries an array gained
+        const auto edit = [&](QJsonValue& at) {
+            if (c.isMap) {
+                if (!at.isObject()) return false;
+                QJsonObject o = at.toObject();
+                at = QJsonValue();
+                for (const QByteArray& key : c.keys) {
+                    const Output v(ymap_get(b, rt, key.constData()));
+                    if (v) o.insert(QString::fromUtf8(key), detail::valueToJson(v.get(), rt, depth));
+                    else o.remove(QString::fromUtf8(key));
+                }
+                at = o;
+                return true;
+            }
+            if (!at.isArray()) return false;
+            const QJsonArray old = at.toArray();
+            at = QJsonValue();
+            const auto& now = entriesIn(memo, b, rt);
+            QJsonArray out;
+            qsizetype from = 0;
+            std::size_t to = 0;
+            for (const auto& [tag, len] : c.delta) {
+                if (tag == Y_EVENT_CHANGE_ADD) {
+                    if (to + len > now.size()) return false;
+                    for (uint32_t k = 0; k < len; ++k) {
+                        out.append(detail::valueToJson(now[to++].get(), rt, depth));
+                        added << out.last().toObject().value(QLatin1String("id")).toString();
+                    }
+                    continue;
+                }
+                if (from + static_cast<qsizetype>(len) > old.size()) return false;
+                if (tag == Y_EVENT_CHANGE_RETAIN) {
+                    for (uint32_t k = 0; k < len; ++k) out.append(old.at(from++));
+                    to += len;
+                } else {
+                    from += len;  // deleted
+                }
+            }
+            for (; from < old.size(); ++from, ++to) out.append(old.at(from));
+            if (to != now.size()) return false;
+            at = out;
+            return true;
+        };
+        const QString root = QString::fromLatin1(detail::kRootNames[c.root]);
+        QJsonValue node = json.take(root);
+        const bool ok = editAt(node, c.path, 0, edit);
+        json.insert(root, node);
+        if (ok) markTouched(c, added);
+        return ok;
+    }
+
+    // After every transaction: what it changed into the kept JSON.
+    void absorb() {
+        std::vector<Change> todo;
+        todo.swap(changes);
+        if (todo.empty() || !jsonValid) return;
+        YTransaction* rt = ydoc_read_transaction(doc);
+        bool ok = true;
+        {
+            Entries memo;
+            for (const Change& c : todo) {
+                ok = absorbOne(c, rt, memo);
+                if (!ok) break;
+            }
+        }
+        ytransaction_commit(rt);
+        if (!ok) {
+            jsonValid = false;
+            json = QJsonObject();
+            baseline = false;
+        }
+    }
+
+    const QJsonObject& currentJson() {
+        if (!jsonValid || !keepJson) {
+            ++wholeReadCount;
+            json = detail::rootsToJson(doc);
+            jsonValid = keepJson;
+            changes.clear();
+            baseline = false;  // (what changed before isn't known)
+        }
+        return json;
+    }
 
     // Before an edit that needs doc shape 2 (DocShape.h): turn a ruler
     // sheet's plain entries into Y.Maps and mark the doc 2, in a step of its
@@ -348,6 +653,9 @@ struct SyncDoc::Impl {
         const QJsonObject wantData = want.value(QLatin1String("layerData")).toObject();
         txn = ydoc_write_transaction(doc, 0, nullptr);
         bool mark = false;
+        const QJsonValue schema = cur.value(QLatin1String("meta")).toObject().value(QLatin1String("schemaVersion"));
+        // In shape 2 already: only ruler sheets still to turn into Y.Maps.
+        const bool shaped = schema.isDouble() && schema.toInt() >= kDocShapeInPlace;
         for (auto it = wantData.begin(); it != wantData.end(); ++it) {
             const QJsonObject w = it.value().toObject(), c = curData.value(it.key()).toObject();
             const QString type = w.value(QLatin1String("type")).toString();
@@ -377,10 +685,14 @@ struct SyncDoc::Impl {
                     const YInput m = arena.itemMap(cr[i].toObject());
                     insertAt(arr, txn, i, &m, 1);
                 }
+            } else if (shaped) {
+                continue;
             } else if (type == QLatin1String("brick")) {
                 const QJsonArray cb = c.value(QLatin1String("bricks")).toArray(),
                                  wb = w.value(QLatin1String("bricks")).toArray();
-                if (needsZ(cb, wb)) mark = true;
+                // (the parts aren't changed here: the write after uses these ids too)
+                auto& ids = brickIds[it.key()] = { idsIn(cb), idsIn(wb) };
+                if (needsZ(cb, ids.first, ids.second)) mark = true;
             } else if (type == QLatin1String("area")) {
                 const QJsonObject off = c.value(QLatin1String("cellOffset")).toObject();
                 const QJsonArray rel =
@@ -389,13 +701,9 @@ struct SyncDoc::Impl {
                 if (sheetMove(c.value(QLatin1String("areas")).toArray(), rel)) mark = true;
             }
         }
-        if (mark) {
-            const QJsonValue v =
-                cur.value(QLatin1String("meta")).toObject().value(QLatin1String("schemaVersion"));
-            if (!v.isDouble() || v.toInt() < kDocShapeInPlace) {
-                const YInput sv = yinput_float(kDocShapeInPlace);
-                ymap_insert(meta, txn, "schemaVersion", &sv);
-            }
+        if (mark && !shaped) {
+            const YInput sv = yinput_float(kDocShapeInPlace);
+            ymap_insert(meta, txn, "schemaVersion", &sv);
         }
         ytransaction_commit(txn);
         txn = nullptr;
@@ -413,74 +721,77 @@ struct SyncDoc::Impl {
         }
     }
 
-    // Bricks, groups or text cells: match by id, delete, update in place,
-    // insert; rebuild the list if the kept items changed order.
-    void syncItems(const Branch* arr, QJsonArray cur, const QJsonArray& want) {
-        QStringList wantIds;
-        for (const auto& v : want) wantIds << v.toObject().value(QLatin1String("id")).toString();
-        const QSet<QString> wantSet(wantIds.begin(), wantIds.end());
-
-        bool rebuild = wantSet.size() != wantIds.size();  // duplicate ids: no reliable matching
-        QStringList curIds;
-        for (const auto& v : cur) curIds << v.toObject().value(QLatin1String("id")).toString();
-        if (QSet<QString>(curIds.begin(), curIds.end()).size() != curIds.size()) rebuild = true;
-
-        if (!rebuild) {
-            for (qsizetype i = cur.size() - 1; i >= 0; --i) {
-                if (wantSet.contains(curIds[i])) continue;
-                yarray_remove_range(arr, txn, static_cast<uint32_t>(i), 1);
-                ++ops;
-                cur.removeAt(i);
-                curIds.removeAt(i);
-            }
-            // Kept items out of order (Bring to Front, an altitude sort): move
-            // only the fewest, the ones off the longest run already in order,
-            // so someone else's edit to any other item survives (a moved
-            // item is deleted and inserted again, which drops concurrent
-            // edits to it).
-            QHash<QString, qsizetype> wantPos;
-            for (qsizetype i = 0; i < wantIds.size(); ++i) wantPos.insert(wantIds[i], i);
-            QList<qsizetype> seq;
-            for (const QString& id : curIds) seq << wantPos.value(id);
-            const QSet<qsizetype> keep = longestIncreasingRun(seq);
-            for (qsizetype i = curIds.size() - 1; i >= 0; --i) {
-                if (keep.contains(i)) continue;
-                yarray_remove_range(arr, txn, static_cast<uint32_t>(i), 1);
-                ++ops;
-                cur.removeAt(i);
-                curIds.removeAt(i);
-            }
+    // Entries not kept, deleted from the end back, a run at a time.
+    void removeAllBut(const Branch* arr, const std::vector<bool>& keep) {
+        for (auto i = static_cast<qsizetype>(keep.size()) - 1; i >= 0; --i) {
+            if (keep[static_cast<size_t>(i)]) continue;
+            qsizetype from = i;
+            while (from > 0 && !keep[static_cast<size_t>(from - 1)]) --from;
+            yarray_remove_range(arr, txn, static_cast<uint32_t>(from), static_cast<uint32_t>(i - from + 1));
+            ops += static_cast<int>(i - from + 1);
+            i = from;
         }
-        if (rebuild) {
+    }
+
+    // Bricks, groups or text cells: match by id, delete, update in place,
+    // insert; rebuild the list if the kept items changed order. `entries`
+    // are the array's, read before anything changed.
+    void syncItems(const Branch* arr, const QJsonArray& cur, const Ids& curIds, const QJsonArray& want,
+                   const Ids& wantIds, const std::vector<Output>& entries, const Unchanged& unchanged) {
+        // Duplicate ids: no reliable matching.
+        if (!wantIds.distinct() || !curIds.distinct()) {
             ++ops;
             yarray_remove_range(arr, txn, 0, yarray_len(arr));
             auto& items = arena.itemMaps(want);
             if (!items.empty()) insertAt(arr, txn, 0, items.data(), static_cast<uint32_t>(items.size()));
             return;
         }
+        // Kept items out of order (Bring to Front, an altitude sort): move
+        // only the fewest, the ones off the longest run already in order,
+        // so someone else's edit to any other item survives (a moved item
+        // is deleted and inserted again, which drops concurrent edits to it).
+        QHash<QString, qsizetype> wantPos;
+        for (qsizetype i = 0; i < wantIds.list.size(); ++i) wantPos.insert(wantIds.list[i], i);
+        QList<qsizetype> wanted;  // indexes into cur of the ones still wanted
+        QList<qsizetype> seq;     // and where each is wanted
+        for (qsizetype i = 0; i < curIds.list.size(); ++i)
+            if (const auto p = wantPos.constFind(curIds.list[i]); p != wantPos.constEnd()) {
+                wanted << i;
+                seq << *p;
+            }
+        const QSet<qsizetype> run = longestIncreasingRun(seq);
+        std::vector<bool> keep(static_cast<size_t>(cur.size()), false);
+        for (const qsizetype k : run) keep[static_cast<size_t>(wanted[k])] = true;
+        removeAllBut(arr, keep);
+        QList<qsizetype> kept;  // indexes into cur of the entries left, in order
+        for (qsizetype i = 0; i < cur.size(); ++i)
+            if (keep[static_cast<size_t>(i)]) kept << i;
+
         uint32_t pos = 0;
-        qsizetype curIndex = 0;
-        // The kept entries, in order (the inserts below go between them).
-        const std::vector<Output> entries = entriesOf(arr, txn);
+        qsizetype k = 0;
         // New items next to each other go in together: one at a time, each
         // insert walked the array again (a paste of 500 into a big layout).
-        std::vector<YInput> run;
-        uint32_t runAt = 0;
+        std::vector<YInput> added;
+        uint32_t addAt = 0;
         const auto flush = [&] {
-            if (run.empty()) return;
-            insertAt(arr, txn, runAt, run.data(), static_cast<uint32_t>(run.size()));
-            run.clear();
+            if (added.empty()) return;
+            insertAt(arr, txn, addAt, added.data(), static_cast<uint32_t>(added.size()));
+            added.clear();
         };
-        for (const auto& v : want) {
-            const QJsonObject w = v.toObject();
-            if (curIndex < curIds.size() && curIds[curIndex] == w.value(QLatin1String("id")).toString()) {
+        for (qsizetype j = 0; j < want.size(); ++j) {
+            const QString& id = wantIds.list[j];
+            if (k < kept.size() && curIds.list[kept[k]] == id) {
                 flush();
-                const YOutput* o = curIndex < static_cast<qsizetype>(entries.size()) ? entries[curIndex].get() : nullptr;
-                if (o && o->tag == Y_MAP) setFields(youtput_read_ymap(o), cur[curIndex].toObject(), w, false);
-                ++curIndex;
+                const qsizetype i = kept[k];
+                const YOutput* o = i < static_cast<qsizetype>(entries.size()) ? entries[static_cast<size_t>(i)].get() : nullptr;
+                if (o && o->tag == Y_MAP && !unchanged(id)) {
+                    ++work.entriesCompared;
+                    setFields(youtput_read_ymap(o), cur[i].toObject(), want[j].toObject(), false);
+                }
+                ++k;
             } else {
-                if (run.empty()) runAt = pos;
-                run.push_back(arena.itemMap(w));
+                if (added.empty()) addAt = pos;
+                added.push_back(arena.itemMap(want[j].toObject()));
                 ++ops;
             }
             ++pos;
@@ -532,58 +843,57 @@ struct SyncDoc::Impl {
         return out;
     }
 
-    // Whether every entry of the array is a Y.Map.
-    bool allMaps(const Branch* arr) {
-        const std::vector<Output> entries = entriesOf(arr, txn);
-        return std::all_of(entries.cbegin(), entries.cend(), [](const Output& o) { return o && o->tag == Y_MAP; });
-    }
-
     // Bricks or rulers in doc shape 2: delete, update in place, add new
     // ones on the end, and put them in order by setting z, never by moving
     // an entry (a moved entry is a copy, which loses someone else's delete
-    // or edit of it at the same moment).
-    void syncByZ(const Branch* arr, const QJsonArray& cur, const QJsonArray& want) {
-        const QStringList curIds = idsOf(cur);
-        const QSet<QString> wantSet = [&] {
-            const QStringList w = idsOf(want);
-            return QSet<QString>(w.begin(), w.end());
-        }();
-        QJsonArray kept;
-        for (qsizetype i = cur.size() - 1; i >= 0; --i) {
-            if (wantSet.contains(curIds[i])) continue;
-            yarray_remove_range(arr, txn, static_cast<uint32_t>(i), 1);
-            ++ops;
-        }
+    // or edit of it at the same moment). `entries` as for syncItems.
+    void syncByZ(const Branch* arr, const QJsonArray& cur, const Ids& curIds, const QJsonArray& want,
+                 const Ids& wantIds, const std::vector<Output>& entries, const Unchanged& unchanged) {
+        std::vector<bool> keep(static_cast<size_t>(cur.size()), false);
+        QList<qsizetype> kept;  // indexes into cur of the entries left, in order
         for (qsizetype i = 0; i < cur.size(); ++i)
-            if (wantSet.contains(curIds[i])) kept.append(cur[i]);
-        QHash<QString, qsizetype> at; // id -> index in the array now
-        const QStringList keptIds = idsOf(kept);
-        for (qsizetype i = 0; i < keptIds.size(); ++i) at.insert(keptIds[i], i);
+            if (wantIds.set.contains(curIds.list[i])) {
+                keep[static_cast<size_t>(i)] = true;
+                kept << i;
+            }
+        removeAllBut(arr, keep);
+        QHash<QString, qsizetype> at;  // id -> index into cur
+        QList<std::optional<double>> zs;
+        bool anyZ = false;
+        for (const qsizetype i : kept) {
+            at.insert(curIds.list[i], i);
+            zs << zOf(cur[i]);
+            anyZ = anyZ || zs.last().has_value();
+        }
         QList<ZEntry> order;
-        for (const auto& v : inZOrder(kept))
-            order.append({ v.toObject().value(QLatin1String("id")).toString(), zOf(v) });
+        if (anyZ) {
+            for (const qsizetype k : orderByZ(zs)) order.append({ curIds.list[kept[k]], zs[k] });
+        } else {
+            for (const qsizetype i : kept) order.append({ curIds.list[i], std::nullopt });
+        }
         QHash<QString, double> z;
-        for (const auto& [id, value] : assignZ(order, idsOf(want))) z.insert(id, value);
+        for (const auto& [id, value] : assignZ(order, wantIds.list)) z.insert(id, value);
         const auto end = static_cast<uint32_t>(kept.size());
         std::vector<YInput> added;
-        // The kept entries (new ones only go on the end).
-        const std::vector<Output> entries = entriesOf(arr, txn);
-        for (const auto& v : want) {
-            QJsonObject w = v.toObject();
-            const QString id = w.value(QLatin1String("id")).toString();
-            if (at.contains(id)) {
-                const qsizetype i = at.value(id);
-                const YOutput* o = i < static_cast<qsizetype>(entries.size()) ? entries[i].get() : nullptr;
+        for (qsizetype j = 0; j < want.size(); ++j) {
+            const QString& id = wantIds.list[j];
+            const auto zAt = z.constFind(id);
+            if (const auto i = at.constFind(id); i != at.constEnd()) {
+                const YOutput* o = *i < static_cast<qsizetype>(entries.size()) ? entries[static_cast<size_t>(*i)].get() : nullptr;
                 if (!o || o->tag != Y_MAP) continue;
                 const Branch* m = youtput_read_ymap(o);
-                setFields(m, kept[at.value(id)].toObject(), w, false);
-                if (z.contains(id)) {
-                    const YInput zv = yinput_float(z.value(id));
+                if (!unchanged(id)) {
+                    ++work.entriesCompared;
+                    setFields(m, cur[*i].toObject(), want[j].toObject(), false);
+                }
+                if (zAt != z.constEnd()) {
+                    const YInput zv = yinput_float(*zAt);
                     ymap_insert(m, txn, "z", &zv);
                     ++ops;
                 }
             } else {
-                if (z.contains(id)) w.insert(QStringLiteral("z"), z.value(id));
+                QJsonObject w = want[j].toObject();
+                if (zAt != z.constEnd()) w.insert(QStringLiteral("z"), *zAt);
                 added.push_back(arena.itemMap(w));
                 ++ops;
             }
@@ -594,7 +904,7 @@ struct SyncDoc::Impl {
         if (!added.empty()) insertAt(arr, txn, end, added.data(), static_cast<uint32_t>(added.size()));
     }
 
-    void syncLayer(const Branch* map, const QJsonObject& cur, const QJsonObject& want) {
+    void syncLayer(const QString& sheet, const Branch* map, const QJsonObject& cur, const QJsonObject& want) {
         setFields(map, cur, want, true);
         for (auto it = want.begin(); it != want.end(); ++it) {
             if (!isArrayKey(it.key())) continue;
@@ -610,18 +920,28 @@ struct SyncDoc::Impl {
                 ++ops;
             } else if (it.key() == QLatin1String("areas")) {
                 syncArea(map, youtput_read_yarray(existing.get()), cur, curList, wantList);
-            } else if (isZArray(it.key()) && uniqueIds(idsOf(curList)) && uniqueIds(idsOf(wantList))
-                       && allMaps(youtput_read_yarray(existing.get())) && needsZ(curList, wantList)) {
-                syncByZ(youtput_read_yarray(existing.get()), curList, wantList);
-            } else if (it.key() != QLatin1String("rulerItems")
-                       || allMaps(youtput_read_yarray(existing.get()))) {
-                syncItems(youtput_read_yarray(existing.get()), curList, wantList);
-            } else if (!same(cur.value(it.key()), it.value())) {
-                ++ops;
+            } else {
                 const Branch* arr = youtput_read_yarray(existing.get());
-                yarray_remove_range(arr, txn, 0, yarray_len(arr));
-                auto& items = arena.plains(it.value().toArray());
-                if (!items.empty()) insertAt(arr, txn, 0, items.data(), static_cast<uint32_t>(items.size()));
+                const bool bricks = it.key() == QLatin1String("bricks");
+                const auto stashed = bricks ? brickIds.constFind(sheet) : brickIds.constEnd();
+                const auto [curIds, wantIds] = stashed != brickIds.constEnd()
+                                                   ? *stashed
+                                                   : std::pair<Ids, Ids>{ idsIn(curList), idsIn(wantList) };
+                // Read once, before anything changes, for all of the below.
+                const std::vector<Output> entries = entriesOf(arr, txn);
+                const bool maps = std::all_of(entries.cbegin(), entries.cend(),
+                                              [](const Output& o) { return o && o->tag == Y_MAP; });
+                if (isZArray(it.key()) && curIds.unique() && wantIds.unique() && maps
+                    && needsZ(curList, curIds, wantIds)) {
+                    syncByZ(arr, curList, curIds, wantList, wantIds, entries, unchangedIn(sheet, it.key()));
+                } else if (it.key() != QLatin1String("rulerItems") || maps) {
+                    syncItems(arr, curList, curIds, wantList, wantIds, entries, unchangedIn(sheet, it.key()));
+                } else if (!same(cur.value(it.key()), it.value())) {
+                    ++ops;
+                    yarray_remove_range(arr, txn, 0, yarray_len(arr));
+                    auto& items = arena.plains(it.value().toArray());
+                    if (!items.empty()) insertAt(arr, txn, 0, items.data(), static_cast<uint32_t>(items.size()));
+                }
             }
         }
     }
@@ -629,28 +949,58 @@ struct SyncDoc::Impl {
 
 SyncDoc::SyncDoc() : d_(std::make_unique<Impl>()) { init(); }
 
+SyncDoc::SyncDoc(quint64 clientId) : d_(std::make_unique<Impl>()) {
+    d_->clientId = clientId;
+    init();
+}
+
 void SyncDoc::init() {
-    d_->doc = ydoc_new();
+    Impl& d = *d_;
+    if (d.clientId != 0) {
+        YOptions o = yoptions();
+        o.id = d.clientId;
+        d.doc = ydoc_new_with_options(o);
+    } else {
+        d.doc = ydoc_new();
+    }
     // Root types must be declared before use; DocJson.cpp reads the same ones.
-    d_->meta = ymap(d_->doc, "meta");
-    d_->layers = yarray(d_->doc, "layers");
-    d_->layerData = ymap(d_->doc, "layerData");
-    d_->sidecarItems = ymap(d_->doc, "sidecarItems");
-    for (const char* extra : { "labels", "modules", "venue" }) ymap(d_->doc, extra);
+    for (std::size_t i = 0; i < detail::kRootNames.size(); ++i)
+        d.roots[i] = i == detail::kLayersRoot ? yarray(d.doc, detail::kRootNames[i]) : ymap(d.doc, detail::kRootNames[i]);
+    d.meta = ymap(d.doc, "meta");
+    d.layers = yarray(d.doc, "layers");
+    d.layerData = ymap(d.doc, "layerData");
+    d.sidecarItems = ymap(d.doc, "sidecarItems");
+
+    // The kept JSON: an empty document's, and what changes from here.
+    QJsonObject empty;
+    for (std::size_t i = 0; i < detail::kRootNames.size(); ++i)
+        empty.insert(QString::fromLatin1(detail::kRootNames[i]),
+                     i == detail::kLayersRoot ? QJsonValue(QJsonArray()) : QJsonValue(QJsonObject()));
+    d.json = empty;
+    d.jsonValid = true;
+    static constexpr char kWatch[] = "bld-json";
+    for (std::size_t i = 0; i < detail::kRootNames.size(); ++i) {
+        d.watches[i] = { &d, i };
+        yobserve_deep(d.roots[i], sizeof(kWatch) - 1, kWatch, &d.watches[i], &Impl::observed);
+    }
 
     // No capture window: every writeMap is its own undo step.
     const YUndoManagerOptions opts{ 0 };
-    d_->undo = yundo_manager(&opts);
-    for (const Branch* root : { d_->meta, d_->layers, d_->layerData, d_->sidecarItems })
-        yundo_manager_add_scope(d_->undo, d_->doc, root);
-    yundo_manager_add_origin(d_->undo, sizeof(kLocalOrigin) - 1, kLocalOrigin);
+    d.undo = yundo_manager(&opts);
+    for (const Branch* root : { d.meta, d.layers, d.layerData, d.sidecarItems })
+        yundo_manager_add_scope(d.undo, d.doc, root);
+    yundo_manager_add_origin(d.undo, sizeof(kLocalOrigin) - 1, kLocalOrigin);
 }
 
 // Empty again, with a new client id: what a SyncDoc is when made.
 void SyncDoc::reset() {
+    const quint64 id = d_->clientId;
+    const bool keep = d_->keepJson;
     yundo_manager_destroy(d_->undo);
     ydoc_destroy(d_->doc);
     d_ = std::make_unique<Impl>();
+    d_->clientId = id != 0 ? id + 1 : 0;  // (never one the old doc wrote with)
+    d_->keepJson = keep;
     init();
 }
 
@@ -680,6 +1030,7 @@ bool SyncDoc::applyUpdate(const QByteArray& update, QString* error) {
     YTransaction* txn = ydoc_write_transaction(d_->doc, 0, nullptr);
     const uint8_t rc = ytransaction_apply(txn, update.constData(), static_cast<uint32_t>(update.size()));
     ytransaction_commit(txn);
+    d_->absorb();
     if (rc != 0 && error) *error = QStringLiteral("could not apply the document update (yrs error %1)").arg(rc);
     return rc == 0;
 }
@@ -710,15 +1061,26 @@ QByteArray SyncDoc::stateVector() const {
     return takeBinary(data, len);
 }
 
-QJsonObject SyncDoc::toJson() const { return detail::rootsToJson(d_->doc); }
+QJsonObject SyncDoc::toJson() const { return d_->currentJson(); }
+
+QJsonObject SyncDoc::readWhole() const { return detail::rootsToJson(d_->doc); }
+
+void SyncDoc::setKeepJson(bool keep) {
+    d_->keepJson = keep;
+    d_->baseline = false;
+    d_->jsonValid = false;
+    d_->json = QJsonObject();
+    d_->changes.clear();
+}
 
 QByteArray SyncDoc::writeMap(const core::Map& map) {
-    const QJsonObject want = docJsonFromMap(map);
+    Impl& d = *d_;
+    const QJsonObject want = docJsonFromMap(map, d.keepJson ? &d.parts : nullptr);
     const QByteArray before = stateVector();
 
-    Impl& d = *d_;
-    d.shapePass(toJson(), want);
-    const QJsonObject cur = toJson();
+    d.shapePass(d.currentJson(), want);
+    d.absorb();
+    const QJsonObject cur = d.currentJson();
     d.ops = 0;
     d.txn = ydoc_write_transaction(d.doc, sizeof(kLocalOrigin) - 1, kLocalOrigin);
     const QJsonObject curMeta = cur.value(QLatin1String("meta")).toObject();
@@ -767,12 +1129,18 @@ QByteArray SyncDoc::writeMap(const core::Map& map) {
             ymap_insert(d.layerData, d.txn, d.arena.str(it.key()), &v);
             ++d.ops;
         } else {
-            d.syncLayer(youtput_read_ymap(existing.get()), c, w);
+            d.syncLayer(it.key(), youtput_read_ymap(existing.get()), c, w);
         }
     }
     ytransaction_commit(d.txn);
     d.txn = nullptr;
     d.arena = Arena();
+    d.absorb();
+    // What the next write's `touched` counts from.
+    d.touched.clear();
+    d.touchedArrays.clear();
+    d.brickIds.clear();
+    d.baseline = d.jsonValid && d.keepJson;
     yundo_manager_stop(d.undo);  // seal this write as one step
 
     YTransaction* read = ydoc_read_transaction(d.doc);
@@ -793,18 +1161,23 @@ QByteArray SyncDoc::setMeta(const QString& key, const QJsonValue& value) {
     ytransaction_commit(d.txn);
     d.txn = nullptr;
     d.arena = Arena();
+    d.absorb();
     return diffSince(before);
 }
 
 QByteArray SyncDoc::undo() {
     const QByteArray before = stateVector();
-    if (!yundo_manager_undo(d_->undo)) return {};
+    const bool undone = yundo_manager_undo(d_->undo) != 0;
+    d_->absorb();
+    if (!undone) return {};
     return diffSince(before);
 }
 
 QByteArray SyncDoc::redo() {
     const QByteArray before = stateVector();
-    if (!yundo_manager_redo(d_->undo)) return {};
+    const bool redone = yundo_manager_redo(d_->undo) != 0;
+    d_->absorb();
+    if (!redone) return {};
     return diffSince(before);
 }
 

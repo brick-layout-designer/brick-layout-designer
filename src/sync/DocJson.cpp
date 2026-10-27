@@ -9,7 +9,7 @@ extern "C" {
 
 #include <QJsonArray>
 
-#include <iterator>
+#include <array>
 #include <memory>
 
 namespace bld::sync {
@@ -76,18 +76,19 @@ namespace detail {
 
 QJsonObject rootsToJson(YDoc* doc) {
     // Declaring an existing root type returns it.
-    const char* maps[] = { "meta", "layerData", "labels", "modules", "venue", "sidecarItems" };
-    Branch* rootMaps[std::size(maps)];
-    for (size_t i = 0; i < std::size(maps); ++i) rootMaps[i] = ymap(doc, maps[i]);
-    Branch* layers = yarray(doc, "layers");
+    std::array<Branch*, kRootNames.size()> roots{};
+    for (size_t i = 0; i < kRootNames.size(); ++i)
+        roots[i] = i == kLayersRoot ? yarray(doc, kRootNames[i]) : ymap(doc, kRootNames[i]);
     YTransaction* txn = ydoc_read_transaction(doc);
     QJsonObject out;
-    for (size_t i = 0; i < std::size(maps); ++i)
-        out.insert(QString::fromLatin1(maps[i]), mapToJson(rootMaps[i], txn, 0));
-    out.insert(QStringLiteral("layers"), arrayToJson(layers, txn, 0));
+    for (size_t i = 0; i < kRootNames.size(); ++i)
+        out.insert(QString::fromLatin1(kRootNames[i]),
+                   i == kLayersRoot ? QJsonValue(arrayToJson(roots[i], txn, 0)) : QJsonValue(mapToJson(roots[i], txn, 0)));
     ytransaction_commit(txn);
     return out;
 }
+
+QJsonValue valueToJson(const YOutput* o, const YTransaction* txn, int depth) { return toJson(o, txn, depth); }
 
 }  // namespace detail
 

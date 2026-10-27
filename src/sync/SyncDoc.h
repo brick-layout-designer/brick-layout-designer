@@ -20,6 +20,9 @@ namespace bld::sync {
 class SyncDoc {
 public:
     SyncDoc();
+    // For tests only: a doc with this client id (the next one after a
+    // reset), so a copy of it makes the same writes.
+    explicit SyncDoc(quint64 clientId);
     ~SyncDoc();
     SyncDoc(const SyncDoc&) = delete;
     SyncDoc& operator=(const SyncDoc&) = delete;
@@ -38,8 +41,20 @@ public:
     // step 2). An unreadable state vector gets the whole document.
     QByteArray diffSince(const QByteArray& sv) const;
 
-    // Root types as JSON (see DocJson.h).
+    // Root types as JSON (see DocJson.h). A copy is kept between calls and
+    // changed by what each transaction changed (yrs deep observers), so on a
+    // big layout this costs nothing; only when the copy can't follow a
+    // change is the whole document read again.
     QJsonObject toJson() const;
+    // The whole document read again from yrs, past the kept copy: what
+    // toJson must equal (tests).
+    QJsonObject readWhole() const;
+    // For tests: false reads the whole document on every toJson instead,
+    // as before the kept copy.
+    void setKeepJson(bool keep);
+    // How many times toJson has read the whole document (the perf tests
+    // count it).
+    static int wholeReads();
 
     // Make the document hold `map`, changing only what differs: header
     // fields, the layer order, whole layers added or removed, and within a
@@ -64,10 +79,12 @@ public:
 
     // How much array work writeMap has done so far (the perf tests count
     // it): entries read by index, each of which walks the array from its
-    // start, and insert calls.
+    // start, insert calls, and entries compared field by field with the
+    // layout (parts nobody changed since the last write aren't).
     struct ArrayWork {
         int readsByIndex = 0;
         int inserts = 0;
+        int entriesCompared = 0;
     };
     static ArrayWork arrayWork();
 
