@@ -120,3 +120,23 @@ TEST(PartsLibrary, GifFilePathsResolveAndDecode) {
     }
     EXPECT_GE(checked, 1) << "No parts with GIFs found in the library";
 }
+
+// BlueBrick's <NotListedInLibrary>: a castle set's buildings and the flex
+// track halves are only used inside their sets (hidden from the parts list,
+// never placed alone); their sets aren't.
+TEST(PartsLibrary, PartsOnlyUsedInsideSetsAreMarked) {
+    if (!librarySubmoduleAvailable()) GTEST_SKIP() << "BlueBrickParts submodule missing";
+    parts::PartsLibrary lib;
+    lib.addSearchPath(libraryRoot());
+    lib.scan();
+    for (const char* key : { "10193-1.tree", "10193-1.house1", "88492.8", "88493.8" }) {
+        const auto meta = lib.metadata(QString::fromLatin1(key));
+        ASSERT_TRUE(meta) << key;
+        EXPECT_TRUE(meta->notListed) << key;
+    }
+    for (const char* key : { "10193-1", "flex.group" }) {
+        const auto meta = lib.metadata(QString::fromLatin1(key));
+        ASSERT_TRUE(meta) << key;
+        EXPECT_FALSE(meta->notListed) << key;
+    }
+}

@@ -2,11 +2,14 @@
 
 #include "ArchivePath.h"
 #include "zip/SafeZip.h"
+#include "../saveload/PartListing.h"
 
 #include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
 #include <QSaveFile>
+#include <QSet>
+#include <QXmlStreamReader>
 
 #include <utility>
 #include <vector>
@@ -125,6 +128,23 @@ PartsZipResult addPartsFromZip(const QString& zipPath, const QString& destRoot,
             return out;
         }
         files.emplace_back(resolveArchiveEntryPath(destRoot, it.rel), std::move(*data));
+    }
+    // The parts the zip's sets use (by key, lower-cased): only used inside them.
+    QSet<QString> inSets;
+    for (const auto& [abs, data] : files) {
+        if (!abs.endsWith(QLatin1String(".set.xml"), Qt::CaseInsensitive)) continue;
+        QXmlStreamReader r(data);
+        while (!r.atEnd())
+            if (r.readNext() == QXmlStreamReader::StartElement && r.name() == QLatin1String("SubPart"))
+                inSets.insert(r.attributes().value(QStringLiteral("id")).toString().toLower());
+    }
+    for (auto& [abs, data] : files) {
+        const QString key = partKeyOf(QFileInfo(abs).fileName());
+        if (key.isEmpty() || abs.endsWith(QLatin1String(".set.xml"), Qt::CaseInsensitive)
+            || !inSets.contains(key.toLower()))
+            continue;
+        data = saveload::withNotListed(QString::fromUtf8(data), true).toUtf8();
+        out.onlyInSets << key;
     }
     for (const auto& [abs, data] : files) {
         QDir().mkpath(QFileInfo(abs).absolutePath());

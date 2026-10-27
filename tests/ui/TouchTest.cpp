@@ -511,7 +511,13 @@ TEST_F(TouchTest, TrackpadPinchAndPanGestures) {
 TEST_F(TouchTest, TapAPartThenTheMapPlacesIt) {
     const auto all = parts_.keys();
     if (all.isEmpty()) GTEST_SKIP() << "no parts library";
-    const QString key = all.first();
+    // A part that is placed by itself (not one only used inside sets).
+    QString key;
+    for (const QString& k : all)
+        if (const auto meta = parts_.metadata(k); meta && !meta->notListed && meta->kind == parts::PartKind::Leaf) {
+            key = k;
+            break;
+        }
     ui::TouchMode::instance().setActive(true);
     view_->armPartPlacement(key);
     ASSERT_NE(view_->touchActionBar(), nullptr);

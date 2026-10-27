@@ -288,12 +288,12 @@ TEST_F(MapViewTest, APartAddedBesideASelectedSetJoinsItsPreferredEnd) {
     ASSERT_EQ(L.bricks.size(), 2u);
     // Far from the set: it goes on the set's end, not where it was put.
     selectSet();
-    view_->addPartAtScenePos(QStringLiteral("88493.8"), QPointF(100, 100) * px);
+    view_->addPartAtScenePos(QStringLiteral("2865.8"), QPointF(100, 100) * px);
     ASSERT_EQ(L.bricks.size(), 3u);
     EXPECT_FALSE(L.bricks[0].connections[0].linkedToId.isEmpty()) << "on the female's rail end";
     EXPECT_TRUE(L.bricks[1].connections[0].linkedToId.isEmpty());
     selectSet();
-    view_->addPartAtScenePos(QStringLiteral("88492.8"), QPointF(100, 100) * px);
+    view_->addPartAtScenePos(QStringLiteral("2865.8"), QPointF(100, 100) * px);
     ASSERT_EQ(L.bricks.size(), 4u);
     EXPECT_FALSE(L.bricks[1].connections[0].linkedToId.isEmpty()) << "then on the male's";
 }

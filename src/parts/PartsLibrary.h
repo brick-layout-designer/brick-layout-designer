@@ -89,6 +89,11 @@ struct PartMetadata {
     QList<PartSubPart>         subparts;
     // <CanUngroup> of a set: false when it may never be split (flex.group).
     bool                       canUngroup = true;
+    // BlueBrick's <NotListedInLibrary>true: the part is only placed inside
+    // its sets (a building of a castle set, a flex half, a cut track
+    // piece), not listed in the parts browser or placed by itself. It
+    // works like any part inside its set, and after ungrouping.
+    bool                       notListed = false;
     // <GroupConnectionPreferenceList> of a set: from a connection of the
     // set (its parts' connections, numbered in sub-part order) to the one
     // to add the next part at (flex.group: 0 <-> 2, its two rail ends).

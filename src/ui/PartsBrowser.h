@@ -3,12 +3,15 @@
 #include <QDockWidget>
 #include <QPoint>
 #include <QHash>
+#include <QSet>
 #include <QString>
 #include <QStringList>
 
 #include <functional>
 
+class QCheckBox;
 class QComboBox;
+class QLabel;
 class QMenu;
 class QLineEdit;
 class QListWidget;
@@ -94,6 +97,19 @@ public:
     void setOwnPartsRoots(std::function<QStringList()> roots);
     // Whether `key` is a set you made: a .set.xml in one of your parts folders.
     bool isOwnSet(const QString& key) const;
+    // One of your own parts or sets (in your parts folders or imports).
+    bool isOwnPart(const QString& key) const;
+
+    // Parts only used inside sets (BlueBrick's <NotListedInLibrary>) are
+    // left out unless "Show hidden parts" is ticked (remembered), or their
+    // set is opened with Show Parts in This Set.
+    QCheckBox* showHiddenBox() const { return showHidden_; }
+    // Lists only the parts in set `key` (a set inside it too, hidden ones
+    // included); an empty key goes back to all parts.
+    void openSet(const QString& key);
+    QString openedSet() const { return openSet_; }
+    // Shown in the grid now (for tests).
+    bool isListed(const QString& key) const;
     // Rename set…: tests fill in the dialog and say whether it was renamed
     // (instead of showing it).
     std::function<bool(class RenameSetDialog&)> runRenameSetDialog;
@@ -175,6 +191,18 @@ public:
     static constexpr int kLongPressMs = 500;
 
 private:
+    QCheckBox* showHidden_ = nullptr;
+    QLabel* openSetText_ = nullptr;
+    QWidget* openSetRow_ = nullptr;
+    QString openSet_;
+    QSet<QString> openSetKeys_;
+    int hiddenCount_ = 0;
+    void refreshHiddenCount();
+    // Parts only used inside sets go in the grid: "Show hidden parts", or a set opened.
+    bool listsHidden() const;
+    // Your own part `key`: only used inside sets, or listed again (its XML file).
+    void setOnlyInSets(const QString& key, bool onlyInSets);
+
     void applyFilter();
     void loadSomeIcons();
     void updateGridSize();

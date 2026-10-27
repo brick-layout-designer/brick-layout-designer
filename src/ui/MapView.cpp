@@ -1760,6 +1760,18 @@ void MapView::resolvePartPlacement(const QString& partKey, QPointF cursorScenePx
 
 void MapView::addPartAtScenePos(const QString& partKey, QPointF sceneCenterPx, snapfeel::Session* dragSnap) {
     if (!map_) return;
+    // A part only used inside sets (<NotListedInLibrary>) isn't placed by itself.
+    if (const auto meta = parts_.metadata(partKey); meta && meta->notListed) {
+        QString name = partKey;
+        for (const auto& d : meta->descriptions)
+            if (d.language == QLatin1String("en") && !d.text.isEmpty()) name = d.text;
+        if (auto* mw = window())
+            if (auto* sb = mw->findChild<QStatusBar*>())
+                sb->showMessage(tr("“%1” is only used inside a set, so it isn’t placed by itself. Place its set "
+                                   "instead.").arg(name),
+                                7000);
+        return;
+    }
     if (!budgetAllows(partKey)) return;
 
     // Use the active (selected) layer if it's a brick layer — matches
