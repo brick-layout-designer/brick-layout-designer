@@ -2,6 +2,7 @@
 #include "BudgetSession.h"
 
 #include "MapView.h"
+#include "PartsBrowser.h"
 
 #include "../core/Layer.h"
 #include "../core/LayerBrick.h"
@@ -196,9 +197,7 @@ void PartUsagePanel::refresh() {
             auto icon = iconCache_.constFind(key);
             if (icon == iconCache_.constEnd()) {
                 const QPixmap pm = lib_.pixmap(key);
-                icon = iconCache_.insert(key, pm.isNull() ? QIcon() : QIcon(
-                    pm.scaled(kIconSize, kIconSize,
-                              Qt::KeepAspectRatio, Qt::SmoothTransformation)));
+                icon = iconCache_.insert(key, PartsBrowser::partIcon(pm, kIconSize, table_->devicePixelRatioF()));
             }
             if (!icon->isNull()) iconItem->setIcon(*icon);
         }

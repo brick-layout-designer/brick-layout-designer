@@ -14,6 +14,8 @@
 #include <QVBoxLayout>
 #include <QXmlStreamReader>
 
+#include <algorithm>
+
 namespace bld::ui {
 
 namespace {
@@ -53,8 +55,12 @@ QWidget* sideOf(const QMap<QString, QByteArray>& files, const QString& name) {
     if (image.isNull()) {
         preview->setText(QObject::tr("No image"));
     } else {
-        preview->setPixmap(QPixmap::fromImage(
-            image.scaled(kPreview - 4, kPreview - 4, Qt::KeepAspectRatio, Qt::SmoothTransformation)));
+        // Drawn for the screen's pixels (sharp at 150% and 200% scaling).
+        const qreal dpr = std::max<qreal>(1.0, preview->devicePixelRatioF());
+        QPixmap pm = QPixmap::fromImage(
+            image.scaled(QSize(kPreview - 4, kPreview - 4) * dpr, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        pm.setDevicePixelRatio(dpr);
+        preview->setPixmap(pm);
     }
     v->addWidget(preview);
     const auto info = PartDifferencesDialog::partInfo(xmlOf(files));

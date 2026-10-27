@@ -9,7 +9,9 @@
 #include "ui/SheetChoiceDialog.h"
 #include "ui/CatalogLink.h"
 #include "ui/TouchActionBar.h"
+#include "ui/MainWindow.h"
 #include "ui/TouchMode.h"
+#include "ui/UpdateCheck.h"
 #include "ui/theme/AppPrefs.h"
 #include "ui/theme/PanelHeader.h"
 #include "ui/theme/ThemeManager.h"
@@ -46,6 +48,9 @@
 #include <QSignalSpy>
 #include <QStyle>
 #include <QTemporaryDir>
+#include <QAbstractButton>
+#include <QCheckBox>
+#include <QRadioButton>
 #include <QTest>
 #include <QTimer>
 #include <QToolButton>
@@ -833,4 +838,42 @@ TEST(CatalogLink, ServerHomeIsTheSitesRoot) {
               QStringLiteral("https://collab.example.org/"));
     EXPECT_EQ(ui::serverHomeUrl(QUrl(QStringLiteral("https://collab.example.org/club/?x=1#y"))).toString(),
               QStringLiteral("https://collab.example.org/club/"));
+}
+
+// In touch mode every button in the window is big enough for a finger:
+// the "?" help buttons were 24 px, the server status 23 px tall and check
+// boxes 20 px. (Qt's own toolbar overflow arrow is left as Qt draws it.)
+TEST(TouchModeTest, EveryButtonInTheWindowIsBigEnoughForAFinger) {
+    ui::UpdateCheck::setCheckAtStartupEnabled(false);
+    parts::PartsLibrary lib;
+    ui::MainWindow w(lib);
+    w.resize(1280, 800);
+    w.show();
+    w.ensureDocument();
+    ASSERT_TRUE(QTest::qWaitForWindowExposed(&w));
+    const QString saved = qApp->styleSheet();
+    ui::TouchMode::instance().setActive(true);
+    qApp->setStyleSheet(ui::theme::buildStyleSheet(ui::theme::Mode::Light, ui::theme::accent(QString()), true));
+    QApplication::processEvents();
+    // A check box's or radio button's label is part of what a finger hits;
+    // the other buttons are at least a touch target across and down.
+    constexpr int kFinger = 32;
+    QStringList small;
+    for (QAbstractButton* b : w.findChildren<QAbstractButton*>()) {
+        if (!b->isVisible() || b->inherits("QToolBarExtension")) continue;
+        const bool labelled = qobject_cast<QCheckBox*>(b) || qobject_cast<QRadioButton*>(b);
+        if (b->height() < kFinger || (!labelled && b->width() < kFinger))
+            small << QStringLiteral("%1 #%2 \"%3\" %4x%5")
+                         .arg(QString::fromLatin1(b->metaObject()->className()), b->objectName(), b->text())
+                         .arg(b->width())
+                         .arg(b->height());
+    }
+    EXPECT_TRUE(small.isEmpty()) << small.join(QLatin1Char('\n')).toStdString();
+    // The sheets' rows too (a tap picks one, its box shows or hides it).
+    auto* sheets = w.findChild<QListWidget*>(QStringLiteral("sheetList"));
+    ASSERT_NE(sheets, nullptr);
+    ASSERT_GT(sheets->count(), 0);
+    EXPECT_GE(sheets->visualItemRect(sheets->item(0)).height(), kFinger);
+    ui::TouchMode::instance().setActive(false);
+    qApp->setStyleSheet(saved);
 }

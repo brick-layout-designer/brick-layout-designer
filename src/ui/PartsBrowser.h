@@ -3,6 +3,8 @@
 #include <QDockWidget>
 #include <QPoint>
 #include <QHash>
+#include <QIcon>
+#include <QPixmap>
 #include <QSet>
 #include <QString>
 #include <QStringList>
@@ -81,6 +83,10 @@ public:
     // MIME type used when a thumbnail is dragged out of this panel. MapView
     // recognises the same string in its drop handler.
     static constexpr const char* kPartMimeType = "application/x-bld-part";
+    // A part's picture as an icon `size` px across, drawn for screens of
+    // `dpr` device pixels per pixel: at 150% or 200% scaling, a picture
+    // made at `size` px would be stretched again and look blurred.
+    static QIcon partIcon(const QPixmap& picture, int size, qreal dpr);
 
     // Follow the budget: Show Only Budgeted Parts hides the rest, Show
     // Budget Numbers adds "used/limit" under each part (red when over).
