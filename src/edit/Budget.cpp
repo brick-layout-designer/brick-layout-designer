@@ -9,6 +9,7 @@
 
 #include <QFile>
 #include <QSaveFile>
+#include <QStringList>
 #include <QXmlStreamReader>
 
 namespace bld::edit {
@@ -162,20 +163,32 @@ bool canAddToBudget(const Budget& budget, const QHash<QString, int>& usage, cons
     return true;
 }
 
-QHash<QString, int> setLeafParts(const parts::PartsLibrary& lib, const QString& part) {
+namespace {
+
+// `outer`: the files of the sets around this one (see edit::expandSet): a
+// sub-part naming one of them counts as that part, not as the set again.
+QHash<QString, int> leafParts(const parts::PartsLibrary& lib, const QString& part, QStringList outer) {
     QHash<QString, int> out;
     const auto meta = lib.metadata(part);
     if (!meta || meta->kind != parts::PartKind::Group) return out;
+    outer << meta->xmlFilePath;
     for (const auto& sp : meta->subparts) {
         const auto sub = lib.metadata(sp.subKey);
-        if (sub && sub->kind == parts::PartKind::Group) {
-            const auto nested = setLeafParts(lib, sp.subKey);
+        if (sub && sub->kind == parts::PartKind::Group && outer.size() < 16
+            && !outer.contains(sub->xmlFilePath)) {
+            const auto nested = leafParts(lib, sp.subKey, outer);
             for (auto it = nested.constBegin(); it != nested.constEnd(); ++it) out[it.key()] += it.value();
         } else {
             ++out[sp.subKey.toUpper()];
         }
     }
     return out;
+}
+
+} // namespace
+
+QHash<QString, int> setLeafParts(const parts::PartsLibrary& lib, const QString& part) {
+    return leafParts(lib, part, {});
 }
 
 }  // namespace bld::edit

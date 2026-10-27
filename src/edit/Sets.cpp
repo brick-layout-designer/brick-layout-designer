@@ -11,6 +11,7 @@
 #include "../parts/PartsLibrary.h"
 
 #include <QObject>
+#include <QStringList>
 
 #include <algorithm>
 #include <cmath>
@@ -29,19 +30,25 @@ double normalised(double deg) {
 
 double angleGap(double a, double b) { return std::abs(normalised(a - b)); }
 
+// `outer`: the files of the sets being expanded around this one. A sub-part
+// that names one of them (a set named like one of its own parts, which the
+// library then knows by that number) is placed as that part, not as another
+// copy of the set.
 void expandInto(parts::PartsLibrary& lib, const parts::PartMetadata& meta, const QString& key, QPointF centre,
-                double angle, const QString& parentGroup, ExpandedSet& out, int depth) {
+                double angle, const QString& parentGroup, ExpandedSet& out, QStringList outer) {
     core::Group group;
     group.guid = core::newBbmId();
     group.partNumber = key.toUpper();
     group.myGroupId = parentGroup;
     out.groups.push_back(group);
+    outer << meta.xmlFilePath;
     for (const auto& sp : meta.subparts) {
         const QPointF at = centre + parts::placement::rotated(sp.position, angle);
         const double turned = angle + sp.angleDegrees;
         const auto sub = lib.metadata(sp.subKey);
-        if (sub && sub->kind == parts::PartKind::Group && depth < 16) {
-            expandInto(lib, *sub, sp.subKey, at, turned, group.guid, out, depth + 1);
+        if (sub && sub->kind == parts::PartKind::Group && outer.size() < 16
+            && !outer.contains(sub->xmlFilePath)) {
+            expandInto(lib, *sub, sp.subKey, at, turned, group.guid, out, outer);
             continue;
         }
         core::Brick b;
@@ -151,7 +158,8 @@ ExpandedSet expandSet(parts::PartsLibrary& lib, const QString& key, QPointF cent
     const auto meta = lib.metadata(key);
     if (!meta || meta->kind != parts::PartKind::Group || meta->subparts.isEmpty()) return out;
     const QString canonical = lib.canonicalKey(key);
-    expandInto(lib, *meta, canonical.isEmpty() ? key : canonical, centreStuds, angleDegrees, QString(), out, 0);
+    expandInto(lib, *meta, canonical.isEmpty() ? key : canonical, centreStuds, angleDegrees, QString(), out,
+               {});
     return out;
 }
 

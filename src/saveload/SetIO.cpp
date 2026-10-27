@@ -4,6 +4,7 @@
 #include <QFileInfo>
 #include <QRegularExpression>
 #include <QSaveFile>
+#include <QXmlStreamReader>
 #include <QXmlStreamWriter>
 
 #include <functional>
@@ -143,6 +144,28 @@ QString setFileStem(const QString& name) {
     if (safe.endsWith(QStringLiteral(".set"), Qt::CaseInsensitive)) safe.chop(4);
     while (safe.endsWith(QLatin1Char('.')) || safe.endsWith(QLatin1Char(' '))) safe.chop(1);
     return safe.isEmpty() ? QStringLiteral("Set") : safe;
+}
+
+QString partNamedLikeSet(const QString& name, const QStringList& subpartKeys) {
+    const QString stem = setFileStem(name);
+    for (const QString& key : subpartKeys) {
+        QString number = key.trimmed();
+        if (number.endsWith(QStringLiteral(".set"), Qt::CaseInsensitive)) number.chop(4);
+        if (number.compare(stem, Qt::CaseInsensitive) == 0) return key.trimmed();
+    }
+    return {};
+}
+
+QStringList setSubpartKeys(const QString& filePath) {
+    QFile f(filePath);
+    if (!f.open(QIODevice::ReadOnly)) return {};
+    QStringList out;
+    QXmlStreamReader r(&f);
+    while (!r.atEnd()) {
+        if (r.readNext() == QXmlStreamReader::StartElement && r.name() == QLatin1String("SubPart"))
+            out << r.attributes().value(QStringLiteral("id")).toString();
+    }
+    return out;
 }
 
 QString freeSetName(const QString& name, const std::function<bool(const QString& stem)>& taken) {

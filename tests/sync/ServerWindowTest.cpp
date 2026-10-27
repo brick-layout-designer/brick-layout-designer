@@ -1294,16 +1294,34 @@ TEST_F(ServerWindowMain, SaveSelectionAsSetCanAlsoPutItOnAServerThatTakesSets) {
     bool boxShown = true;
     QString help;
     int partCount = 0;
+    // A name that is one of its own parts' numbers is refused, saying why, as it's typed.
+    QString clash;
+    bool clashSaves = true;
+    bool otherSaves = false;
+    bool clashHidden = false;
     window_->runSaveSetDialog = [&](ui::SaveSetDialog& d) {
         boxShown = !d.serverBox()->isHidden();
         help = d.findChild<QLabel*>(QStringLiteral("saveSetAbout"))->text();
         partCount = d.findChild<QLabel*>(QStringLiteral("saveSetCount"))->text().split(QLatin1Char(' ')).first().toInt();
+        d.nameEdit()->setText(QStringLiteral("yardplate"));
+        clash = d.clashLabel()->isHidden() ? QString() : d.clashLabel()->text();
+        clashSaves = d.saveButton()->isEnabled();
+        d.nameEdit()->setText(QStringLiteral("Yard plates"));
+        otherSaves = d.saveButton()->isEnabled();
+        clashHidden = d.clashLabel()->isHidden();
         return false;
     };
     saveSet->trigger();
     EXPECT_FALSE(boxShown);
     EXPECT_TRUE(help.startsWith(QStringLiteral("A set is a group of parts saved together"))) << help.toStdString();
     EXPECT_EQ(partCount, 2);
+    EXPECT_EQ(
+        clash,
+        QStringLiteral(
+            "“YARDPLATE” is a part in this set, so the set can’t have that name too. Pick another name."));
+    EXPECT_FALSE(clashSaves);
+    EXPECT_TRUE(otherSaves);
+    EXPECT_TRUE(clashHidden);
 
     // One that does: the box shows (ticked the first time), and the set goes
     // to it as a set, its XML only, numbered by its file name.
@@ -1435,10 +1453,14 @@ TEST_F(ServerWindowMain, ANameTakenOnTheServerOffersAFreeOne) {
     window_->askSetFile = [](const QString& s) { return s; };
     QString why, suggested;
     bool asked = false;
+    bool ownPartRefused = false;
     window_->runSetNameTakenDialog = [&](ui::SetNameTakenDialog& d) {
         asked = true;
         why = d.findChild<QLabel*>(QStringLiteral("setNameTakenWhy"))->text();
         suggested = d.nameEdit()->text();
+        // Not the number of a part in it either.
+        d.nameEdit()->setText(QStringLiteral("YardPlate"));
+        ownPartRefused = !d.useButton()->isEnabled() && !d.clashLabel()->isHidden();
         d.nameEdit()->setText(QStringLiteral("North sidings"));
         return true;
     };
@@ -1447,6 +1469,7 @@ TEST_F(ServerWindowMain, ANameTakenOnTheServerOffersAFreeOne) {
     EXPECT_TRUE(why.contains(QStringLiteral("“Yard sidings” on Club server"))) << why.toStdString();
     // Free on the server ("(2)" is taken there too) and here.
     EXPECT_EQ(suggested, QStringLiteral("Yard sidings (3)"));
+    EXPECT_TRUE(ownPartRefused);
     const QString mySets = modules.path() + QStringLiteral("/imports/My sets/");
     ASSERT_TRUE(waitFor([&] { return QFile::exists(mySets + QStringLiteral("North sidings.set.xml")); }));
     EXPECT_FALSE(QFile::exists(mySets + QStringLiteral("Yard sidings.set.xml")));

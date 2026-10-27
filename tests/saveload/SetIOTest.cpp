@@ -3,9 +3,11 @@
 #include <gtest/gtest.h>
 
 #include <QByteArray>
+#include <QDir>
 #include <QFile>
 #include <QPointF>
 #include <QString>
+#include <QStringList>
 #include <QTemporaryDir>
 #include <QXmlStreamReader>
 
@@ -245,6 +247,30 @@ TEST(SetIO, AFreeNameCountsOnFromTheTakenOne) {
     // "Yard (2)" goes on to "Yard (3)", not "Yard (2) (2)".
     EXPECT_EQ(saveload::freeSetName(QStringLiteral("Yard (2)"), isTaken), QStringLiteral("Yard (3)"));
     EXPECT_EQ(saveload::freeSetName(QStringLiteral("a/b"), isTaken), QStringLiteral("a/b (2)"));
+}
+
+TEST(SetIO, ASetCantBeNamedLikeOneOfItsOwnParts) {
+    const QStringList subparts{ QStringLiteral("3001.1"), QStringLiteral("YARDPLATE"),
+                                QStringLiteral("Inner.set") };
+    EXPECT_EQ(saveload::partNamedLikeSet(QStringLiteral("yardplate"), subparts), QStringLiteral("YARDPLATE"));
+    EXPECT_EQ(saveload::partNamedLikeSet(QStringLiteral(" 3001.1 "), subparts), QStringLiteral("3001.1"));
+    // A set inside it, by its file name: "Inner.set" is the set "Inner".
+    EXPECT_EQ(saveload::partNamedLikeSet(QStringLiteral("inner"), subparts), QStringLiteral("Inner.set"));
+    EXPECT_TRUE(saveload::partNamedLikeSet(QStringLiteral("Yard plates"), subparts).isEmpty());
+    EXPECT_TRUE(saveload::partNamedLikeSet(QStringLiteral("3001"), subparts).isEmpty());
+}
+
+TEST(SetIO, ASetFileNamesItsParts) {
+    QTemporaryDir dir;
+    const QString path = QDir(dir.path()).filePath(QStringLiteral("Y.set.xml"));
+    saveload::SetManifest m;
+    m.name = QStringLiteral("Y");
+    m.subparts = { { QStringLiteral("3001.1"), QPointF(0, 0), 0.0 },
+                   { QStringLiteral("YARDPLATE"), QPointF(8, 0), 90.0 } };
+    ASSERT_TRUE(saveload::writeSetXml(path, m));
+    EXPECT_EQ(saveload::setSubpartKeys(path),
+              (QStringList{ QStringLiteral("3001.1"), QStringLiteral("YARDPLATE") }));
+    EXPECT_TRUE(saveload::setSubpartKeys(QDir(dir.path()).filePath(QStringLiteral("none.xml"))).isEmpty());
 }
 
 TEST(SetIO, RenamedXmlChangesOnlyTheEnglishName) {

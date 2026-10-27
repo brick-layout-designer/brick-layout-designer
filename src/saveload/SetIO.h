@@ -14,6 +14,7 @@
 #include <QList>
 #include <QPointF>
 #include <QString>
+#include <QStringList>
 
 #include <functional>
 #include <optional>
@@ -57,6 +58,17 @@ std::optional<QString> renamedSetXml(const QString& xml, const QString& name);
 // without ".set.xml": the characters a file name can't hold become "_",
 // and leading or trailing dots and spaces go (the web's setPartNumber).
 QString setFileStem(const QString& name);
+
+// The sub-part among `subpartKeys` (a set's part numbers, as its XML names
+// them) that a set named `name` would share its number with, or empty. The
+// library keys a set by its file name without ".set.xml", so such a set
+// would stand in for that part, and placing it would nest copies of itself:
+// the name is refused.
+QString partNamedLikeSet(const QString& name, const QStringList& subpartKeys);
+
+// The part numbers the set file `filePath` names (its <SubPart id>s), as
+// written; empty when it can't be read.
+QStringList setSubpartKeys(const QString& filePath);
 
 // A name like `name` that isn't taken: "Yard (2)", "Yard (3)", … (and
 // "Yard (2)" goes on to "Yard (3)"). `taken` says whether a file stem

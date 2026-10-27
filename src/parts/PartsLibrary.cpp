@@ -530,6 +530,9 @@ QPixmap PartsLibrary::pixmap(const QString& key) {
     // are authored — PartsBrowser scales it down to icon size from there.
     if (meta->kind == PartKind::Group && !meta->subparts.isEmpty()) {
         constexpr double kPxPerStud = 8.0;
+        // Held empty while it's drawn: a set that names itself (one named
+        // like one of its own parts) finds this, not itself again.
+        pixmapCache_.insert(lk, QPixmap());
 
         struct Placed {
             QPixmap pm;
