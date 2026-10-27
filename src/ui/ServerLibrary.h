@@ -146,6 +146,8 @@ QLabel* libraryRowPicture(QWidget* parent);
 void showLibraryPicture(QLabel* label, const QImage& img);
 QLabel* libraryMutedLabel(const QString& text, QWidget* parent);
 QLabel* libraryGroupHeader(const QString& text, QWidget* parent);
+// A club's group header: its logo (when it has one) and its name.
+QWidget* libraryClubHeader(const QString& text, const QUrl& server, const QString& slug, QWidget* parent);
 // "960 × 480 studs (7.7 × 3.8 m)"; empty when either is unknown.
 QString studsSizeText(int widthStuds, int heightStuds);
 

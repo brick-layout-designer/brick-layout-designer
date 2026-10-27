@@ -110,6 +110,8 @@ private:
     void filterLayouts(const QString& text);
     // Fill the Show filter with All, Mine and the clubs in the list (key, name).
     void setShowChoices(const QList<std::pair<QString, QString>>& clubs);
+    // Each club layout's Owner cell gets the club's logo (when it has one).
+    void showOwnerLogos();
     void onServerPicked();
     // The ids of the picked rows, and picking them again after a refill.
     QStringList pickedIds() const;

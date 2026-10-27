@@ -1,4 +1,5 @@
 #include "ModuleLibraryDialogs.h"
+#include "ClubLogoViews.h"
 #include "ConfirmDialog.h"
 #include "ReturnWording.h"
 #include "ServerLibrary.h"
@@ -109,6 +110,7 @@ MakeModuleDialog::MakeModuleDialog(ServerLibrary* library, const QString& defaul
     saveTo_->addItem(tr("This computer only (Module library folder)"), QString::fromLatin1(kThisComputer));
     const int def = saveTo_->findData(defaultOwner);
     saveTo_->setCurrentIndex(def >= 0 ? def : 0);
+    if (library) sync::showClubLogos(saveTo_, [library] { return library->server(); });
     saveForm->addRow(tr("Save to"), saveTo_);
     saveCol->addLayout(saveForm);
     sheets_ = new ModuleSheetsBox(saveBox_);

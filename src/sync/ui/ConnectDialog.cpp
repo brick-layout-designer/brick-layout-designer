@@ -1,4 +1,6 @@
 #include "ConnectDialog.h"
+#include "ClubLogoViews.h"
+#include "ClubLogos.h"
 
 #include "OwnerFilter.h"
 #include "RefreshOnFocus.h"
@@ -303,6 +305,8 @@ ConnectDialog::ConnectDialog(ServerApi& api, TokenStore& tokens, std::function<v
     connect(&api_, &ServerApi::requestFailed, this, &ConnectDialog::onFailed);
     connect(&api_, &ServerApi::layoutsReady, this, &ConnectDialog::showLayouts);
     connect(&api_, &ServerApi::orgsReady, this, &ConnectDialog::showOrgs);
+    // A club's logo came or changed: the layouts' Owner column shows it.
+    connect(&ClubLogos::shared(), &ClubLogos::changed, this, [this] { showOwnerLogos(); });
     // Back from the web (where a layout may have just been added): list again.
     new RefreshOnFocus(this, [this] { refreshList(); });
     connect(&api_, &ServerApi::published, this, [this](const QString& id, const QString& title) {
@@ -571,6 +575,7 @@ void ConnectDialog::showOrgs(const QList<OrgEntry>& orgs) {
     owner_->addItem(tr("Me"), QString());
     // Only the clubs whose roles let you start layouts there.
     for (const auto& o : clubsThatTake(orgs, AddKind::Layout)) owner_->addItem(o.name, o.slug);
+    showClubLogos(owner_, [this] { return server_; });
     // Start at the club the lists were last showing, else Me.
     const int shown = owner_->findData(rememberedShow());
     owner_->setCurrentIndex(shown > 0 ? shown : 0);
@@ -651,6 +656,7 @@ void ConnectDialog::showLayouts(const QList<LayoutEntry>& layouts) {
         item->setData(UpdatedCol, Qt::UserRole, e.updatedAt);
     }
     setShowChoices(clubs);
+    showOwnerLogos();
     layouts_->setSortingEnabled(true);
     filterLayouts(filter_->text());
     pickAgain(keep);
@@ -690,6 +696,16 @@ void ConnectDialog::setShowChoices(const QList<std::pair<QString, QString>>& clu
     // The last choice, while that club is still in the list; else All.
     const int at = show_->findData(rememberedShow());
     show_->setCurrentIndex(at >= 0 ? at : 0);
+    showClubLogos(show_, [this] { return server_; });
+}
+
+void ConnectDialog::showOwnerLogos() {
+    const ClubLogos& logos = ClubLogos::shared();
+    for (int i = 0; i < layouts_->topLevelItemCount(); ++i) {
+        auto* item = layouts_->topLevelItem(i);
+        const QString key = item->data(OwnerCol, Qt::UserRole).toString();
+        item->setIcon(OwnerCol, key == kShowMine ? QIcon() : logos.icon(server_, key));
+    }
 }
 
 void ConnectDialog::openSelected() {

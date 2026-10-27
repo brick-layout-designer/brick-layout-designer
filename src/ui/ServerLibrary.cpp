@@ -3,8 +3,10 @@
 #include "ReturnWording.h"
 
 #include "../sync/ServerList.h"
+#include "../sync/ui/ClubLogoViews.h"
 
 #include <QCryptographicHash>
+#include <QComboBox>
 #include <QDesktopServices>
 #include <QDir>
 #include <QFile>
@@ -62,6 +64,20 @@ QLabel* libraryGroupHeader(const QString& text, QWidget* parent) {
     auto* l = new QLabel(text, parent);
     l->setProperty("groupHeader", true);
     return l;
+}
+
+QWidget* libraryClubHeader(const QString& text, const QUrl& server, const QString& slug, QWidget* parent) {
+    if (slug.isEmpty()) return libraryGroupHeader(text, parent);
+    // The club's logo before its name (hidden while it has none).
+    auto* box = new QWidget(parent);
+    box->setObjectName(QStringLiteral("clubHeader:") + slug);
+    auto* row = new QHBoxLayout(box);
+    row->setContentsMargins(0, 0, 0, 0);
+    row->setSpacing(6);
+    auto* logo = sync::clubLogoLabel(server, slug, 20, box);
+    row->addWidget(logo, 0, Qt::AlignBottom);
+    row->addWidget(libraryGroupHeader(text, box), 1);
+    return box;
 }
 
 QFrame* libraryRowFrame(QWidget* parent) {
@@ -398,10 +414,12 @@ void ServerModulesTab::rebuild() {
     // Yours first, then each club (in the order the server lists them), then shared with you.
     QStringList groups;
     QHash<QString, QString> names;
+    QHash<QString, QString> slugs;
     for (const auto& m : shown) {
         const QString key = m.owner.isClub() ? m.owner.id : QStringLiteral("me");
         if (!groups.contains(key)) groups << key;
         if (m.owner.isClub()) names.insert(key, m.owner.name.isEmpty() ? tr("A club") : m.owner.name);
+        if (m.owner.isClub() && !m.owner.slug.isEmpty()) slugs.insert(key, m.owner.slug);
     }
     groups.removeAll(QStringLiteral("me"));
     groups.prepend(QStringLiteral("me"));
@@ -410,7 +428,8 @@ void ServerModulesTab::rebuild() {
         for (const auto& m : shown)
             if ((m.owner.isClub() ? m.owner.id : QStringLiteral("me")) == g) inGroup << m;
         if (inGroup.isEmpty()) continue;
-        list_->insertWidget(at++, libraryGroupHeader(g == QLatin1String("me") ? tr("Yours") : names.value(g), listHost_));
+        list_->insertWidget(at++, g == QLatin1String("me") ? libraryGroupHeader(tr("Yours"), listHost_)
+                                                          : libraryClubHeader(names.value(g), library_.server(), slugs.value(g), listHost_));
         for (const auto& m : std::as_const(inGroup)) {
             QWidget* r = makeRow(m);
             rows_.insert(m.id, r);
@@ -646,6 +665,11 @@ CatalogTab::CatalogTab(ServerLibrary& library, QWidget* parent, bool loadWhenSho
         ask.setWindowTitle(title);
         ask.setComboBoxItems(names);
         ask.setComboBoxEditable(false);
+        // Each club's logo beside its name.
+        if (auto* box = ask.findChild<QComboBox*>()) {
+            for (int i = 1; i < box->count() && i < slugs.size(); ++i) box->setItemData(i, slugs.at(i));
+            sync::showClubLogos(box, [this] { return library_.server(); });
+        }
         // A club left out says why, under the choice (wrapped, it can be long).
         ask.setLabelText(leftOut.isEmpty() ? tr("Add to") : tr("Add to (%1)").arg(leftOut));
         if (auto* label = ask.findChild<QLabel*>()) label->setWordWrap(true);

@@ -6,11 +6,14 @@
 #include "help/HelpButton.h"
 #include "tours/Tours.h"
 
+#include "ClubLogoViews.h"
+#include "ClubLogos.h"
 #include "OwnerFilter.h"
 #include "RefreshOnFocus.h"
 #include "ServerList.h"
 
 #include <QComboBox>
+#include <QDesktopServices>
 #include <QDir>
 #include <QFile>
 #include <QFileDialog>
@@ -130,6 +133,20 @@ ServerWindow::ServerWindow(ServerLibrary& library, QWidget* parent) : QWidget(pa
     filters->addWidget(new QLabel(tr("Show:"), content_));
     filters->addWidget(help::withHelp(show_, QStringLiteral("owners.filter"), content_));
     c->addLayout(filters);
+    // A club you run, picked in Show: its logo is changed on the website.
+    logoLink_ = new QLabel(content_);
+    logoLink_->setObjectName(QStringLiteral("clubLogoLink"));
+    logoLink_->setTextFormat(Qt::RichText);
+    logoLink_->setText(QStringLiteral("<a href=\"logo\">%1</a>").arg(tr("Change the logo on the website").toHtmlEscaped()));
+    logoLink_->setToolTip(tr("Club admins upload or change the club's logo on the website, under Manage › Settings"));
+    logoLink_->setTextInteractionFlags(Qt::LinksAccessibleByMouse | Qt::LinksAccessibleByKeyboard);
+    logoLink_->setAlignment(Qt::AlignRight);
+    logoLink_->setVisible(false);
+    connect(logoLink_, &QLabel::linkActivated, this, [this] {
+        const QUrl url = clubLogoPage();
+        if (url.isValid() && openLink) openLink(url);
+    });
+    c->addWidget(logoLink_);
 
     tabs_ = new QTabWidget(content_);
     tabs_->setObjectName(QStringLiteral("serverTabs"));
@@ -168,6 +185,7 @@ ServerWindow::ServerWindow(ServerLibrary& library, QWidget* parent) : QWidget(pa
     col->addWidget(filler_, 1);
 
     confirm = [this](const ConfirmOptions& o) { return ConfirmDialog::ask(this, o); };
+    openLink = [](const QUrl& url) { QDesktopServices::openUrl(url); };
     askSavePath = [this](const QString& title, bool native) {
         const QString docs = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
         const QString nativeFilter = tr("Collaborative Brick Layout Designer layout (*.bld-layout)");
@@ -228,6 +246,8 @@ ServerWindow::ServerWindow(ServerLibrary& library, QWidget* parent) : QWidget(pa
         rebuildModules();
     });
     connect(&library_, &ServerLibrary::editingChanged, this, [this] { rebuildModules(); });
+    // A club's logo came or went, or the server turned out to have them.
+    connect(&sync::ClubLogos::shared(), &sync::ClubLogos::changed, this, [this] { updateLogoLink(); });
     // Back in the window: someone may have changed things on the web meanwhile.
     new sync::RefreshOnFocus(this, [this] {
         if (library_.state() == ServerLibrary::State::Ready || library_.state() == ServerLibrary::State::Offline) {
@@ -583,7 +603,26 @@ void ServerWindow::rebuildFilter() {
     // The last choice for this server, while that club is still listed; else All.
     const int at = show_->findData(rememberedShow(library_.server()));
     show_->setCurrentIndex(at >= 0 ? at : 0);
+    sync::showClubLogos(show_, [this] { return library_.server(); });
+    updateLogoLink();
 }
+
+QUrl ServerWindow::clubLogoPage() const {
+    // Only a club of yours whose Admin role you hold, on a server with logos.
+    const QString key = show_->currentData().toString();
+    if (key.isEmpty() || key == sync::kShowAll || key == sync::kShowMine) return {};
+    if (!sync::ClubLogos::shared().offered(library_.server())) return {};
+    const auto& orgs = library_.orgs();
+    const auto it = std::find_if(orgs.begin(), orgs.end(), [&](const sync::OrgEntry& o) { return o.slug == key; });
+    if (it == orgs.end() || !it->isAdmin()) return {};
+    QUrl url = library_.server();
+    url.setPath(QStringLiteral("/orgs/") + QString::fromLatin1(QUrl::toPercentEncoding(key)) + QStringLiteral("/admin"),
+                QUrl::StrictMode);
+    url.setQuery(QStringLiteral("tab=settings"));
+    return sync::ServerApi::webLink(url.toString());
+}
+
+void ServerWindow::updateLogoLink() { logoLink_->setVisible(clubLogoPage().isValid()); }
 
 void ServerWindow::rebuild() {
     rebuildFilter();
