@@ -18,18 +18,19 @@
 #include "edit/ModuleLibraryLink.h"
 #include "parts/PartsLibrary.h"
 #include "sync/Credit.h"
-#include "ui/MainWindow.h"
 #include "ui/ConfirmDialog.h"
 #include "ui/ImportPipeline.h"
+#include "ui/MainWindow.h"
 #include "ui/MapView.h"
 #include "ui/ModuleLibraryDialogs.h"
-#include "ui/ModulesPanel.h"
 #include "ui/ModuleLibraryPanel.h"
+#include "ui/ModulesPanel.h"
 #include "ui/NoticeArea.h"
+#include "ui/ReturnWording.h"
 #include "ui/SaveModuleDialog.h"
-#include "ui/SheetChoiceDialog.h"
 #include "ui/ServerLibrary.h"
 #include "ui/ServerWindow.h"
+#include "ui/SheetChoiceDialog.h"
 #include "ui/UpdateCheck.h"
 #include "ui/VenueLibraryPanel.h"
 
@@ -550,10 +551,23 @@ TEST(Credit, ReadsTheServersCreditAndSaysItInTheWebsitesWords) {
     EXPECT_TRUE(sync::creditLine(none).isEmpty());
     const auto w = sync::moveToClubWording(QStringLiteral("ArkLUG"));
     EXPECT_EQ(w.removes,
-              QStringLiteral("ArkLUG will own this. Its admins and managers can change or delete it."));
+              QStringLiteral("ArkLUG will own this. Members with the Delete club items permission can "
+                             "rename, share or delete it."));
     EXPECT_EQ(
         w.keeps,
         QStringLiteral("You stay credited as the author, and you can take it back while you’re a member."));
+    // Take back / Give back: who hears of it goes by permission, as on the website.
+    sync::Credit given;
+    given.club = QStringLiteral("ArkLUG");
+    given.authorName = QStringLiteral("Sam");
+    for (const bool give : { false, true }) {
+        const ui::ConfirmOptions o =
+            ui::returnOptions(QStringLiteral("module"), QStringLiteral("Yard"), given, give);
+        EXPECT_TRUE(
+            o.keeps.endsWith(QStringLiteral("Members with the Delete club items permission are told.")))
+            << o.keeps.toStdString();
+        EXPECT_FALSE(o.keeps.contains(QStringLiteral("admins and managers")));
+    }
 }
 
 namespace {

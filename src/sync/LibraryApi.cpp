@@ -6,7 +6,10 @@
 #include <QJsonDocument>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QSet>
 #include <QUrlQuery>
+
+#include <algorithm>
 
 namespace bld::sync {
 
@@ -492,12 +495,44 @@ QStringList ClubMembers::roleNames(const ClubMember& m) const {
     return out;
 }
 
+QList<ClubMember> ClubMembers::sorted() const {
+    struct Rank {
+        bool admin = false;
+        qsizetype permissions = 0;
+    };
+    const auto rankOf = [this](const ClubMember& m) {
+        Rank rank;
+        QSet<QString> granted;
+        for (const ClubRoleName& r : roles) {
+            if (!m.roleIds.contains(r.id)) continue;
+            rank.admin = rank.admin || r.key == QLatin1String("admin");
+            for (const QString& p : r.permissions) granted.insert(p);
+        }
+        rank.permissions = granted.size();
+        return rank;
+    };
+    QList<ClubMember> out = members;
+    std::stable_sort(out.begin(), out.end(), [&rankOf](const ClubMember& a, const ClubMember& b) {
+        const Rank ra = rankOf(a);
+        const Rank rb = rankOf(b);
+        if (ra.admin != rb.admin) return ra.admin;
+        if (ra.permissions != rb.permissions) return ra.permissions > rb.permissions;
+        return QString::localeAwareCompare(a.name, b.name) < 0;
+    });
+    return out;
+}
+
 ClubMembers LibraryApi::clubMembersFromJson(const QJsonObject& o) {
     ClubMembers out;
     for (const auto& v : o.value(QLatin1String("roles")).toArray()) {
         const QJsonObject r = v.toObject();
-        out.roles << ClubRoleName{ r.value(QLatin1String("id")).toString(),
-                                   r.value(QLatin1String("name")).toString() };
+        ClubRoleName role{ r.value(QLatin1String("id")).toString(),
+                           r.value(QLatin1String("name")).toString(),
+                           r.value(QLatin1String("key")).toString(),
+                           {} };
+        for (const auto& p : r.value(QLatin1String("permissions")).toArray())
+            role.permissions << p.toString();
+        out.roles << role;
     }
     for (const auto& v : o.value(QLatin1String("members")).toArray()) {
         const QJsonObject m = v.toObject();

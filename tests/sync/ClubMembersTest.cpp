@@ -227,6 +227,78 @@ TEST_F(ClubMembersTest, ListsEachMembersRolesAndLastActiveWithTheClubsLogo) {
     EXPECT_EQ(opened_.first(), expected);
 }
 
+namespace {
+
+// The club the website's orgs/test/memberOrder.test.tsx sorts: anyone with
+// the Admin role first, then by how many permissions their roles grant
+// together, then by name. Listed in the server's order, not the order shown.
+QJsonObject strongestRolesClub() {
+    const QStringList all{ "view_items",     "edit_layouts",  "start_layouts", "edit_modules",
+                           "add_parts",      "manage_venues", "send_catalog",  "invite",
+                           "manage_members", "export_data",   "delete_items" };
+    QStringList manager = all;
+    manager.removeAll(QStringLiteral("manage_members"));
+    manager.removeAll(QStringLiteral("export_data"));
+    const auto role = [](const char* id, const char* key, const char* name, const QStringList& perms) {
+        return QJsonObject{ { QStringLiteral("id"), QString::fromLatin1(id) },
+                            { QStringLiteral("key"),
+                              *key ? QJsonValue(QString::fromLatin1(key)) : QJsonValue() },
+                            { QStringLiteral("name"), QString::fromLatin1(name) },
+                            { QStringLiteral("permissions"), QJsonArray::fromStringList(perms) } };
+    };
+    const QJsonValue none = QJsonValue::Null;
+    return { { QStringLiteral("roles"),
+               QJsonArray{
+                   role("o1:admin", "admin", "Admin", all), role("o1:manager", "manager", "Manager", manager),
+                   role("o1:member", "member", "Member",
+                        { "view_items", "edit_layouts", "start_layouts", "edit_modules", "add_parts" }),
+                   role("o1:viewer", "viewer", "Viewer", { "view_items" }),
+                   role("crew", "", "Track crew", { "view_items", "edit_layouts" }),
+                   role("door", "", "Door crew", { "view_items", "invite", "manage_members" }) } },
+             { QStringLiteral("members"),
+               QJsonArray{
+                   member(QStringLiteral("zed"), QStringLiteral("Zed"), { "o1:viewer" }, none),
+                   member(QStringLiteral("abe"), QStringLiteral("Abe"), { "o1:member" }, none),
+                   member(QStringLiteral("cal"), QStringLiteral("Cal"), { "o1:viewer", "crew" }, none),
+                   member(QStringLiteral("dee"), QStringLiteral("Dee"), { "crew", "o1:member" }, none),
+                   member(QStringLiteral("yan"), QStringLiteral("Yan"), { "o1:admin" }, none),
+                   member(QStringLiteral("bob"), QStringLiteral("Bob"), { "o1:member", "o1:manager" }, none),
+                   // (Amy's id is "cy": the dialog's helper waits for that row.)
+                   member(QStringLiteral("cy"), QStringLiteral("Amy"), { "o1:member", "door" }, none) } },
+             { QStringLiteral("invites"), QJsonArray{} } };
+}
+
+QStringList names(const QList<sync::ClubMember>& members) {
+    QStringList out;
+    for (const auto& m : members) out << m.name;
+    return out;
+}
+
+} // namespace
+
+TEST(ClubMemberOrder, StrongestRolesFirstThenPermissionsThenNameAsTheWebsite) {
+    sync::ClubMembers club = sync::LibraryApi::clubMembersFromJson(strongestRolesClub());
+    // Admin; then 9, 7, 5, 5 (by name), 2 and 1 permissions.
+    EXPECT_EQ(names(club.sorted()), QString("Yan Bob Amy Abe Dee Cal Zed").split(QLatin1Char(' ')));
+    // A role edited to grant more moves its holders up.
+    for (auto& r : club.roles)
+        if (r.id == QLatin1String("crew")) {
+            r.permissions = club.roles.first().permissions;
+            r.permissions.removeAll(QStringLiteral("export_data"));
+        }
+    EXPECT_EQ(names(club.sorted()), QString("Yan Cal Dee Bob Amy Abe Zed").split(QLatin1Char(' ')));
+}
+
+TEST_F(ClubMembersTest, ListsTheStrongestRolesFirst) {
+    ui::ClubMembersDialog* d = openMembers(Me::Admin, strongestRolesClub());
+    ASSERT_NE(d, nullptr);
+    QStringList shown;
+    for (QWidget* w : d->findChildren<QWidget*>())
+        if (w->objectName().startsWith(QLatin1String("memberRow:")))
+            shown << w->findChild<QLabel*>(QStringLiteral("memberName"))->text();
+    EXPECT_EQ(shown, QString("Yan Bob Amy Abe Dee Cal Zed").split(QLatin1Char(' ')));
+}
+
 TEST_F(ClubMembersTest, AMemberSeesOnlyWhatTheServerSendsAndNoManageLink) {
     ui::ClubMembersDialog* d = openMembers(Me::Member, membersJson(false));
     ASSERT_NE(d, nullptr);
