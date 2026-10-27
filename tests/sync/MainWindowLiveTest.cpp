@@ -539,8 +539,11 @@ TEST_F(MainWindowLiveSlowParts, ALayoutOnAnotherServerStillGetsThatServersParts)
 
     http_.release("/api/parts/manifest");
     ASSERT_TRUE(waitFor([&] { return manifestGets(other_) == 1; }));
-    for (const auto& r : other_.requests)
-        if (r.path == "/api/parts/manifest") EXPECT_EQ(r.authorization, QByteArrayLiteral("Bearer bld_pat_other"));
+    for (const auto& r : other_.requests) {
+        if (r.path == "/api/parts/manifest") {
+            EXPECT_EQ(r.authorization, QByteArrayLiteral("Bearer bld_pat_other"));
+        }
+    }
     // Done: Download Server Parts Again works again.
     QAction* again = nullptr;
     for (QAction* a : window_->findChildren<QAction*>())
