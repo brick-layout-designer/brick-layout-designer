@@ -9,9 +9,13 @@
 #include "../parts/PartsLibrary.h"
 #include "../parts/SetVersion.h"
 
+#include <QHash>
 #include <QObject>
+#include <QStringList>
 
 #include <algorithm>
+#include <memory>
+#include <optional>
 #include <utility>
 
 namespace bld::edit {
@@ -38,28 +42,76 @@ const core::LayerBrick* brickLayer(const core::Map& map, int i) {
     return L && L->kind() == core::LayerKind::Brick ? static_cast<const core::LayerBrick*>(L) : nullptr;
 }
 
-// `outer`: the files of the sets around this one, as expandSet keeps them.
-QString versionWithin(parts::PartsLibrary& lib, const parts::PartMetadata& set, const TrackedSet& tracked,
-                      QStringList outer) {
-    QString own = parts::setVersion(set);
-    if (own.isEmpty()) return own;
-    outer << set.xmlFilePath;
-    QList<parts::InnerSetVersion> inner;
-    for (const auto& sp : set.subparts) {
-        const auto sub = lib.metadata(sp.subKey);
-        if (!sub || sub->kind != parts::PartKind::Group || outer.size() >= 16 || outer.contains(sub->xmlFilePath)
-            || (tracked && !tracked(*sub)))
-            continue;
-        const QString v = versionWithin(lib, *sub, tracked, outer);
-        if (!v.isEmpty()) inner.push_back({ sp.subKey, v });
+// Working out one set's version: each inner set's version depends only on
+// that set and which sets are around it, so each is worked out once (a set
+// naming the same set many times, nested a few deep, would otherwise cost
+// the count to the power of the depth). A set that still needs more than
+// kNestedSetBudget of them keeps its own version, as the web's
+// withNestedSetVersions does (apps/server/src/utils/setVersion.ts).
+constexpr int kNestedSetBudget = 20000;
+
+class NestedVersions {
+public:
+    NestedVersions(parts::PartsLibrary& lib, const TrackedSet& tracked) : lib_(lib), tracked_(tracked) {}
+
+    // Empty when it needed more than the budget.
+    std::optional<QString> of(const parts::PartMetadata& set) { return versionWithin(set, {}); }
+
+private:
+    // `outer`: the files of the sets around this one, as expandSet keeps them.
+    std::optional<QString> versionWithin(const parts::PartMetadata& set, QStringList outer) {
+        QStringList around = outer;
+        around.sort();
+        const QString key = set.xmlFilePath + QLatin1Char('\n') + around.join(QLatin1Char('\n'));
+        if (const auto known = memo_.constFind(key); known != memo_.constEnd()) return known.value();
+        if (--budget_ < 0) return std::nullopt;
+        QString own = ownVersion(set);
+        if (own.isEmpty()) return own;
+        outer << set.xmlFilePath;
+        QList<parts::InnerSetVersion> inner;
+        for (const auto& sp : set.subparts) {
+            const auto sub = innerSet(sp.subKey);
+            if (!sub || outer.size() >= 16 || outer.contains(sub->xmlFilePath)) continue;
+            const auto v = versionWithin(*sub, outer);
+            if (!v) return std::nullopt;
+            if (!v->isEmpty()) inner.push_back({ sp.subKey, *v });
+        }
+        QString v = parts::nestedSetVersion(own, inner);
+        memo_.insert(key, v);
+        return v;
     }
-    return parts::nestedSetVersion(own, inner);
-}
+
+    // The set a sub-part names, when it is a tracked set (looked up once
+    // each; shared, so it stays put while the hash grows).
+    std::shared_ptr<const parts::PartMetadata> innerSet(const QString& subKey) {
+        if (const auto it = sets_.constFind(subKey); it != sets_.constEnd()) return it.value();
+        std::shared_ptr<const parts::PartMetadata> found;
+        if (auto sub = lib_.metadata(subKey);
+            sub && sub->kind == parts::PartKind::Group && (!tracked_ || tracked_(*sub)))
+            found = std::make_shared<const parts::PartMetadata>(std::move(*sub));
+        sets_.insert(subKey, found);
+        return found;
+    }
+
+    // A set's own version (parts::setVersion), worked out once each.
+    QString ownVersion(const parts::PartMetadata& set) {
+        auto it = own_.find(set.xmlFilePath);
+        if (it == own_.end()) it = own_.insert(set.xmlFilePath, parts::setVersion(set));
+        return *it;
+    }
+
+    parts::PartsLibrary& lib_;
+    const TrackedSet& tracked_;
+    QHash<QString, std::shared_ptr<const parts::PartMetadata>> sets_;
+    QHash<QString, QString> own_;
+    QHash<QString, QString> memo_;
+    int budget_ = kNestedSetBudget;
+};
 
 } // namespace
 
 QString trackedSetVersion(parts::PartsLibrary& lib, const parts::PartMetadata& set, const TrackedSet& tracked) {
-    return versionWithin(lib, set, tracked, {});
+    return NestedVersions(lib, tracked).of(set).value_or(parts::setVersion(set));
 }
 
 std::optional<core::PlacedSet> placedSetLink(parts::PartsLibrary& lib, const QString& key,
