@@ -13,6 +13,7 @@
 // the next edit, is never refused.
 
 #include <limits>
+#include <vector>
 
 namespace bld::core {
 
@@ -56,5 +57,11 @@ inline constexpr Range<float> kFontSize{ 1.0f, 500.0f, 8.25f };
 
 // Brings every drawn setting of `map` into its range (see above).
 void keepDrawnSettingsInRange(Map& map);
+
+// A dash pattern typed in the ruler dialog, as the server takes it: lengths
+// that aren't numbers dropped, each brought to 0..kMaxDash, at most
+// kMaxDashEntries of them; one adding up to less than kMinDashTotal is none
+// (a solid guideline).
+std::vector<float> dashPatternInRange(const std::vector<float>& typed);
 
 } // namespace bld::core
