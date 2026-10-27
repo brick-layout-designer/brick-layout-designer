@@ -809,9 +809,10 @@ TEST_F(LibraryTabs, CatalogLayoutsAndVenuesShowWhenOnAndCopyThenOpen) {
                 { { QStringLiteral("modules"), true }, { QStringLiteral("parts"), false }, { QStringLiteral("layouts"), true }, { QStringLiteral("venues"), true } });
     library_.refresh();
     ASSERT_TRUE(waitFor([&] { return library_.catalog().venues; }));
-    QCoreApplication::processEvents();
-    EXPECT_TRUE(kindButton(ui::CatalogTab::Kind::Layouts)->isVisibleTo(&tab));
-    EXPECT_TRUE(kindButton(ui::CatalogTab::Kind::Venues)->isVisibleTo(&tab));
+    // The tab shows its buttons when it hears of the new settings, which can
+    // be a turn of the event loop after the library has them.
+    EXPECT_TRUE(waitFor([&] { return kindButton(ui::CatalogTab::Kind::Layouts)->isVisibleTo(&tab); }));
+    EXPECT_TRUE(waitFor([&] { return kindButton(ui::CatalogTab::Kind::Venues)->isVisibleTo(&tab); }));
 
     // A layout: its size and parts, its cover, and "Open a copy" copies it, then asks to open the copy.
     tab.setKind(ui::CatalogTab::Kind::Layouts);
