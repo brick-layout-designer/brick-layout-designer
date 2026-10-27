@@ -12,6 +12,7 @@
 #include "ModuleDoc.h"
 #include "ServerList.h"
 #include "TokenStore.h"
+#include "UploadPartsDialog.h"
 #include "core/Ids.h"
 #include "core/LayerBrick.h"
 #include "core/Map.h"
@@ -900,6 +901,7 @@ public:
     using ui::MainWindow::runSaveSetDialog;
     using ui::MainWindow::askSetFile;
     using ui::MainWindow::runSetNameTakenDialog;
+    using ui::MainWindow::runUploadPartsDialog;
 };
 
 parts::PartsLibrary& bundledParts() {
@@ -1314,6 +1316,12 @@ TEST_F(ServerWindowMain, SaveSelectionAsSetCanAlsoPutItOnAServerThatTakesSets) {
         list.save();
     }
     http_.reply("/api/parts/catalog", 200, { { QStringLiteral("parts"), QJsonArray{} } });
+    QStringList offered;
+    window_->runUploadPartsDialog = [&](sync::UploadPartsDialog& d) {
+        const auto* list = d.findChild<QListWidget*>(QStringLiteral("parts"));
+        for (int i = 0; list && i < list->count(); ++i) offered << list->item(i)->text();
+        return false;
+    };
     bool ticked = false;
     window_->runSaveSetDialog = [&](ui::SaveSetDialog& d) {
         boxShown = !d.serverBox()->isHidden();
@@ -1344,6 +1352,12 @@ TEST_F(ServerWindowMain, SaveSelectionAsSetCanAlsoPutItOnAServerThatTakesSets) {
     EXPECT_EQ(xml.count("<SubPart id=\"YARDPLATE\">"), 2);
     EXPECT_TRUE(waitFor([&] { return window_->statusBar()->currentMessage().contains(QStringLiteral("too")); }))
         << window_->statusBar()->currentMessage().toStdString();
+    // Its part of your own isn't on the server (an empty catalog): it's
+    // offered too, or the set would show a missing part there. Not now.
+    ASSERT_TRUE(waitFor([&] { return !offered.isEmpty(); }));
+    EXPECT_EQ(offered, QStringList{ QStringLiteral("YARDPLATE — Yard plate") });
+    QApplication::processEvents();
+    EXPECT_EQ(posts().size(), 1U);
 
     // Unticked, it's remembered, and only this computer gets the next set.
     window_->runSaveSetDialog = [&](ui::SaveSetDialog& d) {
@@ -1359,6 +1373,7 @@ TEST_F(ServerWindowMain, SaveSelectionAsSetCanAlsoPutItOnAServerThatTakesSets) {
 
     window_->runSaveSetDialog = nullptr;
     window_->askSetFile = nullptr;
+    window_->runUploadPartsDialog = nullptr;
     QSettings().remove(QStringLiteral("sets/alsoOnServer"));
     QSettings().remove(QStringLiteral("modules/libraryPath"));
     if (userPaths.isValid()) QSettings().setValue(QStringLiteral("partsLibrary/userPaths"), userPaths);

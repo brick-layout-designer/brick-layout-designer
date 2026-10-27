@@ -31,6 +31,7 @@ namespace bld::core { struct Venue; class Map; struct SavedView; struct Module; 
 namespace bld::sync {
 struct ConnectResult;
 class EventStream;
+class UploadPartsDialog;
 namespace merge { struct Snapshot; }
 }
 namespace bld::parts { class PartsLibrary; }
@@ -145,6 +146,9 @@ protected:
     // The server refused a set's name: tests fill in the dialog offering a
     // free one and say whether it was taken (instead of showing it).
     std::function<bool(class SetNameTakenDialog&)> runSetNameTakenDialog;
+    // Your parts the server lacks are offered for upload: tests look at the
+    // dialog and say whether it was accepted (instead of showing it).
+    std::function<bool(sync::UploadPartsDialog&)> runUploadPartsDialog;
 
 private slots:
     void onNew();
@@ -510,6 +514,9 @@ private:
     // ("Yard (2)"), and on yes rename the set here (its file too: nothing
     // uses it yet) and send it again.
     void offerAnotherSetName(const SetServer& to, const sync::LocalPart& set);
+    // The part numbers of your own parts (scanOwnParts) in the set `setKey`,
+    // and in any set inside it.
+    QStringList ownPartsInSet(const QString& setKey) const;
     // Your set (`set`) or part `key` on the servers you're signed in to (and
     // the live layout's): `found` gets the copy you may change, for the Parts
     // panel's Rename set…, Delete set… and Delete imported part….

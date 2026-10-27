@@ -27,6 +27,7 @@
 #include "../core/Venue.h"
 #include "../edit/ModuleLibraryLink.h"
 #include "../import/LayoutFile.h"
+#include "../parts/PartsLibrary.h"
 #include "../saveload/BbmReader.h"
 #include "../saveload/SetIO.h"
 #include "../saveload/VenueIO.h"
@@ -43,8 +44,10 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFileSystemWatcher>
+#include <QHash>
 #include <QJsonDocument>
 #include <QMessageBox>
+#include <QSet>
 #include <QSettings>
 #include <QStandardPaths>
 #include <QStatusBar>
@@ -195,8 +198,38 @@ void MainWindow::uploadSet(const SetServer& to, const sync::LocalPart& set) {
                 statusBar()->showMessage(tr("“%1” is in your parts on %2 too.").arg(name, to.label), 6000);
                 if (live_->active() && to.server == liveServer_) loadLivePartsCatalog();
                 checkMissingParts();
+                // Parts of your own in it that the server lacks would show as
+                // missing there, and wouldn't come along when it's shared:
+                // offer them (nothing is offered when the server has them all).
+                if (const QStringList own = ownPartsInSet(set.key); !own.isEmpty())
+                    uploadPartsTo(to.server, to.token, true, own);
             });
     upload->upload({ set }, QString());
+}
+
+QStringList MainWindow::ownPartsInSet(const QString& setKey) const {
+    // Your own parts (as Upload My Parts lists them), by part number.
+    QHash<QString, QString> own;
+    for (const sync::LocalPart& p : scanOwnParts()) own.insert(p.key.toUpper(), p.key);
+    QStringList out;
+    QSet<QString> seen;
+    QStringList pending{ setKey };
+    while (!pending.isEmpty()) {
+        const QString key = pending.takeFirst();
+        if (seen.contains(key.toUpper())) continue;
+        seen.insert(key.toUpper());
+        // The library knows a set by its file name with ".set", the upload without.
+        auto meta = parts_.metadata(key);
+        if (!meta && !key.endsWith(QStringLiteral(".set"), Qt::CaseInsensitive)) meta = parts_.metadata(key + QStringLiteral(".set"));
+        if (!meta) continue;
+        for (const parts::PartSubPart& sub : meta->subparts) {
+            QString number = sub.subKey;
+            if (number.endsWith(QStringLiteral(".set"), Qt::CaseInsensitive)) number.chop(4);
+            if (const auto it = own.constFind(number.toUpper()); it != own.cend() && !out.contains(*it)) out << *it;
+            pending << sub.subKey; // a set inside the set: its parts too
+        }
+    }
+    return out;
 }
 
 void MainWindow::offerAnotherSetName(const SetServer& to, const sync::LocalPart& set) {
@@ -483,7 +516,7 @@ void MainWindow::uploadPartsTo(const QUrl& server, const QString& token, bool qu
                     api.setBase(server);
                     api.setToken(token);
                     sync::UploadPartsDialog dialog(api, *upload, missing, this);
-                    if (dialog.exec() == QDialog::Accepted) {
+                    if (runUploadPartsDialog ? runUploadPartsDialog(dialog) : dialog.exec() == QDialog::Accepted) {
                         statusBar()->showMessage(tr("Uploaded %n part(s) to the server", nullptr, dialog.uploadedCount()), 5000);
                         if (live_->active() && server == liveServer_) loadLivePartsCatalog();
                         checkMissingParts();
