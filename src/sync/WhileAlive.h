@@ -10,16 +10,35 @@
 // the window is gone (the request itself still finishes on the server).
 
 #include <QObject>
-#include <QPointer>
+#include <QString>
 
+#include <memory>
 #include <utility>
 
 namespace bld::sync {
 
+namespace detail {
+
+// A child of the owner, so it (and the flag it holds) goes with the owner.
+class AliveToken : public QObject {
+public:
+    explicit AliveToken(QObject* owner) : QObject(owner) { setObjectName(name()); }
+    static QString name() { return QStringLiteral("bld_whileAliveToken"); }
+    std::shared_ptr<bool> flag = std::make_shared<bool>(true);
+};
+
+inline std::weak_ptr<bool> aliveFlag(QObject* owner) {
+    auto* token = dynamic_cast<AliveToken*>(owner->findChild<QObject*>(AliveToken::name(), Qt::FindDirectChildrenOnly));
+    if (!token) token = new AliveToken(owner);
+    return token->flag;
+}
+
+}  // namespace detail
+
 template <typename F>
 auto whileAlive(QObject* owner, F&& handler) {
-    return [owner = QPointer<QObject>(owner), handler = std::forward<F>(handler)](auto&&... args) mutable {
-        if (owner) handler(std::forward<decltype(args)>(args)...);
+    return [alive = detail::aliveFlag(owner), handler = std::forward<F>(handler)](auto&&... args) mutable {
+        if (!alive.expired()) handler(std::forward<decltype(args)>(args)...);
     };
 }
 
