@@ -305,6 +305,59 @@ TEST_F(MainWindowLive, ReplaceServerCanBeCancelledAtTheConfirmation) {
     EXPECT_EQ(brickArea(ws_.doc, 0), original_);
 }
 
+// Someone else edits while the compare window is open: Apply puts mine on
+// the server's layout as it is by then, so their newer edit stays.
+TEST_F(MainWindowLive, ApplyKeepsWhatOthersChangedWhileTheCompareWindowWasOpen) {
+    editOffline();
+    Answers answers{ { [&](QWidget* w) {
+        ws_.remoteEdit([](core::Map& s) { brickAt(s, 1).displayArea.translate(4, 0); });
+        EXPECT_TRUE(waitFor([&] {
+            const auto now = session().currentMap();
+            return now && brickAt(*now, 1).displayArea == otherOriginal_.translated(4, 16);
+        }));
+        compare(QStringLiteral("Apply"))(w);
+    } } };
+    answers.during([&] { ASSERT_TRUE(waitFor([&] { return answers.done() && !session().offlineEdits(); })); });
+    EXPECT_EQ(answers.unexpected, 0);
+    ASSERT_TRUE(waitFor([&] { return brickArea(ws_.doc, 0) == original_.translated(8, 0); }));
+    waitFor([] { return false; }, 150);
+    EXPECT_EQ(brickArea(ws_.doc, 1), otherOriginal_.translated(4, 16));
+    EXPECT_EQ(brickAt(*view_->currentMap(), 1).displayArea, otherOriginal_.translated(4, 16));
+}
+
+// The connection drops and comes back while the compare window is open:
+// back in step again, it doesn't open a second one.
+TEST_F(MainWindowLive, AReconnectWhileComparingOpensNoSecondCompareWindow) {
+    editOffline();
+    bool reconnected = false;
+    Answers answers{ { [&](QWidget* w) {
+        EXPECT_NE(qobject_cast<sync::CompareDialog*>(w), nullptr) << w->metaObject()->className();
+        ws_.dropAll(QWebSocketProtocol::CloseCodeGoingAway);
+        // Apply once it is back in step and a second window would have
+        // opened (the poll counts and closes one as unexpected).
+        auto* later = new QTimer(w);
+        later->setInterval(20);
+        auto dropped = std::make_shared<bool>(false);
+        auto synced = std::make_shared<int>(0);
+        QObject::connect(&session(), &sync::SyncSession::statusChanged, w, [dropped](Status s) {
+            if (s != Status::Synced) *dropped = true;
+        });
+        QObject::connect(later, &QTimer::timeout, w, [&, w, later, dropped, synced] {
+            if (*dropped && session().status() == Status::Synced && ++*synced == 15) {
+                reconnected = true;
+                later->stop();
+                compare(QStringLiteral("Apply"))(w);
+            }
+        });
+        later->start();
+    } } };
+    answers.during([&] { ASSERT_TRUE(waitFor([&] { return answers.done() && !session().offlineEdits(); }, 8000)); });
+    EXPECT_TRUE(reconnected);
+    EXPECT_EQ(answers.unexpected, 0);
+    ASSERT_TRUE(waitFor([&] { return brickArea(ws_.doc, 0) == original_.translated(8, 0); }));
+    EXPECT_EQ(brickArea(ws_.doc, 1), otherOriginal_.translated(0, 16));
+}
+
 TEST_F(MainWindowLive, SaveMineAsANewLayoutPublishesItAndLeavesTheLiveOne) {
     http_.reply("/api/layouts", 201,
                 QJsonObject{ { QStringLiteral("id"), QStringLiteral("L2") },

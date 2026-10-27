@@ -652,6 +652,9 @@ void MainWindow::updateLiveUi() {
 
 void MainWindow::onReviewOfflineEdits() {
     if (!live_->active()) return;
+    // One compare window at a time: a reconnect while it is open says
+    // "back in step" again.
+    if (findChild<sync::CompareDialog*>(QString(), Qt::FindDirectChildrenOnly)) return;
     auto& session = live_->session();
     const auto& off = session.offlineEdits();
     if (!off) return;
@@ -684,7 +687,17 @@ void MainWindow::onReviewOfflineEdits() {
     case sync::CompareDialog::Action::Later:
         break;
     case sync::CompareDialog::Action::Apply: {
-        const auto merged = sync::merge::mergeLayouts(mine, server, changes, dlg.choices(), &error);
+        // On the server's layout as it is now, so what others changed while
+        // the window was open isn't undone (only where I chose mine).
+        const auto now = session.currentMap(&error);
+        if (!now) {
+            QMessageBox::warning(this, tr("Review Offline Changes"),
+                                 tr("Could not merge your changes: %1").arg(error));
+            break;
+        }
+        const auto serverNow = sync::merge::snapshotOf(*now);
+        const auto merged = sync::merge::mergeLayouts(
+            mine, serverNow, sync::merge::compareLayouts(base, mine, serverNow), dlg.choices(), &error);
         if (!merged) {
             QMessageBox::warning(this, tr("Review Offline Changes"),
                                  tr("Could not merge your changes: %1").arg(error));
