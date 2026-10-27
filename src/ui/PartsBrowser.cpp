@@ -7,6 +7,7 @@
 
 #include "../parts/PartsLibrary.h"
 #include "../saveload/SetIO.h"
+#include "SaveSetDialog.h"
 #include "theme/AppPrefs.h"
 #include "ServerList.h"
 
@@ -20,7 +21,7 @@
 #include <QMessageBox>
 #include <QDrag>
 #include <QFileInfo>
-#include <QInputDialog>
+#include <QPointer>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QKeySequence>
@@ -46,6 +47,9 @@
 #include <cmath>
 #include "TouchMode.h"
 #include <QWidget>
+
+#include <memory>
+#include <optional>
 
 namespace bld::ui {
 
@@ -376,22 +380,31 @@ void PartsBrowser::addSetActions(QMenu& menu, const QString& key) {
     auto* rename = menu.addAction(tr("Rename set..."));
     rename->setObjectName(QStringLiteral("act.set.rename"));
     rename->setToolTip(tr("Give the set a new name. Layouts that use it don’t change."));
-    connect(rename, &QAction::triggered, this, [this, name, xmlPath] {
-        const QString typed = (askSetName ? askSetName(name)
-                                          : QInputDialog::getText(this, tr("Rename set"), tr("Set name:"),
-                                                                  QLineEdit::Normal, name))
-                                  .trimmed();
+    connect(rename, &QAction::triggered, this, [this, key, name, xmlPath] {
+        RenameSetDialog dialog(name, this);
+        // On a server too? Looked for while the dialog is open.
+        auto copy = std::make_shared<std::optional<ServerSetCopy>>();
+        const QPointer<RenameSetDialog> open(&dialog);
+        if (findServerSet)
+            findServerSet(key, [copy, open](const ServerSetCopy& c) {
+                if (*copy || !open) return;
+                *copy = c;
+                open->showServerOption(c.serverLabel);
+            });
+        if (!(runRenameSetDialog ? runRenameSetDialog(dialog) : dialog.exec() == QDialog::Accepted)) return;
+        const QString typed = dialog.name();
         if (typed.isEmpty() || typed == name) return;
         QString error;
         if (!saveload::renameSetXml(xmlPath, typed, &error)) {
             QMessageBox::warning(this, tr("Rename set"), tr("The set couldn’t be renamed: %1").arg(error));
             return;
         }
+        if (*copy && dialog.alsoOnServer() && (*copy)->rename) (*copy)->rename(typed);
         emit ownSetsChanged();
     });
     auto* del = menu.addAction(tr("Delete set..."));
     del->setObjectName(QStringLiteral("act.set.delete"));
-    connect(del, &QAction::triggered, this, [this, name, xmlPath, picture] {
+    connect(del, &QAction::triggered, this, [this, key, name, xmlPath, picture] {
         if (!ConfirmDialog::confirmDelete(this, name, ConfirmDialog::setWording())) return;
         QFile::remove(xmlPath);
         // A picture made for it (a .set.gif beside it), if there is one.
@@ -401,6 +414,11 @@ void PartsBrowser::addSetActions(QMenu& menu, const QString& key) {
             && pic.completeBaseName().compare(set.completeBaseName(), Qt::CaseInsensitive) == 0)
             QFile::remove(picture);
         emit ownSetsChanged();
+        // Still on a server: say so there, with the way to delete it.
+        if (findServerSet)
+            findServerSet(key, [](const ServerSetCopy& c) {
+                if (c.stillThere) c.stillThere();
+            });
     });
 }
 

@@ -36,6 +36,17 @@ QString serverFolderOf(const parts::PartMetadata& meta);
 QString partTooltip(const parts::PartMetadata& meta, const QString& key, const QString& desc,
                     const QHash<QString, QString>& serverLabels);
 
+// A set you made that's on a server you're signed in to, as one of your
+// custom parts there (matched by part number, as the upload sends it).
+struct ServerSetCopy {
+    QString serverLabel;
+    // Its name there becomes `name` (and the English name in its XML).
+    std::function<void(const QString& name)> rename;
+    // Deleted here, still there: say so, with a way to delete it there.
+    // Empty when it isn't yours to delete.
+    std::function<void()> stillThere;
+};
+
 // Dock panel showing parts in a thumbnail grid (QListView::IconMode).
 // Top strip: category dropdown + live text filter. Double-click (or
 // Enter) on a thumbnail activates the part.
@@ -78,9 +89,13 @@ public:
     void setOwnPartsRoots(std::function<QStringList()> roots);
     // Whether `key` is a set you made: a .set.xml in one of your parts folders.
     bool isOwnSet(const QString& key) const;
-    // Rename set…: the set's new name (empty: cancelled); tests answer
-    // instead of the question.
-    std::function<QString(const QString& current)> askSetName;
+    // Rename set…: tests fill in the dialog and say whether it was renamed
+    // (instead of showing it).
+    std::function<bool(class RenameSetDialog&)> runRenameSetDialog;
+
+    // Looks for the set `key` on your servers, calling `found` for a copy
+    // there you may rename (MainWindow sets it; empty: no server).
+    std::function<void(const QString& key, std::function<void(const ServerSetCopy&)> found)> findServerSet;
 
 signals:
     void partActivated(const QString& key);

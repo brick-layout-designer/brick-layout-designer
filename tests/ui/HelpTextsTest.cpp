@@ -47,7 +47,7 @@ QString webCatalogue() {
 
 TEST(HelpTexts, HasTheWebsKeysInTheSameOrder) {
     const QStringList fixture = fixtureKeys();
-    ASSERT_EQ(fixture.size(), 72);
+    ASSERT_EQ(fixture.size(), 74);
     EXPECT_EQ(sharedHelpKeys(), fixture);
 }
 
@@ -89,6 +89,23 @@ TEST(HelpTexts, SpotChecksMatchTheWeb) {
     ASSERT_TRUE(choice);
     EXPECT_EQ(choice->shortText, QStringLiteral("Keep the server’s part, use the file’s, or keep both."));
     EXPECT_TRUE(choice->learnMoreUrl.isEmpty());
+}
+
+// Keys the web added after the desktop's list was copied: the club role's
+// permission boxes and sharing a set, in the web's place and words.
+TEST(HelpTexts, HasTheClubPermissionsAndSetSharingKeys) {
+    const QStringList keys = sharedHelpKeys();
+    ASSERT_TRUE(keys.contains(QStringLiteral("club.permissions")));
+    EXPECT_EQ(keys.indexOf(QStringLiteral("club.permissions")), keys.indexOf(QStringLiteral("club.roles")) + 1);
+    const auto permissions = helpEntry(QStringLiteral("club.permissions"));
+    ASSERT_TRUE(permissions);
+    EXPECT_EQ(permissions->title, QStringLiteral("What a role allows"));
+    EXPECT_EQ(permissions->shortText, QStringLiteral("Tick what people with this role may do in the club."));
+    ASSERT_TRUE(keys.contains(QStringLiteral("set.sharing")));
+    EXPECT_EQ(keys.indexOf(QStringLiteral("set.sharing")), keys.indexOf(QStringLiteral("set.about")) + 1);
+    const auto sharing = helpEntry(QStringLiteral("set.sharing"));
+    ASSERT_TRUE(sharing);
+    EXPECT_EQ(sharing->shortText, QStringLiteral("Your own custom parts in a set come along when you share it."));
 }
 
 // Word for word against the web's helpTexts.ts, when it's there.

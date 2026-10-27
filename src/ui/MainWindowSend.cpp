@@ -19,12 +19,16 @@
 #include "ServerLibrary.h"
 #include "ServerWindow.h"
 #include "VenueLibraryPanel.h"
+#include "NoticeArea.h"
+#include "PartsBrowser.h"
+#include "SaveSetDialog.h"
 
 #include "../core/Map.h"
 #include "../core/Venue.h"
 #include "../edit/ModuleLibraryLink.h"
 #include "../import/LayoutFile.h"
 #include "../saveload/BbmReader.h"
+#include "../saveload/SetIO.h"
 #include "../saveload/VenueIO.h"
 
 #include "LiveLayout.h"
@@ -34,6 +38,7 @@
 #include "UploadPartsDialog.h"
 
 #include <QBuffer>
+#include <QDesktopServices>
 #include <QDir>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -174,8 +179,13 @@ void MainWindow::uploadSet(const SetServer& to, const sync::LocalPart& set) {
     upload->setServerTakesSets(true);
     // (A refusal comes as failures here too, after failed().)
     connect(upload, &sync::PartsUpload::uploaded, this,
-            [this, upload, to, name = set.displayName](int count, const QStringList& failures) {
+            [this, upload, to, set, name = set.displayName](int count, const QStringList& failures) {
                 upload->deleteLater();
+                // Its name is taken there: offer a free one instead of only saying no.
+                if (count == 0 && upload->refusalCode(set.key) == QLatin1String("part_number_taken")) {
+                    offerAnotherSetName(to, set);
+                    return;
+                }
                 if (count == 0) {
                     statusBar()->showMessage(tr("“%1” is saved on this computer, but it couldn’t go to %2: %3")
                                                  .arg(name, to.label, failures.join(QStringLiteral("; "))),
@@ -187,6 +197,136 @@ void MainWindow::uploadSet(const SetServer& to, const sync::LocalPart& set) {
                 checkMissingParts();
             });
     upload->upload({ set }, QString());
+}
+
+void MainWindow::offerAnotherSetName(const SetServer& to, const sync::LocalPart& set) {
+    auto* api = new sync::LibraryApi(this);
+    api->setBase(to.server);
+    api->setToken(to.token);
+    // What's taken: the numbers of your parts there, and the sets beside this one here.
+    const auto ask = [this, to, set](const QSet<QString>& onServer) {
+        const QDir dir = QFileInfo(set.xmlPath).absoluteDir();
+        const auto taken = [&](const QString& stem) {
+            return onServer.contains(stem.toLower()) || QFileInfo::exists(dir.filePath(stem + QStringLiteral(".set.xml")));
+        };
+        SetNameTakenDialog dialog(set.key, saveload::freeSetName(set.displayName, taken), to.label, this);
+        if (!(runSetNameTakenDialog ? runSetNameTakenDialog(dialog) : dialog.exec() == QDialog::Accepted)) {
+            statusBar()->showMessage(tr("“%1” is saved on this computer only.").arg(set.displayName), 8000);
+            return;
+        }
+        const QString name = dialog.name();
+        const QString stem = saveload::setFileStem(name);
+        const QString path = dir.filePath(stem + QStringLiteral(".set.xml"));
+        const bool sameFile = QFileInfo(path).absoluteFilePath() == QFileInfo(set.xmlPath).absoluteFilePath();
+        if (!sameFile && QFileInfo::exists(path)) {
+            // A set of yours here has that name already: ask again.
+            QMessageBox::information(this, tr("Name already used"),
+                                     tr("You already have a set called “%1” on this computer. Pick another name.").arg(stem));
+            offerAnotherSetName(to, set);
+            return;
+        }
+        if (!sameFile && !QFile::rename(set.xmlPath, path)) {
+            QMessageBox::warning(this, tr("Save set"), tr("“%1” couldn’t be renamed on this computer.").arg(set.displayName));
+            return;
+        }
+        QString error;
+        if (!saveload::renameSetXml(path, name, &error))
+            QMessageBox::warning(this, tr("Save set"), tr("The set couldn’t be renamed: %1").arg(error));
+        rescanLibrary(allLibraryPaths());
+        partsBrowser_->rebuild();
+        sync::LocalPart renamed{ stem, name, path, QString() };
+        renamed.isSet = true;
+        uploadSet(to, renamed);
+    };
+    api->customParts(
+        [api, ask](const QList<sync::ServerPart>& list) {
+            api->deleteLater();
+            QSet<QString> numbers;
+            for (const sync::ServerPart& p : list) numbers.insert(p.partNumber.toLower());
+            ask(numbers);
+        },
+        [api, ask](const sync::ServerRefusal&) {
+            api->deleteLater();
+            ask({});
+        });
+}
+
+void MainWindow::findServerSet(const QString& key, const std::function<void(const ServerSetCopy&)>& found) {
+    // The server you're signed in to, and the live layout's if it's another.
+    QList<SetServer> servers;
+    if (serverLibrary_ && serverLibrary_->state() == ServerLibrary::State::Ready)
+        servers.push_back({ serverLibrary_->server(), serverLibrary_->token(), serverLibrary_->label() });
+    if (live_ && live_->active() && !liveToken_.isEmpty() && (servers.isEmpty() || servers.front().server != liveServer_))
+        servers.push_back({ liveServer_, liveToken_, liveServerName() });
+    for (const SetServer& on : std::as_const(servers)) {
+        auto* api = new sync::LibraryApi(this);
+        api->setBase(on.server);
+        api->setToken(on.token);
+        api->customParts(
+            [this, api, on, key, found](const QList<sync::ServerPart>& list) {
+                api->deleteLater();
+                for (const sync::ServerPart& p : list) {
+                    // Your set there (no picture of its own), by its number, as uploaded.
+                    if (p.hasSprite || p.partNumber.compare(key, Qt::CaseInsensitive) != 0) continue;
+                    if (p.role != QLatin1String("owner") && p.role != QLatin1String("editor")) continue;
+                    ServerSetCopy copy;
+                    copy.serverLabel = on.label;
+                    copy.rename = [this, on, id = p.id, number = p.partNumber](const QString& name) {
+                        renameSetOnServer(on, id, number, name);
+                    };
+                    if (p.role == QLatin1String("owner")) {
+                        // The server lets the desktop rename a part but not delete one:
+                        // say it's still there, and open its parts list on the website.
+                        copy.stillThere = [this, on, name = p.name()] {
+                            QUrl parts = on.server;
+                            parts.setPath(QStringLiteral("/"));
+                            parts.setFragment(QStringLiteral("parts"));
+                            notices_->showNotice(
+                                QStringLiteral("set-still-on-server:") + on.server.toString(), tr("Still on %1").arg(on.label),
+                                tr("“%1” is deleted from this computer, but it’s still in your parts on %2. Delete it "
+                                   "there on the website.")
+                                    .arg(name, on.label),
+                                { NoticeAction{ tr("Open %1").arg(on.label), [parts] { QDesktopServices::openUrl(parts); }, true },
+                                  NoticeAction{ tr("Keep it there"), {} } });
+                        };
+                    }
+                    found(copy);
+                    return;
+                }
+            },
+            [api](const sync::ServerRefusal&) { api->deleteLater(); });
+    }
+}
+
+void MainWindow::renameSetOnServer(const SetServer& on, const QString& id, const QString& partNumber,
+                                   const QString& name) {
+    auto* api = new sync::LibraryApi(this);
+    api->setBase(on.server);
+    api->setToken(on.token);
+    const auto failed = [this, api, on, name](const sync::ServerRefusal& r) {
+        api->deleteLater();
+        QMessageBox::warning(this, tr("Rename set"),
+                             tr("“%1” is renamed on this computer, but not on %2: %3")
+                                 .arg(name, on.label, ServerLibrary::refusalText(r)));
+    };
+    // Its XML as it is there, with the new name: the rest stays as it is.
+    api->picture(QStringLiteral("/api/custom-parts/%1/xml").arg(sync::idPath(id)),
+        [this, api, on, id, partNumber, name, failed](const QByteArray& xml) {
+            const std::optional<QString> renamed = saveload::renamedSetXml(QString::fromUtf8(xml), name);
+            if (!renamed) {
+                failed(sync::ServerRefusal{});
+                return;
+            }
+            const QJsonObject body{ { QStringLiteral("partNumber"), partNumber },
+                                    { QStringLiteral("displayName"), name },
+                                    { QStringLiteral("xmlBase64"), QString::fromLatin1(renamed->toUtf8().toBase64()) } };
+            api->replaceCustomPart(id, body, [this, api, on, name] {
+                api->deleteLater();
+                statusBar()->showMessage(tr("“%1” is renamed on %2 too.").arg(name, on.label), 6000);
+                if (live_->active() && on.server == liveServer_) loadLivePartsCatalog();
+            }, failed);
+        },
+        failed);
 }
 
 void MainWindow::checkMissingParts() {

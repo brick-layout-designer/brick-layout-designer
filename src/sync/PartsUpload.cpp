@@ -284,15 +284,18 @@ void PartsUpload::upload(const QList<LocalPart>& parts, const QString& orgSlug) 
     orgSlug_ = orgSlug;
     done_ = 0;
     failures_.clear();
+    refusals_.clear();
     uploadNext();
 }
 
 QJsonObject PartsUpload::uploadBody(const LocalPart& p) {
     const PartPayload payload = payloadFor(p);
+    // A set goes in "My sets", as the website files the sets made there.
     if (p.isSet)
         return { { QStringLiteral("partNumber"), p.key },
                  { QStringLiteral("displayName"), p.displayName },
-                 { QStringLiteral("xmlBase64"), QString::fromLatin1(payload.xml.toBase64()) } };
+                 { QStringLiteral("xmlBase64"), QString::fromLatin1(payload.xml.toBase64()) },
+                 { QStringLiteral("category"), QStringLiteral("My sets") } };
     return { { QStringLiteral("partNumber"), p.key },
              { QStringLiteral("displayName"), p.displayName },
              { QStringLiteral("xmlBase64"), QString::fromLatin1(payload.xml.toBase64()) },
@@ -321,6 +324,7 @@ void PartsUpload::uploadNext() {
         if (status == 201 || status == 200) ++done_;
         else {
             const ServerRefusal refusal = readRefusal(status, r->readAll(), r->errorString());
+            refusals_.insert(key, refusal.code);
             const QString err = refusal.code.isEmpty() && !isLimitRefusal(refusal) && !isFirewallBlock(refusal) && status != 0
                                     ? tr("the server answered %1").arg(status)
                                     : describe(refusal);

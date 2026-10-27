@@ -6,6 +6,9 @@
 #include <QSaveFile>
 #include <QXmlStreamWriter>
 
+#include <functional>
+#include <optional>
+
 namespace bld::saveload {
 
 bool writeSetXml(const QString& filePath,
@@ -88,41 +91,74 @@ QString escapedText(const QString& text) {
 
 }  // namespace
 
+std::optional<QString> renamedSetXml(const QString& xml, const QString& name) {
+    static const QRegularExpression group(QStringLiteral(R"(<group\b[^>]*>)"));
+    const QRegularExpressionMatch top = group.match(xml);
+    if (!top.hasMatch()) return std::nullopt;
+    QString out = xml;
+    const QString en = QStringLiteral("<en>%1</en>").arg(escapedText(name));
+    static const QRegularExpression description(QStringLiteral(R"(<Description\b[^>]*>(.*?)</Description>)"),
+                                                QRegularExpression::DotMatchesEverythingOption);
+    static const QRegularExpression english(QStringLiteral(R"(<en\s*/>|<en\b[^>]*>.*?</en>)"),
+                                            QRegularExpression::DotMatchesEverythingOption);
+    const QRegularExpressionMatch desc = description.match(out);
+    if (desc.hasMatch()) {
+        const QRegularExpressionMatch old = english.match(out, desc.capturedStart(1));
+        if (old.hasMatch() && old.capturedEnd() <= desc.capturedEnd(1))
+            out.replace(old.capturedStart(), old.capturedLength(), en);
+        else
+            out.insert(desc.capturedStart(1), en);
+    } else {
+        out.insert(top.capturedEnd(), QStringLiteral("\n\t<Description>\n\t\t%1\n\t</Description>").arg(en));
+    }
+    return out;
+}
+
 bool renameSetXml(const QString& filePath, const QString& name, QString* error) {
     QFile in(filePath);
     if (!in.open(QIODevice::ReadOnly)) {
         if (error) *error = QStringLiteral("Cannot read %1").arg(filePath);
         return false;
     }
-    QString xml = QString::fromUtf8(in.readAll());
+    const std::optional<QString> xml = renamedSetXml(QString::fromUtf8(in.readAll()), name);
     in.close();
-    static const QRegularExpression group(QStringLiteral(R"(<group\b[^>]*>)"));
-    const QRegularExpressionMatch top = group.match(xml);
-    if (!top.hasMatch()) {
+    if (!xml) {
         if (error) *error = QStringLiteral("%1 is not a set").arg(filePath);
         return false;
     }
-    const QString en = QStringLiteral("<en>%1</en>").arg(escapedText(name));
-    static const QRegularExpression description(QStringLiteral(R"(<Description\b[^>]*>(.*?)</Description>)"),
-                                                QRegularExpression::DotMatchesEverythingOption);
-    static const QRegularExpression english(QStringLiteral(R"(<en\s*/>|<en\b[^>]*>.*?</en>)"),
-                                            QRegularExpression::DotMatchesEverythingOption);
-    const QRegularExpressionMatch desc = description.match(xml);
-    if (desc.hasMatch()) {
-        const QRegularExpressionMatch old = english.match(xml, desc.capturedStart(1));
-        if (old.hasMatch() && old.capturedEnd() <= desc.capturedEnd(1))
-            xml.replace(old.capturedStart(), old.capturedLength(), en);
-        else
-            xml.insert(desc.capturedStart(1), en);
-    } else {
-        xml.insert(top.capturedEnd(), QStringLiteral("\n\t<Description>\n\t\t%1\n\t</Description>").arg(en));
-    }
     QSaveFile out(filePath);
-    if (!out.open(QIODevice::WriteOnly) || out.write(xml.toUtf8()) < 0 || !out.commit()) {
+    if (!out.open(QIODevice::WriteOnly) || out.write(xml->toUtf8()) < 0 || !out.commit()) {
         if (error) *error = QStringLiteral("Could not write %1").arg(filePath);
         return false;
     }
     return true;
+}
+
+QString setFileStem(const QString& name) {
+    QString safe = name;
+    static const QRegularExpression bad(QStringLiteral(R"([<>:"/\\|?*\x00-\x1F])"));
+    safe.replace(bad, QStringLiteral("_"));
+    while (safe.startsWith(QLatin1Char('.')) || safe.startsWith(QLatin1Char(' '))) safe.remove(0, 1);
+    while (safe.endsWith(QLatin1Char('.')) || safe.endsWith(QLatin1Char(' '))) safe.chop(1);
+    if (safe.endsWith(QStringLiteral(".set"), Qt::CaseInsensitive)) safe.chop(4);
+    while (safe.endsWith(QLatin1Char('.')) || safe.endsWith(QLatin1Char(' '))) safe.chop(1);
+    return safe.isEmpty() ? QStringLiteral("Set") : safe;
+}
+
+QString freeSetName(const QString& name, const std::function<bool(const QString& stem)>& taken) {
+    // "Yard (2)" stays "Yard (3)", not "Yard (2) (2)".
+    static const QRegularExpression numbered(QStringLiteral(R"(^(.*\S)\s*\((\d+)\)$)"));
+    QString base = name.trimmed();
+    int n = 2;
+    if (const QRegularExpressionMatch m = numbered.match(base); m.hasMatch()) {
+        base = m.captured(1);
+        n = m.captured(2).toInt() + 1;
+    }
+    if (base.isEmpty()) base = QStringLiteral("Set");
+    for (;; ++n) {
+        const QString candidate = QStringLiteral("%1 (%2)").arg(base).arg(n);
+        if (!taken(setFileStem(candidate))) return candidate;
+    }
 }
 
 }  // namespace bld::saveload

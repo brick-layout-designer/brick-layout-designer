@@ -5,6 +5,7 @@
 // know are listed, and the ones the user confirms are uploaded as custom
 // parts, owned by them or an organisation. Nothing uploads unasked.
 
+#include <QHash>
 #include <QJsonObject>
 #include <QList>
 #include <QNetworkAccessManager>
@@ -74,6 +75,9 @@ public:
     void fetchCatalog();
     // Upload `parts` as custom parts, personal or in the org `orgSlug`.
     void upload(const QList<LocalPart>& parts, const QString& orgSlug);
+    // Why the server refused the part `key` in the last upload (its error
+    // code, such as "part_number_taken"); empty when it wasn't refused.
+    QString refusalCode(const QString& key) const { return refusals_.value(key); }
 
 signals:
     void missingReady(const QList<bld::sync::LocalPart>& missing);
@@ -92,6 +96,7 @@ private:
     QString orgSlug_;
     int done_ = 0;
     QStringList failures_;
+    QHash<QString, QString> refusals_;
     bool takesSets_ = false;
 };
 

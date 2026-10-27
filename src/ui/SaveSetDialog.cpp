@@ -69,4 +69,82 @@ bool SaveSetDialog::alsoOnServer() const {
     return !server_->isHidden() && server_->isChecked();
 }
 
+RenameSetDialog::RenameSetDialog(const QString& current, QWidget* parent) : QDialog(parent) {
+    setObjectName(QStringLiteral("renameSetDialog"));
+    setWindowTitle(tr("Rename set"));
+    auto* col = new QVBoxLayout(this);
+    auto* form = new QFormLayout();
+    name_ = new QLineEdit(current, this);
+    name_->setObjectName(QStringLiteral("renameSetName"));
+    name_->selectAll();
+    form->addRow(tr("Set name"), name_);
+    col->addLayout(form);
+    auto* keeps = new QLabel(tr("Layouts that use it don’t change."), this);
+    keeps->setWordWrap(true);
+    col->addWidget(keeps);
+    server_ = new QCheckBox(this);
+    server_->setObjectName(QStringLiteral("renameSetAlsoOnServer"));
+    server_->setChecked(true);
+    server_->hide();
+    col->addWidget(server_);
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
+    rename_ = buttons->button(QDialogButtonBox::Ok);
+    rename_->setText(tr("Rename"));
+    rename_->setDefault(true);
+    connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    connect(name_, &QLineEdit::textChanged, this,
+            [this] { rename_->setEnabled(!name_->text().trimmed().isEmpty()); });
+    col->addWidget(buttons);
+}
+
+void RenameSetDialog::showServerOption(const QString& serverLabel) {
+    server_->setText(tr("Also rename it on %1").arg(serverLabel));
+    server_->setToolTip(tr("Your set is in your custom parts on %1 too. Its name there changes as well; "
+                           "layouts there don’t change.")
+                            .arg(serverLabel));
+    server_->show();
+}
+
+QString RenameSetDialog::name() const {
+    return name_->text().trimmed();
+}
+
+bool RenameSetDialog::alsoOnServer() const {
+    return !server_->isHidden() && server_->isChecked();
+}
+
+SetNameTakenDialog::SetNameTakenDialog(const QString& taken, const QString& suggested, const QString& serverLabel,
+                                       QWidget* parent)
+    : QDialog(parent) {
+    setObjectName(QStringLiteral("setNameTakenDialog"));
+    setWindowTitle(tr("Name already used"));
+    auto* col = new QVBoxLayout(this);
+    auto* why = new QLabel(tr("You already have a part or set called “%1” on %2, so this set can’t go there "
+                              "under that name. Give it another name, here and there:")
+                               .arg(taken, serverLabel),
+                           this);
+    why->setObjectName(QStringLiteral("setNameTakenWhy"));
+    why->setWordWrap(true);
+    col->addWidget(why);
+    auto* form = new QFormLayout();
+    name_ = new QLineEdit(suggested, this);
+    name_->setObjectName(QStringLiteral("setNameTakenName"));
+    name_->selectAll();
+    form->addRow(tr("Set name"), name_);
+    col->addLayout(form);
+    auto* buttons = new QDialogButtonBox(this);
+    use_ = buttons->addButton(tr("Use this name"), QDialogButtonBox::AcceptRole);
+    use_->setDefault(true);
+    buttons->addButton(tr("Keep it only on this computer"), QDialogButtonBox::RejectRole);
+    connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    connect(name_, &QLineEdit::textChanged, this, [this] { use_->setEnabled(!name_->text().trimmed().isEmpty()); });
+    col->addWidget(buttons);
+}
+
+QString SetNameTakenDialog::name() const {
+    return name_->text().trimmed();
+}
+
 }  // namespace bld::ui
