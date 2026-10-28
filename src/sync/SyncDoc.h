@@ -21,8 +21,9 @@ class SyncDoc {
 public:
     SyncDoc();
     // For tests only: a doc with this client id (the next one after a
-    // reset), so a copy of it makes the same writes.
-    explicit SyncDoc(quint64 clientId);
+    // reset), so a copy of it makes the same writes; with `keepDeleted`,
+    // yrs keeps deleted content instead of collecting it.
+    explicit SyncDoc(quint64 clientId, bool keepDeleted = false);
     ~SyncDoc();
     SyncDoc(const SyncDoc&) = delete;
     SyncDoc& operator=(const SyncDoc&) = delete;

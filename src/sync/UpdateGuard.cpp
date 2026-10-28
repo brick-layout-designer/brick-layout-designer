@@ -51,8 +51,10 @@ constexpr quint8 kHasParentSub = 0x20;
 
 class Walk {
 public:
-    explicit Walk(const QByteArray& bytes, Shape* shape = nullptr)
-        : p_(reinterpret_cast<const quint8*>(bytes.constData())), end_(p_ + bytes.size()), shape_(shape) {}
+    explicit Walk(const QByteArray& bytes, Shape* shape = nullptr, UpdateClocks* clocks = nullptr,
+                  QHash<quint64, quint64>* svClocks = nullptr)
+        : p_(reinterpret_cast<const quint8*>(bytes.constData())), end_(p_ + bytes.size()), shape_(shape),
+          clocks_(clocks), svClocks_(svClocks) {}
 
     const QString& error() const { return error_; }
 
@@ -63,6 +65,7 @@ public:
             quint64 blocks = 0;
             if (!count(blocks, 2, "blocks")) return false;  // each: info byte and at least one more
             if (!varUint(client_) || !varUint(clock_)) return false; // client id, first clock
+            if (clocks_ && !clocks_->firstClock.contains(client_)) clocks_->firstClock.insert(client_, clock_);
             for (quint64 b = 0; b < blocks; ++b)
                 if (!block()) return false;
         }
@@ -72,8 +75,11 @@ public:
     bool stateVector() {
         quint64 clients = 0;
         if (!count(clients, 2, "clients")) return false;  // each: client id, clock
-        for (quint64 c = 0; c < clients; ++c)
-            if (!skipVarUint() || !skipVarUint()) return false;
+        for (quint64 c = 0; c < clients; ++c) {
+            quint64 client = 0, clock = 0;
+            if (!varUint(client) || !varUint(clock)) return false;
+            if (svClocks_) svClocks_->insert(client, clock);
+        }
         return true;
     }
 
@@ -169,6 +175,7 @@ private:
     bool block() {
         quint8 info = 0;
         if (!u8(info)) return false;
+        if (info == kSkip && clocks_) clocks_->skips = true;
         if (info == kGc || info == kSkip) {
             // Yjs never writes an empty one, and yrs 0.28 divides by zero
             // looking up a clock after an empty GC block (block_store.rs).
@@ -318,6 +325,8 @@ private:
     const quint8* p_;
     const quint8* end_;
     Shape* shape_;
+    UpdateClocks* clocks_;
+    QHash<quint64, quint64>* svClocks_;
     quint64 client_ = 0;
     quint64 clock_ = 0;
     QString error_;
@@ -372,9 +381,9 @@ QString tooBig(qsizetype size) {
 
 }  // namespace
 
-QString checkUpdate(const QByteArray& update) {
+QString checkUpdate(const QByteArray& update, UpdateClocks* clocks) {
     if (update.size() > kMaxUpdateBytes) return tooBig(update.size());
-    Walk walk(update);
+    Walk walk(update, nullptr, clocks);
     return walk.update() ? QString() : walk.error();
 }
 
@@ -443,9 +452,9 @@ qint64 updateWorkBound(const QByteArray& stateVector, const QByteArray& update) 
     return bound;
 }
 
-QString checkStateVector(const QByteArray& stateVector) {
+QString checkStateVector(const QByteArray& stateVector, QHash<quint64, quint64>* clocks) {
     if (stateVector.size() > kMaxUpdateBytes) return tooBig(stateVector.size());
-    Walk walk(stateVector);
+    Walk walk(stateVector, nullptr, nullptr, clocks);
     return walk.stateVector() ? QString() : walk.error();
 }
 

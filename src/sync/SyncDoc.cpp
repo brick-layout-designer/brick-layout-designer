@@ -356,6 +356,7 @@ struct SyncDoc::Impl {
     Arena arena;
     int ops = 0;  // changes made by the current writeMap
     quint64 clientId = 0;  // (0: a new random one; tests set it)
+    bool keepDeleted = false;  // (tests: yrs keeps deleted content, no GC)
 
     // ------------------------------------------------- the kept JSON copy
     //
@@ -611,12 +612,101 @@ struct SyncDoc::Impl {
         return ok;
     }
 
+    // Whether the document holds updates (or deletions) still waiting for
+    // ones before them. yrs then already shows parts of them, but past the
+    // state vector, and it says nothing of later changes inside those
+    // parts: it takes them for types made in the same transaction. Until
+    // the gap is filled, the kept JSON can't follow.
+    static bool waiting(const YTransaction* rt) {
+        if (YPendingUpdate* p = ytransaction_pending_update(rt)) {
+            ypending_update_destroy(p);
+            return true;
+        }
+        if (YIdSet* ds = ytransaction_pending_ds(rt)) {
+            ydelete_set_destroy(ds);
+            return true;
+        }
+        return false;
+    }
+
+    // Updates that start past what we have of one of their clients, held
+    // back until the gap before them is filled (as Yjs keeps them pending).
+    // yrs 0.28 shows such blocks at once, past the state vector, and then
+    // says nothing of later changes inside them: it takes them for types
+    // made in the same transaction.
+    std::vector<QByteArray> held;
+    qsizetype heldBytes = 0;
+    static constexpr qsizetype kMaxHeldBytes = 64 * guard::kMiB;
+    // An update applied with a gap anyway (a Skip block in it, or too much
+    // held back): from then on the kept JSON is read whole after every
+    // transaction, as yrs's events can't be trusted to cover everything.
+    bool gapped = false;
+
+    // Whether an update starts past what we have of one of its clients.
+    bool leavesGap(const guard::UpdateClocks& starts) const {
+        if (starts.skips) return true;
+        if (starts.firstClock.isEmpty()) return false;
+        const QHash<quint64, quint64> have = clocks();
+        for (auto it = starts.firstClock.cbegin(); it != starts.firstClock.cend(); ++it)
+            if (it.value() > have.value(it.key(), 0)) return true;
+        return false;
+    }
+
+    // What applying an update takes (UpdateGuard.h): worked out exactly
+    // only when the cheap bound says it might be past the limit.
+    qint64 workOf(const QByteArray& update) const {
+        const qint64 bound = guard::updateWorkBound(stateVectorBytes(), update);
+        if (bound <= guard::kMaxUpdateWork) return bound;
+        YTransaction* rt = ydoc_read_transaction(doc);
+        uint32_t len = 0;
+        char* data = ytransaction_state_diff_v1(rt, nullptr, 0, &len);
+        ytransaction_commit(rt);
+        return guard::updateWork(takeBinary(data, len), update);
+    }
+
+    uint8_t apply(const QByteArray& update) {
+        YTransaction* t = ydoc_write_transaction(doc, 0, nullptr);
+        const uint8_t rc = ytransaction_apply(t, update.constData(), static_cast<uint32_t>(update.size()));
+        ytransaction_commit(t);
+        absorb();
+        return rc;
+    }
+
+    QByteArray stateVectorBytes() const {
+        YTransaction* rt = ydoc_read_transaction(doc);
+        uint32_t len = 0;
+        char* data = ytransaction_state_vector_v1(rt, &len);
+        ytransaction_commit(rt);
+        return takeBinary(data, len);
+    }
+
+    QHash<quint64, quint64> clocks() const {
+        QHash<quint64, quint64> out;
+        guard::checkStateVector(stateVectorBytes(), &out);
+        return out;
+    }
+
+    void forgetJson() {
+        jsonValid = false;
+        json = QJsonObject();
+        baseline = false;
+    }
+
     // After every transaction: what it changed into the kept JSON.
     void absorb() {
         std::vector<Change> todo;
         todo.swap(changes);
-        if (todo.empty() || !jsonValid) return;
+        if (!jsonValid) return;
         YTransaction* rt = ydoc_read_transaction(doc);
+        if (gapped || waiting(rt)) {
+            ytransaction_commit(rt);
+            forgetJson();
+            return;
+        }
+        if (todo.empty()) {
+            ytransaction_commit(rt);
+            return;
+        }
         bool ok = true;
         {
             Entries memo;
@@ -626,18 +716,16 @@ struct SyncDoc::Impl {
             }
         }
         ytransaction_commit(rt);
-        if (!ok) {
-            jsonValid = false;
-            json = QJsonObject();
-            baseline = false;
-        }
+        if (!ok) forgetJson();
     }
 
     const QJsonObject& currentJson() {
         if (!jsonValid || !keepJson) {
             ++wholeReadCount;
             json = detail::rootsToJson(doc);
-            jsonValid = keepJson;
+            YTransaction* rt = ydoc_read_transaction(doc);
+            jsonValid = keepJson && !gapped && !waiting(rt);  // (see waiting, held)
+            ytransaction_commit(rt);
             changes.clear();
             baseline = false;  // (what changed before isn't known)
         }
@@ -949,8 +1037,9 @@ struct SyncDoc::Impl {
 
 SyncDoc::SyncDoc() : d_(std::make_unique<Impl>()) { init(); }
 
-SyncDoc::SyncDoc(quint64 clientId) : d_(std::make_unique<Impl>()) {
+SyncDoc::SyncDoc(quint64 clientId, bool keepDeleted) : d_(std::make_unique<Impl>()) {
     d_->clientId = clientId;
+    d_->keepDeleted = keepDeleted;
     init();
 }
 
@@ -959,6 +1048,7 @@ void SyncDoc::init() {
     if (d.clientId != 0) {
         YOptions o = yoptions();
         o.id = d.clientId;
+        if (d.keepDeleted) o.flags |= Y_SKIP_GC;
         d.doc = ydoc_new_with_options(o);
     } else {
         d.doc = ydoc_new();
@@ -995,12 +1085,13 @@ void SyncDoc::init() {
 // Empty again, with a new client id: what a SyncDoc is when made.
 void SyncDoc::reset() {
     const quint64 id = d_->clientId;
-    const bool keep = d_->keepJson;
+    const bool keep = d_->keepJson, keepDeleted = d_->keepDeleted;
     yundo_manager_destroy(d_->undo);
     ydoc_destroy(d_->doc);
     d_ = std::make_unique<Impl>();
     d_->clientId = id != 0 ? id + 1 : 0;  // (never one the old doc wrote with)
     d_->keepJson = keep;
+    d_->keepDeleted = keepDeleted;
     init();
 }
 
@@ -1011,26 +1102,44 @@ SyncDoc::~SyncDoc() {
 
 bool SyncDoc::applyUpdate(const QByteArray& update, QString* error) {
     // Checked before yrs sees it (UpdateGuard.h); a refused update changes nothing.
-    if (const QString refused = guard::checkUpdate(update); !refused.isEmpty()) {
+    guard::UpdateClocks starts;
+    if (const QString refused = guard::checkUpdate(update, &starts); !refused.isEmpty()) {
         if (error) *error = QStringLiteral("refused the document update: %1").arg(refused);
         return false;
     }
-    // What applying it takes (UpdateGuard.h): worked out exactly only when
-    // the cheap bound says it might be past the limit.
-    if (guard::updateWorkBound(stateVector(), update) > guard::kMaxUpdateWork) {
-        if (const qint64 steps = guard::updateWork(encodeState(), update); steps > guard::kMaxUpdateWork) {
-            if (error)
-                *error = QStringLiteral(
-                             "refused the document update: applying it would take %1 steps, more than %2")
-                             .arg(steps)
-                             .arg(guard::kMaxUpdateWork);
-            return false;
+    Impl& d = *d_;
+    if (const qint64 steps = d.workOf(update); steps > guard::kMaxUpdateWork) {
+        if (error)
+            *error = QStringLiteral("refused the document update: applying it would take %1 steps, more than %2")
+                         .arg(steps)
+                         .arg(guard::kMaxUpdateWork);
+        return false;
+    }
+    if (d.leavesGap(starts)) {
+        if (!starts.skips && d.heldBytes + update.size() <= Impl::kMaxHeldBytes) {
+            d.held.push_back(update);
+            d.heldBytes += update.size();
+            return true;
+        }
+        d.gapped = true;
+    }
+    const uint8_t rc = d.apply(update);
+    // Held updates whose gap this filled go in after it, in the order they
+    // came (checked for work again: the document has changed since).
+    for (bool progress = rc == 0; progress && !d.held.empty();) {
+        progress = false;
+        for (auto it = d.held.begin(); it != d.held.end(); ++it) {
+            guard::UpdateClocks heldStarts;
+            guard::checkUpdate(*it, &heldStarts);
+            if (d.leavesGap(heldStarts)) continue;
+            const QByteArray next = std::move(*it);
+            d.heldBytes -= next.size();
+            d.held.erase(it);
+            if (d.workOf(next) <= guard::kMaxUpdateWork) d.apply(next);
+            progress = true;
+            break;
         }
     }
-    YTransaction* txn = ydoc_write_transaction(d_->doc, 0, nullptr);
-    const uint8_t rc = ytransaction_apply(txn, update.constData(), static_cast<uint32_t>(update.size()));
-    ytransaction_commit(txn);
-    d_->absorb();
     if (rc != 0 && error) *error = QStringLiteral("could not apply the document update (yrs error %1)").arg(rc);
     return rc == 0;
 }

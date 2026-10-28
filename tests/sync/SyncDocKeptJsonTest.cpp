@@ -84,10 +84,12 @@ T* firstOf(core::Map& map, core::LayerKind kind) {
 // Random edits of a map, as the editor makes them.
 class Editor {
 public:
-    explicit Editor(std::mt19937& rng, int idBase) : rng_(rng), next_(idBase) {}
+    Editor(std::mt19937& rng, int idBase, bool othersDelete) : rng_(rng), next_(idBase), othersDelete_(othersDelete) {}
 
     void edit(core::Map& m, bool wild) {
-        switch (pick(16)) {
+        int kind = pick(16);
+        if (wild && !othersDelete_ && (kind == 5 || kind == 8)) kind = 0;  // (see randomEdits)
+        switch (kind) {
         case 0: case 1: case 2: {  // move a part
             if (auto* b = someBrick(m)) b->displayArea.translate(pick(9) - 4, pick(9) - 4);
             break;
@@ -284,6 +286,7 @@ private:
 
     std::mt19937& rng_;
     int next_;
+    bool othersDelete_;
 };
 
 // Someone else on the same layout, with their own copy of the document.
@@ -295,19 +298,26 @@ struct Peer {
 
 }  // namespace
 
-TEST(SyncDocKeptJson, RandomEditsWriteWhatReadingTheWholeDocumentWrites) {
+// One run of random steps per seed (see the top of the file). With
+// `othersDelete`, the others delete parts and sheets too, in docs that keep
+// deleted content (as yrs does for snapshots); without, garbage collection
+// runs as in the app.
+static void randomEdits(bool othersDelete) {
     const QByteArray base = webDoc();
     ASSERT_FALSE(base.isEmpty());
-    for (unsigned seed = 1; seed <= 8; ++seed) {
+    // (BLD_SEED_FROM / BLD_SEED_TO run other seeds, e.g. a few hundred.)
+    const int seedFrom = qEnvironmentVariableIntValue("BLD_SEED_FROM") > 0 ? qEnvironmentVariableIntValue("BLD_SEED_FROM") : 1;
+    const int seedTo = qEnvironmentVariableIntValue("BLD_SEED_TO") > 0 ? qEnvironmentVariableIntValue("BLD_SEED_TO") : 8;
+    for (int seed = seedFrom; seed <= seedTo; ++seed) {
         SCOPED_TRACE(::testing::Message() << "seed " << seed);
-        std::mt19937 rng(seed);
+        std::mt19937 rng(static_cast<unsigned>(seed));
         const auto pick = [&rng](int n) { return std::uniform_int_distribution<int>(0, n - 1)(rng); };
-        Editor editor(rng, 500000 + static_cast<int>(seed) * 100000);
+        Editor editor(rng, 500000 + seed * 100000, othersDelete);
 
-        sync::SyncDoc server(1);
+        sync::SyncDoc server(1, othersDelete);
         ASSERT_TRUE(server.applyUpdate(base));
         quint64 mineId = 1000;
-        auto mine = std::make_unique<sync::SyncDoc>(mineId);
+        auto mine = std::make_unique<sync::SyncDoc>(mineId, othersDelete);
         ASSERT_TRUE(mine->applyUpdate(base));
         auto map = mapOf(*mine);
         std::deque<QByteArray> inbox;
@@ -324,7 +334,7 @@ TEST(SyncDocKeptJson, RandomEditsWriteWhatReadingTheWholeDocumentWrites) {
 
         std::vector<Peer> peers(2);
         for (size_t p = 0; p < peers.size(); ++p) {
-            peers[p].doc = std::make_unique<sync::SyncDoc>(2000 + p);
+            peers[p].doc = std::make_unique<sync::SyncDoc>(2000 + p, othersDelete);
             ASSERT_TRUE(peers[p].doc->applyUpdate(base));
             ASSERT_TRUE(peers[p].doc->applyUpdate(cut));
             peers[p].map = mapOf(*peers[p].doc);
@@ -346,7 +356,7 @@ TEST(SyncDocKeptJson, RandomEditsWriteWhatReadingTheWholeDocumentWrites) {
                 // brings back deleted entries in hash order, so two docs
                 // that undo the same steps can hold them at different ids.)
                 const QByteArray before = mine->encodeState();
-                sync::SyncDoc ref(mineId), check(mineId);
+                sync::SyncDoc ref(mineId, othersDelete), check(mineId, othersDelete);
                 ref.setKeepJson(false);
                 ASSERT_TRUE(ref.applyUpdate(before));
                 ASSERT_TRUE(check.applyUpdate(before));
@@ -410,6 +420,10 @@ TEST(SyncDocKeptJson, RandomEditsWriteWhatReadingTheWholeDocumentWrites) {
         ASSERT_EQ(bytes(mine->toJson()), bytes(server.readWhole()));
     }
 }
+
+TEST(SyncDocKeptJson, RandomEditsWriteWhatReadingTheWholeDocumentWrites) { randomEdits(false); }
+
+TEST(SyncDocKeptJson, RandomEditsWithEveryoneDeletingToo) { randomEdits(true); }
 
 TEST(SyncDocKeptJson, ResetStartsAgainFromAnEmptyDocument) {
     sync::SyncDoc doc;
@@ -542,4 +556,42 @@ TEST(SyncDocKeptJson, AnEditComparesOnlyThePartsThatChanged) {
         ASSERT_FALSE(doc.writeMap(*map).isEmpty());
     }), none + 2);
     EXPECT_EQ(bytes(doc.toJson()), bytes(doc.readWhole()));
+}
+
+// Someone's edits arriving out of order: the later one waits until the one
+// before it is in (as Yjs keeps them pending). yrs would show it at once,
+// past its state vector, and then never say when it changes, so the kept
+// JSON couldn't follow.
+TEST(SyncDocKeptJson, AnUpdateArrivingBeforeTheOneItFollowsWaitsForIt) {
+    sync::SyncDoc doc, peer;
+    ASSERT_TRUE(doc.applyUpdate(webDoc()));
+    ASSERT_TRUE(peer.applyUpdate(webDoc()));
+    auto theirs = mapOf(peer);
+    auto* bricks = firstOf<core::LayerBrick>(*theirs, core::LayerKind::Brick);
+    ASSERT_TRUE(bricks && !bricks->bricks.empty());
+    const auto count = [](const QJsonObject& j) {
+        qsizetype n = 0;
+        for (const auto& l : j.value(QLatin1String("layerData")).toObject())
+            n += l.toObject().value(QLatin1String("bricks")).toArray().size();
+        return n;
+    };
+    const qsizetype before = count(doc.toJson());
+    bricks->bricks.front().displayArea.translate(8, 0);
+    const QByteArray first = peer.writeMap(*theirs);
+    for (int i = 0; i < 3; ++i) {
+        core::Brick b = bricks->bricks.front();
+        b.guid = QStringLiteral("late%1").arg(i);
+        for (auto& c : b.connections) c.guid += b.guid;
+        bricks->bricks.push_back(b);
+    }
+    const QByteArray second = peer.writeMap(*theirs);
+    bricks->bricks.back().displayArea.translate(8, 0);
+    const QByteArray third = peer.writeMap(*theirs);
+
+    ASSERT_TRUE(doc.applyUpdate(second));
+    EXPECT_EQ(count(doc.toJson()), before) << "the second edit waits for the first";
+    ASSERT_TRUE(doc.applyUpdate(third));
+    ASSERT_TRUE(doc.applyUpdate(first));
+    EXPECT_EQ(bytes(doc.toJson()), bytes(doc.readWhole()));
+    EXPECT_EQ(bytes(doc.toJson()), bytes(peer.readWhole()));
 }
