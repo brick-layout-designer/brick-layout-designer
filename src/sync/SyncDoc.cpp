@@ -356,7 +356,6 @@ struct SyncDoc::Impl {
     Arena arena;
     int ops = 0;  // changes made by the current writeMap
     quint64 clientId = 0;  // (0: a new random one; tests set it)
-    bool keepDeleted = false;  // (tests: yrs keeps deleted content, no GC)
 
     // ------------------------------------------------- the kept JSON copy
     //
@@ -1037,22 +1036,25 @@ struct SyncDoc::Impl {
 
 SyncDoc::SyncDoc() : d_(std::make_unique<Impl>()) { init(); }
 
-SyncDoc::SyncDoc(quint64 clientId, bool keepDeleted) : d_(std::make_unique<Impl>()) {
+SyncDoc::SyncDoc(quint64 clientId) : d_(std::make_unique<Impl>()) {
     d_->clientId = clientId;
-    d_->keepDeleted = keepDeleted;
     init();
 }
 
 void SyncDoc::init() {
     Impl& d = *d_;
-    if (d.clientId != 0) {
-        YOptions o = yoptions();
-        o.id = d.clientId;
-        if (d.keepDeleted) o.flags |= Y_SKIP_GC;
-        d.doc = ydoc_new_with_options(o);
-    } else {
-        d.doc = ydoc_new();
-    }
+    YOptions o = yoptions();  // (a new random client id, unless a test gave one)
+    if (d.clientId != 0) o.id = d.clientId;
+    // Deleted content is kept, not collected: undo brings back what this
+    // desktop deleted or changed while others edit around it, and keeping
+    // what was deleted keeps those steps whole. Every live doc is made
+    // here, whether loaded from the server or the cache file, or written
+    // from a layout.
+    o.flags |= Y_SKIP_GC;
+    d.doc = ydoc_new_with_options(o);
+    // (yoptions hands out its strings; the doc keeps copies)
+    ystring_destroy(const_cast<char*>(o.guid));
+    ystring_destroy(const_cast<char*>(o.collection_id));
     // Root types must be declared before use; DocJson.cpp reads the same ones.
     for (std::size_t i = 0; i < detail::kRootNames.size(); ++i)
         d.roots[i] = i == detail::kLayersRoot ? yarray(d.doc, detail::kRootNames[i]) : ymap(d.doc, detail::kRootNames[i]);
@@ -1085,13 +1087,12 @@ void SyncDoc::init() {
 // Empty again, with a new client id: what a SyncDoc is when made.
 void SyncDoc::reset() {
     const quint64 id = d_->clientId;
-    const bool keep = d_->keepJson, keepDeleted = d_->keepDeleted;
+    const bool keep = d_->keepJson;
     yundo_manager_destroy(d_->undo);
     ydoc_destroy(d_->doc);
     d_ = std::make_unique<Impl>();
     d_->clientId = id != 0 ? id + 1 : 0;  // (never one the old doc wrote with)
     d_->keepJson = keep;
-    d_->keepDeleted = keepDeleted;
     init();
 }
 
