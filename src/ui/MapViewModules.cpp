@@ -39,15 +39,6 @@ using detail::isTextItem;
 using detail::isVenueItem;
 using detail::kBrickDataGuid;
 
-namespace {
-QSet<QString> selectedBricks(QGraphicsScene* scene) {
-    QSet<QString> out;
-    for (QGraphicsItem* it : scene->selectedItems())
-        if (isBrickItem(it)) out.insert(it->data(kBrickDataGuid).toString());
-    return out;
-}
-}  // namespace
-
 QGraphicsItem* MapView::itemUnder(QPoint viewPos) const {
     // Module frames and names lie over their parts but take no clicks.
     for (QGraphicsItem* it : items(viewPos))
@@ -181,7 +172,7 @@ void MapView::applyModuleState() {
 void MapView::shapeModuleSelection() {
     if (!map_ || !scene()) return;
     const auto& mods = map_->sidecar.modules;
-    const QSet<QString> sel = selectedBricks(scene());
+    const QSet<QString> sel = pickedParts();
     if (mods.empty()) {
         lastBrickSelection_ = sel;
         return;
@@ -199,18 +190,23 @@ void MapView::shapeModuleSelection() {
         }
     }
     if (want != sel) {
-        for (QGraphicsItem* it : scene()->items()) {
-            if (!isBrickItem(it)) continue;
-            const bool on = want.contains(it->data(kBrickDataGuid).toString());
-            if (it->isSelected() != on && (!on || (it->flags() & QGraphicsItem::ItemIsSelectable))) it->setSelected(on);
-        }
+        // Only the parts that come or go.
+        const PickIndex& index = pickIndex();
+        const auto apply = [&](const QSet<QString>& guids, bool on) {
+            for (const QString& guid : guids)
+                for (QGraphicsItem* it : index.bricks.value(guid))
+                    if (it->isSelected() != on && (!on || (it->flags() & QGraphicsItem::ItemIsSelectable)))
+                        it->setSelected(on);
+        };
+        apply(QSet<QString>(want).subtract(sel), true);
+        apply(QSet<QString>(sel).subtract(want), false);
     }
     lastBrickSelection_ = want;
 }
 
 bool MapView::selectionMayMove() {
     if (!map_ || !scene()) return true;
-    const core::Module* pinned = core::pinnedAmong(selectedBricks(scene()), map_->sidecar.modules, editingModuleId_);
+    const core::Module* pinned = core::pinnedAmong(pickedParts(), map_->sidecar.modules, editingModuleId_);
     if (!pinned) return true;
     showStatus(tr("“%1” is pinned in place. Unpin it from its ⋯ menu to move it, or use Edit module to change its parts.")
                    .arg(pinned->name.isEmpty() ? tr("This module") : pinned->name),

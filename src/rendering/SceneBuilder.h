@@ -84,6 +84,11 @@ public:
     // frame. Empty when module names are off.
     const QList<QPair<QString, QRectF>>& moduleAnnotationRects() const { return moduleAnnotationRects_; }
 
+    // Moves on whenever parts', rulers', text's or labels' items are made
+    // or deleted (build, clear, rulers following a drag): what MapView's
+    // pick index was built from is gone then.
+    quint64 generation() const { return generation_; }
+
     // Module names cut short to fit (the whole name shows on hover, as a
     // tooltip, and while the module is selected, MapView's pill).
     struct ShortenedModuleName {
@@ -125,6 +130,7 @@ private:
     QList<ShortenedModuleName>        shortenedModuleNames_;
     QHash<QString, QString>           settledNameSlots_;    // module id → slot, from the last settled build
     QHash<QString, QString>           settledModuleColors_; // module id → its default color then
+    quint64                           generation_ = 0;
 };
 
 }

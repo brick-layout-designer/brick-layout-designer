@@ -10,6 +10,7 @@
 #include "core/LayerRuler.h"
 #include "core/LayerText.h"
 #include "core/Map.h"
+#include "core/Module.h"
 #include "edit/Connectivity.h"
 #include "edit/EditCommands.h"
 #include "edit/ModuleCommands.h"
@@ -21,6 +22,7 @@
 #include "saveload/BbmReader.h"
 #include "ui/BudgetSession.h"
 #include "ui/MapViewInternal.h"
+#include "ui/PartUsagePanel.h"
 
 #include <gtest/gtest.h>
 #include <limits>
@@ -1146,6 +1148,124 @@ TEST(MapViewIdle, AViewWithPartsPickedDoesNotKeepRepainting) {
     items.front()->moveBy(16, 0);
     QTest::qWait(50);
     EXPECT_GT(changed, 0);
+}
+
+// Perf: a box pick says selectionChanged on every mouse move, and each time
+// the view walked every part (outermost groups, modules) and every scene
+// item (rulers, groups, modules, text glow, bend handles) several times
+// over: about 35 ms a move on 5,000 parts. It now looks things up in an
+// index built once per scene build, and works out the bend handles once
+// the box is let go. Counts work, not time; the pick follows the same rules.
+TEST(MapViewBoxPick, LooksUpWhatItPicksInsteadOfWalkingEveryPart) {
+    parts::PartsLibrary parts;
+    auto map = fordyceWithoutGroups(parts);
+    if (!map) GTEST_SKIP() << "fordyce-2026.bbm missing";
+    // Sets: every 5 parts a group, every 25 an outermost group round five of
+    // them; and two modules.
+    core::LayerBrick* layer = nullptr;
+    for (const auto& L : map->layers())
+        if (L->kind() == core::LayerKind::Brick
+            && (!layer || static_cast<core::LayerBrick&>(*L).bricks.size() > layer->bricks.size()))
+            layer = static_cast<core::LayerBrick*>(L.get());
+    ASSERT_NE(layer, nullptr);
+    layer->groups.clear();
+    for (size_t i = 0; i < layer->bricks.size(); ++i) {
+        const QString group = QStringLiteral("g%1").arg(i / 5), top = QStringLiteral("t%1").arg(i / 25);
+        if (i % 25 == 0) {
+            core::Group g;
+            g.guid = top;
+            layer->groups.push_back(g);
+        }
+        if (i % 5 == 0) {
+            core::Group g;
+            g.guid = group;
+            g.myGroupId = top;
+            layer->groups.push_back(g);
+        }
+        layer->bricks[i].myGroupId = group;
+    }
+    for (int m = 0; m < 2; ++m) {
+        core::Module mod;
+        mod.id = QStringLiteral("m%1").arg(m);
+        for (size_t i = 0; i < 25; ++i) mod.memberIds.insert(layer->bricks[static_cast<size_t>(m) * 200 + i].guid);
+        map->sidecar.modules.push_back(mod);
+    }
+    QHash<QString, QString> topOf;
+    for (size_t i = 0; i < layer->bricks.size(); ++i) topOf.insert(layer->bricks[i].guid, QStringLiteral("t%1").arg(i / 25));
+    const auto modules = map->sidecar.modules;
+
+    ui::MapView view(parts);
+    view.resize(1200, 800);
+    view.show();
+    ASSERT_TRUE(QTest::qWaitForWindowExposed(&view));
+    view.loadMap(std::move(map));
+    view.fitInView(view.scene()->itemsBoundingRect(), Qt::KeepAspectRatio);
+    QApplication::processEvents();
+
+    const int builds = view.pickIndexBuilds(), bends = view.bendHandleRefreshes(), said = view.selectionChangeCount();
+    QWidget* vp = view.viewport();
+    const QPoint from(2, 2), to(vp->width() / 2, vp->height() - 2);
+    mouse(vp, QEvent::MouseButtonPress, from, Qt::LeftButton);
+    const int bendsAtPress = view.bendHandleRefreshes();
+    for (int i = 1; i <= 12; ++i) mouse(vp, QEvent::MouseMove, from + (to - from) * i / 12, Qt::LeftButton);
+    EXPECT_GT(view.selectionChangeCount() - said, 5) << "the box should pick more as it grows";
+    // Indexed once at most (the build before had none to use), and no bend
+    // handles while the box is out.
+    EXPECT_LE(view.pickIndexBuilds() - builds, 1);
+    EXPECT_EQ(view.bendHandleRefreshes(), bendsAtPress);
+    mouse(vp, QEvent::MouseButtonRelease, to, Qt::NoButton);
+    EXPECT_EQ(view.bendHandleRefreshes() - bendsAtPress, 1);
+    EXPECT_LE(bendsAtPress - bends, 1);
+
+    // The same rules: a picked part's outermost group is picked whole, and
+    // a module whole or not at all.
+    const QStringList picked = selectedBrickGuids(*view.scene());
+    ASSERT_FALSE(picked.isEmpty());
+    const QSet<QString> pickedSet(picked.begin(), picked.end());
+    QSet<QString> tops;
+    for (const QString& g : picked)
+        if (topOf.contains(g)) tops.insert(topOf.value(g));
+    for (auto it = topOf.cbegin(); it != topOf.cend(); ++it)
+        if (tops.contains(it.value())) {
+            EXPECT_TRUE(pickedSet.contains(it.key())) << it.key().toStdString();
+        }
+    for (const auto& m : modules)
+        EXPECT_TRUE(pickedSet.contains(m.memberIds) || !pickedSet.intersects(m.memberIds)) << m.id.toStdString();
+    // A rebuild (an edit) makes new items: they're indexed again, once.
+    const int beforeRebuild = view.pickIndexBuilds();
+    view.rebuildScene();
+    view.deselectAll();
+    view.selectParts({ picked.front() });
+    EXPECT_EQ(view.pickIndexBuilds() - beforeRebuild, 1);
+}
+
+// Perf: the parts list counted every part again on each change of the
+// selection (a box pick: every mouse move). Picking doesn't change what's
+// used; loading a layout and editing it do.
+TEST(PartUsagePanelPerf, PickingPartsDoesNotCountThemAgain) {
+    if (!QFile::exists(fixture())) GTEST_SKIP() << "tight-corner.bbm missing";
+    parts::PartsLibrary parts;
+    ui::MapView view(parts);
+    ui::PartUsagePanel panel(parts);
+    panel.bindMapView(&view);
+    auto loaded = saveload::readBbm(fixture());
+    ASSERT_TRUE(loaded.ok());
+    int before = panel.refreshCount();
+    view.loadMap(std::move(loaded.map));
+    EXPECT_GT(panel.refreshCount(), before) << "a load counts the parts";
+
+    before = panel.refreshCount();
+    view.selectAll();
+    const QStringList all = selectedBrickGuids(*view.scene());
+    ASSERT_FALSE(all.isEmpty());
+    view.deselectAll();
+    view.selectParts({ all.front() });
+    EXPECT_EQ(panel.refreshCount(), before);
+
+    // An edit does.
+    view.selectAll();
+    view.deleteSelected();
+    EXPECT_GT(panel.refreshCount(), before);
 }
 
 // Perf: grid lines closer than a few pixels on screen are left out. Fitting
