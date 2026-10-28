@@ -191,7 +191,9 @@ TEST(ServerApi, DeviceSignInPollsUntilApproved) {
     }
     EXPECT_EQ(polls, 4);
     // slow_down adds 5 s to the wait (1 + 5 = 6 "seconds" = 30 ms here), or
-    // takes the server's interval when that is longer (20 = 100 ms).
+    // takes the server's interval when that is longer (20 = 100 ms; adding 5
+    // again would be 55 ms). The poll timer is precise, so it never fires
+    // early; a few ms of slack cover clock rounding.
     ASSERT_EQ(at.size(), 4u);
     EXPECT_GE(at[2] - at[1], 25);
     EXPECT_GE(at[3] - at[2], 95);

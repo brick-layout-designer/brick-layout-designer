@@ -1480,21 +1480,30 @@ TEST_F(ServerModulesWindow, AChangedImportedPartIsUpdatedOnTheServerToo) {
 // count on going first. Here it outlives the window, as it would if it were
 // ever owned elsewhere; without the guard each answer is a
 // heap-use-after-free under ASan.
-TEST_F(ServerModulesWindow, AnAnswerAfterTheWindowIsGoneIsDropped) {
+class ServerModulesSlowNotices : public ServerModulesWindow {
+protected:
+    void beforeOpen() override {
+        ServerModulesWindow::beforeOpen();
+        // The window asks for your notices once the library is Ready (and
+        // only then: refresh() while Ready doesn't ask again). Held from the
+        // start, that first question is still unanswered when the window goes.
+        http_.hold.insert("/api/notices");
+    }
+};
+
+TEST_F(ServerModulesSlowNotices, AnAnswerAfterTheWindowIsGoneIsDropped) {
     const QByteArray snapshot = "/api/modules/m1/snapshot";
     const QByteArray venue = "/api/venues/V9";
     const QByteArray notices = "/api/notices";
     http_.reply(venue, 200, { { QStringLiteral("id"), QStringLiteral("V9") }, { QStringLiteral("name"), QStringLiteral("Hall") },
                               { QStringLiteral("data"), QJsonObject{ { QStringLiteral("name"), QStringLiteral("Hall") } } } });
-    for (const QByteArray& p : { snapshot, venue, notices }) http_.hold.insert(p);
+    for (const QByteArray& p : { snapshot, venue }) http_.hold.insert(p);
     const auto asked = [&](const QByteArray& path) {
         return std::count_if(http_.requests.cbegin(), http_.requests.cend(), [&](const auto& r) { return r.path == path; });
     };
-    const auto noticesBefore = asked(notices);
     emit library_->insertRequested(QStringLiteral("m1"));
     emit library_->catalogVenueCopied(QStringLiteral("V9"), QStringLiteral("Hall"));
-    library_->refresh();  // Ready again: the notices are asked for
-    ASSERT_TRUE(waitFor([&] { return asked(snapshot) == 1 && asked(venue) == 1 && asked(notices) > noticesBefore; }));
+    ASSERT_TRUE(waitFor([&] { return asked(snapshot) == 1 && asked(venue) == 1 && asked(notices) >= 1; }));
 
     std::unique_ptr<ui::ServerLibrary> library(library_);
     library->setParent(nullptr);
