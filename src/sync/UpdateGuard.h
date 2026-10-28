@@ -15,7 +15,9 @@
 // - a count or length longer than the bytes left could hold;
 // - values nested deeper than kMaxNesting;
 // - content kinds yrs can't read, or a layout never holds (weak links);
-// - strings with a NUL character in them (yffi panics on those).
+// - strings with a NUL character in them (yffi panics on those);
+// - more work to apply than kMaxUpdateWork (SyncDoc::applyUpdate, with
+//   updateWork).
 //
 // A refused update is never handed to yrs, so it can't be half applied.
 
@@ -41,5 +43,23 @@ QString checkUpdate(const QByteArray& update);
 
 // The same for a state vector (sync step 1).
 QString checkStateVector(const QByteArray& stateVector);
+
+// How much work yrs does applying an update, as the server works it out
+// (web apps/server/src/ws/yjsWork.ts): one step per block each deleted
+// range covers, plus the length of every block a range, or an item placed
+// after or before a clock inside one, splits (yrs copies the rest of it).
+// A range listed many times, or one long block split many times, costs
+// far more than the update's size; neither app sends one.
+// kMaxUpdateWork is twice the server's limit, so whatever it relays fits.
+constexpr qint64 kMaxUpdateWork = 8'000'000;
+
+// The work of `update` (checked with checkUpdate) on a document whose whole
+// state is `docState` (empty: a new document).
+qint64 updateWork(const QByteArray& docState, const QByteArray& update);
+
+// No less than updateWork, from the document's state vector alone (no
+// block is longer than its client's clocks): cheap, for deciding whether
+// updateWork is needed.
+qint64 updateWorkBound(const QByteArray& stateVector, const QByteArray& update);
 
 }  // namespace bld::sync::guard
