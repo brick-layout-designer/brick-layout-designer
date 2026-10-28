@@ -299,9 +299,9 @@ struct Peer {
 }  // namespace
 
 // One run of random steps per seed (see the top of the file). With
-// `othersDelete`, the others delete parts and sheets too, in docs that keep
-// deleted content (as yrs does for snapshots); without, garbage collection
-// runs as in the app.
+// `othersDelete`, the others delete parts and sheets too, while our undo
+// and redo bring back what we changed. Every doc is made as the app makes
+// it (deleted content kept).
 static void randomEdits(bool othersDelete) {
     const QByteArray base = webDoc();
     ASSERT_FALSE(base.isEmpty());
@@ -314,10 +314,10 @@ static void randomEdits(bool othersDelete) {
         const auto pick = [&rng](int n) { return std::uniform_int_distribution<int>(0, n - 1)(rng); };
         Editor editor(rng, 500000 + seed * 100000, othersDelete);
 
-        sync::SyncDoc server(1, othersDelete);
+        sync::SyncDoc server(1);
         ASSERT_TRUE(server.applyUpdate(base));
         quint64 mineId = 1000;
-        auto mine = std::make_unique<sync::SyncDoc>(mineId, othersDelete);
+        auto mine = std::make_unique<sync::SyncDoc>(mineId);
         ASSERT_TRUE(mine->applyUpdate(base));
         auto map = mapOf(*mine);
         std::deque<QByteArray> inbox;
@@ -334,7 +334,7 @@ static void randomEdits(bool othersDelete) {
 
         std::vector<Peer> peers(2);
         for (size_t p = 0; p < peers.size(); ++p) {
-            peers[p].doc = std::make_unique<sync::SyncDoc>(2000 + p, othersDelete);
+            peers[p].doc = std::make_unique<sync::SyncDoc>(2000 + p);
             ASSERT_TRUE(peers[p].doc->applyUpdate(base));
             ASSERT_TRUE(peers[p].doc->applyUpdate(cut));
             peers[p].map = mapOf(*peers[p].doc);
@@ -356,7 +356,7 @@ static void randomEdits(bool othersDelete) {
                 // brings back deleted entries in hash order, so two docs
                 // that undo the same steps can hold them at different ids.)
                 const QByteArray before = mine->encodeState();
-                sync::SyncDoc ref(mineId, othersDelete), check(mineId, othersDelete);
+                sync::SyncDoc ref(mineId), check(mineId);
                 ref.setKeepJson(false);
                 ASSERT_TRUE(ref.applyUpdate(before));
                 ASSERT_TRUE(check.applyUpdate(before));
@@ -594,4 +594,35 @@ TEST(SyncDocKeptJson, AnUpdateArrivingBeforeTheOneItFollowsWaitsForIt) {
     ASSERT_TRUE(doc.applyUpdate(first));
     EXPECT_EQ(bytes(doc.toJson()), bytes(doc.readWhole()));
     EXPECT_EQ(bytes(doc.toJson()), bytes(peer.readWhole()));
+}
+
+// A live doc keeps what was deleted, rather than collecting it, so undo
+// steps stay whole while others delete around them; and it does the same
+// when loaded again (from the cache file or the server's copy) or after a
+// reset (back to the server's copy).
+TEST(SyncDocKeptJson, LiveDocsKeepWhatWasDeleted) {
+    sync::SyncDoc doc;
+    ASSERT_TRUE(doc.applyUpdate(webDoc()));
+    auto map = mapOf(doc);
+    auto* bricks = firstOf<core::LayerBrick>(*map, core::LayerKind::Brick);
+    ASSERT_TRUE(bricks && !bricks->bricks.empty());
+    core::Brick b = bricks->bricks.front();
+    b.guid = QStringLiteral("kept-after-delete");
+    b.partNumber = QStringLiteral("KEPT-AFTER-DELETE.8");
+    for (auto& c : b.connections) c.guid += b.guid;
+    bricks->bricks.push_back(b);
+    ASSERT_FALSE(doc.writeMap(*map).isEmpty());
+    bricks->bricks.pop_back();
+    ASSERT_FALSE(doc.writeMap(*map).isEmpty());
+    const QByteArray mark = QByteArrayLiteral("KEPT-AFTER-DELETE.8");
+    EXPECT_TRUE(doc.encodeState().contains(mark)) << "the deleted part's content was collected";
+
+    const QByteArray state = doc.encodeState();
+    sync::SyncDoc loaded;
+    ASSERT_TRUE(loaded.applyUpdate(state));
+    EXPECT_TRUE(loaded.encodeState().contains(mark)) << "collected on loading";
+    doc.reset();
+    ASSERT_TRUE(doc.applyUpdate(state));
+    EXPECT_TRUE(doc.encodeState().contains(mark)) << "collected after a reset";
+    EXPECT_FALSE(mapOf(doc)->layers().empty());
 }
