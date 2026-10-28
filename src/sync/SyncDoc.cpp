@@ -668,11 +668,11 @@ bool SyncDoc::applyUpdate(const QByteArray& update, QString* error) {
     // What applying it takes (UpdateGuard.h): worked out exactly only when
     // the cheap bound says it might be past the limit.
     if (guard::updateWorkBound(stateVector(), update) > guard::kMaxUpdateWork) {
-        if (const qint64 work = guard::updateWork(encodeState(), update); work > guard::kMaxUpdateWork) {
+        if (const qint64 steps = guard::updateWork(encodeState(), update); steps > guard::kMaxUpdateWork) {
             if (error)
                 *error = QStringLiteral(
                              "refused the document update: applying it would take %1 steps, more than %2")
-                             .arg(work)
+                             .arg(steps)
                              .arg(guard::kMaxUpdateWork);
             return false;
         }
