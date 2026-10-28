@@ -693,6 +693,7 @@ void SceneBuilder::clear() {
     // quadratic, ~250 ms for 10 000 items. Polish them first (a queued
     // call on the scene) so removal stays linear.
     QCoreApplication::sendPostedEvents(&scene_, QEvent::MetaCall);
+    ++generation_;
     for (auto& list : itemsByLayer_) {
         for (auto* it : list) { scene_.removeItem(it); delete it; }
     }
@@ -712,6 +713,7 @@ void SceneBuilder::clear() {
 
 void SceneBuilder::build(const core::Map& map) {
     clear();
+    ++generation_;
     // Precompute every brick's world centre in studs so attached rulers,
     // anchored labels, and any future cross-item feature can resolve the
     // partner position by guid without a linear scan.
@@ -779,6 +781,7 @@ void SceneBuilder::rebuildFollowers(const core::Map& posed, const QSet<QString>&
             else fixed = fixed || moving.contains(any.circular.attachedBrickId);
         }
         if (!fixed) continue;
+        ++generation_;
         auto& list = itemsByLayer_[i];
         const bool shown = list.isEmpty() || list.front()->isVisible();
         for (auto* it : list) {

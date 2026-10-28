@@ -157,56 +157,53 @@ MapView::MapView(parts::PartsLibrary& parts, QWidget* parent)
             const QSignalBlocker quiet(this->scene());
             QSet<QString> rulerGuids;
             QSet<QString> selectedBrickGuids;
+            const PickIndex& index = pickIndex();
             for (QGraphicsItem* it : this->scene()->selectedItems()) {
                 if (!it) continue;
-                if (isRulerItem(it)) {
-                    const QString g = it->data(kBrickDataGuid).toString();
-                    if (!g.isEmpty()) rulerGuids.insert(g);
-                } else if (isBrickItem(it)) {
-                    selectedBrickGuids.insert(it->data(kBrickDataGuid).toString());
+                const PickIndex::Item item = index.itemOf(it);
+                if (item.kind == PickIndex::Kind::Ruler) {
+                    if (!item.guid.isEmpty()) rulerGuids.insert(item.guid);
+                } else if (item.kind == PickIndex::Kind::Brick) {
+                    selectedBrickGuids.insert(item.guid);
                 }
             }
-            if (!rulerGuids.isEmpty()) {
-                for (QGraphicsItem* any : this->scene()->items()) {
-                    if (!isRulerItem(any)) continue;
-                    if (any->isSelected()) continue;
-                    const QString g = any->data(kBrickDataGuid).toString();
-                    if (g.isEmpty()) continue;
-                    if (rulerGuids.contains(g)) any->setSelected(true);
-                }
-            }
+            for (const QString& g : std::as_const(rulerGuids))
+                for (QGraphicsItem* any : index.rulers.value(g))
+                    if (!any->isSelected()) any->setSelected(true);
             if (map_ && !selectedBrickGuids.isEmpty()) {
                 // A grouped part picks its outermost group whole (a set,
                 // or the user's group around sets), as in BlueBrick.
                 QSet<QString> siblingGuids;
-                for (const auto& L : map_->layers()) {
-                    if (!L || L->kind() != core::LayerKind::Brick) continue;
-                    const auto& BL = static_cast<const core::LayerBrick&>(*L);
+                for (const auto& sheet : index.sheets) {
+                    if (sheet.topsOf.isEmpty()) continue;
                     QSet<QString> tops;
-                    for (const auto& b : BL.bricks)
-                        if (!b.myGroupId.isEmpty() && selectedBrickGuids.contains(b.guid))
-                            tops.insert(core::topGroup(BL, b.myGroupId));
-                    tops.remove(QString());
-                    if (tops.isEmpty()) continue;
-                    for (const auto& b : BL.bricks)
-                        if (!b.myGroupId.isEmpty() && tops.contains(core::topGroup(BL, b.myGroupId)))
-                            siblingGuids.insert(b.guid);
+                    for (const QString& guid : std::as_const(selectedBrickGuids))
+                        for (auto t = sheet.topsOf.constFind(guid); t != sheet.topsOf.constEnd() && t.key() == guid; ++t)
+                            tops.insert(*t);
+                    for (const QString& top : std::as_const(tops))
+                        for (const QString& guid : sheet.partsIn.value(top)) siblingGuids.insert(guid);
                 }
-                if (!siblingGuids.isEmpty()) {
-                    for (QGraphicsItem* any : this->scene()->items()) {
-                        if (!isBrickItem(any) || any->isSelected()) continue;
-                        if (siblingGuids.contains(any->data(kBrickDataGuid).toString())) any->setSelected(true);
-                    }
-                }
+                for (const QString& guid : std::as_const(siblingGuids))
+                    for (QGraphicsItem* any : index.bricks.value(guid))
+                        if (!any->isSelected()) any->setSelected(true);
             }
             // Modules are picked whole; while one is edited, only its parts.
             shapeModuleSelection();
             reentrant = false;
         }
         refreshSelectionOverlay();
-        refreshBendHandles();
+        // While a box is dragged out the pick changes on every mouse move:
+        // the bend handles (which walk the sheet's connections) wait for
+        // the release.
+        if (rubberBandRect().isNull()) refreshBendHandles();
+        else bendHandlesWaiting_ = true;
         ++selectionChanges_;
         emit selectionChanged();
+    });
+    connect(this, &QGraphicsView::rubberBandChanged, this, [this](QRect band) {
+        if (!band.isNull() || !bendHandlesWaiting_) return;
+        bendHandlesWaiting_ = false;
+        refreshBendHandles();
     });
     // Also refresh the overlay whenever anything in the scene changes
     // geometry — this keeps the outline glued to the brick while the user
@@ -252,6 +249,66 @@ MapView::MapView(parts::PartsLibrary& parts, QWidget* parent)
     connect(loadingCard_, &LoadingCard::retryRequested, this,
             [this] { QTimer::singleShot(0, this, &MapView::retryFailedPictures); });
     connect(loadingCard_, &QObject::destroyed, this, [this] { loadingCard_ = nullptr; });
+}
+
+MapView::PickIndex::Item MapView::PickIndex::itemOf(const QGraphicsItem* it) const {
+    if (const auto found = items.constFind(it); found != items.constEnd()) return *found;
+    const QString kind = it->data(kBrickDataKind).toString();
+    Item out;
+    out.kind = kind == QLatin1String("brick")   ? Kind::Brick
+               : kind == QLatin1String("ruler") ? Kind::Ruler
+               : kind == QLatin1String("text")  ? Kind::Text
+               : kind == QLatin1String("label") ? Kind::Label
+                                                : Kind::Other;
+    if (out.kind != Kind::Other) out.guid = it->data(kBrickDataGuid).toString();
+    return out;
+}
+
+QSet<QString> MapView::pickedParts() {
+    const PickIndex& index = pickIndex();
+    QSet<QString> out;
+    for (QGraphicsItem* it : scene()->selectedItems())
+        if (const PickIndex::Item item = index.itemOf(it); item.kind == PickIndex::Kind::Brick) out.insert(item.guid);
+    return out;
+}
+
+const MapView::PickIndex& MapView::pickIndex() {
+    PickIndex& index = pickIndex_;
+    const quint64 generation = builder_ ? builder_->generation() : 0;
+    if (index.generation == generation && index.map == map_.get()) return index;
+    index = PickIndex();
+    index.generation = generation;
+    ++pickIndexBuilds_;
+    index.map = map_.get();
+    for (QGraphicsItem* it : scene()->items()) {
+        const PickIndex::Item item = index.itemOf(it);
+        if (item.kind == PickIndex::Kind::Other) continue;
+        index.items.insert(it, item);
+        if (item.kind == PickIndex::Kind::Brick) index.bricks[item.guid] << it;
+        else if (item.kind == PickIndex::Kind::Ruler) {
+            if (!item.guid.isEmpty()) index.rulers[item.guid] << it;
+        } else {
+            index.glowing << it;
+        }
+    }
+    if (!map_) return index;
+    for (int i = 0; i < static_cast<int>(map_->layers().size()); ++i) {
+        const auto& L = map_->layers()[static_cast<size_t>(i)];
+        if (!L || L->kind() != core::LayerKind::Brick) continue;
+        const auto& BL = static_cast<const core::LayerBrick&>(*L);
+        // Each group's outermost group, worked out once per group.
+        QHash<QString, QString> topOfGroup;
+        PickIndex::Sheet& sheet = index.sheets[i];
+        for (const auto& b : BL.bricks) {
+            if (b.myGroupId.isEmpty()) continue;
+            auto top = topOfGroup.constFind(b.myGroupId);
+            if (top == topOfGroup.constEnd()) top = topOfGroup.insert(b.myGroupId, core::topGroup(BL, b.myGroupId));
+            if (top->isEmpty()) continue;
+            sheet.topsOf.insert(b.guid, *top);
+            sheet.partsIn[*top] << b.guid;
+        }
+    }
+    return index;
 }
 
 MapView::~MapView() {
@@ -2377,6 +2434,7 @@ void MapView::bendFlexTo(QPointF mouseStuds, bool final) {
 
 void MapView::refreshBendHandles() {
     if (flex_) return;  // the handles follow the bend; they're redone after it
+    ++bendHandleRefreshes_;
     const bool had = !bendHandles_.empty();
     bendHandles_.clear();
     bendItems_.clear();
@@ -2406,12 +2464,14 @@ void MapView::refreshBendHandles() {
         }
     }
     if (!bendHandles_.empty()) {
-        QSet<QString> wanted;
-        for (const auto& h : bendHandles_) wanted.insert(h.guid);
-        for (QGraphicsItem* item : scene()->items()) {
-            if (!isBrickItem(item)) continue;
-            const QString guid = item->data(kBrickDataGuid).toString();
-            if (wanted.contains(guid)) bendItems_.insert(guid, item);
+        const PickIndex& index = pickIndex();
+        for (const auto& h : bendHandles_) {
+            // The handle's part on its own sheet (a guid can repeat across sheets).
+            const QList<QGraphicsItem*> items = index.bricks.value(h.guid);
+            QGraphicsItem* item = items.isEmpty() ? nullptr : items.front();
+            for (QGraphicsItem* it : items)
+                if (it->data(kBrickDataLayerIndex).toInt() == h.layer) item = it;
+            if (item) bendItems_.insert(h.guid, item);
         }
     }
     if (!bendHandles_.empty() && !had) {

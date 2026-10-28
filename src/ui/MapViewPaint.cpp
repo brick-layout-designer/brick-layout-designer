@@ -291,13 +291,14 @@ void MapView::refreshSelectionOverlay() {
     // piece round its parts, where they are now (so it follows a drag), as
     // the web does; its parts get no outline each.
     QSet<QString> inPickedModule;
-    if (map_) {
+    if (map_ && !map_->sidecar.modules.empty()) {
         QSet<QString> picked;
         QHash<QString, QGraphicsItem*> itemOf;
+        const PickIndex& index = pickIndex();
         for (QGraphicsItem* it : scene()->selectedItems())
-            if (detail::isBrickItem(it)) {
-                picked.insert(it->data(detail::kBrickDataGuid).toString());
-                itemOf.insert(it->data(detail::kBrickDataGuid).toString(), it);
+            if (const PickIndex::Item item = index.itemOf(it); item.kind == PickIndex::Kind::Brick) {
+                picked.insert(item.guid);
+                itemOf.insert(item.guid, it);
             }
         for (const auto& m : map_->sidecar.modules) {
             if (m.id == editingModuleId_ || m.memberIds.isEmpty() || !picked.contains(m.memberIds)) continue;
@@ -313,18 +314,17 @@ void MapView::refreshSelectionOverlay() {
     // in another order would read as new ones (and repaint).
     QList<QGraphicsItem*> inOrder = scene()->selectedItems();
     std::sort(inOrder.begin(), inOrder.end(), std::less<>());
+    const PickIndex& index = pickIndex();
     for (QGraphicsItem* it : std::as_const(inOrder)) {
         if (!it || it == selectionOverlay_) continue;
-        if (detail::isBrickItem(it) && inPickedModule.contains(it->data(detail::kBrickDataGuid).toString()))
-            continue;
-        const QString kind = it->data(detail::kBrickDataKind).toString();
-        if (kind == QLatin1String("text") || kind == QLatin1String("label")) continue;
-        if (isRulerItem(it)) {
-            const QString guid = it->data(kBrickDataGuid).toString();
+        const PickIndex::Item item = index.itemOf(it);
+        if (item.kind == PickIndex::Kind::Brick && inPickedModule.contains(item.guid)) continue;
+        if (item.kind == PickIndex::Kind::Text || item.kind == PickIndex::Kind::Label) continue;
+        if (item.kind == PickIndex::Kind::Ruler) {
+            const QString& guid = item.guid;
             if (!guid.isEmpty() && rulerGuidsSeen.contains(guid)) continue;
             rulerGuidsSeen.insert(guid);
-            for (QGraphicsItem* any : scene()->items()) {
-                if (!isRulerItem(any) || any->data(kBrickDataGuid).toString() != guid) continue;
+            for (QGraphicsItem* any : index.rulers.value(guid)) {
                 const QVariant geo = any->data(rendering::SceneBuilder::kRulerBandRole);
                 if (!geo.isValid()) continue;
                 SelectionOverlay::RulerBand band;
@@ -342,7 +342,7 @@ void MapView::refreshSelectionOverlay() {
             }
             continue;
         }
-        if (detail::isBrickItem(it)) {
+        if (item.kind == PickIndex::Kind::Brick) {
             // Imported parts: their real outline, not the picture's box.
             const QString part = it->data(rendering::SceneBuilder::kBrickPartRole).toString();
             if (!part.isEmpty() && parts_.isImported(part)) {
@@ -377,9 +377,7 @@ void MapView::refreshSelectionOverlay() {
         polys.append(poly);
     }
     // Selected text and labels glow gold; the rest lose their glow.
-    for (QGraphicsItem* it : scene()->items()) {
-        const QString kind = it->data(detail::kBrickDataKind).toString();
-        if (kind != QLatin1String("text") && kind != QLatin1String("label")) continue;
+    for (QGraphicsItem* it : index.glowing) {
         const bool glow = it->isSelected();
         if (glow == (it->graphicsEffect() != nullptr)) continue;
         if (!glow) {

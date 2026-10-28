@@ -38,6 +38,8 @@ public:
     // Rebuild the table from the currently-bound map. Auto-called on
     // undo-stack changes; callers shouldn't need to call this directly.
     void refresh();
+    // How many times the list has been counted again (tests).
+    int refreshCount() const { return refreshes_; }
 
     // Show limits and over-budget warnings from this budget.
     void setBudget(BudgetSession* budget);
@@ -53,10 +55,11 @@ private:
     QLineEdit*   filterE_  = nullptr;
     QLabel*      summary_  = nullptr;
     QAction*     selectAllOfPartAct_ = nullptr;
-    // Scaled row icons by part key. refresh() runs on every selection
-    // change, so re-decoding + smooth-scaling each sprite there made
-    // plain clicks on the map lag on layouts with many distinct parts.
+    // Scaled row icons by part key: re-decoding + smooth-scaling each
+    // sprite on every refresh made edits on the map lag on layouts with
+    // many distinct parts.
     QHash<QString, QIcon> iconCache_;
+    int refreshes_ = 0;
 
     void selectAllBricksOfCurrentRow();
     QString filterText() const;

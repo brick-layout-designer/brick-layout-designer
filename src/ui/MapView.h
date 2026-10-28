@@ -158,6 +158,10 @@ public:
     void selectItems(const QList<QGraphicsItem*>& items, bool replace = true);
     // How many times the view has said selectionChanged (the perf tests count work).
     int selectionChangeCount() const { return selectionChanges_; }
+    // And how many times it has walked every scene item to index them for
+    // picking, and worked out the bend handles (the same tests).
+    int pickIndexBuilds() const { return pickIndexBuilds_; }
+    int bendHandleRefreshes() const { return bendHandleRefreshes_; }
     // Grid lines the last background paint drew. Lines closer on screen
     // than these are left out: the sub-grid's, then the grid's.
     int gridLinesDrawn() const { return gridLinesDrawn_; }
@@ -583,6 +587,7 @@ private:
     // before it's committed. Cleared before the scene is rebuilt.
     QHash<QString, QGraphicsItem*> bendItems_;
     QPointF bendHandleScene(const BendHandle& h) const;
+    bool bendHandlesWaiting_ = false;  // picked with a box still being dragged out
     bool flexFromHandle_ = false;
     bool overBendHandle_ = false;
     void refreshBendHandles();
@@ -692,6 +697,39 @@ private:
     // Redrawn whenever scene()->selectionChanged fires.
     SelectionOverlay* selectionOverlay_ = nullptr;
     int selectionChanges_ = 0;
+    // What a pick needs to find fast, built once per scene build instead of
+    // walking every item and part on each change of the selection (a box
+    // pick over 5,000 parts said selectionChanged on every mouse move, and
+    // each time walked them all several times over).
+    struct PickIndex {
+        quint64 generation = 0;
+        const core::Map* map = nullptr;
+        // A picked item's kind and guid, without reading its data() (a
+        // lookup in a scene-wide table, and a QVariant, each time).
+        enum class Kind : quint8 { Other, Brick, Ruler, Text, Label };
+        struct Item {
+            Kind kind = Kind::Other;
+            QString guid;
+        };
+        QHash<const QGraphicsItem*, Item> items;
+        Item itemOf(const QGraphicsItem* it) const;  // (from data() if not in here)
+        QHash<QString, QList<QGraphicsItem*>> bricks;  // part guid -> its items
+        QHash<QString, QList<QGraphicsItem*>> rulers;  // ruler guid -> its pieces
+        QList<QGraphicsItem*> glowing;                 // text and labels (they glow when picked)
+        // Per sheet (by index): a grouped part's outermost groups, and the
+        // parts each outermost group holds.
+        struct Sheet {
+            QMultiHash<QString, QString> topsOf;
+            QHash<QString, QStringList> partsIn;
+        };
+        QHash<int, Sheet> sheets;
+    };
+    PickIndex pickIndex_;
+    int pickIndexBuilds_ = 0;
+    int bendHandleRefreshes_ = 0;
+    const PickIndex& pickIndex();
+    // The guids of the parts picked now.
+    QSet<QString> pickedParts();
     int gridLinesDrawn_ = 0;
     void refreshSelectionOverlay();
 

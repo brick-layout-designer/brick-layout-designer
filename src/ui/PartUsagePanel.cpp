@@ -116,10 +116,11 @@ void PartUsagePanel::bindMapView(MapView* view) {
                 this, [this](int){ refresh(); });
         // File-open replaces the map entirely — undoStack::indexChanged
         // doesn't fire if the stack was already empty, so also listen
-        // to selectionChanged + layersChanged, which MapView::loadMap
-        // emits on every successful load. Layers-changed also covers
-        // add/delete layer.
-        connect(mapView_, &MapView::selectionChanged,
+        // to mapLoaded (every load) + layersChanged (add/delete layer).
+        // Not selectionChanged: picking doesn't change what's used, and a
+        // box pick says it on every mouse move (a recount of 5,000 parts
+        // each time).
+        connect(mapView_, &MapView::mapLoaded,
                 this, [this]{ refresh(); });
         connect(mapView_, &MapView::layersChanged,
                 this, [this]{ refresh(); });
@@ -139,6 +140,7 @@ void PartUsagePanel::setBudget(BudgetSession* budget) {
 
 void PartUsagePanel::refresh() {
     if (!table_) return;
+    ++refreshes_;
     table_->setSortingEnabled(false);
     table_->clearContents();
 
