@@ -10,7 +10,10 @@
 namespace bld::sync {
 
 std::optional<double> zOf(const QJsonValue& item) {
-    const QJsonValue z = item.toObject().value(QLatin1String("z"));
+    // (a QString key: a QLatin1String one is turned into a QString on every
+    // lookup, which on 5,000 parts added up)
+    static const QString kZ = QStringLiteral("z");
+    const QJsonValue z = item.toObject().value(kZ);
     if (!z.isDouble() || !std::isfinite(z.toDouble())) return std::nullopt;
     return z.toDouble();
 }

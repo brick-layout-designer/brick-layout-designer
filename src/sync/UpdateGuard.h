@@ -22,6 +22,7 @@
 // A refused update is never handed to yrs, so it can't be half applied.
 
 #include <QByteArray>
+#include <QHash>
 #include <QString>
 
 namespace bld::sync::guard {
@@ -37,12 +38,21 @@ constexpr qsizetype kMaxUpdateBytes = 64 * kMiB;
 // layout model nests 5 deep.
 constexpr int kMaxNesting = 256;
 
-// Empty when `update` (Yjs update v1, as y-websocket sends it) may go to
-// yrs; otherwise why not, for the log.
-QString checkUpdate(const QByteArray& update);
+// Where an update's blocks start, by client, and whether it skips any
+// (a Skip block: a gap in one client's run).
+struct UpdateClocks {
+    QHash<quint64, quint64> firstClock;
+    bool skips = false;
+};
 
-// The same for a state vector (sync step 1).
-QString checkStateVector(const QByteArray& stateVector);
+// Empty when `update` (Yjs update v1, as y-websocket sends it) may go to
+// yrs; otherwise why not, for the log. With `clocks`, also where its
+// blocks start.
+QString checkUpdate(const QByteArray& update, UpdateClocks* clocks = nullptr);
+
+// The same for a state vector (sync step 1), and with `clocks` its clock
+// by client.
+QString checkStateVector(const QByteArray& stateVector, QHash<quint64, quint64>* clocks = nullptr);
 
 // How much work yrs does applying an update, as the server works it out
 // (web apps/server/src/ws/yjsWork.ts): one step per block each deleted

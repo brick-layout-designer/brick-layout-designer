@@ -11,6 +11,8 @@
 
 #include <QJsonArray>
 
+#include <iterator>
+
 namespace bld::sync {
 
 namespace {
@@ -64,7 +66,43 @@ void rulerBase(QJsonObject& o, const core::RulerItemBase& r) {
     o.insert(QStringLiteral("measureFontColor"), color(r.measureFontColor));
 }
 
-QJsonObject layer(const core::Layer& l) {
+// What a part's JSON is made from, and nothing else: equal fields, equal JSON.
+PartJsonMemo::Fields fieldsOf(const core::Brick& b) {
+    PartJsonMemo::Fields f;
+    f.id = b.guid;
+    f.group = b.myGroupId;
+    f.partNumber = b.partNumber;
+    f.x = b.displayArea.x();
+    f.y = b.displayArea.y();
+    f.width = b.displayArea.width();
+    f.height = b.displayArea.height();
+    f.orientation = b.orientation;
+    f.altitude = b.altitude;
+    f.activeConnection = b.activeConnectionPointIndex;
+    f.links.reserve(b.connections.size());
+    for (const auto& c : b.connections) f.links.emplace_back(c.guid, c.linkedToId);
+    return f;
+}
+
+QJsonObject partJson(const PartJsonMemo::Fields& f) {
+    QJsonArray links;
+    for (const auto& [id, linkedTo] : f.links)
+        links.append(QJsonObject{ { QStringLiteral("id"), id }, { QStringLiteral("linkedTo"), linkedTo } });
+    return {
+        { QStringLiteral("id"), f.id },
+        { QStringLiteral("displayArea"), QJsonObject{ { QStringLiteral("x"), f.x }, { QStringLiteral("y"), f.y },
+                                                      { QStringLiteral("width"), f.width },
+                                                      { QStringLiteral("height"), f.height } } },
+        { QStringLiteral("myGroup"), f.group },
+        { QStringLiteral("partNumber"), f.partNumber },
+        { QStringLiteral("orientation"), static_cast<double>(f.orientation) },
+        { QStringLiteral("activeConnectionPointIndex"), f.activeConnection },
+        { QStringLiteral("altitude"), static_cast<double>(f.altitude) },
+        { QStringLiteral("connexions"), links },
+    };
+}
+
+QJsonObject layer(const core::Layer& l, PartJsonMemo* memo) {
     QJsonObject o{
         { QStringLiteral("id"), l.guid },
         { QStringLiteral("name"), l.name },
@@ -100,17 +138,8 @@ QJsonObject layer(const core::Layer& l) {
         o.insert(QStringLiteral("displayBrickElevation"), b.displayBrickElevation);
         QJsonArray bricks;
         for (const auto& brick : b.bricks) {
-            QJsonObject bo;
-            item(bo, brick);
-            bo.insert(QStringLiteral("partNumber"), brick.partNumber);
-            bo.insert(QStringLiteral("orientation"), static_cast<double>(brick.orientation));
-            bo.insert(QStringLiteral("activeConnectionPointIndex"), brick.activeConnectionPointIndex);
-            bo.insert(QStringLiteral("altitude"), static_cast<double>(brick.altitude));
-            QJsonArray links;
-            for (const auto& c : brick.connections)
-                links.append(QJsonObject{ { QStringLiteral("id"), c.guid }, { QStringLiteral("linkedTo"), c.linkedToId } });
-            bo.insert(QStringLiteral("connexions"), links);
-            bricks.append(bo);
+            PartJsonMemo::Fields f = fieldsOf(brick);
+            bricks.append(memo ? memo->json(std::move(f)) : partJson(f));
         }
         o.insert(QStringLiteral("bricks"), bricks);
         o.insert(QStringLiteral("groups"), groups(b.groups));
@@ -185,7 +214,51 @@ QJsonObject layer(const core::Layer& l) {
 
 }  // namespace
 
-QJsonObject docJsonFromMap(const core::Map& map) {
+bool PartJsonMemo::changed(const QString& id) const {
+    const auto it = entries_.constFind(id);
+    return it == entries_.constEnd() || it->seen != call_ || it->changed || it->repeated;
+}
+
+void PartJsonMemo::startCall() { ++call_; }
+
+QJsonObject PartJsonMemo::json(Fields&& fields) {
+    auto it = entries_.find(fields.id);
+    if (it == entries_.end()) {
+        const QString id = fields.id;
+        Entry fresh;
+        fresh.seen = call_;
+        fresh.json = partJson(fields);
+        fresh.fields = std::move(fields);
+        return entries_.insert(id, std::move(fresh))->json;
+    }
+    Entry& e = *it;
+    if (e.seen == call_) {  // a second part with this id
+        e.repeated = true;
+        e.changed = true;
+        e.fields = std::move(fields);
+        e.json = partJson(e.fields);
+        return e.json;
+    }
+    const bool wasRepeated = e.repeated || e.seen + 1 != call_;  // (or not seen in the call before)
+    e.seen = call_;
+    e.repeated = false;
+    e.changed = wasRepeated || !(e.fields == fields);
+    if (e.changed) {
+        e.fields = std::move(fields);
+        e.json = partJson(e.fields);
+    }
+    return e.json;
+}
+
+void PartJsonMemo::endCall(qsizetype parts) {
+    // Parts gone since: forgotten once they outnumber the ones there.
+    if (entries_.size() <= 2 * parts + 64) return;
+    for (auto it = entries_.begin(); it != entries_.end();)
+        it = it->seen == call_ ? std::next(it) : entries_.erase(it);
+}
+
+QJsonObject docJsonFromMap(const core::Map& map, PartJsonMemo* memo) {
+    if (memo) memo->startCall();
     const auto& ex = map.exportInfo;
     const QJsonObject meta{
         { QStringLiteral("version"), map.dataVersion },
@@ -209,7 +282,13 @@ QJsonObject docJsonFromMap(const core::Map& map) {
     for (const auto& l : map.layers()) {
         if (l->kind() == core::LayerKind::AnchoredText) continue;  // sidecar data, not a doc layer
         order.append(l->guid);
-        data.insert(l->guid, layer(*l));
+        data.insert(l->guid, layer(*l, memo));
+    }
+    if (memo) {
+        qsizetype parts = 0;
+        for (const auto& l : map.layers())
+            if (l->kind() == core::LayerKind::Brick) parts += static_cast<qsizetype>(static_cast<const core::LayerBrick&>(*l).bricks.size());
+        memo->endCall(parts);
     }
     return { { QStringLiteral("meta"), meta }, { QStringLiteral("layers"), order }, { QStringLiteral("layerData"), data } };
 }
