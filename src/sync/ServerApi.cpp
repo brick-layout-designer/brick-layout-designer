@@ -96,6 +96,10 @@ QJsonObject jsonOf(QNetworkReply* r) { return QJsonDocument::fromJson(r->readAll
 
 ServerApi::ServerApi(QObject* parent) : QObject(parent) {
     poll_.setSingleShot(true);
+    // RFC 8628 §3.5: never poll before the interval is up, or the server says
+    // slow_down and the wait grows. A coarse timer may fire early (up to 5%,
+    // and on Windows up to a ~15.6 ms system tick); a precise one doesn't.
+    poll_.setTimerType(Qt::PreciseTimer);
     connect(&poll_, &QTimer::timeout, this, &ServerApi::pollToken);
 }
 
